@@ -1,3 +1,4 @@
+---
 # SPDX-FileCopyrightText: none
 # SPDX-License-Identifier: CC0-1.0
 #
@@ -8,14 +9,12 @@
 # or to provide custom queries or build logic.
 name: "CodeQL"
 
-on:
+on:  # yamllint disable-line rule:truthy
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
     # The branches below must be a subset of the branches above
-    branches: [master]
-  schedule:
-    - cron: '0 8 * * 1'
+    branches: [main]
 
 jobs:
   analyze:
