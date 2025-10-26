@@ -121,9 +121,9 @@ def find_shell_download(connection, data, report_incidents=True):
     return urls
 
 def xor(data, key):
-    l = len(key)
+    keylength = len(key)
     return bytearray(
-        (data[i] ^ key[i % l]) for i in range(0, len(data))
+        (data[i] ^ key[i % keylength]) for i in range(0, len(data))
     )
 
 def calculate_doublepulsar_opcode(t):
