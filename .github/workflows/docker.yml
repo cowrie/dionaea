@@ -64,9 +64,9 @@ jobs:
           elif [ "${{ github.event_name }}" = "push" ]; then
             TAGS="$TAGS,${DOCKER_IMAGE}:sha-${GITHUB_SHA::8}"
           fi
-          echo ::set-output name=version::${VERSION}
-          echo ::set-output name=tags::${TAGS}
-          echo ::set-output name=created::$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+#          echo ::set-output name=version::${VERSION}
+#          echo ::set-output name=tags::${TAGS}
+#          echo ::set-output name=created::$(date -u +'%Y-%m-%dT%H:%M:%SZ')
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -89,7 +89,7 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.prep.outputs.tags }}
+#          tags: ${{ steps.prep.outputs.tags }}
 #          labels: |
 #            org.opencontainers.image.title=${{ fromJson(steps.repo.outputs.result).name }}
 #            org.opencontainers.image.description=${{ fromJson(steps.repo.outputs.result).description }}
