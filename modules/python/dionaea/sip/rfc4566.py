@@ -54,7 +54,7 @@ class Attribute(object):
         self.attribute = attribute
         self.value = value
         # we need at least a name
-        if self.attribute == None or self.attribute == b"":
+        if self.attribute is None or self.attribute == b"":
             raise ValueError("Attribute name is empty")
 
     @classmethod
@@ -260,7 +260,7 @@ class Media(object):
         self.number_of_ports = number_of_ports
         self.proto = proto
         self.fmt = fmt
-        if attributes == None:
+        if attributes is None:
             attributes = Attributes()
         self.attributes = attributes
 
@@ -300,7 +300,7 @@ class Media(object):
 
         ports = int2bytes(self.port)
 
-        if self.number_of_ports != None:
+        if self.number_of_ports is not None:
             ports = ports + b"/" + int2bytes(self.number_of_ports)
 
         return b" ".join([self.media, ports, self.proto, fmt])
@@ -458,7 +458,7 @@ class SDP(object):
         ret = []
         for k in self._attributes_allowed:
             v = self._attributes[k]
-            if v == None:
+            if v is None:
                 continue
 
             if type(v) != list and type(v) != Attributes:

@@ -286,7 +286,7 @@ class ASN1F_SEQUENCE_OF(ASN1F_SEQUENCE):
         while s1:
             try:
                 p = self.asn1pkt(s1)
-            except ASN1F_badsequence as e:
+            except ASN1F_badsequence:
                 lst.append(packet.Raw(s1))
                 break
             lst.append(p)

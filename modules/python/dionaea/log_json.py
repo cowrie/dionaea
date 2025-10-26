@@ -54,7 +54,7 @@ class HTTPHandler(object):
             }
         )
         # ToDo: parse response
-        response = urlopen(req)
+        urlopen(req)
         # Debug:
         #from pprint import pprint
         #pprint(response)

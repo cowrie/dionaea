@@ -4,8 +4,8 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-from dionaea.smb.include.packet import Packet, bind_bottom_up
-from dionaea.smb.include.fieldtypes import ByteField, StrNullField, LEIntField, PacketLenField, LELongField
+from dionaea.smb.include.packet import Packet
+from dionaea.smb.include.fieldtypes import StrNullField, LEIntField, LELongField
 
 
 class MsgCommand(Packet):

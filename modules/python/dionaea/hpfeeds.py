@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 from dionaea import IHandlerLoader, Timer
-from dionaea.core import ihandler, incident, g_dionaea, connection
+from dionaea.core import ihandler, incident, connection
 from dionaea.util import sha512file
 
 import os
@@ -262,7 +262,7 @@ class hpfeedihandler(ihandler):
             reconnect_timeout = self.default_reconnect_timeout
         try:
             reconnect_timeout = float(reconnect_timeout)
-        except (TypeError, ValueError) as e:
+        except (TypeError, ValueError):
             logger.warn("Unable to convert value '%s' for reconnect timeout to float" % reconnect_timeout)
             reconnect_timeout = self.default_reconnect_timeout
 
@@ -271,7 +271,7 @@ class hpfeedihandler(ihandler):
             port = self.default_port
         try:
             port = int(port)
-        except (TypeError, ValueError) as e:
+        except (TypeError, ValueError):
             logger.warn("Unable to convert value '%s' for port to int" % port)
             port = self.default_port
 

@@ -96,7 +96,7 @@ class p0fhandler(ihandler):
             logger.debug("p0f action")
 #           icd.dump()
             con = icd.get('con')
-            p = p0fconnection(self.p0fpath, con)
+            p0fconnection(self.p0fpath, con)
 
 
 

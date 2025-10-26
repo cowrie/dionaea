@@ -4,11 +4,10 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-from dionaea.core import ihandler, incident, g_dionaea
+from dionaea.core import ihandler
 from dionaea import IHandlerLoader
 
 import logging
-import socket
 import boto3
 
 logger = logging.getLogger('s3')

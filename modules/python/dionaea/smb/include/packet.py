@@ -18,7 +18,7 @@ logger = logging.getLogger('scapy')
 logger.setLevel(logging.DEBUG)
 
 
-from .fieldtypes import StrField,ConditionalField,Emph
+from .fieldtypes import StrField,ConditionalField
 from .helpers import VolatileValue, Gen, SetGen, BasePacket
 
 
@@ -231,7 +231,8 @@ class Packet(BasePacket, metaclass=Packet_metaclass):
         if attr in self.default_fields:
             fld = self.get_field(attr)
             if fld is None:
-                any2i = lambda x,y: y
+                def any2i(x, y):
+                    return y
             else:
                 any2i = fld.any2i
             self.fields[attr] = any2i(self, val)

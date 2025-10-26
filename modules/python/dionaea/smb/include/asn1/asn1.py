@@ -88,7 +88,7 @@ class ASN1Tag(EnumElement):
     def __init__(self, key, value, context=None, codec=None):
         EnumElement.__init__(self, key, value)
         self._context = context
-        if codec == None:
+        if codec is None:
             codec = {}
         self._codec = codec
     def clone(self): # /!\ not a real deep copy. self.codec is shared
@@ -105,7 +105,7 @@ class ASN1Tag(EnumElement):
     def get_codec(self, codec):
         try:
             c = self._codec[type(codec)]
-        except KeyError as msg:
+        except KeyError:
             raise ASN1_Error("Codec %r not found for tag %r" % (codec, self))
         return c
 

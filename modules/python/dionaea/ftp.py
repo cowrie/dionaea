@@ -63,7 +63,7 @@
 
 # ftp server
 from dionaea import ServiceLoader
-from dionaea.core import connection, ihandler, g_dionaea, incident
+from dionaea.core import connection, incident
 from dionaea.exception import ServiceConfigError
 import logging
 import os

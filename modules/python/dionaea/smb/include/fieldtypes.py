@@ -188,7 +188,7 @@ class MACField(Field):
     def m2i(self, pkt, x):
         return str2mac(x)
     def any2i(self, pkt, x):
-        if type(x) is str and len(x) is 6:
+        if type(x) is str and len(x) == 6:
             x = self.m2i(pkt, x)
         return x
     def i2repr(self, pkt, x):
@@ -993,7 +993,7 @@ class FlagsField(BitField):
         BitField.__init__(self, name, default, size)
     def any2i(self, pkt, x):
         if type(x) is str:
-            if self.rnames == None:
+            if self.rnames is None:
                 for i in self.names:
                     self.rnames[self.names[i]] = i
             x = x.split("+")

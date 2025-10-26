@@ -136,7 +136,7 @@ class logsqlhandler(ihandler):
                 try:
                     self.cursor.execute("INSERT INTO dcerpcservices (dcerpcservice_name, dcerpcservice_uuid) VALUES (?,?)",
                                         (name, str(UUID(hex=servicecls.uuid))) )
-                except Exception as e:
+                except Exception:
                     #                    print("dcerpcservice %s existed %s " % (servicecls.uuid, e) )
                     pass
 
@@ -213,7 +213,7 @@ class logsqlhandler(ihandler):
             self.cursor.execute(
                 """ALTER TABLE emu_services RENAME TO emu_services_old""")
             update = True
-        except Exception as e:
+        except Exception:
             logger.debug("... not required")
             update = False
 
@@ -227,7 +227,7 @@ class logsqlhandler(ihandler):
 
         # 2) copy all values to proper table, drop old table
         try:
-            if update == True:
+            if update:
                 self.cursor.execute("""
                     INSERT INTO
                         emu_services (emu_service, connection, emu_service_url)
@@ -261,7 +261,7 @@ class logsqlhandler(ihandler):
             self.cursor.execute(
                 """ALTER TABLE downloads RENAME TO downloads_old""")
             update = True
-        except Exception as e:
+        except Exception:
             #            print(e)
             logger.debug("... not required")
             update = False
@@ -277,7 +277,7 @@ class logsqlhandler(ihandler):
 
         # 2) copy all values to proper table, drop old table
         try:
-            if update == True:
+            if update:
                 self.cursor.execute("""
                     INSERT INTO
                         downloads (download, connection, download_url, download_md5_hash)
@@ -584,7 +584,7 @@ class logsqlhandler(ihandler):
                                     dcerpcs""")
             self.cursor.execute("""DROP TABLE dcerpcs""")
             logger.debug("... done")
-        except Exception as e:
+        except Exception:
             #            print(e)
             logger.debug("... not required")
 
@@ -616,7 +616,7 @@ class logsqlhandler(ihandler):
 
     def connection_insert(self, icd, connection_type):
         con=icd.con
-        r = self.cursor.execute("INSERT INTO connections (connection_timestamp, connection_type, connection_transport, connection_protocol, local_host, local_port, remote_host, remote_hostname, remote_port) VALUES (?,?,?,?,?,?,?,?,?)",
+        self.cursor.execute("INSERT INTO connections (connection_timestamp, connection_type, connection_transport, connection_protocol, local_host, local_port, remote_host, remote_hostname, remote_port) VALUES (?,?,?,?,?,?,?,?,?)",
                                 (time.time(), connection_type, con.transport, con.protocol, con.local.host, con.local.port, con.remote.host, con.remote.hostname, con.remote.port) )
         attackid = self.cursor.lastrowid
         self.attacks[con] = (attackid, attackid)
@@ -718,7 +718,7 @@ class logsqlhandler(ihandler):
             logger.info("child has ids %s" % str(self.attacks[icd.child]))
             logger.info("child %i parent %i root %i" %
                         (childid, parentid, parentroot) )
-            r = self.cursor.execute("UPDATE connections SET connection_root = ?, connection_parent = ? WHERE connection = ?",
+            self.cursor.execute("UPDATE connections SET connection_root = ?, connection_parent = ? WHERE connection = ?",
                                     (parentroot, parentid, childid) )
             self.dbh.commit()
 

@@ -553,7 +553,7 @@ class SipCall(connection):
         except:
             func = None
 
-        if func is not None and callable(func) == True:
+        if func is not None and callable(func):
             func(msg)
 
 
@@ -615,7 +615,7 @@ class SipSession(connection):
             # SIP-Servers like Asterisk do it the same way.
             len_used = len(data)
 
-            if not b"\n\r\n" in data and not b"\n\n" in data:
+            if b"\n\r\n" not in data and b"\n\n" not in data:
                 data = data + b"\n\r\n"
 
             # all lines must end with \r\n

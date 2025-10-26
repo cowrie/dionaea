@@ -882,7 +882,7 @@ class TftpClient(TftpSession):
         self.idlecount = 0
 
     def __del__(self):
-        if self.con != None:
+        if self.con is not None:
             self.con.unref()
             self.con = None
 
@@ -901,12 +901,12 @@ class TftpClient(TftpSession):
         self.port = port
         self.con = con
         self.url = url
-        if con != None:
+        if con is not None:
             self.bind(con.local.host, 0)
             self.con.ref()
 
         self.connect(host,0)
-        if con != None:
+        if con is not None:
             i = incident("dionaea.connection.link")
             i.parent = con
             i.child = self
@@ -936,10 +936,10 @@ class TftpClient(TftpSession):
         logger.debug('Received packet from server %s:%i' %
                      (self.remote.host, self.remote.port))
 
-        if self.connected == False:
+        if not self.connected:
             self.connect(self.remote.host, self.remote.port)
             self.connected = True
-            if self.con != None:
+            if self.con is not None:
                 i = incident("dionaea.connection.link")
                 i.parent = self.con
                 i.child = self
@@ -1098,7 +1098,7 @@ class tftpdownloadhandler(ihandler):
         if isinstance(url, bytes):
             try:
                 url = url.decode(encoding="utf-8")
-            except UnicodeEncodeError as e:
+            except UnicodeEncodeError:
                 logger.warning("Error decoding URL %s", url, exc_info=True)
                 return
 

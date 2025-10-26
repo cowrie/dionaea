@@ -687,7 +687,7 @@ class RoomHandler(MucRoomHandler):
 
 #			print(sdp)
 
-        except Exception as e:
+        except Exception:
             import traceback
             traceback.print_exc()
             return
@@ -1049,7 +1049,7 @@ while True:
         c.disconnect()
         print(u"exiting...")
         break
-    except Exception as e:
+    except Exception:
         import traceback
         traceback.print_exc()
         continue

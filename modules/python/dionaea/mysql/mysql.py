@@ -93,7 +93,7 @@ class mysqld(connection):
 
     def _handle_COM_INIT_DB(self, p):
         Database = p.Database.decode('utf-8')
-        if self._open_db(Database) == True:
+        if self._open_db(Database):
             return MySQL_Result_OK()
         else:
             return MySQL_Result_Error(Message="No such database")
@@ -338,7 +338,7 @@ class mysqld(connection):
             logger.info("Looks like someone tries to dump a hex encoded file")
             try:
                 data = bytearray.fromhex(query[0][2:].decode("ascii"))
-            except UnicodeDecodeError as e:
+            except UnicodeDecodeError:
                 logger.warning("Unable to decode hex string %r", query[0][2:], exc_info=True)
                 return False
 
@@ -449,7 +449,7 @@ class mysqld(connection):
                     Database = p.DatabaseName[:-1]
                     if type(Database) == str:
                         Database = Database.encode('ascii')
-                    if self._open_db(Database) == True:
+                    if self._open_db(Database):
                         r = MySQL_Result_Error(Message="Could not open Database %s" % Database)
                     else:
                         r = MySQL_Result_OK()

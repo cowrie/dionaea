@@ -21,7 +21,7 @@ from uuid import UUID
 from .include.smbfields import *
 from .rpcservices import __shares__
 from .include.gssapifields import GSSAPI,SPNEGO, NegTokenTarg
-from .include.ntlmfields import NTLMSSP_Header, NTLM_Negotiate, NTLM_Challenge, NTLMSSP_REQUEST_TARGET
+from .include.ntlmfields import NTLMSSP_Header, NTLM_Negotiate, NTLM_Challenge
 from .include.packet import Raw
 from .include.asn1.ber import BER_len_dec, BER_len_enc, BER_identifier_dec
 from .include.asn1.ber import BER_CLASS_APP, BER_CLASS_CON,BER_identifier_enc
@@ -258,7 +258,7 @@ class smbd(connection):
                         sb = spnego.NegotiationToken.mechToken.__str__()
                         try:
                             cls,pc,tag,sb = BER_identifier_dec(sb)
-                        except BER_Exception as e:
+                        except BER_Exception:
                             smblog.warning("BER Exception", exc_info=True)
                             return rp
                         l,sb = BER_len_dec(sb)
@@ -640,9 +640,9 @@ class smbd(connection):
                     self.buf2 = self.buf2 + h.Data
                     key = bytearray([0x52, 0x73, 0x36, 0x5E])
                     xor_output = xor(self.buf2, key)
-                    hash_buf2 = hashlib.md5(self.buf2);
+                    hash_buf2 = hashlib.md5(self.buf2)
                     smblog.info('DoublePulsar payload - MD5 (before XOR decryption): %s' % (hash_buf2.hexdigest()))
-                    hash_xor_output = hashlib.md5(xor_output);
+                    hash_xor_output = hashlib.md5(xor_output)
                     smblog.info('DoublePulsar payload - MD5 (after XOR decryption ): %s' % (hash_xor_output.hexdigest()))
 
                     # payload = some data(shellcode or code to load the executable) + executable itself

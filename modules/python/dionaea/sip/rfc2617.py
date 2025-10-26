@@ -143,8 +143,10 @@ class Authentication(object):
         return (l, ret)
 
 # :See: http://tools.ietf.org/html/rfc2617#page-10
-H = lambda d: bytes(hashlib.md5(d).hexdigest(), "utf-8")
-KD = lambda secret, data: H(secret + b":" + data)
+def H(d):
+    return bytes(hashlib.md5(d).hexdigest(), "utf-8")
+def KD(secret, data):
+    return H(secret + b":" + data)
 
 
 def create_digest(algorithm = None, cnonce = None, method = None, nonce = None, password = None, realm = None, uri = None, username = None):

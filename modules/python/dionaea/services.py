@@ -42,7 +42,7 @@ class slave():
 
                         try:
                             daemons = service.start(addr, iface=iface, config=srv.get("config", {}))
-                        except Exception as e:
+                        except Exception:
                             logger.warning("Unable to start service", exc_info=True)
                             continue
                         if isinstance(daemons, (list, tuple)):
@@ -79,7 +79,7 @@ class nlslave(ihandler):
                             print(service)
                             try:
                                 daemons = service.start(addr, iface=iface, config=srv.get("config", {}))
-                            except Exception as e:
+                            except Exception:
                                 logger.warning("Unable to start service", exc_info=True)
                                 continue
                             if isinstance(daemons, (list, tuple)):

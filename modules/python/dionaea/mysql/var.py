@@ -4,9 +4,7 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-import random
 from collections import OrderedDict
-from datetime import datetime
 
 CFG_VARS = [
     {

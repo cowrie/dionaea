@@ -24,7 +24,7 @@ class CMDShellHandlerLoader(IHandlerLoader):
 class cmdexe:
     def __init__(self, w):
         self.specials = [' ', '\t', '"', '\\']
-        if not w == None:
+        if w is not None:
             self.send = w
         else:
             self.send = self.void
@@ -53,8 +53,8 @@ class cmdexe:
         return dlen-len(data)
 
     def redir (self, out, err, redir):
-        if out != None:
-            if redir != None:
+        if out is not None:
+            if redir is not None:
                 redir = redir.decode()
                 redir = redir.strip()
                 if redir.startswith('>>'):
@@ -66,14 +66,14 @@ class cmdexe:
                 if target:
                     target = target.strip()
                     target = target.rstrip()
-                    if not target in self.files:
+                    if target not in self.files:
                         self.files[target] = ""
                     self.files[target] += out
                     logger.debug("file %s = %s" % (target,self.files[target]))
             else:
                 self.send(out)
 
-        if err != None:
+        if err is not None:
             self.send(err)
 
     def execute(self, cmd, args):
@@ -127,10 +127,10 @@ class cmdexe:
                         user = 'anonymous'
                         passwd = 'guest'
             else:
-                if host != False:
+                if host:
                     host = args[i]
 
-        if cmdfile == None:
+        if cmdfile is None:
             return "failed downloading",None
 
         file = self.files[cmdfile]
@@ -154,12 +154,12 @@ class cmdexe:
                             port = int(args[2])
                         else:
                             port = 21
-                    if autoconnect == True and user == None:
+                    if autoconnect and user is None:
                         state = 'NEXT_IS_USER'
                     else:
                         state = 'NEXT_IS_SOMETHING'
                 elif args[0] == 'user':
-                    if user != None:
+                    if user is not None:
                         logger.debug("State error USER")
                     else:
                         if len(args) >= 1:
@@ -199,7 +199,7 @@ class cmdexe:
                     port = args[2]
                 else:
                     port = 21
-                if user == None:
+                if user is None:
                     state = 'NEXT_IS_USER'
                 else:
                     state = 'NEXT_IS_SOMETHING'
@@ -292,17 +292,17 @@ class cmdexe:
                 break
         argstr = line
 
-        if cmd != None:
+        if cmd is not None:
             cmd = cmd.decode()
 
         escape = False
         for i in range(len(line)):
             if line[i] == ord('^'):
-                if escape == False:
-                    escape == True
+                if not escape:
+                    escape
                 else:
-                    escape == False
-            elif ( line[i] == ord('>') and escape == False):
+                    not escape
+            elif ( line[i] == ord('>') and not escape):
                 argstr = line[:i]
                 redir = line[i:]
                 break
@@ -318,11 +318,11 @@ class cmdexe:
         escape = False
         for i in range(len(data)):
             if int(data[i]) == ord('^'):
-                if escape == False:
-                    escape == True
+                if not escape:
+                    escape
                 else:
-                    escape == False
-            elif ( (data[i] == ord(';') and escape == False)
+                    not escape
+            elif ( (data[i] == ord(';') and not escape)
                     or data[i] == ord('&')
                     or data[i] == ord('\0')
                     or data[i] == ord('\n')):
@@ -397,7 +397,7 @@ class cmdshellhandler(ihandler):
         i.parent = icd.con
         i.child = c
         if icd.origin == "dionaea.service.shell.listen":
-            if c.bind(con.local.host,icd.get('port')) == True and c.listen() == True:
+            if c.bind(con.local.host,icd.get('port')) and c.listen():
                 i.report()
             else:
                 c.close()

@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 from dionaea import IHandlerLoader, Timer
-from dionaea.core import ihandler, incident, g_dionaea
+from dionaea.core import ihandler, incident
 
 import logging
 import json
@@ -236,6 +236,6 @@ class virustotalhandler(ihandler):
                     """UPDATE backlogfiles SET status = 'query' WHERE backlogfile = ? """, (vtr.backlogfile, ))
                 self.dbh.commit()
 
-        except Exception as e:
+        except Exception:
             pass
         del self.cookies[cookie]

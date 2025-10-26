@@ -55,7 +55,7 @@ class HTTPHandler(object):
             }
         )
         # ToDo: parse response
-        response = urlopen(req)
+        urlopen(req)
 
 
 class LogJsonHandlerLoader(IHandlerLoader):

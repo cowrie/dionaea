@@ -54,7 +54,7 @@ class RPCService(object):
             opname = cls.ops[opnum]
 
             method = getattr(cls, "handle_" + opname, None)
-            if method != None:
+            if method is not None:
                 if opnum in cls.vulns:
                     vulnname = cls.vulns[opnum]
                     rpclog.info("Calling %s %s (%x) maybe %s exploit?" % (
@@ -70,7 +70,7 @@ class RPCService(object):
                 except DCERPCValueError as e:
                     rpclog.debug("DCERPCValueError %s" % e)
                     return None
-                except EOFError as e:
+                except EOFError:
                     rpclog.warn("EOFError data %s" % format(p.StubData))
                     return None
 
@@ -134,17 +134,17 @@ class ATSVC(RPCService):
         #);
 
         x = ndrlib.Unpacker(p.StubData)
-        ServerName = ATSVC.ATSVC_HANDLE(x)
+        ATSVC.ATSVC_HANDLE(x)
 
-        Pad = x.unpack_short()
+        x.unpack_short()
         # pEnumContainer
-        EntriesRead = x.unpack_long()
-        pEntries = x.unpack_pointer()
+        x.unpack_long()
+        x.unpack_pointer()
         # PreferedMaximumLength
-        PreferedMaxLength = x.unpack_long()
+        x.unpack_long()
         # pResumeHandle
-        Pointer = x.unpack_pointer()
-        ResumeHandle = x.unpack_long()
+        x.unpack_pointer()
+        x.unpack_long()
 
         r = ndrlib.Packer()
         # pEnumContainer
@@ -565,7 +565,7 @@ class lsarpc(RPCService):
                 self.Pointer = self.__packer.unpack_pointer()
                 self.MaxCount = self.__packer.unpack_long()
                 if self.Entries != 0:
-                    Sids = lsarpc.LSA_TRANSLATED_SID(self.__packer)
+                    lsarpc.LSA_TRANSLATED_SID(self.__packer)
         def pack(self):
             if isinstance(self.__packer,ndrlib.Packer):
                 self.__packer.pack_long(self.Entries)
@@ -671,7 +671,7 @@ class lsarpc(RPCService):
                 pass
             elif isinstance(self.__packer,ndrlib.Unpacker):
                 self.Count = self.__packer.unpack_long()
-                Sid = samr.RPC_SID(self.__packer)
+                samr.RPC_SID(self.__packer)
         def pack(self):
             if isinstance(self.__packer, ndrlib.Packer):
                 pass
@@ -697,7 +697,7 @@ class lsarpc(RPCService):
                 for i in range(self.MaxCount):
                     self.Reference = self.__packer.unpack_pointer()
                 for j in range(self.MaxCount):
-                    SidInfo = lsarpc.LSAPR_SID_INFORMATION(self.__packer)
+                    lsarpc.LSAPR_SID_INFORMATION(self.__packer)
 
         def pack(self):
             if isinstance(self.__packer, ndrlib.Packer):
@@ -761,7 +761,7 @@ class lsarpc(RPCService):
                 self.Entries = self.__packer.unpack_long()
                 self.Pointer = self.__packer.unpack_pointer()
                 if self.Entries != 0:
-                    Sids = lsarpc.LSAPR_TRANSLATED_NAMES_EX(self.__packer)
+                    lsarpc.LSAPR_TRANSLATED_NAMES_EX(self.__packer)
         def pack(self):
             if isinstance(self.__packer,ndrlib.Packer):
                 self.__packer.pack_long(self.Entries)
@@ -792,12 +792,12 @@ class lsarpc(RPCService):
         #);
 
         x = ndrlib.Unpacker(p.StubData)
-        PSystemName = x.unpack_pointer()
+        x.unpack_pointer()
         SystemName = x.unpack_string()
         rpclog.debug("ServerName %s" % SystemName)
 
-        ObjectAttributes = lsarpc.LSAPR_OBJECT_ATTRIBUTES(x)
-        DesiredAccess = x.unpack_long()
+        lsarpc.LSAPR_OBJECT_ATTRIBUTES(x)
+        x.unpack_long()
 
         r = ndrlib.Packer()
         PolicyHandle = lsarpc.LSAPR_HANDLE(r)
@@ -828,18 +828,18 @@ class lsarpc(RPCService):
         #);
 
         x = ndrlib.Unpacker(p.StubData)
-        PolicyHandle = lsarpc.LSAPR_HANDLE(x)
+        lsarpc.LSAPR_HANDLE(x)
         Count = x.unpack_long()
 
         # Maxcount, needed as the element of NDR array
         MaxCount = x.unpack_long()
-        Names = samr.RPC_UNICODE_STRING(x,MaxCount)
-        TranslatedSids = lsarpc.LSAPR_TRANSLATED_SIDS(x)
+        samr.RPC_UNICODE_STRING(x,MaxCount)
+        lsarpc.LSAPR_TRANSLATED_SIDS(x)
 
-        LookupLevel = x.unpack_short()
-        MappedCount = x.unpack_long()
-        LookupOptions = x.unpack_long()
-        ClientRevision = x.unpack_long()
+        x.unpack_short()
+        x.unpack_long()
+        x.unpack_long()
+        x.unpack_long()
 
         r = ndrlib.Packer()
         r.pack_pointer(0x23456)
@@ -878,7 +878,7 @@ class lsarpc(RPCService):
         #);
 
         x = ndrlib.Unpacker(p.StubData)
-        PolicyHandle = lsarpc.LSAPR_HANDLE(x)
+        lsarpc.LSAPR_HANDLE(x)
         SidEnumBuffer = lsarpc.LSAPR_SID_ENUM_BUFFER(x)
         rpclog.debug("EntriesRead = %i" % SidEnumBuffer.Entries)
         TranslatedNames = lsarpc.LSAPR_TRANSLATED_NAMES_EX(x)
@@ -1185,7 +1185,7 @@ class MGMT(RPCService):
         #     [out]       error_status_t          *status
         # );
         x = ndrlib.Unpacker(p.StubData)
-        handle = MGMT.handle_t(x)
+        MGMT.handle_t(x)
 #		authn_proto = x.unpack_long()
 #		princ_name_size = x.unpack_long()
 
@@ -1274,7 +1274,7 @@ class samr(RPCService):
                 self.Value = self.__packer.unpack_raw(6)
         def pack(self):
             if isinstance(self.__packer,ndrlib.Packer):
-                if not self.SID_AUTHORITY.get(self.Value) == None:
+                if self.SID_AUTHORITY.get(self.Value) is not None:
                     self.__packer.pack_raw(self.SID_AUTHORITY[self.Value])
 
 
@@ -1806,7 +1806,7 @@ class samr(RPCService):
                     self.SidPointer = self.__packer.unpack_pointer()
                 for j in range(int(self.Count1)):
                     self.Count2 = self.__packer.unpack_long()
-                    Sids = samr.RPC_SID(self.__packer)
+                    samr.RPC_SID(self.__packer)
 
         def pack(self):
             if isinstance(self.__packer,ndrlib.Packer):
@@ -1843,7 +1843,7 @@ class samr(RPCService):
         #   [in] unsigned long DesiredAccess
         # );
         x = ndrlib.Unpacker(p.StubData)
-        PServerName = x.unpack_pointer()
+        x.unpack_pointer()
         ServerName = x.unpack_string()
         rpclog.debug("ServerName %s" % ServerName)
         DesiredAccess = x.unpack_long()
@@ -1879,7 +1879,7 @@ class samr(RPCService):
         #   [out] SAMPR_HANDLE* ServerHandle
         # );
         x = ndrlib.Unpacker(p.StubData)
-        PServerName = x.unpack_pointer()
+        x.unpack_pointer()
         ServerName = x.unpack_string()
 
         rpclog.debug("ServerName %s" % ServerName)
@@ -1889,7 +1889,7 @@ class samr(RPCService):
         InVersion = x.unpack_long()
         rpclog.debug("InVersion %i" % InVersion)
 
-        PInRevisionInfo = x.unpack_pointer()
+        x.unpack_pointer()
 
         # 2.2.3.15 SAMPR_REVISION_INFO_V1
         # http://msdn.microsoft.com/en-us/library/cc245541%28v=PROT.10%29.aspx
@@ -2006,8 +2006,8 @@ class samr(RPCService):
         #[out] PRPC_SID* DomainId
         #);
         x = ndrlib.Unpacker(p.StubData)
-        ServerHandle = samr.SAMPR_HANDLE(x)
-        Name = samr.RPC_UNICODE_STRING(x)
+        samr.SAMPR_HANDLE(x)
+        samr.RPC_UNICODE_STRING(x)
         r = ndrlib.Packer()
         r.pack_pointer(0x0da260)   #same as EnumDomain
 
@@ -2045,7 +2045,7 @@ class samr(RPCService):
         DesiredAccess = x.unpack_long()
         rpclog.debug("DesiredAccess %i" % DesiredAccess)
 
-        DomainId = samr.RPC_SID(x)
+        samr.RPC_SID(x)
 
         r = ndrlib.Packer()
 
@@ -2117,10 +2117,10 @@ class samr(RPCService):
         DomainHandle = samr.SAMPR_HANDLE(x)
         rpclog.debug("DomainHandle %s" % DomainHandle)
 
-        Count = x.unpack_long()
+        x.unpack_long()
         # PSAMPR_PSID_ARRAY SidArray
-        Pointer = x.unpack_pointer()
-        SidArray = samr.SAMPR_PSID_ARRAY(x)
+        x.unpack_pointer()
+        samr.SAMPR_PSID_ARRAY(x)
 
         r = ndrlib.Packer()
         r.pack_long(1)
@@ -2688,7 +2688,7 @@ class spoolss(RPCService):
         Flags = p.unpack_long()
         Name = p.unpack_pointer()
         Level = p.unpack_long()
-        Pointer = p.unpack_pointer()
+        p.unpack_pointer()
         cbBuf = p.unpack_long()
 
         rpclog.debug("Flags %s Name %s Level %i cbBuf %i " %
@@ -2738,14 +2738,14 @@ class spoolss(RPCService):
         #);
 
         x = ndrlib.Unpacker(p.StubData)
-        pPrinterName = x.unpack_pointer()
+        x.unpack_pointer()
         PrinterName = x.unpack_string()
         print("PrinterName %s" % PrinterName)
 
         pDatatype = x.unpack_pointer()
         print("Datatype %s" % pDatatype)
 
-        cbBuf = x.unpack_long()
+        x.unpack_long()
         pDevMode = x.unpack_pointer()
         print("DevMode %s" % pDevMode)
 
@@ -2754,9 +2754,9 @@ class spoolss(RPCService):
 
         #Below is the ClientInfo structure which showed in
         #Microsoft Network Monitor, but I cant find the correct doc to refer
-        Level = x.unpack_long()
-        SwitchValue = x.unpack_long()
-        Pointer = x.unpack_pointer()
+        x.unpack_long()
+        x.unpack_long()
+        x.unpack_pointer()
         Size = x.unpack_long()
         Buff = x.unpack_raw(Size)
 
@@ -2862,7 +2862,7 @@ class spoolss(RPCService):
         elif p.PacketFlags == 2:
             con.printer += p.StubData
             x = ndrlib.Unpacker(con.printer)
-            hPrinter = x.unpack_raw(20)
+            x.unpack_raw(20)
             cbBuf = x.unpack_long()
             Buf = x.unpack_raw(cbBuf)
 
@@ -2891,7 +2891,7 @@ class spoolss(RPCService):
 
         elif p.PacketFlags == 3:
             x = ndrlib.Unpacker(p.StubData)
-            hPrinter = x.unpack_raw(20)
+            x.unpack_raw(20)
             cbBuf = x.unpack_long()
 
             r = ndrlib.Packer()
@@ -3112,7 +3112,7 @@ class SRVSVC(RPCService):
                 for i in range(self.MaxCount):
                     self.__packer.pack_pointer(self.Netname_pointer) # netname
                 for j in self.Data:
-                    data = self.Data[j]
+                    self.Data[j]
                     self.__packer.pack_string_fix(
                         str(j+'\0').encode('utf16')[2:])
 
@@ -3374,7 +3374,7 @@ class SRVSVC(RPCService):
         #	  [in, out, unique] DWORD* ResumeHandle
         #	);
 
-        ServerName = SRVSVC.SRVSVC_HANDLE(x)
+        SRVSVC.SRVSVC_HANDLE(x)
 
         # 2.2.4.38 SHARE_ENUM_STRUCT
         #
@@ -3407,11 +3407,11 @@ class SRVSVC(RPCService):
         # 	SHARE_INFO_503_CONTAINER* Level503;
         # } SHARE_ENUM_UNION;
         if infostruct_share == 0:
-            buffer = SRVSVC.SHARE_INFO_0_CONTAINER(x)
+            SRVSVC.SHARE_INFO_0_CONTAINER(x)
         elif infostruct_share == 1:
-            buffer = SRVSVC.SHARE_INFO_1_CONTAINER(x)
+            SRVSVC.SHARE_INFO_1_CONTAINER(x)
         elif infostruct_share == 502:
-            buffer = SRVSVC.SHARE_INFO_502_CONTAINER(x)
+            SRVSVC.SHARE_INFO_502_CONTAINER(x)
 
         preferdmaxlen = x.unpack_long()
 
@@ -3532,12 +3532,12 @@ class SRVSVC(RPCService):
         #  [in, out, unique] DWORD* ParmErr
         #);
         p = ndrlib.Unpacker(p.StubData)
-        ServerName = SRVSVC.SRVSVC_HANDLE(p)
-        infostruct_level = p.unpack_long()
+        SRVSVC.SRVSVC_HANDLE(p)
+        p.unpack_long()
         infostruct_share = p.unpack_long()
 
         if infostruct_share == 2:
-            buffer = SRVSVC.SHARE_INFO_2(p)
+            SRVSVC.SHARE_INFO_2(p)
 
         ptr_parm = p.unpack_pointer()
         error = p.unpack_long()
@@ -3564,7 +3564,7 @@ class SRVSVC(RPCService):
         #  [out, switch_is(Level)] LPSHARE_INFO InfoStruct
         #);
         p = ndrlib.Unpacker(p.StubData)
-        ServerName = SRVSVC.SRVSVC_HANDLE(p)
+        SRVSVC.SRVSVC_HANDLE(p)
         NetName = p.unpack_string()
         Level = p.unpack_long()
         rpclog.debug("NetName %s Level %i" % (NetName,Level))
@@ -3645,7 +3645,7 @@ class SRVSVC(RPCService):
         #  [out] LPTIME_OF_DAY_INFO* BufferPtr
         #);
         p = ndrlib.Unpacker(p.StubData)
-        ServerName = SRVSVC.SRVSVC_HANDLE(p)
+        SRVSVC.SRVSVC_HANDLE(p)
 
         r = ndrlib.Packer()
 
@@ -3706,7 +3706,7 @@ class SRVSVC(RPCService):
         #);
 
         p = ndrlib.Unpacker(p.StubData)
-        Pointer = p.unpack_pointer()
+        p.unpack_pointer()
         ServerName = p.unpack_string()
         Level = p.unpack_long()
         print("ServerName %s Level %i" % (ServerName,Level))

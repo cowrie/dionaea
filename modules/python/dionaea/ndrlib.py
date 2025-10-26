@@ -96,8 +96,8 @@ class Unpacker:
         return self.unpack_long()
 
     def unpack_string(self, width=16):
-        mc = self.unpack_long()
-        off = self.unpack_long()
+        self.unpack_long()
+        self.unpack_long()
         ac = self.unpack_long()
         #print("mc %i ac %i off %i" % ( mc, ac, off))
         i = self.__pos

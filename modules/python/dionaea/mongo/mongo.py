@@ -5,18 +5,14 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 import logging
-import os
-import re
-import tempfile
 from datetime import datetime
-from decimal import Decimal
 
 try:
     import bson
 except ImportError:
     bson = None
 
-from dionaea.core import incident, connection, g_dionaea
+from dionaea.core import connection
 from . import packets
 from dionaea.smb.include.packet import Raw
 

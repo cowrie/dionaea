@@ -89,7 +89,7 @@ class nfqmirrord(connection):
         self._in.accounting.limit  = 200*1024
         self._out.accounting.limit = 200*1024
 
-        if is_local_addr(self.remote.host) == False:
+        if not is_local_addr(self.remote.host):
             self.peer=nfqmirrorc(self)
             # problem:
             # the parent connection just got accepted
@@ -202,7 +202,7 @@ class nfqhandler(ihandler):
             m.timeouts.sustain = self.mirror_client_timeout_sustain
 
             m.bind(lhost, con.local.port)
-            if m.listen() != True:
+            if not m.listen():
                 m.close()
                 return
 

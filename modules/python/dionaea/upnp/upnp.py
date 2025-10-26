@@ -4,17 +4,9 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-from dionaea.core import connection, incident, ihandler
-import struct
+from dionaea.core import connection, incident
 import logging
-import os
-import sys
-import datetime
-import io
-import cgi
 import urllib.parse
-import re
-import tempfile
 
 logger = logging.getLogger('upnp')
 logger.setLevel(logging.DEBUG)

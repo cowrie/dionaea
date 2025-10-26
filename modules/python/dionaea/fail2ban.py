@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 from dionaea import IHandlerLoader
-from dionaea.core import ihandler, g_dionaea
+from dionaea.core import ihandler
 from dionaea.exception import LoaderError
 
 import logging

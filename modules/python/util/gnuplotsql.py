@@ -323,7 +323,7 @@ def get_overview_data(cursor, path_destination, filename_data, protocol):
 			strftime('{time_format}',conn.connection_timestamp,'unixepoch','localtime')
 		ORDER BY
 			conn.connection_timestamp;
-	""";
+	"""
     sql["accepts"] = """
 		SELECT
 			strftime('%Y-%m-%d',conn.connection_timestamp,'unixepoch','localtime') AS date,
@@ -400,7 +400,7 @@ def get_overview_data(cursor, path_destination, filename_data, protocol):
 
         for db_row in db_data:
             date = db_row["date"]
-            if not date in data:
+            if date not in data:
                 data[date] = {}
                 for k in list(sql.keys()):
                     data[date][k] = 0
