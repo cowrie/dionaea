@@ -12,7 +12,10 @@ COPY . /code
 
 RUN apt-get update && \
       # Install build deps
-      apt-get install -y --no-install-recommends \
+      apt-get -qq install -y \
+            -o APT::Install-Suggests=false \
+            -o APT::Install-Recommends=false \
+            -o Dpkg::Use-Pty="0" \
             build-essential \
             cmake \
             check \
