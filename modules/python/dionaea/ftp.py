@@ -61,17 +61,14 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-# ftp server
+import logging
+import os
+import stat
+import time
+
 from dionaea import ServiceLoader
 from dionaea.core import connection, incident
 from dionaea.exception import ServiceConfigError
-import logging
-import os
-from os import stat
-from stat import *
-import time
-import io
-
 
 logger = logging.getLogger('ftp')
 logger.setLevel(logging.DEBUG)
@@ -238,12 +235,12 @@ class FTPd(connection):
 
     def processcmd(self, cmd, args):
         logger.debug("cmd '%s'" % cmd)
-        l = [i.decode() for i in args]
+        arguments = [i.decode() for i in args]
 
         i = incident("dionaea.modules.python.ftp.command")
         i.con = self
         i.command = cmd
-        i.arguments = l
+        i.arguments = arguments
         i.report()
 
         cmd = cmd.upper()
@@ -251,16 +248,16 @@ class FTPd(connection):
             if cmd != b'USER':
                 self.reply("not_logged_in")
                 return
-            self.ftp_USER(*l)
+            self.ftp_USER(*arguments)
         elif self.state == self.INAUTH:
             if cmd != b'PASS':
                 self.reply("bad_cmd_seq_pass_after_user")
                 return
-            self.ftp_PASS(*l)
+            self.ftp_PASS(*arguments)
         else:
             method = getattr(self, "ftp_" + cmd.decode(), None)
             if method is not None:
-                msg = method(*l)
+                msg = method(*arguments)
                 if isinstance(msg, str):
                     self.error("Returning messages is deprecated please report so we can fix it")
                     self.sendline(msg)
@@ -499,7 +496,7 @@ class FTPd(connection):
             return
 
         if os.path.exists(file) and os.path.isfile(file):
-            self.reply("file_status", value=str(stat(file).st_size))
+            self.reply("file_status", value=str(os.stat(file).st_size))
             return
 
         self.reply("file_not_found", filename=p)
@@ -517,7 +514,7 @@ class FTPd(connection):
         if os.path.exists(file) and os.path.isfile(file):
             self.reply(
                 "file_status",
-                value=time.strftime('%Y%m%d%H%M%S', time.gmtime(stat(file).st_mtime))
+                value=time.strftime('%Y%m%d%H%M%S', time.gmtime(os.stat(file).st_mtime))
             )
             return
 
@@ -590,10 +587,10 @@ class FTPDataCon(connection):
         def ls(f, r):
             logger.debug("stat %s" % f)
             name = f[r:]
-            s=stat(f)
+            s=os.stat(f)
             size = s.st_size
-            directory = S_ISDIR(s.st_mode)
-            permissions = S_IMODE(s[ST_MODE])
+            directory = stat.S_ISDIR(s.st_mode)
+            permissions = stat.S_IMODE(s[stat.ST_MODE])
             hardlinks = s.st_nlink
             modified = s.st_mtime
             owner = s.st_uid
@@ -652,7 +649,7 @@ class FTPDataCon(connection):
     def recv_file(self, p):
         logger.debug(p)
         self.mode = 'recv_file'
-        self.file = io.open(p, 'wb+')
+        self.file = open(p, 'wb+')
         print(self.file)
 
     def send_file(self, p):

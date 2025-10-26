@@ -334,7 +334,7 @@ class TftpPacketInitial(TftpPacket, TftpPacketWithOptions):
             self.filename = mystruct[0].decode()
             logger.debug("setting mode to %s" % mystruct[1])
             self.mode = mystruct[1].decode()
-        except:
+        except Exception:
             tftpassert(0, "malformed packet, filename is not decodeable")
 
         self.options = self.decode_options(subbuf[tlength+1:])

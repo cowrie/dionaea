@@ -275,7 +275,7 @@ def write_index(ranges, _protocols, DSTDIR, image_ext):
             w = open(
                 os.path.join(DSTDIR,r[1].strftime("%Y"),r[1].strftime("%m"),"index.html"),"wt")
 
-        if w == None:
+        if w is None:
             break
 
         w.write(content)
@@ -473,7 +473,7 @@ def plot_overview_data(ranges, path_destination, filename_data, protocol, filena
 	unset multiplot
 	"""
 
-    if filename_tpl != None and os.path.exists(filename_tpl) and os.path.isfile(filename_tpl):
+    if filename_tpl is not None and os.path.exists(filename_tpl) and os.path.isfile(filename_tpl):
         fp = open(filename_tpl, "rt")
         tpl_gnuplot = fp.read()
         fp.close()
@@ -486,16 +486,16 @@ def plot_overview_data(ranges, path_destination, filename_data, protocol, filena
         if r[0] == 'all':
             rstart = xstart.strftime("%Y-%m-%d")
             rstop = xstop.strftime("%Y-%m-%d")
-            title = 'all {}-{}'.format(rstart,rstop)
+            'all {}-{}'.format(rstart,rstop)
         elif r[0] == 'year':
             rstart = xstart.strftime("%Y-%m-%d")
             rstop = xstop.strftime("%Y-%m-%d")
-            title = 'year {}-{}'.format(rstart,rstop)
+            'year {}-{}'.format(rstart,rstop)
             path = xstart.strftime("%Y")
         elif r[0] == 'month':
             rstart = xstart.strftime("%Y-%m-%d")
             rstop = xstop.strftime("%Y-%m-%d")
-            title = 'month {}-{}'.format(rstart,rstop)
+            'month {}-{}'.format(rstart,rstop)
             path = os.path.join(xstart.strftime("%Y"),xstart.strftime("%m"))
 
         output = os.path.join(
@@ -546,7 +546,7 @@ if __name__ == "__main__":
     cursor = dbh.cursor()
 
     protocols = options.protocols
-    if options.all_protocols == True:
+    if options.all_protocols:
         protocols = []
         db_res = cursor.execute(
             "SELECT connection_protocol FROM connections GROUP BY connection_protocol")
@@ -554,7 +554,7 @@ if __name__ == "__main__":
         for db_row in db_data:
             protocols.append(db_row["connection_protocol"])
 
-    if protocols == None or len(protocols) == 0:
+    if protocols is None or len(protocols) == 0:
         print("No protocols specified")
         sys.exit(1)
 

@@ -31,7 +31,7 @@ class upnpreq:
 			hset = hline.split(b":", 1)
 			try:
 				self.headers[hset[0].lower()] = hset[1].strip()
-			except:
+			except Exception:
 				logger.info("potential upnp exploit: %s", hset[0])
 
 	def print(self):

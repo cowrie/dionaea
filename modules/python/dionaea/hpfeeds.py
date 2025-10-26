@@ -399,7 +399,8 @@ class hpfeedihandler(ihandler):
             logger.warn('exception when publishing: {0}'.format(e))
 
     def handle_incident_dionaea_download_complete_again(self, i):
-        if not hasattr(i, 'con') or not self.client.connected: return
+        if not hasattr(i, 'con') or not self.client.connected:
+            return
         logger.debug('hash complete, publishing md5 {0}, path {1}'.format(i.md5hash, i.file))
         try:
             tstamp = timestr()

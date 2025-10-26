@@ -175,7 +175,7 @@ class logsqlhandler(ihandler):
                     try:
                         self.cursor.execute("INSERT INTO dcerpcserviceops (dcerpcservice, dcerpcserviceop_opnum, dcerpcserviceop_name, dcerpcserviceop_vuln) VALUES (?,?,?,?)",
                                             (dcerpcservice, opnum, op, vuln))
-                    except:
+                    except Exception:
                         #                        print("%s %s %s %s %s existed" % (dcerpcservice, uuid, name, op, vuln))
                         pass
 
@@ -286,7 +286,7 @@ class logsqlhandler(ihandler):
                     FROM downloads_old""")
                 self.cursor.execute("""DROP TABLE downloads_old""")
                 logger.debug("... done")
-        except Exeption as e:
+        except Exception as e:
             logger.debug(
                 "Updating downloads failed, copying old table failed (%s)" % e)
 

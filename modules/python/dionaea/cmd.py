@@ -312,7 +312,7 @@ class cmdexe:
         return cmd,args,redir
 
     def line(self, data, eof=False):
-        if type(data) == str:
+        if isinstance(data, str):
             data = data.encode()
 
         escape = False
