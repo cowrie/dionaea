@@ -87,7 +87,7 @@ class SIPService(ServiceLoader):
         return daemons
 
 
-class User(object):
+class User:
     def __init__(self, user_id, **kwargs):
         self.id = user_id
         self.branch = kwargs.get("branch", None)
@@ -112,7 +112,7 @@ class User(object):
             pass
 
 
-class RegistrationManager(object):
+class RegistrationManager:
     def __init__(self):
         self._users = {}
         self._branches = {}
@@ -131,7 +131,7 @@ class RtpUdpStream(connection):
     """RTP stream that can send data and writes the whole conversation to a
     file"""
     def __init__(self, name, call, session, local_address, local_port, remote_address, remote_port, bistream_enabled = False, pcap = None):
-        logger.debug("{!s} __init__".format(self))
+        logger.debug(f"{self!s} __init__")
         connection.__init__(self, 'udp')
 
         self._call = call
@@ -165,7 +165,7 @@ class RtpUdpStream(connection):
             self.local.port, self.remote.port))
 
     def close(self):
-        logger.debug("{!s} close".format(self))
+        logger.debug(f"{self!s} close")
         logger.debug("Closing stream dump (in)")
         connection.close(self)
 
@@ -190,21 +190,21 @@ class RtpUdpStream(connection):
         fp.close()
 
     def handle_established(self):
-        logger.debug("{!s} handle_established".format(self))
+        logger.debug(f"{self!s} handle_established")
         self.timeouts.idle = 1.0
         self.timeouts.sustain = 120.0
 
     def handle_timeout_idle(self):
-        logger.debug("{!s} handle_timeout_idle".format(self))
+        logger.debug(f"{self!s} handle_timeout_idle")
         self.close()
         return False
 
     def handle_timeout_sustain(self):
-        logger.debug("{!s} handle_timeout_sustain".format(self))
+        logger.debug(f"{self!s} handle_timeout_sustain")
         return False
 
     def handle_io_in(self, data):
-        logger.debug("{!s} handle_io_in".format(self))
+        logger.debug(f"{self!s} handle_io_in")
         #logger.debug("Incoming RTP data (length {})".format(len(data)))
 
         if self._bistream_enabled:
@@ -215,10 +215,10 @@ class RtpUdpStream(connection):
         return len(data)
 
     def handle_io_out(self):
-        logger.info("{!s} handle_io_out".format(self))
+        logger.info(f"{self!s} handle_io_out")
 
     def handle_disconnect(self):
-        logger.info("{!s} handle_disconnect".format(self))
+        logger.info(f"{self!s} handle_disconnect")
         self._call.event_stream_closed(self._name)
         self._pcap.close()
         return False
@@ -234,9 +234,9 @@ class SipCall(connection):
     CLOSED, SESSION_SETUP, ACTIVE_SESSION, SESSION_TEARDOWN, INVITE, INVITE_TRYING, INVITE_RINGING, INVITE_CANCEL, CALL = range(9)
 
     def __init__(self, proto, call_id, session, invite_message):
-        logger.debug("{!s} __init__".format(self))
+        logger.debug(f"{self!s} __init__")
 
-        logger.debug("SipCall {} session {} ".format(self, session))
+        logger.debug(f"SipCall {self} session {session} ")
         connection.__init__(self, proto)
         # Store incoming information of the remote host
 
@@ -277,7 +277,7 @@ class SipCall(connection):
         self._timers["idle"].start()
 
     def __handle_timeout_idle(self, watcher, events):
-        logger.debug("{!s} __handle_timeout_idle".format(self))
+        logger.debug(f"{self!s} __handle_timeout_idle")
 
         # check if at least one rtp stream is active
         for v in self._rtp_streams.values():
@@ -289,7 +289,7 @@ class SipCall(connection):
         self.close()
 
     def __handle_invite(self):
-        logger.debug("{!s} __handle_invite".format(self))
+        logger.debug(f"{self!s} __handle_invite")
 
         logger.info("Handle invite")
         if self.__state == SipCall.INVITE:
@@ -324,7 +324,7 @@ class SipCall(connection):
             self.send(msg)
 
             delay = random.randint(self._user.pickup_delay_min, self._user.pickup_delay_max)
-            logger.info("Choosing ring delay between {} and {} seconds: {}".format(self._user.pickup_delay_min, self._user.pickup_delay_max, delay))
+            logger.info(f"Choosing ring delay between {self._user.pickup_delay_min} and {self._user.pickup_delay_max} seconds: {delay}")
             self.__state = SipCall.INVITE_RINGING
             self._timers["invite_handler"] = Timer(
                 delay,
@@ -410,11 +410,11 @@ class SipCall(connection):
             return
 
     def handle_timeout_idle(self):
-        logger.debug("{!s} handle_timeout_idle".format(self))
+        logger.debug(f"{self!s} handle_timeout_idle")
         return False
 
     def handle_timeout_sustain(self):
-        logger.debug("{!s} handle_timeout_sustain".format(self))
+        logger.debug(f"{self!s} handle_timeout_sustain")
         return False
 
     def __handle_invite_timeout(self):
@@ -422,7 +422,7 @@ class SipCall(connection):
         self.send(msg)
 
     def send(self, msg):
-        logger.debug("{!s} send".format(self))
+        logger.debug(f"{self!s} send")
 
         self._timers["idle"].reset()
 
@@ -433,8 +433,8 @@ class SipCall(connection):
         self.__session.send(msg)
 
     def close(self):
-        logger.debug("{!s} close".format(self))
-        logger.debug("SipCall.close {} Session {}".format(self, self.__session))
+        logger.debug(f"{self!s} close")
+        logger.debug(f"SipCall.close {self} Session {self.__session}")
 
         g_call_ids[self._call_id] = None
         self.__state = SipCall.CLOSED
@@ -444,7 +444,7 @@ class SipCall(connection):
             if timer is None:
                 continue
 
-            logger.debug("SipCall timer {} active {} pending {}".format(timer,timer.active,timer.pending))
+            logger.debug(f"SipCall timer {timer} active {timer.active} pending {timer.pending}")
             #if timer.active == True or timer.pending == True:
             #    logger.warn("SipCall Stopping {}".format(name))
 
@@ -464,12 +464,12 @@ class SipCall(connection):
         connection.close(self)
 
     def event_stream_closed(self, name):
-        logger.debug("{!s} event_stream_closed".format(self))
+        logger.debug(f"{self!s} event_stream_closed")
 
         self._rtp_streams[name] = None
 
     def handle_ACK(self, msg_ack):
-        logger.debug("{!s} handle_ACK".format(self))
+        logger.debug(f"{self!s} handle_ACK")
         # does this ACK belong to a CANCEL request?
         if not self.__state == SipCall.INVITE_CANCEL:
             logger.info("No method to cancel")
@@ -480,14 +480,14 @@ class SipCall(connection):
 
         # does this ACK belong to this session?
         if cseq.seq != cseq_ack.seq:
-            logger.info("Sequence number doesn't match INVITE id {}; ACK id {}".format(cseq.seq, cseq_ack.seq))
+            logger.info(f"Sequence number doesn't match INVITE id {cseq.seq}; ACK id {cseq_ack.seq}")
             return
 
         self.close()
         return True
 
     def handle_BYE(self, msg_bye):
-        logger.debug("{!s} handle_BYE".format(self))
+        logger.debug(f"{self!s} handle_BYE")
         if not self.__state == SipCall.CALL:
             logger.info("BYE without call")
             return
@@ -498,7 +498,7 @@ class SipCall(connection):
         return True
 
     def handle_CANCEL(self, msg_cancel):
-        logger.debug("{!s} handle_CANCEL".format(self))
+        logger.debug(f"{self!s} handle_CANCEL")
 
         if not (self.__state == SipCall.INVITE or self.__state == SipCall.INVITE_TRYING or self.__state == SipCall.INVITE_RINGING):
             logger.info("No method to cancel")
@@ -508,7 +508,7 @@ class SipCall(connection):
         cseq_cancel = msg_cancel.headers.get(b"cseq").get_raw()
 
         if cseq.seq != cseq_cancel.seq:
-            logger.info("Sequence number doesn't match INVITE id {}; CANCEL id {}".format(cseq.seq, cseq_cancel.seq))
+            logger.info(f"Sequence number doesn't match INVITE id {cseq.seq}; CANCEL id {cseq_cancel.seq}")
             return
 
         self.__state = SipCall.INVITE_CANCEL
@@ -525,7 +525,7 @@ class SipCall(connection):
         self.send(msg.dumps())
 
     def handle_INVITE(self, msg):
-        logger.debug("{!s} handle_INVITE".format(self))
+        logger.debug(f"{self!s} handle_INVITE")
 
         self.__state = SipCall.INVITE
         self._timers["invite_handler"] = Timer(
@@ -565,20 +565,20 @@ class SipSession(connection):
     ]
 
     def __init__(self, proto = None, config=None):
-        logger.debug("{!s} __init__".format(self))
+        logger.debug(f"{self!s} __init__")
 
         connection.__init__(self, proto)
         self.config = SipConfig(config=config)
 
         self.personality = self.config.get_personality_by_address(self.local.host)
 
-        logger.info("SIP Session created with personality '{}'".format(self.personality))
+        logger.info(f"SIP Session created with personality '{self.personality}'")
         self._auth = None
         self._state = None
 
 
     def handle_established(self):
-        logger.debug("{!s} handle_established".format(self))
+        logger.debug(f"{self!s} handle_established")
         self._state = SipSession.ESTABLISHED
 
         self.timeouts.idle = 10
@@ -592,11 +592,11 @@ class SipSession(connection):
 
 
     def handle_timeout_sustain(self):
-        logger.debug("{!s} handle_timeout_sustain".format(self))
+        logger.debug(f"{self!s} handle_timeout_sustain")
         return True
 
     def handle_timeout_idle(self):
-        logger.debug("{!s} handle_timeout_idle".format(self))
+        logger.debug(f"{self!s} handle_timeout_idle")
         self.close()
         return False
 
@@ -605,7 +605,7 @@ class SipSession(connection):
             # Don't process any data while the connection is closed.
             return len(data)
 
-        logger.debug("{!s} handle_io_in".format(self))
+        logger.debug(f"{self!s} handle_io_in")
 
         if self.transport == "udp":
             # Header must be terminated by an empty line.
@@ -647,7 +647,7 @@ class SipSession(connection):
                 return 0
 
             msg = rfc3261.Message(**data_load)
-            logger.debug("Got {} bytes, Used {} bytes".format(len(data), len_used))
+            logger.debug(f"Got {len(data)} bytes, Used {len_used} bytes")
 
         msg.set_personality(self.personality)
 
@@ -657,7 +657,7 @@ class SipSession(connection):
             self.handle_unknown(msg)
             return len(data)
 
-        logger.info("Received: {}".format(handler_name))
+        logger.info(f"Received: {handler_name}")
 
         if handler_name in ('ACK','BYE','CANCEL'):
             self._handle_ABC(msg)
@@ -671,17 +671,17 @@ class SipSession(connection):
             else:
                 self.handle_unknown(msg)
 
-        logger.debug("io_in: returning {}".format(len_used))
+        logger.debug(f"io_in: returning {len_used}")
         return len_used
 
     def close(self):
-        logger.debug("{!s} close".format(self))
+        logger.debug(f"{self!s} close")
         self._state = SipSession.CLOSED
         connection.close(self)
 
     def handle_unknown(self, msg):
-        logger.debug("{!s} unknown".format(self))
-        logger.warn("Unknown SIP header: {}".format(repr(msg.method)[:128]))
+        logger.debug(f"{self!s} unknown")
+        logger.warn(f"Unknown SIP header: {repr(msg.method)[:128]}")
 
         icd = incident("dionaea.modules.python.sip.command")
         icd.con = self
@@ -706,7 +706,7 @@ class SipSession(connection):
 
         # Find SipSession and delete it
         if call_id not in g_call_ids or g_call_ids[call_id] is None:
-            logger.warn("{!s} request does not match any existing SIP session".format(handler_name))
+            logger.warn(f"{handler_name!s} request does not match any existing SIP session")
             icd = incident("dionaea.modules.python.sip.command")
             icd.con = self
             msg_to_icd(msg,d=icd)
@@ -717,11 +717,11 @@ class SipSession(connection):
         try:
             g_call_ids[call_id].handle_msg_in(msg)
         except AuthenticationError:
-            logger.warn("Authentication failed for {!s} request".format(handler_name))
+            logger.warn(f"Authentication failed for {handler_name!s} request")
 
 
     def handle_INVITE(self, msg):
-        logger.debug("{!s} handle_INVITE".format(self))
+        logger.debug(f"{self!s} handle_INVITE")
 
         # Read Call-ID field and create new SipCall instance on first INVITE
         # request received (remote host might send more than one because of time
@@ -734,7 +734,7 @@ class SipSession(connection):
         call_id = msg.headers.get(b"call-id").value
 
         if call_id in g_call_ids and g_call_ids[call_id] is None:
-            logger.warn("SIP session with Call-ID {} already exists".format(call_id[:128]))
+            logger.warn(f"SIP session with Call-ID {call_id[:128]} already exists")
             # ToDo: error
             return
 
@@ -762,7 +762,7 @@ class SipSession(connection):
             del new_call
 
     def handle_OPTIONS(self, msg):
-        logger.debug("{!s} handle_OPTIONS".format(self))
+        logger.debug(f"{self!s} handle_OPTIONS")
         icd = incident("dionaea.modules.python.sip.command")
         icd.con = self
         msg_to_icd(msg,d=icd)
@@ -778,7 +778,7 @@ class SipSession(connection):
         """
         :See: http://tools.ietf.org/html/rfc3261#section-10
         """
-        logger.debug("{!s} handle_REGISTER".format(self))
+        logger.debug(f"{self!s} handle_REGISTER")
 
         icd = incident("dionaea.modules.python.sip.command")
         icd.con = self
@@ -850,7 +850,7 @@ class SipSession(connection):
         self.send(res.dumps())
 
     def send(self, s):
-        logger.debug("{!s} send".format(self))
+        logger.debug(f"{self!s} send")
 
         logger.debug('Sending message "{}" to ({}:{})'.format(
             s, self.remote.host, self.remote.port))

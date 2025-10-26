@@ -42,7 +42,7 @@ class cmdexe:
             data,line,c = self.line(data)
             logger.debug("LINE: %s" % (line))
             cmd,args,redir = self.parse(line)
-            logger.debug("CMD: {} {} {}".format(cmd, args, redir))
+            logger.debug(f"CMD: {cmd} {args} {redir}")
             if not cmd:
                 continue
 
@@ -69,7 +69,7 @@ class cmdexe:
                     if target not in self.files:
                         self.files[target] = ""
                     self.files[target] += out
-                    logger.debug("file {} = {}".format(target,self.files[target]))
+                    logger.debug(f"file {target} = {self.files[target]}")
             else:
                 self.send(out)
 
@@ -138,7 +138,7 @@ class cmdexe:
         state = 'NEXT_IS_SOMETHING'
         for i in range(len(lines)):
             line = lines[i]
-            logger.debug("FTP PARSER STATE {}".format(state))
+            logger.debug(f"FTP PARSER STATE {state}")
             logger.debug("FTP CMD LINE: %s" % (line) )
             args = line.split()
             if len(args) == 0:

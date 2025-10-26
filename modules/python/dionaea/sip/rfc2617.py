@@ -53,7 +53,7 @@ def unquote(data):
     return data
 
 
-class Authentication(object):
+class Authentication:
     """
     >>> a = Authentication(method = "basic", realm = "test")
     >>> print(a.dumps())

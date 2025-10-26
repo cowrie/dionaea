@@ -69,7 +69,7 @@ class mongod(connection):
         elif command_name == b"whatsmyuri":
             return [{
                 "ok": 1.0,
-                "you": "%s:%s" % (self.local.host, self.local.port)
+                "you": "{}:{}".format(self.local.host, self.local.port)
             }, {}]
 
     def _handle_command_db_test(self, command_name, metadata, command_args, input_docs):

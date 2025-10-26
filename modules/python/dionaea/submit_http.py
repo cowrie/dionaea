@@ -123,7 +123,7 @@ class handler(ihandler):
     def handle_incident_dionaea_modules_python_submithttp_result(self, icd):
         fh = open(icd.path, mode="rb")
         c = fh.read()
-        logger.info("submithttp result: {}".format(c))
+        logger.info(f"submithttp result: {c}")
 
         cookie = icd._userdata
         mr = self.cookies[cookie]
@@ -161,6 +161,6 @@ class handler(ihandler):
     def handle_incident_dionaea_modules_python_submithttp_uploadresult(self, icd):
         fh = open(icd.path, mode="rb")
         c = fh.read()
-        logger.info("submithttp uploadresult: {}".format(c))
+        logger.info(f"submithttp uploadresult: {c}")
 
         del self.cookies[icd._userdata]

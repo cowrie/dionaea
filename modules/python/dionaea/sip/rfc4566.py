@@ -26,7 +26,7 @@ class SdpParsingError(Exception):
     """Exception class for errors occuring during SDP message parsing"""
 
 
-class Attribute(object):
+class Attribute:
     """
     "Attributes are the primary means for extending SDP."
 
@@ -74,7 +74,7 @@ class Attribute(object):
         return b":".join([self.attribute, self.value])
 
 
-class Attributes(object):
+class Attributes:
     """
     Handle a list of attributes
     """
@@ -123,7 +123,7 @@ class Attributes(object):
         return attr.value
 
 
-class Bandwidth(object):
+class Bandwidth:
     """
     Format: b=<bwtype>:<bandwidth>
 
@@ -158,7 +158,7 @@ class Bandwidth(object):
         return b":".join([self.bwtype, int2bytes(self.bandwidth)])
 
 
-class ConnectionData(object):
+class ConnectionData:
     """
     "The "c=" field contains connection data."
 
@@ -232,7 +232,7 @@ class ConnectionData(object):
         return b" ".join([self.nettype, self.addrtype, addr])
 
 
-class Media(object):
+class Media:
     """
     "A session description may contain a number of media descriptions."
 
@@ -306,7 +306,7 @@ class Media(object):
         return b" ".join([self.media, ports, self.proto, fmt])
 
 
-class Origin(object):
+class Origin:
     """
     "The "o=" field gives the originator of the session (her username and the address of the user's host) plus a session identifier and version number"
 
@@ -351,7 +351,7 @@ class Origin(object):
         return b" ".join([self.username, int2bytes(self.sess_id), int2bytes(self.sess_version), self.nettype, self.addrtype, self.unicast_address])
 
 
-class SDP(object):
+class SDP:
     """
     Example taken from RFC4566 p.10 See: http://tools.ietf.org/html/rfc4566#page-10
     >>> s = b"v=0\\r\\n"
@@ -488,7 +488,7 @@ class SDP(object):
         return self._attributes.get(name, None)
 
 
-class Timing(object):
+class Timing:
     """
 
     Format: t=<start-time> <stop-time>

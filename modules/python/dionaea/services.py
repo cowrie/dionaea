@@ -66,7 +66,7 @@ class nlslave(ihandler):
         addr = icd.get("addr")
         iface = icd.get("iface")
         for i in self.ifaces:
-            print("iface:{} pattern:{}".format(iface, i))
+            print(f"iface:{iface} pattern:{i}")
             if fnmatch.fnmatch(iface, i):
                 if icd.origin == "dionaea.module.nl.addr.new" or "dionaea.module.nl.addr.hup":
                     self.daemons[addr] = {}

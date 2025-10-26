@@ -7,7 +7,7 @@
 from . import rpcservices
 from .smb import smblog
 
-class SmbConfig(object):
+class SmbConfig:
     """
     This class helps to access the config values.
     """
@@ -66,7 +66,7 @@ class SmbConfig(object):
             value = config.get(name)
             if value is None:
                 continue
-            smblog.debug("Set '%s' to '%s'" % (name, value))
+            smblog.debug("Set '{}' to '{}'".format(name, value))
             setattr(self, name, value)
 
         shares = config.get("shares")

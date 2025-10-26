@@ -560,7 +560,7 @@ class logsqlhandler(ihandler):
         # connection index for all
         for idx in ["dcerpcbinds", "dcerpcrequests", "emu_profiles", "emu_services", "offers", "downloads", "p0fs", "logins", "mssql_fingerprints", "mssql_commands","mysql_commands","sip_commands", "mqtt_fingerprints", "mqtt_publish_commands", "mqtt_subscribe_commands"]:
             self.cursor.execute(
-                """CREATE INDEX IF NOT EXISTS {}_connection_idx    ON {} (connection)""".format(idx, idx)
+                f"""CREATE INDEX IF NOT EXISTS {idx}_connection_idx    ON {idx} (connection)"""
             )
 
 
@@ -629,7 +629,7 @@ class logsqlhandler(ihandler):
             # - update the connection_root and connection_parent for all connections which had the pending
             # - update the connection_root for all connections which had the 'childid' as connection_root
             for i in self.pending[con]:
-                print("{} {} {}".format(attackid, attackid, i))
+                print(f"{attackid} {attackid} {i}")
                 self.cursor.execute("UPDATE connections SET connection_root = ?, connection_parent = ? WHERE connection = ?",
                                     (attackid, attackid, i ) )
                 self.cursor.execute("UPDATE connections SET connection_root = ? WHERE connection_root = ?",

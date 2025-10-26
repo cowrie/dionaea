@@ -190,7 +190,7 @@ def write_index(ranges, _protocols, DSTDIR, image_ext):
         web_menu_overviews = []
         for p in _protocols:
             web_menu_overviews.append(
-                """<a href="#overview_{}">{}</a>""".format(p,p)
+                f"""<a href="#overview_{p}">{p}</a>"""
             )
 
         web_menu_data_label = "Data"
@@ -205,7 +205,7 @@ def write_index(ranges, _protocols, DSTDIR, image_ext):
                 path_data = "../../gnuplot/data/" + p + ".data"
 
             web_menu_datas.append(
-                """<a href="{}">{}</a> """.format(path_data, p))
+                f"""<a href="{path_data}">{p}</a> """)
 
         rstart = r[1].strftime("%Y-%m-%d")
         rstop = r[2].strftime("%Y-%m-%d")
@@ -267,13 +267,13 @@ def write_index(ranges, _protocols, DSTDIR, image_ext):
         w = None
 
         if r[0] == 'all':
-            w = open(os.path.join(DSTDIR,"index.html"),"wt")
+            w = open(os.path.join(DSTDIR,"index.html"),"w")
         elif r[0] == 'year':
             w = open(
-                os.path.join(DSTDIR,r[1].strftime("%Y"),"index.html"),"wt")
+                os.path.join(DSTDIR,r[1].strftime("%Y"),"index.html"),"w")
         elif r[0] ==  'month':
             w = open(
-                os.path.join(DSTDIR,r[1].strftime("%Y"),r[1].strftime("%m"),"index.html"),"wt")
+                os.path.join(DSTDIR,r[1].strftime("%Y"),r[1].strftime("%m"),"index.html"),"w")
 
         if w is None:
             break
@@ -414,7 +414,7 @@ def get_overview_data(cursor, path_destination, filename_data, protocol):
                 data[date][k] = 0
 
     # write data file
-    w = open(filename_data,"wt")
+    w = open(filename_data,"w")
     for d in dates:
         a = data[d]
         w.write("{}|{}|{}|{}|{}|{}|{}|{}\n".format(d,
@@ -431,7 +431,7 @@ def plot_overview_data(ranges, path_destination, filename_data, protocol, filena
     suffix = ""
     prefix = "overview"
     if protocol != "":
-        suffix = "-{}".format(protocol)
+        suffix = f"-{protocol}"
         prefix = protocol
 
     tpl_gnuplot ="""set terminal png size 600,600 nocrop butt font "/usr/share/fonts/truetype/ttf-liberation/LiberationSans-Regular.ttf" 8
@@ -474,7 +474,7 @@ def plot_overview_data(ranges, path_destination, filename_data, protocol, filena
 	"""
 
     if filename_tpl is not None and os.path.exists(filename_tpl) and os.path.isfile(filename_tpl):
-        fp = open(filename_tpl, "rt")
+        fp = open(filename_tpl)
         tpl_gnuplot = fp.read()
         fp.close()
 
@@ -486,20 +486,20 @@ def plot_overview_data(ranges, path_destination, filename_data, protocol, filena
         if r[0] == 'all':
             rstart = xstart.strftime("%Y-%m-%d")
             rstop = xstop.strftime("%Y-%m-%d")
-            'all {}-{}'.format(rstart,rstop)
+            f'all {rstart}-{rstop}'
         elif r[0] == 'year':
             rstart = xstart.strftime("%Y-%m-%d")
             rstop = xstop.strftime("%Y-%m-%d")
-            'year {}-{}'.format(rstart,rstop)
+            f'year {rstart}-{rstop}'
             path = xstart.strftime("%Y")
         elif r[0] == 'month':
             rstart = xstart.strftime("%Y-%m-%d")
             rstop = xstop.strftime("%Y-%m-%d")
-            'month {}-{}'.format(rstart,rstop)
+            f'month {rstart}-{rstop}'
             path = os.path.join(xstart.strftime("%Y"),xstart.strftime("%m"))
 
         output = os.path.join(
-            path_destination, path, "dionaea-overview{}.{}".format(suffix, image_ext))
+            path_destination, path, f"dionaea-overview{suffix}.{image_ext}")
         filename_gnuplot = os.path.join(
             path_destination,
             "gnuplot",
@@ -511,7 +511,7 @@ def plot_overview_data(ranges, path_destination, filename_data, protocol, filena
             )
         )
 
-        w = open(filename_gnuplot, "wt")
+        w = open(filename_gnuplot, "w")
         w.write(
             tpl_gnuplot.format(
                 filename_output=output,
@@ -522,7 +522,7 @@ def plot_overview_data(ranges, path_destination, filename_data, protocol, filena
         )
         w.close()
 
-        os.system("gnuplot {}".format(filename_gnuplot))
+        os.system(f"gnuplot {filename_gnuplot}")
 
 if __name__ == "__main__":
     parser = OptionParser()
@@ -594,7 +594,7 @@ if __name__ == "__main__":
             "data",
             protocol + ".data"
         )
-        print("[+] getting data for {} overview".format(protocol))
+        print(f"[+] getting data for {protocol} overview")
         get_overview_data(
             cursor,
             options.destination,

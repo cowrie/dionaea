@@ -155,7 +155,7 @@ class SipParsingError(Exception):
     """
 
 
-class CSeq(object):
+class CSeq:
     """
     Hold the value of an CSeq attribute
 
@@ -192,7 +192,7 @@ class CSeq(object):
         return (len(data), {'seq':seq,'method':method})
 
 
-class Header(object):
+class Header:
     """
     >>> print(Header.froms('"John Doe" <sip:john@example.org>', 'to').dumps())
     b'To: "John Doe" <sip:john@example.org>'
@@ -312,7 +312,7 @@ class Header(object):
     value = property(get_value)
 
 
-class Headers(object):
+class Headers:
 
     _single = [
         b"call-id",
@@ -387,7 +387,7 @@ class Headers(object):
         return self._headers.items()
 
 
-class Message(object):
+class Message:
     """
     >>> s = b'ACK sip:alice@example.org SIP/2.0\\r\\n'
     >>> s = s + b'CSeq: 1 ACK\\r\\n'
@@ -656,7 +656,7 @@ class Message(object):
         self._personality = personality
 
 
-class Via(object):
+class Via:
     """
     Parse and generate the content of a Via: Header.
 
@@ -679,7 +679,7 @@ class Via(object):
     b'z9hG4bK77asjd' b'192.0.2.207'
     """
 
-    _syntax = re.compile(b"SIP */ *2\.0 */ *(?P<protocol>[a-zA-Z]+) *(?P<address>[^ :;]*) *(:(?P<port>[0-9]+))?( *; *(?P<params>.*))?")
+    _syntax = re.compile(br"SIP */ *2\.0 */ *(?P<protocol>[a-zA-Z]+) *(?P<address>[^ :;]*) *(:(?P<port>[0-9]+))?( *; *(?P<params>.*))?")
 
     def __init__(self, protocol = None, address = None, port = None, params = None):
         if params is None:

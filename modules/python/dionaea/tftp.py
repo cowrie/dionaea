@@ -263,7 +263,7 @@ class TftpPacketInitial(TftpPacket, TftpPacketWithOptions):
         logger.debug("Encoding %s packet, filename = %s, mode = %s"
                      % (ptype, self.filename, self.mode))
         for key in self.options:
-            logger.debug("    Option {} = {}".format(key, self.options[key]))
+            logger.debug(f"    Option {key} = {self.options[key]}")
 
         format = "!H"
         format += "%dsx" % len(self.filename)
@@ -1019,7 +1019,7 @@ class TftpClient(TftpSession):
                     # Set options to OACK options
                     self.options = recvpkt.options
                     for key in self.options:
-                        logger.info("    {} = {}".format(key, self.options[key]))
+                        logger.info(f"    {key} = {self.options[key]}")
                     logger.debug("sending ACK to OACK")
                     ackpkt = TftpPacketACK()
                     ackpkt.blocknumber = 0

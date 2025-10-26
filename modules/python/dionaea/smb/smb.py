@@ -408,7 +408,7 @@ class smbd(connection):
 
                 i = incident("dionaea.download.offer")
                 i.con = self
-                i.url = "smb://%s/%s" % (self.remote.host, filename)
+                i.url = "smb://{}/{}".format(self.remote.host, filename)
                 i.report()
                 smblog.info("OPEN FILE! %s" % filename)
 
@@ -444,7 +444,7 @@ class smbd(connection):
 
             i = incident("dionaea.download.offer")
             i.con = self
-            i.url = "smb://%s/%s" % (self.remote.host, filename)
+            i.url = "smb://{}/{}".format(self.remote.host, filename)
             i.report()
             smblog.info("OPEN FILE! %s" % filename)
 
@@ -624,7 +624,7 @@ class smbd(connection):
                 oplist = [('23','ping'), ('c8','exec'), ('77','kill')]
                 for fid,command in oplist:
                     if op2 == fid:
-                        smblog.info("DoublePulsar request opcode: %s command: %s" % (op2, command))
+                        smblog.info("DoublePulsar request opcode: {} command: {}".format(op2, command))
                 if op2 != '23' and op2 != 'c8' and op2 != '77':
                     smblog.info("unknown opcode: %s" % op2)
 

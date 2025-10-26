@@ -67,7 +67,7 @@ class ErrorWithResponse(Exception):
         return self._msg.create_response(self._response_code, self._status_message)
 
 
-class SipConfig(object):
+class SipConfig:
     """
     This class helps to access the config values.
     """
@@ -261,7 +261,7 @@ class SipConfig(object):
         sdp = data[0]
         for n,v in media_ports.items():
             if v is None:
-                sdp = re.sub("\[" + n +"\].*\[\/" + n + "\]", "", sdp, 0, re.DOTALL)
+                sdp = re.sub(r"\[" + n +r"\].*\[\/" + n + r"\]", "", sdp, 0, re.DOTALL)
             else:
                 params[n] = v
 
@@ -300,7 +300,7 @@ class SipConfig(object):
         return False
 
 
-class PCAP(object):
+class PCAP:
     def __init__(self, path, filename):
         self.path = path
         self.filename = filename
@@ -433,12 +433,12 @@ class PCAP(object):
         self._fp.write(pcap)
 
 
-class Timer(object):
+class Timer:
     def __init__(self, **kwargs):
         self.timeout = kwargs.get("timeout", 30)
 
 
-class User(object):
+class User:
     def __init__(self, **kwargs):
         self.realm = kwargs.get("realm", "test")
         self.username = kwargs.get("username", "")

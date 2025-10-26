@@ -57,7 +57,7 @@ class Packet_metaclass(type):
 
             dct["fields_desc"] = final_fld
 
-        newcls = super(Packet_metaclass, cls).__new__(cls, name, bases, dct)
+        newcls = super().__new__(cls, name, bases, dct)
         if hasattr(newcls,"register_variant"):
             newcls.register_variant()
         for f in newcls.fields_desc:
@@ -289,7 +289,7 @@ class Packet(BasePacket, metaclass=Packet_metaclass):
             else:
                 continue
 
-            s += " %s%s%s" % (f.name,
+            s += " {}{}{}".format(f.name,
                               "=",
                               val)
         return "%s%s %s %s%s%s"% ("<",
@@ -389,7 +389,7 @@ class Packet(BasePacket, metaclass=Packet_metaclass):
                 if isinstance(cls,type) and issubclass(cls,Packet):
                     print("%s dissector failed" % cls.name)
                 else:
-                    print("%s.guess_payload_class() returned [%s]" % (
+                    print("{}.guess_payload_class() returned [{}]".format(
                         self.__class__.__name__,repr(cls)))
                 if cls is not None:
                     raise
@@ -455,8 +455,7 @@ class Packet(BasePacket, metaclass=Packet_metaclass):
                         elt = SetGen(elt)
                 for e in elt:
                     done[eltname]=e
-                    for x in loop(todo[:], done):
-                        yield x
+                    yield from loop(todo[:], done)
             else:
                 if isinstance(self.payload,NoPayload):
                     payloads = [None]
@@ -739,7 +738,7 @@ A side effect is that, to obtain "{" and "}" characters, you must use
                 fmt = fmt[i+1:]
             except:
                 raise Exception(
-                    "Bad format string [%%%s%s]" % (fmt[:25], fmt[25:] and "..."))
+                    "Bad format string [%{}{}]".format(fmt[:25], fmt[25:] and "..."))
             else:
                 if fld == "time":
                     val = time.strftime("%H:%M:%S.%%06i", time.localtime(self.time)) % int(
@@ -747,7 +746,7 @@ A side effect is that, to obtain "{" and "}" characters, you must use
                 elif cls == self.__class__.__name__ and hasattr(self, fld):
                     if num > 1:
                         val = self.payload.sprintf(
-                            "%%%s,%s:%s.%s%%" % (f,cls,num-1,fld), relax)
+                            "%{},{}:{}.{}%".format(f,cls,num-1,fld), relax)
                         f = "s"
                     elif f[-1] == "r":  # Raw field value
                         val = getattr(self,fld)
@@ -788,7 +787,7 @@ A side effect is that, to obtain "{" and "}" characters, you must use
             found = 1
         if not ret:
             ret = self.__class__.__name__
-        ret = "%s%s" % (ret,s)
+        ret = "{}{}".format(ret,s)
         if intern:
             return found,ret,needed
         else:
@@ -814,8 +813,8 @@ A side effect is that, to obtain "{" and "}" characters, you must use
                 fv = "[%s]" % ",".join( map(Packet.command, fv))
             else:
                 fv = repr(fv)
-            f.append("%s=%s" % (fn, fv))
-        c = "%s(%s)" % (self.__class__.__name__, ", ".join(f))
+            f.append("{}={}".format(fn, fv))
+        c = "{}({})".format(self.__class__.__name__, ", ".join(f))
         pc = self.payload.command()
         if pc:
             c += "/"+pc

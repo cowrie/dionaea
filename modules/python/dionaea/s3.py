@@ -56,7 +56,7 @@ class s3handler(ihandler):
             # Uploads the given file using a Boto 3 managed uploader, which will split up large
             # files automatically and upload parts in parallel.
             self.s3.upload_file(icd.file, self.bucket_name, self.s3_dest_folder+icd.md5hash)
-            logger.info("File (MD5) uploaded to S3 bucket: {}".format(icd.md5hash))
+            logger.info(f"File (MD5) uploaded to S3 bucket: {icd.md5hash}")
 
         except Exception as e:
-            logger.warn("S3 exception: {}".format(e))
+            logger.warn(f"S3 exception: {e}")

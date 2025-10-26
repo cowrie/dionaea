@@ -160,14 +160,14 @@ class virustotalhandler(ihandler):
                 """DELETE FROM backlogfiles WHERE backlogfile = ?""", (vtr.backlogfile,) )
             self.dbh.commit()
 
-            logger.debug("report {}".format(j) )
+            logger.debug(f"report {j}" )
 
             i = incident("dionaea.modules.python.virustotal.report")
             i.md5hash = vtr.md5hash
             i.path = icd.path
             i.report()
         else:
-            logger.warn("virustotal reported {}".format(j))
+            logger.warn(f"virustotal reported {j}")
         del self.cookies[cookie]
 
     def scan_file(self, backlogfile, md5_hash, path, status):
@@ -186,7 +186,7 @@ class virustotalhandler(ihandler):
     def handle_incident_dionaea_modules_python_virustotal_scan_file(self, icd):
         f = open(icd.path)
         j = json.load(f)
-        logger.debug("scan_file {}".format(j))
+        logger.debug(f"scan_file {j}")
         cookie = icd._userdata
         vtr = self.cookies[cookie]
 

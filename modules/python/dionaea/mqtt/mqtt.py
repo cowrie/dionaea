@@ -35,7 +35,7 @@ class mqttd(connection):
 					p.show()
 
 					self.pendingPacketType = p.ControlPacketType
-					logger.debug("MQTT Control Packet Type {}".format(self.pendingPacketType))
+					logger.debug(f"MQTT Control Packet Type {self.pendingPacketType}")
 
 				if len(data) == 0:
 					logger.warn("Bad MQTT Packet, Length = 0")
@@ -185,7 +185,7 @@ class mqttd(connection):
 				r.PacketIdentifier = packetidentifier
 				r.HeaderFlags = MQTT_CONTROLMESSAGE_TYPE_PUBLISHCOM
 		else:
-			logger.warn("Unknown Packet Type for MQTT {}".format(PacketType))
+			logger.warn(f"Unknown Packet Type for MQTT {PacketType}")
 
 		return r
 

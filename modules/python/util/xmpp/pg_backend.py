@@ -294,7 +294,7 @@ class RoomHandler(MucRoomHandler):
                 """SELECT CURRVAL('dionaea.connections_connection_seq')""")
             attackid = cursor.fetchall()[0][0]
             user.attacks[ref] = (attackid,attackid)
-        print("[%s] %s %s %s %s:%s %s/%s:%s %s" % (user.room_jid.as_unicode(), ctype, protocol,
+        print("[{}] {} {} {} {}:{} {}/{}:{} {}".format(user.room_jid.as_unicode(), ctype, protocol,
                                                    transport, local_host, local_port, remote_hostname, remote_host, remote_port, ref))
 
 
@@ -338,7 +338,7 @@ class RoomHandler(MucRoomHandler):
             user.attacks[child] = (parentroot, childid)
             cursor.execute("UPDATE dionaea.connections SET connection_root = %s, connection_parent = %s WHERE connection = %s",
                            (parentroot, parentid, childid) )
-        print("[%s] link %s %s" % (user.room_jid.as_unicode(), parent, child))
+        print("[{}] link {} {}".format(user.room_jid.as_unicode(), parent, child))
 
     def handle_incident_dionaea_connection_free(self, user, xmlobj):
         try:
@@ -408,7 +408,7 @@ class RoomHandler(MucRoomHandler):
             return
         if options.files is not None:
             p = os.path.join(options.files, my_hash)
-            h = io.open(p, "wb+")
+            h = open(p, "wb+")
             h.write(f)
             h.close()
         print("[%s] file %s <-> %s" %
@@ -857,7 +857,7 @@ class Client(JabberClient):
         """This one is called when the state of stream connecting the component
         to a server changes. This will usually be used to let the user
         know what is going on."""
-        print("*** State changed: %s %r ***" % (state,arg))
+        print("*** State changed: {} {!r} ***".format(state,arg))
 
     def session_started(self):
         """This is called when the IM session is successfully started
@@ -883,7 +883,7 @@ class Client(JabberClient):
         self.stream.set_message_handler("normal",self.message)
         print(self.stream)
 
-        print(u"joining...")
+        print("joining...")
         self.roommgr = MucRoomManager(self.stream)
         self.roommgr.set_handlers()
         nick = self.jid.node + '-' + self.jid.resource
@@ -923,25 +923,25 @@ class Client(JabberClient):
         subject=stanza.get_subject()
         body=stanza.get_body()
         t=stanza.get_type()
-        print(u'Message from %s received.' % (unicode(stanza.get_from(),)))
+        print('Message from %s received.' % (unicode(stanza.get_from(),)))
         return True
 
     def presence(self,stanza):
         """Handle 'available' (without 'type') and 'unavailable' <presence/>."""
-        msg=u"%s has become " % (stanza.get_from())
+        msg="%s has become " % (stanza.get_from())
         t=stanza.get_type()
         if t=="unavailable":
-            msg+=u"unavailable"
+            msg+="unavailable"
         else:
-            msg+=u"available"
+            msg+="available"
 
         show=stanza.get_show()
         if show:
-            msg+=u"(%s)" % (show,)
+            msg+="({})".format(show)
 
         status=stanza.get_status()
         if status:
-            msg+=u": "+status
+            msg+=": "+status
         print(msg)
 
     def presence_control(self,stanza):
@@ -950,13 +950,13 @@ class Client(JabberClient):
         msg=unicode(stanza.get_from())
         t=stanza.get_type()
         if t=="subscribe":
-            msg+=u" has requested presence subscription."
+            msg+=" has requested presence subscription."
         elif t=="subscribed":
-            msg+=u" has accepted our presence subscription request."
+            msg+=" has accepted our presence subscription request."
         elif t=="unsubscribe":
-            msg+=u" has canceled his subscription of our."
+            msg+=" has canceled his subscription of our."
         elif t=="unsubscribed":
-            msg+=u" has canceled our subscription of his presence."
+            msg+=" has canceled our subscription of his presence."
 
         print(msg)
         p=stanza.make_accept_response()
@@ -967,18 +967,18 @@ class Client(JabberClient):
         if item.name:
             name=item.name
         else:
-            name=u""
-        print(u'%s "%s" subscription=%s groups=%s'
+            name=""
+        print('%s "%s" subscription=%s groups=%s'
                % (unicode(item.jid), name, item.subscription,
-                  u",".join(item.groups)) )
+                  ",".join(item.groups)) )
 
     def roster_updated(self,item=None):
         if not item:
-            print(u"My roster:")
+            print("My roster:")
             for item in self.roster.get_items():
                 self.print_roster_item(item)
             return
-        print(u"Roster item updated:")
+        print("Roster item updated:")
         self.print_roster_item(item)
 
 # XMPP protocol is Unicode-based to properly display data received
@@ -1030,13 +1030,13 @@ if not options.files:
     print("Not storing files, are you sure?")
 
 while True:
-    print(u"creating client... %s" % options.resource)
+    print("creating client... %s" % options.resource)
     c=Client(JID(options.username + '/' + options.resource),options.password)
 
-    print(u"connecting...")
+    print("connecting...")
     c.connect()
 
-    print(u"looping...")
+    print("looping...")
     try:
         # Component class provides basic "main loop" for the applitation
         # Though, most applications would need to have their own loop and call
@@ -1045,9 +1045,9 @@ while True:
         c.loop(1)
         c.idle()
     except KeyboardInterrupt:
-        print(u"disconnecting...")
+        print("disconnecting...")
         c.disconnect()
-        print(u"exiting...")
+        print("exiting...")
         break
     except Exception:
         import traceback

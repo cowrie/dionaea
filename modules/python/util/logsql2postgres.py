@@ -14,9 +14,9 @@ import postgresql.driver as pg_driver
 import optparse
 
 def copy(name, lite, pg, src, dst):
-    print("[+] {0}".format(name))
+    print(f"[+] {name}")
 
-    pg.execute("DELETE FROM {0}".format(dst['table']))
+    pg.execute("DELETE FROM {}".format(dst['table']))
     offset = 0
     limit = 10000
     insert = pg.prepare(dst['query'])
@@ -32,7 +32,7 @@ def copy(name, lite, pg, src, dst):
             # update the sequence if we inserted rows
             if offset + r != 0:
                 pg.execute(
-                    "SELECT setval('{0}',{1})".format(dst['seq'], offset + r))
+                    "SELECT setval('{}',{})".format(dst['seq'], offset + r))
             break
         offset += limit
 

@@ -10,7 +10,8 @@ import logging
 import pkgutil
 import traceback
 from threading import Event, Thread
-from typing import Callable, Optional
+from typing import Optional
+from collections.abc import Callable
 
 import yaml
 
@@ -64,8 +65,8 @@ class SubTimer(Thread):
     :param args: Optional arguments passed to the callback function.
     :param kwargs: Opional arguments passed to the callback function.
     """
-    def __init__(self, interval: float, function: Callable, delay: Optional[float] = None, repeat=False,
-                 args: Optional[list] = None, kwargs: Optional[dict] = None):
+    def __init__(self, interval: float, function: Callable, delay: float | None = None, repeat=False,
+                 args: list | None = None, kwargs: dict | None = None):
         Thread.__init__(self)
         self.interval = interval
         self.function = function
@@ -101,8 +102,8 @@ class Timer:
     :param args: Optional arguments passed to the callback function.
     :param kwargs: Opional arguments passed to the callback function.
     """
-    def __init__(self, interval: float, function: Callable, delay: Optional[float] = None, repeat=False,
-                 args: Optional[list] = None, kwargs: Optional[dict] = None):
+    def __init__(self, interval: float, function: Callable, delay: float | None = None, repeat=False,
+                 args: list | None = None, kwargs: dict | None = None):
         self.interval = interval
         self.function = function
         self.delay = delay
@@ -111,7 +112,7 @@ class Timer:
         self.repeat = repeat
         self.args = args if args is not None else []
         self.kwargs = kwargs if kwargs is not None else {}
-        self._timer: Optional[SubTimer] = None
+        self._timer: SubTimer | None = None
 
     def start(self) -> None:
         """Start the Timer"""
@@ -149,7 +150,7 @@ def load_submodules(base_pkg=None):
         try:
             __import__(modname, fromlist="dummy")
         except Exception as e:
-            logger.warning("Error loading module: {}".format(str(e)))
+            logger.warning(f"Error loading module: {str(e)}")
 
             for msg in traceback.format_exc().split("\n"):
                 logger.warning(msg.rstrip())
