@@ -68,12 +68,12 @@ class logsqlhandler(ihandler):
             END""")
 
         for idx in ["type","timestamp","root","parent"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS connections_%s_idx
-            ON connections (connection_%s)""" % (idx, idx))
+            self.cursor.execute("""CREATE INDEX IF NOT EXISTS connections_{}_idx
+            ON connections (connection_{})""".format(idx, idx))
 
         for idx in ["local_host","local_port","remote_host"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS connections_%s_idx
-            ON connections (%s)""" % (idx, idx))
+            self.cursor.execute("""CREATE INDEX IF NOT EXISTS connections_{}_idx
+            ON connections ({})""".format(idx, idx))
 
 
 #         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
@@ -102,8 +102,8 @@ class logsqlhandler(ihandler):
             )""")
 
         for idx in ["uuid","transfersyntax"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS dcerpcbinds_%s_idx
-            ON dcerpcbinds (dcerpcbind_%s)""" % (idx, idx))
+            self.cursor.execute("""CREATE INDEX IF NOT EXISTS dcerpcbinds_{}_idx
+            ON dcerpcbinds (dcerpcbind_{})""".format(idx, idx))
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
             dcerpcrequests (
@@ -115,8 +115,8 @@ class logsqlhandler(ihandler):
             )""")
 
         for idx in ["uuid","opnum"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS dcerpcrequests_%s_idx
-            ON dcerpcrequests (dcerpcrequest_%s)""" % (idx, idx))
+            self.cursor.execute("""CREATE INDEX IF NOT EXISTS dcerpcrequests_{}_idx
+            ON dcerpcrequests (dcerpcrequest_{})""".format(idx, idx))
 
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
@@ -147,8 +147,8 @@ class logsqlhandler(ihandler):
         names = [r.description[x][0] for x in range(len(r.description))]
         r = [ dict(zip(names, i)) for i in r]
 #        print(r)
-        r = dict([(UUID(i['dcerpcservice_uuid']).hex,i['dcerpcservice'])
-                  for i in r])
+        r = {UUID(i['dcerpcservice_uuid']).hex:i['dcerpcservice']
+                  for i in r}
 #        print(r)
 
 
@@ -291,8 +291,8 @@ class logsqlhandler(ihandler):
                 "Updating downloads failed, copying old table failed (%s)" % e)
 
         for idx in ["url", "md5_hash"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS downloads_%s_idx
-            ON downloads (download_%s)""" % (idx, idx))
+            self.cursor.execute("""CREATE INDEX IF NOT EXISTS downloads_{}_idx
+            ON downloads (download_{})""".format(idx, idx))
 
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
@@ -320,8 +320,8 @@ class logsqlhandler(ihandler):
             )""")
 
         for idx in ["genre","detail","uptime"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS p0fs_%s_idx
-            ON p0fs (p0f_%s)""" % (idx, idx))
+            self.cursor.execute("""CREATE INDEX IF NOT EXISTS p0fs_{}_idx
+            ON p0fs (p0f_{})""".format(idx, idx))
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
             logins (
@@ -333,8 +333,8 @@ class logsqlhandler(ihandler):
             )""")
 
         for idx in ["username","password"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS logins_%s_idx
-            ON logins (login_%s)""" % (idx, idx))
+            self.cursor.execute("""CREATE INDEX IF NOT EXISTS logins_{}_idx
+            ON logins (login_{})""".format(idx, idx))
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
             mssql_fingerprints (
@@ -347,8 +347,8 @@ class logsqlhandler(ihandler):
             )""")
 
         for idx in ["hostname","appname","cltintname"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS mssql_fingerprints_%s_idx
-            ON mssql_fingerprints (mssql_fingerprint_%s)""" % (idx, idx))
+            self.cursor.execute("""CREATE INDEX IF NOT EXISTS mssql_fingerprints_{}_idx
+            ON mssql_fingerprints (mssql_fingerprint_{})""".format(idx, idx))
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
             mssql_commands (
@@ -360,8 +360,8 @@ class logsqlhandler(ihandler):
             )""")
 
         for idx in ["status"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS mssql_commands_%s_idx
-            ON mssql_commands (mssql_command_%s)""" % (idx, idx))
+            self.cursor.execute("""CREATE INDEX IF NOT EXISTS mssql_commands_{}_idx
+            ON mssql_commands (mssql_command_{})""".format(idx, idx))
 
 
 
@@ -373,8 +373,8 @@ class logsqlhandler(ihandler):
             )""")
 
         for idx in ["md5_hash"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS virustotals_%s_idx
-            ON virustotals (virustotal_%s)""" % (idx, idx))
+            self.cursor.execute("""CREATE INDEX IF NOT EXISTS virustotals_{}_idx
+            ON virustotals (virustotal_{})""".format(idx, idx))
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS virustotalscans (
             virustotalscan INTEGER PRIMARY KEY,
@@ -385,8 +385,8 @@ class logsqlhandler(ihandler):
 
 
         for idx in ["scanner","result"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS virustotalscans_%s_idx
-            ON virustotalscans (virustotalscan_%s)""" % (idx, idx))
+            self.cursor.execute("""CREATE INDEX IF NOT EXISTS virustotalscans_{}_idx
+            ON virustotalscans (virustotalscan_{})""".format(idx, idx))
 
         self.cursor.execute("""CREATE INDEX IF NOT EXISTS virustotalscans_virustotal_idx
             ON virustotalscans (virustotal)""")
@@ -409,8 +409,8 @@ class logsqlhandler(ihandler):
             )""")
 
         for idx in ["command"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS mysql_command_args_%s_idx
-            ON mysql_command_args (mysql_%s)""" % (idx, idx))
+            self.cursor.execute("""CREATE INDEX IF NOT EXISTS mysql_command_args_{}_idx
+            ON mysql_command_args (mysql_{})""".format(idx, idx))
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
             mysql_command_ops (
@@ -528,8 +528,8 @@ class logsqlhandler(ihandler):
             )""")
 
         for idx in ["clientid","willtopic","willmessage", "username", "password"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS mqtt_fingerprints_%s_idx
-            ON mqtt_fingerprints (mqtt_fingerprint_%s)""" % (idx, idx))
+            self.cursor.execute("""CREATE INDEX IF NOT EXISTS mqtt_fingerprints_{}_idx
+            ON mqtt_fingerprints (mqtt_fingerprint_{})""".format(idx, idx))
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
             mqtt_publish_commands (
@@ -541,8 +541,8 @@ class logsqlhandler(ihandler):
             )""")
 
         for idx in ["topic", "message"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS mqtt_publish_commands_%s_idx
-            ON mqtt_publish_commands (mqtt_publish_command_%s)""" % (idx, idx))
+            self.cursor.execute("""CREATE INDEX IF NOT EXISTS mqtt_publish_commands_{}_idx
+            ON mqtt_publish_commands (mqtt_publish_command_{})""".format(idx, idx))
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
             mqtt_subscribe_commands (
@@ -554,13 +554,13 @@ class logsqlhandler(ihandler):
             )""")
 
         for idx in ["messageid", "topic"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS mqtt_subscribe_commands_%s_idx
-            ON mqtt_subscribe_commands (mqtt_subscribe_command_%s)""" % (idx, idx))
+            self.cursor.execute("""CREATE INDEX IF NOT EXISTS mqtt_subscribe_commands_{}_idx
+            ON mqtt_subscribe_commands (mqtt_subscribe_command_{})""".format(idx, idx))
 
         # connection index for all
         for idx in ["dcerpcbinds", "dcerpcrequests", "emu_profiles", "emu_services", "offers", "downloads", "p0fs", "logins", "mssql_fingerprints", "mssql_commands","mysql_commands","sip_commands", "mqtt_fingerprints", "mqtt_publish_commands", "mqtt_subscribe_commands"]:
             self.cursor.execute(
-                """CREATE INDEX IF NOT EXISTS %s_connection_idx    ON %s (connection)""" % (idx, idx)
+                """CREATE INDEX IF NOT EXISTS {}_connection_idx    ON {} (connection)""".format(idx, idx)
             )
 
 
@@ -629,7 +629,7 @@ class logsqlhandler(ihandler):
             # - update the connection_root and connection_parent for all connections which had the pending
             # - update the connection_root for all connections which had the 'childid' as connection_root
             for i in self.pending[con]:
-                print("%s %s %s" % (attackid, attackid, i))
+                print("{} {} {}".format(attackid, attackid, i))
                 self.cursor.execute("UPDATE connections SET connection_root = ?, connection_parent = ? WHERE connection = ?",
                                     (attackid, attackid, i ) )
                 self.cursor.execute("UPDATE connections SET connection_root = ? WHERE connection_root = ?",
@@ -848,7 +848,7 @@ class logsqlhandler(ihandler):
 
     def handle_incident_dionaea_modules_python_virustotal_report(self, icd):
         md5 = icd.md5hash
-        f = open(icd.path, mode='r')
+        f = open(icd.path)
         j = json.load(f)
 
         if j['response_code'] == 1: # file was known to virustotal

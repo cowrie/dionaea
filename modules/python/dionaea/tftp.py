@@ -70,7 +70,7 @@ class TftpException(Exception):
     pass
 
 
-class TftpErrors(object):
+class TftpErrors:
     """This class is a convenience for defining the common tftp error codes,
     and making them more readable in the code."""
     NotDefined = 0
@@ -84,7 +84,7 @@ class TftpErrors(object):
     FailedNegotiation = 8
 
 
-class TftpState(object):
+class TftpState:
     """This class represents a particular state for a TFTP Session. It encapsulates a
     state, kind of like an enum. The states mean the following:
     nil - Client/Server - Session not yet established
@@ -146,7 +146,7 @@ class TftpSession(connection):
         errpkt.errorcode = errorcode
         self.send(errpkt.encode().buffer)
 
-class TftpPacketWithOptions(object):
+class TftpPacketWithOptions:
     """This class exists to permit some TftpPacket subclasses to share code
     regarding options handling. It does not inherit from TftpPacket, as the
     goal is just to share code here, and not cause diamond inheritance."""
@@ -215,7 +215,7 @@ class TftpPacketWithOptions(object):
 
         return options
 
-class TftpPacket(object):
+class TftpPacket:
     """This class is the parent class of all tftp packet classes. It is an
     abstract class, providing an interface, and should not be instantiated
     directly."""
@@ -263,7 +263,7 @@ class TftpPacketInitial(TftpPacket, TftpPacketWithOptions):
         logger.debug("Encoding %s packet, filename = %s, mode = %s"
                      % (ptype, self.filename, self.mode))
         for key in self.options:
-            logger.debug("    Option %s = %s" % (key, self.options[key]))
+            logger.debug("    Option {} = {}".format(key, self.options[key]))
 
         format = "!H"
         format += "%dsx" % len(self.filename)
@@ -566,7 +566,7 @@ class TftpPacketOACK(TftpPacket, TftpPacketWithOptions):
         return True
 
 
-class TftpPacketFactory(object):
+class TftpPacketFactory:
     """This class generates TftpPacket objects. It is responsible for parsing
     raw buffers off of the wire and returning objects representing them, via
     the parse() method."""
@@ -1019,7 +1019,7 @@ class TftpClient(TftpSession):
                     # Set options to OACK options
                     self.options = recvpkt.options
                     for key in self.options:
-                        logger.info("    %s = %s" % (key, self.options[key]))
+                        logger.info("    {} = {}".format(key, self.options[key]))
                     logger.debug("sending ACK to OACK")
                     ackpkt = TftpPacketACK()
                     ackpkt.blocknumber = 0

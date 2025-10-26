@@ -19,7 +19,7 @@ logger = logging.getLogger("log_incident")
 logger.setLevel(logging.DEBUG)
 
 
-class FileHandler(object):
+class FileHandler:
     handle_schemes = ["file"]
 
     def __init__(self, url):
@@ -37,7 +37,7 @@ class FileHandler(object):
         self.fp.flush()
 
 
-class HTTPHandler(object):
+class HTTPHandler:
     handle_schemes = ["http", "https"]
 
     def __init__(self, url):

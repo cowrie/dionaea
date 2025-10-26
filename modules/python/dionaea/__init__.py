@@ -22,7 +22,7 @@ loaded_submodules = []
 
 class RegisterClasses(type):
     def __init__(self, name, bases, nmspc):
-        super(RegisterClasses, self).__init__(name, bases, nmspc)
+        super().__init__(name, bases, nmspc)
         if not hasattr(self, 'registry'):
             self.registry = set()
 
@@ -33,7 +33,7 @@ class RegisterClasses(type):
         return iter(self.registry)
 
 
-class ServiceLoader(object, metaclass=RegisterClasses):
+class ServiceLoader(metaclass=RegisterClasses):
     @classmethod
     def start(cls, addr, iface=None):
         raise NotImplementedError("do it")
@@ -43,7 +43,7 @@ class ServiceLoader(object, metaclass=RegisterClasses):
         daemon.close()
 
 
-class IHandlerLoader(object, metaclass=RegisterClasses):
+class IHandlerLoader(metaclass=RegisterClasses):
     @classmethod
     def start(cls):
         raise NotImplementedError("do it")
@@ -90,7 +90,7 @@ class SubTimer(Thread):
                 self.function(*self.args, **self.kwargs)
 
 
-class Timer(object):
+class Timer:
     """
     Extend Timer with additional functions like cancel and reset it. It uses the SubTimer() internally.
 

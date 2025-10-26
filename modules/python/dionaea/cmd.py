@@ -29,7 +29,7 @@ class cmdexe:
         else:
             self.send = self.void
         self.files = {}
-        self.cwd = 'C:\WINDOWS\System32'
+        self.cwd = r'C:\WINDOWS\System32'
 
 
     def handle_io_in(self, data):
@@ -42,7 +42,7 @@ class cmdexe:
             data,line,c = self.line(data)
             logger.debug("LINE: %s" % (line))
             cmd,args,redir = self.parse(line)
-            logger.debug("CMD: %s %s %s" % (cmd, args, redir))
+            logger.debug("CMD: {} {} {}".format(cmd, args, redir))
             if not cmd:
                 continue
 
@@ -69,7 +69,7 @@ class cmdexe:
                     if target not in self.files:
                         self.files[target] = ""
                     self.files[target] += out
-                    logger.debug("file %s = %s" % (target,self.files[target]))
+                    logger.debug("file {} = {}".format(target,self.files[target]))
             else:
                 self.send(out)
 

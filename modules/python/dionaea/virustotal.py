@@ -132,7 +132,7 @@ class virustotalhandler(ihandler):
         i.report()
 
     def handle_incident_dionaea_modules_python_virustotal_get_file_report(self, icd):
-        f = open(icd.path, mode='r')
+        f = open(icd.path)
         j = json.load(f)
 
         cookie = icd._userdata
@@ -184,7 +184,7 @@ class virustotalhandler(ihandler):
 
 
     def handle_incident_dionaea_modules_python_virustotal_scan_file(self, icd):
-        f = open(icd.path, mode='r')
+        f = open(icd.path)
         j = json.load(f)
         logger.debug("scan_file {}".format(j))
         cookie = icd._userdata
@@ -221,7 +221,7 @@ class virustotalhandler(ihandler):
     def handle_incident_dionaea_modules_python_virustotal_make_comment(self, icd):
         cookie = icd._userdata
         vtr = self.cookies[cookie]
-        f = open(icd.path, mode='r')
+        f = open(icd.path)
         try:
             j = json.load(f)
             if j['response_code'] == -2:

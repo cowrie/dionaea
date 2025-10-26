@@ -45,13 +45,13 @@ class fail2banhandler(ihandler):
             raise LoaderError("Unable to open file %s Error message '%s'", downloads, e.strerror)
 
     def handle_incident_dionaea_download_offer(self, icd):
-        data = "%s %s %s %s\n" % (datetime.datetime.now().isoformat(
+        data = "{} {} {} {}\n".format(datetime.datetime.now().isoformat(
         ), icd.con.local.host, icd.con.remote.host, icd.url)
         self.offers.write(data)
         self.offers.flush()
 
     def handle_incident_dionaea_download_complete_hash(self, icd):
-        data = "%s %s %s %s %s\n" % (datetime.datetime.now().isoformat(
+        data = "{} {} {} {} {}\n".format(datetime.datetime.now().isoformat(
         ), icd.con.local.host, icd.con.remote.host, icd.url, icd.md5hash)
         self.downloads.write(data)
         self.downloads.flush()

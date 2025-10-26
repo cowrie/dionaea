@@ -101,7 +101,7 @@ class Unpacker:
         ac = self.unpack_long()
         #print("mc %i ac %i off %i" % ( mc, ac, off))
         i = self.__pos
-        self.__pos = j = i+(ac*int((width/8)))
+        self.__pos = j = i+(ac*int(width/8))
         data = self.__buf[i:j]
         if len(data) < ac:
             raise EOFError
