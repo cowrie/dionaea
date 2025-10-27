@@ -4,13 +4,13 @@
 #
 # SPDX-License-Identifier: CC0-1.0
 
-FROM ubuntu:18.04
+FROM ubuntu:20.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 
 COPY . /code
 
-# no libemud-dev for now, explore https://github.com/mandiant/unicorn-libemu-shim/tree/master
+# no libemu-dev/libemu2 for now, explore https://github.com/mandiant/unicorn-libemu-shim/tree/master
 RUN apt-get update && \
       # Install build deps
       apt-get -qq install -y \
@@ -72,7 +72,6 @@ RUN apt-get update && \
       apt-get install -y --no-install-recommends \
             ca-certificates \
             libcurl4 \
-            libemu2 \
             libev4 \
             libglib2.0-0 \
             libnetfilter-queue1 \
