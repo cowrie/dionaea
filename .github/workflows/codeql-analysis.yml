@@ -41,6 +41,7 @@ jobs:
         # queries: ./path/to/local/query, your-org/your-repo/queries@main
 
     - name: Install additional packages
+        # remove libemu-dev for now
       run: |
        sudo apt-get update
        sudo apt-get install -y --no-install-recommends \
@@ -49,7 +50,6 @@ jobs:
          check \
          cython3 \
          libcurl4-openssl-dev \
-         libemu-dev \
          libev-dev \
          libglib2.0-dev \
          libloudmouth1-dev \
