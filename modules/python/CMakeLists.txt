@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-if (PYTHONINTERP_FOUND)
+if (Python3_Interpreter_FOUND)
     #set(SETUP_PY_IN "${CMAKE_CURRENT_SOURCE_DIR}/setup.py")
     set(SETUP_PY_IN "${CMAKE_CURRENT_SOURCE_DIR}/setup.py.in2")
     set(SETUP_PY    "${CMAKE_CURRENT_BINARY_DIR}/setup.py")
@@ -19,7 +19,7 @@ if (PYTHONINTERP_FOUND)
 
     add_custom_command(
         OUTPUT ${OUTPUT}
-        COMMAND ${PYTHON_EXECUTABLE} ${SETUP_PY} build
+        COMMAND ${Python3_EXECUTABLE} ${SETUP_PY} build
         COMMAND ${CMAKE_COMMAND} -E touch ${OUTPUT}
         DEPENDS ${DEPS}
         #WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -30,8 +30,8 @@ if (PYTHONINTERP_FOUND)
         ALL DEPENDS ${OUTPUT}
     )
 
-    #install(CODE "execute_process(COMMAND ${PYTHON_EXECUTABLE} ${SETUP_PY} install --prefix=${CMAKE_INSTALL_PREFIX})")
-    install(CODE "execute_process(COMMAND ${PYTHON_EXECUTABLE} ${SETUP_PY} install --install-lib=\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${DIONAEA_PYTHON_SITELIBDIR})")
+    #install(CODE "execute_process(COMMAND ${Python3_EXECUTABLE} ${SETUP_PY} install --prefix=${CMAKE_INSTALL_PREFIX})")
+    install(CODE "execute_process(COMMAND ${Python3_EXECUTABLE} ${SETUP_PY} install --install-lib=\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${DIONAEA_PYTHON_SITELIBDIR})")
 endif()
 
 add_library(
@@ -58,7 +58,7 @@ target_include_directories(
         ../../
         ${GLIB2_INCLUDE_DIRS}
         ${GMODULE2_INCLUDE_DIRS}
-        ${PYTHON_INCLUDE_DIR}
+        ${Python3_INCLUDE_DIRS}
         ${CMAKE_BINARY_DIR}
         #${CMAKE_CURRENT_BINARY_DIR}/../..
 )
@@ -66,7 +66,7 @@ target_include_directories(
 target_link_libraries(
     module_python
     ${GLIB2_LIBRARY_DIRS}
-    ${PYTHON_LIBRARIES}
+    ${Python3_LIBRARIES}
     dionaea
 )
 

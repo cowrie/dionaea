@@ -108,9 +108,7 @@ pkg_check_modules(NFQUEUE libnetfilter_queue)
 pkg_check_modules(LIBNL3 libnl-3.0)
 pkg_check_modules(LIBNL3_ROUTE libnl-route-3.0)
 
-set(Python_ADDITIONAL_VERSIONS 3.4 3.5 3.6 3.7 3.8)
-find_package(PythonInterp REQUIRED)
-find_package(PythonLibs ${PYTHON_VERSION_STRING} REQUIRED)
+find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
 find_package(OpenSSL REQUIRED)
 
 find_package(UDNS REQUIRED)
