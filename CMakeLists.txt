@@ -75,12 +75,12 @@ set(DIONAEA_VERSION ${PROJECT_VERSION})
 if(NOT RELEASE_BUILD AND EXISTS ${PROJECT_SOURCE_DIR}/.git)
     find_package(Git)
     if(GIT_FOUND)
-        exec_program(
-            ${GIT_EXECUTABLE}
-            ${PROJECT_SOURCE_DIR}
-            ARGS "describe --tag --dirty=-dev"
+        execute_process(
+            COMMAND ${GIT_EXECUTABLE} describe --tag --dirty=-dev
+            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
             OUTPUT_VARIABLE DIONAEA_VERSION
-            RETURN_VALUE TAG_RESULT
+            RESULT_VARIABLE TAG_RESULT
+            OUTPUT_STRIP_TRAILING_WHITESPACE
         )
     else()
         message(STATUS "Git revision could not be determined")
