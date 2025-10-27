@@ -224,7 +224,7 @@ EVP_PKEY *ssl_dh_GetParamFromFile(char *file)
 void ssl_tmp_keys_free(struct connection *con)
 {
 	free_dh_params();
-	MYSSL_TMP_KEYS_FREE(con, RSA);
+	/* RSA temporary keys no longer used - removed with SSL_set_tmp_rsa_callback */
 }
 
 
