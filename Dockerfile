@@ -32,6 +32,7 @@ RUN apt-get update && \
             libudns-dev \
             python3 \
             python3-dev \
+            python3-setuptools \
             python3-bson \
             python3-yaml \
             python3-boto3 \
