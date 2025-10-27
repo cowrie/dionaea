@@ -68,7 +68,10 @@ RUN apt-get update && \
             libudns-dev \
             python3-dev  && \
       # Install required packages
-      apt-get install -y --no-install-recommends \
+      apt-get install -y \
+            -o APT::Install-Suggests=false \
+            -o APT::Install-Recommends=false \
+            -o Dpkg::Use-Pty="0" \
             ca-certificates \
             libcurl4 \
             libev4 \
