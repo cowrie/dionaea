@@ -31,7 +31,7 @@ if (Python3_Interpreter_FOUND)
     )
 
     #install(CODE "execute_process(COMMAND ${Python3_EXECUTABLE} ${SETUP_PY} install --prefix=${CMAKE_INSTALL_PREFIX})")
-    install(CODE "execute_process(COMMAND ${Python3_EXECUTABLE} ${SETUP_PY} install --install-lib=\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${DIONAEA_PYTHON_SITELIBDIR})")
+    install(CODE "execute_process(COMMAND ${Python3_EXECUTABLE} ${SETUP_PY} install --single-version-externally-managed --root=/ --install-lib=\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${DIONAEA_PYTHON_SITELIBDIR})")
 endif()
 
 add_library(
