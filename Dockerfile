@@ -44,8 +44,8 @@ RUN apt-get update && \
       make && \
       make install && \
       # Create user and group
-      addgroup --gid 1000 dionaea && \
-      adduser --system --no-create-home --shell /bin/bash --uid 1000 --disabled-password --disabled-login --gid 1000 dionaea && \
+      addgroup --gid 1001 dionaea && \
+      adduser --system --no-create-home --shell /bin/bash --uid 1001 --disabled-password --disabled-login --gid 1001 dionaea && \
       # Set permissions
       chown -R dionaea:dionaea /opt/dionaea/var && \
       # Prepare additional stuff
