@@ -54,7 +54,7 @@ bool node_info_set(struct node_info *node, struct sockaddr_storage *sa)
 
 	if( sa->ss_family == PF_UNIX )
 	{
-		snprintf(node->ip_string, INET_STRLEN, "un://%s", (char *)addroff);
+		snprintf(node->ip_string, sizeof(node->ip_string), "un://%s", (char *)addroff);
 	} else
 		if( inet_ntop(sa->ss_family, addroff, (void *)&node->ip_string, INET6_ADDRSTRLEN) == NULL )
 	{
