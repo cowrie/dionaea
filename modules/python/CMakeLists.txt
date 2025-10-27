@@ -65,7 +65,7 @@ target_include_directories(
 
 target_link_libraries(
     module_python
-    ${GLIB2_LIBRARY_DIRS}
+    ${GLIB2_LIBRARIES}
     ${Python3_LIBRARIES}
     dionaea
 )
