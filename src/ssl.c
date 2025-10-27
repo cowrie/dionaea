@@ -31,6 +31,8 @@
 #include <openssl/x509v3.h>
 #include <openssl/pem.h>
 #include <openssl/rand.h>
+#include <openssl/core_names.h>
+#include <openssl/param_build.h>
 #include <stddef.h>
 #include <sys/ioctl.h>
 #include <sys/uio.h>
@@ -86,33 +88,62 @@ static int DH_set0_pqg(DH *dh, BIGNUM *p, BIGNUM *q, BIGNUM *g)
  * Grab well-defined DH parameters from OpenSSL, see the BN_get_rfc*
  * functions in <openssl/bn.h> for all available primes.
  */
-static DH *make_dh_params(BIGNUM *(*prime)(BIGNUM *))
+static EVP_PKEY *make_dh_params(BIGNUM *(*prime)(BIGNUM *))
 {
-	DH *dh = DH_new();
-	BIGNUM *p, *g;
+	EVP_PKEY *pkey = NULL;
+	EVP_PKEY_CTX *pctx = NULL;
+	OSSL_PARAM_BLD *param_bld = NULL;
+	OSSL_PARAM *params = NULL;
+	BIGNUM *p = NULL, *g = NULL;
 
-	if (!dh) {
-		return NULL;
-	}
 	p = prime(NULL);
 	g = BN_new();
 	if (g != NULL) {
 		BN_set_word(g, 2);
 	}
-	if (!p || !g || !DH_set0_pqg(dh, p, NULL, g)) {
-		DH_free(dh);
-		BN_free(p);
-		BN_free(g);
-		return NULL;
+	if (!p || !g) {
+		goto err;
 	}
-	return dh;
+
+	param_bld = OSSL_PARAM_BLD_new();
+	if (param_bld == NULL) {
+		goto err;
+	}
+
+	if (!OSSL_PARAM_BLD_push_BN(param_bld, OSSL_PKEY_PARAM_FFC_P, p) ||
+	    !OSSL_PARAM_BLD_push_BN(param_bld, OSSL_PKEY_PARAM_FFC_G, g)) {
+		goto err;
+	}
+
+	params = OSSL_PARAM_BLD_to_param(param_bld);
+	if (params == NULL) {
+		goto err;
+	}
+
+	pctx = EVP_PKEY_CTX_new_from_name(NULL, "DH", NULL);
+	if (pctx == NULL) {
+		goto err;
+	}
+
+	if (EVP_PKEY_fromdata_init(pctx) <= 0 ||
+	    EVP_PKEY_fromdata(pctx, &pkey, EVP_PKEY_KEY_PARAMETERS, params) <= 0) {
+		goto err;
+	}
+
+err:
+	OSSL_PARAM_free(params);
+	OSSL_PARAM_BLD_free(param_bld);
+	EVP_PKEY_CTX_free(pctx);
+	BN_free(p);
+	BN_free(g);
+	return pkey;
 }
 
 
 /* Storage and initialization for DH parameters. */
 static struct dhparam {
 	BIGNUM *(*const prime)(BIGNUM *); /* function to generate... */
-	DH *dh;						   /* ...this, used for keys.... */
+	EVP_PKEY *pkey;						   /* ...this, used for keys.... */
 	const unsigned int min;		   /* ...of length >= this. */
 } dhparams[] = {
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
@@ -138,48 +169,45 @@ void init_dh_params(void)
 	unsigned n;
 
 	for (n = 0; n < sizeof(dhparams)/sizeof(dhparams[0]); n++)
-		dhparams[n].dh = make_dh_params(dhparams[n].prime);
+		dhparams[n].pkey = make_dh_params(dhparams[n].prime);
 }
 
 static void free_dh_params(void)
 {
 	unsigned n;
 
-	/* DH_free() is a noop for a NULL parameter, so these are harmless
+	/* EVP_PKEY_free() is a noop for a NULL parameter, so these are harmless
 	 * in the (unexpected) case where these variables are already
 	 * NULL. */
 	for (n = 0; n < sizeof(dhparams)/sizeof(dhparams[0]); n++) {
-		DH_free(dhparams[n].dh);
-		dhparams[n].dh = NULL;
+		EVP_PKEY_free(dhparams[n].pkey);
+		dhparams[n].pkey = NULL;
 	}
 }
 
 
-DH *ssl_dh_GetTmpParam(unsigned keylen)
+EVP_PKEY *ssl_dh_GetTmpParam(unsigned keylen)
 {
 	unsigned n;
 
 	for (n = 0; n < sizeof(dhparams)/sizeof(dhparams[0]); n++)
 		if (keylen >= dhparams[n].min)
-			return dhparams[n].dh;
+			return dhparams[n].pkey;
 
    return NULL; /* impossible to reach. */
 }
 
-DH *ssl_dh_GetParamFromFile(char *file)
+EVP_PKEY *ssl_dh_GetParamFromFile(char *file)
 {
-	DH *dh = NULL;
+	EVP_PKEY *pkey = NULL;
 	BIO *bio;
 
 	if( (bio = BIO_new_file(file, "r")) == NULL )
 		return NULL;
-#if 0 //SSL_LIBRARY_VERSION < 0x00904000
-	dh = PEM_read_bio_DHparams(bio, NULL, NULL);
-#else
-	dh = PEM_read_bio_DHparams(bio, NULL, NULL, NULL);
-#endif
+
+	pkey = PEM_read_bio_Parameters(bio, NULL);
 	BIO_free(bio);
-	return(dh);
+	return(pkey);
 }
 
 #define MYSSL_TMP_KEY_FREE(con, type, idx) \
@@ -276,39 +304,29 @@ bool mkcert(SSL_CTX *ctx)
 
 	int ret = 0;
 	bool res = false;
-	BIGNUM *bne = NULL;
-	unsigned long e = RSA_F4;
 
 	X509 *x;
-	EVP_PKEY *pk;
-	RSA *rsa  = NULL;
+	EVP_PKEY *pk = NULL;
+	EVP_PKEY_CTX *pctx = NULL;
 	X509_NAME *name=NULL;
-
-	if( (pk=EVP_PKEY_new()) == NULL )
-		goto free_all;
 
 	if( (x=X509_new()) == NULL )
 		goto free_all;
 
-	bne = BN_new();
-	ret = BN_set_word(bne,e);
-	if(ret != 1){
+	pctx = EVP_PKEY_CTX_new_from_name(NULL, "RSA", NULL);
+	if (pctx == NULL)
 		goto free_all;
-	}
 
-	rsa = RSA_new();
-	//ret = RSA_generate_key_ex(rsa, bits, bne, callback);
-	ret = RSA_generate_key_ex(rsa, bits, bne, NULL);
-	if(ret != 1) {
+	if (EVP_PKEY_keygen_init(pctx) <= 0)
+		goto free_all;
+
+	if (EVP_PKEY_CTX_set_rsa_keygen_bits(pctx, bits) <= 0)
+		goto free_all;
+
+	if (EVP_PKEY_keygen(pctx, &pk) <= 0) {
 		g_error("Init: Failed to generate temporary %d bit RSA private key", bits);
 		goto free_all;
 	}
-	if( !EVP_PKEY_assign_RSA(pk,rsa) )
-	{
-		perror("EVP_PKEY_assign_RSA");
-		goto free_all;
-	}
-	rsa=NULL;
 
 	X509_set_version(x,2);
 	ASN1_INTEGER_set(X509_get_serialNumber(x),serial);
@@ -379,7 +397,7 @@ bool mkcert(SSL_CTX *ctx)
 
 	res = true;
 free_all:
-	BN_free(bne);
+	EVP_PKEY_CTX_free(pctx);
 
 	return res;
 }
