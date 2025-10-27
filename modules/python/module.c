@@ -329,9 +329,24 @@ static bool new(struct dionaea *dionaea)
 	size_t pybinsize = mbstowcs(NULL, PYTHON_PATH, 0);
 	wchar_t *pybin = g_malloc0((pybinsize + 1) * sizeof(wchar_t));
 	mbstowcs(pybin, PYTHON_PATH, pybinsize + 1);
-	Py_SetProgramName(pybin);
 
-	Py_Initialize();
+	PyStatus status;
+	PyConfig config;
+	PyConfig_InitPythonConfig(&config);
+
+	status = PyConfig_SetString(&config, &config.program_name, pybin);
+	if (PyStatus_Exception(status)) {
+		PyConfig_Clear(&config);
+		g_free(pybin);
+		Py_ExitStatusException(status);
+	}
+
+	status = Py_InitializeFromConfig(&config);
+	PyConfig_Clear(&config);
+	g_free(pybin);
+	if (PyStatus_Exception(status)) {
+		Py_ExitStatusException(status);
+	}
 
 	PyGILState_STATE gil_state = PyGILState_Ensure();
 
