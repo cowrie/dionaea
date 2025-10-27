@@ -17,6 +17,8 @@ on:  # yamllint disable-line rule:truthy
     branches: [main]
 
 permissions:
+  actions: read
+  contents: read
   security-events: write
 
 jobs:
