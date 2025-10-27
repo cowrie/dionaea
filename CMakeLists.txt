@@ -82,6 +82,10 @@ if(NOT RELEASE_BUILD AND EXISTS ${PROJECT_SOURCE_DIR}/.git)
             RESULT_VARIABLE TAG_RESULT
             OUTPUT_STRIP_TRAILING_WHITESPACE
         )
+        if(TAG_RESULT)
+            message(STATUS "Git describe failed, using project version")
+            set(DIONAEA_VERSION ${PROJECT_VERSION})
+        endif()
     else()
         message(STATUS "Git revision could not be determined")
         set(DIONAEA_REVISION "${PROJECT_VERSION}-dev-build")
