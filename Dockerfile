@@ -10,6 +10,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 COPY . /code
 
+# no libemud-dev for now, explore https://github.com/mandiant/unicorn-libemu-shim/tree/master
 RUN apt-get update && \
       # Install build deps
       apt-get -qq install -y \
@@ -21,7 +22,6 @@ RUN apt-get update && \
             check \
             cython3 \
             libcurl4-openssl-dev \
-            libemu-dev \
             libev-dev \
             libglib2.0-dev \
             libloudmouth1-dev \

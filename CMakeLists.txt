@@ -57,7 +57,7 @@ endif()
 
 option(VERBOSE "Enable verbose output?" OFF)
 option(WITH_MODULE_CURL "Build the curl module" ON)
-option(WITH_MODULE_EMU "Build the emu module" ON)
+option(WITH_MODULE_EMU "Build the emu module" OFF)
 #option(WITH_MODULE_NC "Build the nc module" OFF)
 option(WITH_MODULE_NFQ "Build the nfq module" ON)
 option(WITH_MODULE_NL "Build the nl module" OFF)
