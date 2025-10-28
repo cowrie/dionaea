@@ -74,7 +74,8 @@ ENV LC_ALL=C.UTF-8 \
 RUN groupadd -r ${DIONAEA_GROUP} && \
     useradd -r -d ${DIONAEA_HOME} -m -g ${DIONAEA_GROUP} ${DIONAEA_USER}
 
-RUN apt-get -qq install -y \
+RUN apt-get update && \
+    apt-get -qq install -y \
         -o APT::Install-Suggests=false \
         -o APT::Install-Recommends=false \
         -o Dpkg::Use-Pty="0" \
