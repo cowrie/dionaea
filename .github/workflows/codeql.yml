@@ -16,7 +16,7 @@ on:  # yamllint disable-line rule:truthy
 permissions:
   actions: read
   contents: read
-  security-events: read, write
+  security-events: write
 
 jobs:
   analyze:
