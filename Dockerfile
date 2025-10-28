@@ -19,12 +19,10 @@ RUN apt-get update && \
             -o Dpkg::Use-Pty="0" \
             build-essential \
             cmake \
-            check \
             cython3 \
             libcurl4-openssl-dev \
             libev-dev \
             libglib2.0-dev \
-            libloudmouth1-dev \
             libnetfilter-queue-dev \
             libpcap-dev \
             libssl-dev \
@@ -56,12 +54,10 @@ RUN apt-get update && \
       apt-get purge -y \
             build-essential \
             cmake \
-            check \
             cython3 \
             libcurl4-openssl-dev \
             libev-dev \
             libglib2.0-dev \
-            libloudmouth1-dev \
             libnetfilter-queue-dev \
             libpcap-dev \
             libssl-dev \
@@ -79,7 +75,7 @@ RUN apt-get update && \
             libglib2.0-0 \
             libnetfilter-queue1 \
             libpcap0.8 \
-            libpython3.6 \
+            libpython3.12t64 \
             libudns0 && \
       # Clean up
       apt-get autoremove --purge -y && \
