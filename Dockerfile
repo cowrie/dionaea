@@ -86,7 +86,13 @@ RUN apt-get update && \
         libnetfilter-queue1 \
         libpcap0.8 \
         libpython3.12t64 \
-        libudns0 && \
+        libudns0 \
+        python3 \
+        python3-setuptools \
+        python3-bson \
+        python3-yaml \
+        python3-boto3 \
+        fonts-liberation && \
     apt-get autoremove --purge -y && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
