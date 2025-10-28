@@ -4,7 +4,7 @@
 [dionaea]
 download.dir=@DIONAEA_STATEDIR@/binaries/
 #modules=curl,python,nfq,emu,pcap
-modules=curl,python,emu
+modules=curl,python
 processors=filter_streamdumper,filter_emu
 
 listen.mode=getifaddrs
