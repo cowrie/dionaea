@@ -93,4 +93,4 @@ RUN apt-get update && \
 
 COPY --from=builder --chown=${DIONAEA_USER}:${DIONAEA_GROUP} ${DIONAEA_HOME} ${DIONAEA_HOME}
 
-ENTRYPOINT ["/opt/dioanea/entrypoint.sh"]
+ENTRYPOINT ["/opt/dionaea/entrypoint.sh"]
