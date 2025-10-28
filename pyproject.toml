@@ -1,3 +1,5 @@
+[tool.tox]
+legacy_tox_ini = """
 # SPDX-FileCopyrightText: none
 # SPDX-License-Identifier: CC0-1.0
 
@@ -9,6 +11,5 @@ skip_missing_interpreters = true
 [testenv:style]
 deps = pre-commit
 skip_install = true
-commands =
-    pre-commit run --all-files --show-diff-on-failure
-    ruff check 
+commands = pre-commit run --all-files --show-diff-on-failure
+"""
