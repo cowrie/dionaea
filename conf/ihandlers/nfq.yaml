@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: none
 # SPDX-License-Identifier: CC0-1.0
-
+---
 - name: nfq
   # nfq can intercept incoming tcp connections during the tcp handshake
   # giving your honeypot the possibility to provide service on
@@ -10,13 +10,13 @@
     # 0 = DROP
     nfaction: 0
     throttle:
-      window : 30
+      window: 30
       limits:
         total: 30
         slot: 30
     timeouts:
       server:
-          listen: 5
+        listen: 5
       client:
         idle: 10
         sustain: 240
