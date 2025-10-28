@@ -22,7 +22,7 @@ Good bug reports come with extensive descriptions of the error and how to reprod
 Patches
 -------
 
-All patches to dionaea should be submitted in the form of pull requests to the main dionaea repository, `DinoTools/dionaea`_.
+All patches to dionaea should be submitted in the form of pull requests to the main dionaea repository, `cowrie/dionaea`_.
 These pull requests should satisfy the following properties:
 
 Code
@@ -54,7 +54,7 @@ First time setup
 
 .. code::
 
-    $ git clone https://github.com/DinoTools/dionaea.git
+    $ git clone https://github.com/cowrie/dionaea
     $ cd dionaea
 
 - Add your fork as a remote to push your work to. Replace <username> with your username.
@@ -84,8 +84,8 @@ Finally, pull requests must be reviewed before merging.
 Everyone can perform reviews; this is a very valuable way to contribute, and is highly encouraged.
 
 
-.. _GitHub issue tracker: https://github.com/DinoTools/dionaea/issues
-.. _DinoTools/dionaea: https://github.com/DinoTools/dionaea
+.. _GitHub issue tracker: https://github.com/cowrie/dionaea/issues
+.. _cowrie/dionaea: https://github.com/cowrie/dionaea
 .. _PEP 8: https://www.python.org/dev/peps/pep-0008/
 .. _latest version of git: https://git-scm.com/downloads
 .. _GitHub account: https://github.com/join
