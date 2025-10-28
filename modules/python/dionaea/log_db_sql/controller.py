@@ -85,7 +85,7 @@ class LogSQLHandler(ihandler):
             # - update the connection_root and connection_parent for all connections which had the pending
             # - update the connection_root for all connections which had the 'childid' as connection_root
             for i in self.pending[con]:
-                print("%s %s %s" % (attackid, attackid, i))
+                print("{} {} {}".format(attackid, attackid, i))
                 self.db_session.query(
                     model.Connection
                 ).filter(
@@ -264,7 +264,7 @@ class LogSQLHandler(ihandler):
         self.db_session.add(
             model.EmuService(
                 connection_id=attackid,
-                url="bindshell://{}".format(str(icd.port))
+                url=f"bindshell://{str(icd.port)}"
             )
         )
         self.db_session.commit()
@@ -364,7 +364,7 @@ class LogSQLHandler(ihandler):
 
     def handle_incident_dionaea_modules_python_virustotal_report(self, icd):
         md5 = icd.md5hash
-        f = open(icd.path, mode='r')
+        f = open(icd.path)
         j = json.load(f)
 
         # file was known to virustotal

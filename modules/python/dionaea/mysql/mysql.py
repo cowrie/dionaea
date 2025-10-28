@@ -19,12 +19,12 @@ from .var import VarHandler
 logger = logging.getLogger('mysqld')
 
 re_show_var = re.compile(
-    b"show\s+((?P<global>global)\s+)?variables(\s+like\s+(?P<sep>\"|')(?P<like>.*?)(?P=sep))?",
+    b"show\\s+((?P<global>global)\\s+)?variables(\\s+like\\s+(?P<sep>\"|')(?P<like>.*?)(?P=sep))?",
     re.I
 )
 
 re_select_var = re.compile(
-    b"select\s+(?P<full_name>@(?P<global>@)?(?P<name>\w+))(\s+limit\s+\d+)?",
+    br"select\s+(?P<full_name>@(?P<global>@)?(?P<name>\w+))(\s+limit\s+\d+)?",
     re.I
 )
 
@@ -42,7 +42,7 @@ class mysqld(connection):
         self.config = None
         self.state = ""
         self.regex_statement = re.compile(
-            b"""([A-Za-z0-9_.]+\(.*?\)+|\(.*?\)+|"(?:[^"]|\"|"")*"+|'[^'](?:|\'|'')*'+|`(?:[^`]|``)*`+|[^ ,]+|,)"""
+            b"""([A-Za-z0-9_.]+\\(.*?\\)+|\\(.*?\\)+|"(?:[^"]|\"|"")*"+|'[^'](?:|\'|'')*'+|`(?:[^`]|``)*`+|[^ ,]+|,)"""
         )
         self.download_dir = None
         self.download_suffix = ".tmp"
@@ -83,7 +83,7 @@ class mysqld(connection):
         logger.warn("DATABASE opening %s" % Database)
         try:
             p = self.config[Database]['path']
-            logger.warn("open db %s -> %s" % (Database, p))
+            logger.warn("open db {} -> {}".format(Database, p))
             self.dbh = sqlite3.connect(p)
             self.cursor = self.dbh.cursor()
             self.database = Database
@@ -93,7 +93,7 @@ class mysqld(connection):
 
     def _handle_COM_INIT_DB(self, p):
         Database = p.Database.decode('utf-8')
-        if self._open_db(Database) == True:
+        if self._open_db(Database):
             return MySQL_Result_OK()
         else:
             return MySQL_Result_Error(Message="No such database")
@@ -146,7 +146,7 @@ class mysqld(connection):
         if re.match(b'set ', p.Query, re.I):
             r = MySQL_Result_OK(Message="#2")
 
-        elif re.match(b'select\s+database\s*\(\s*\)$', p.Query, re.I):
+        elif re.match(br'select\s+database\s*\(\s*\)$', p.Query, re.I):
             r = [
                 MySQL_Result_Header(FieldCount=1),
                 MySQL_Result_Field(
@@ -167,7 +167,7 @@ class mysqld(connection):
                 MySQL_Result_EOF(ServerStatus=0x002)
             ]
 
-        elif re.match(b"show\s+databases$", p.Query, re.I):
+        elif re.match(br"show\s+databases$", p.Query, re.I):
             r = [
                 MySQL_Result_Header(FieldCount=1),
                 MySQL_Result_Field(
@@ -192,7 +192,7 @@ class mysqld(connection):
             # r.append(MySQL_Result_Row_Data(ColumnValues=['information_schema']))
             r.append(MySQL_Result_EOF(ServerStatus=0x002))
 
-        elif re.match(b'show\s+tables$', p.Query, re.I):
+        elif re.match(br'show\s+tables$', p.Query, re.I):
             r = [
                 MySQL_Result_Header(FieldCount=1),
                 MySQL_Result_Field(
@@ -273,8 +273,8 @@ class mysqld(connection):
         if len(query) == 0:
             return False
 
-        regex_function = re.compile(b"(?P<name>[A-Za-z0-9_.]+)\((?P<args>.*?)\)+")
-        regex_url = re.compile(b"(?P<url>(http|ftp|https)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?)")
+        regex_function = re.compile(br"(?P<name>[A-Za-z0-9_.]+)\((?P<args>.*?)\)+")
+        regex_url = re.compile(br"(?P<url>(http|ftp|https)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?)")
 
         m = re_select_var.match(p.Query)
         if m:
@@ -338,7 +338,7 @@ class mysqld(connection):
             logger.info("Looks like someone tries to dump a hex encoded file")
             try:
                 data = bytearray.fromhex(query[0][2:].decode("ascii"))
-            except UnicodeDecodeError as e:
+            except UnicodeDecodeError:
                 logger.warning("Unable to decode hex string %r", query[0][2:], exc_info=True)
                 return False
 
@@ -449,7 +449,7 @@ class mysqld(connection):
                     Database = p.DatabaseName[:-1]
                     if type(Database) == str:
                         Database = Database.encode('ascii')
-                    if self._open_db(Database) == True:
+                    if self._open_db(Database):
                         r = MySQL_Result_Error(Message="Could not open Database %s" % Database)
                     else:
                         r = MySQL_Result_OK()

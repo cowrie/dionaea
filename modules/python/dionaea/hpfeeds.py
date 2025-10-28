@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 from dionaea import IHandlerLoader, Timer
-from dionaea.core import ihandler, incident, g_dionaea, connection
+from dionaea.core import ihandler, incident, connection
 from dionaea.util import sha512file
 
 import os
@@ -100,7 +100,7 @@ def msgauth(rand, ident, secret):
     return msghdr(OP_AUTH, strpack8(ident) + auth_hash)
 
 
-class FeedUnpack(object):
+class FeedUnpack:
     def __init__(self):
         self.buf = bytearray()
 
@@ -160,10 +160,10 @@ class hpclient(connection):
 
         try:
             for opcode, data in self.unpacker:
-                logger.debug('hpclient msg opcode {0} data {1}'.format(opcode, data))
+                logger.debug(f'hpclient msg opcode {opcode} data {data}')
                 if opcode == OP_INFO:
                     name, rand = strunpack8(data)
-                    logger.debug('hpclient server name {0} rand {1}'.format(name, rand))
+                    logger.debug(f'hpclient server name {name} rand {rand}')
                     self.send(msgauth(rand, self.ident, self.secret))
                     self.authenticated = True
                     self.handle_io_out()
@@ -171,12 +171,12 @@ class hpclient(connection):
                 elif opcode == OP_PUBLISH:
                     ident, data = strunpack8(data)
                     chan, data = strunpack8(data)
-                    logger.debug('publish to {0} by {1}: {2}'.format(chan, ident, data))
+                    logger.debug(f'publish to {chan} by {ident}: {data}')
 
                 elif opcode == OP_ERROR:
-                    logger.debug('errormessage from server: {0}'.format(data))
+                    logger.debug(f'errormessage from server: {data}')
                 else:
-                    logger.debug('unknown opcode message: {0}'.format(opcode))
+                    logger.debug(f'unknown opcode message: {opcode}')
         except BadClient:
             logger.error('unpacker error, disconnecting.')
             self.close()
@@ -262,7 +262,7 @@ class hpfeedihandler(ihandler):
             reconnect_timeout = self.default_reconnect_timeout
         try:
             reconnect_timeout = float(reconnect_timeout)
-        except (TypeError, ValueError) as e:
+        except (TypeError, ValueError):
             logger.warn("Unable to convert value '%s' for reconnect timeout to float" % reconnect_timeout)
             reconnect_timeout = self.default_reconnect_timeout
 
@@ -271,7 +271,7 @@ class hpfeedihandler(ihandler):
             port = self.default_port
         try:
             port = int(port)
-        except (TypeError, ValueError) as e:
+        except (TypeError, ValueError):
             logger.warn("Unable to convert value '%s' for port to int" % port)
             port = self.default_port
 
@@ -329,7 +329,7 @@ class hpfeedihandler(ihandler):
                 local_port=con.local.port
             )
         except Exception as e:
-            logger.warn('exception when publishing: {0}'.format(e))
+            logger.warn(f'exception when publishing: {e}')
 
     def handle_incident(self, i):
         pass
@@ -392,15 +392,16 @@ class hpfeedihandler(ihandler):
         self.handle_incident_dionaea_download_complete_again(i)
         if not hasattr(i, 'con') or not self.client.connected:
             return
-        logger.debug('unique complete, publishing md5 {0}, path {1}'.format(i.md5hash, i.file))
+        logger.debug(f'unique complete, publishing md5 {i.md5hash}, path {i.file}')
         try:
             self.client.sendfile(i.file)
         except Exception as e:
-            logger.warn('exception when publishing: {0}'.format(e))
+            logger.warn(f'exception when publishing: {e}')
 
     def handle_incident_dionaea_download_complete_again(self, i):
-        if not hasattr(i, 'con') or not self.client.connected: return
-        logger.debug('hash complete, publishing md5 {0}, path {1}'.format(i.md5hash, i.file))
+        if not hasattr(i, 'con') or not self.client.connected:
+            return
+        logger.debug(f'hash complete, publishing md5 {i.md5hash}, path {i.file}')
         try:
             tstamp = timestr()
             sha512 = sha512file(i.file)
@@ -416,12 +417,12 @@ class hpfeedihandler(ihandler):
                 url=i.url
             )
         except Exception as e:
-            logger.warn('exception when publishing: {0}'.format(e))
+            logger.warn(f'exception when publishing: {e}')
 
     def handle_incident_dionaea_modules_python_smb_dcerpc_request(self, i):
         if not hasattr(i, 'con') or not self.client.connected:
             return
-        logger.debug('dcerpc request, publishing uuid {0}, opnum {1}'.format(i.uuid, i.opnum))
+        logger.debug(f'dcerpc request, publishing uuid {i.uuid}, opnum {i.opnum}')
         try:
             self.client.publish(
                 DCECHAN,
@@ -433,16 +434,16 @@ class hpfeedihandler(ihandler):
                 dport=str(i.con.local.port)
             )
         except Exception as e:
-            logger.warn('exception when publishing: {0}'.format(e))
+            logger.warn(f'exception when publishing: {e}')
 
     def handle_incident_dionaea_module_emu_profile(self, icd):
         if not hasattr(icd, 'con') or not self.client.connected:
             return
-        logger.debug('emu profile, publishing length {0}'.format(len(icd.profile)))
+        logger.debug(f'emu profile, publishing length {len(icd.profile)}')
         try:
             self.client.publish(SCPROFCHAN, profile=icd.profile)
         except Exception as e:
-            logger.warn('exception when publishing: {0}'.format(e))
+            logger.warn(f'exception when publishing: {e}')
 
     def _dynip_resolve(self, events, data):
         i = incident("dionaea.upload.request")
@@ -453,5 +454,5 @@ class hpfeedihandler(ihandler):
     def handle_incident_dionaea_modules_python_hpfeeds_dynipresult(self, icd):
         fh = open(icd.path, mode="rb")
         self.ownip = fh.read().strip().decode('latin1')
-        logger.debug('resolved own IP to: {0}'.format(self.ownip))
+        logger.debug(f'resolved own IP to: {self.ownip}')
         fh.close()

@@ -574,7 +574,7 @@ CFG_STAT_VARS = [
 ]
 
 
-class VarHandler(object):
+class VarHandler:
     def __init__(self):
         self.values = OrderedDict()
 
@@ -608,7 +608,7 @@ class VarHandler(object):
             self.values[var.get("name")] = var_cls(**var_params)
 
 
-class BaseVar(object):
+class BaseVar:
     pass
 
 

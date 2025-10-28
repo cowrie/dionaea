@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 from dionaea import IHandlerLoader, Timer
-from dionaea.core import ihandler, incident, g_dionaea
+from dionaea.core import ihandler, incident
 
 import logging
 import json
@@ -132,7 +132,7 @@ class virustotalhandler(ihandler):
         i.report()
 
     def handle_incident_dionaea_modules_python_virustotal_get_file_report(self, icd):
-        f = open(icd.path, mode='r')
+        f = open(icd.path)
         j = json.load(f)
 
         cookie = icd._userdata
@@ -160,14 +160,14 @@ class virustotalhandler(ihandler):
                 """DELETE FROM backlogfiles WHERE backlogfile = ?""", (vtr.backlogfile,) )
             self.dbh.commit()
 
-            logger.debug("report {}".format(j) )
+            logger.debug(f"report {j}" )
 
             i = incident("dionaea.modules.python.virustotal.report")
             i.md5hash = vtr.md5hash
             i.path = icd.path
             i.report()
         else:
-            logger.warn("virustotal reported {}".format(j))
+            logger.warn(f"virustotal reported {j}")
         del self.cookies[cookie]
 
     def scan_file(self, backlogfile, md5_hash, path, status):
@@ -184,9 +184,9 @@ class virustotalhandler(ihandler):
 
 
     def handle_incident_dionaea_modules_python_virustotal_scan_file(self, icd):
-        f = open(icd.path, mode='r')
+        f = open(icd.path)
         j = json.load(f)
-        logger.debug("scan_file {}".format(j))
+        logger.debug(f"scan_file {j}")
         cookie = icd._userdata
         vtr = self.cookies[cookie]
 
@@ -221,7 +221,7 @@ class virustotalhandler(ihandler):
     def handle_incident_dionaea_modules_python_virustotal_make_comment(self, icd):
         cookie = icd._userdata
         vtr = self.cookies[cookie]
-        f = open(icd.path, mode='r')
+        f = open(icd.path)
         try:
             j = json.load(f)
             if j['response_code'] == -2:
@@ -236,6 +236,6 @@ class virustotalhandler(ihandler):
                     """UPDATE backlogfiles SET status = 'query' WHERE backlogfile = ? """, (vtr.backlogfile, ))
                 self.dbh.commit()
 
-        except Exception as e:
+        except Exception:
             pass
         del self.cookies[cookie]

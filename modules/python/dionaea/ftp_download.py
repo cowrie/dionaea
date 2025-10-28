@@ -221,7 +221,7 @@ class FTPClient:
         port = None
         for port in ports:
             self.datalistener.bind(self.ctrl.local.host, port)
-            if self.datalistener.listen() == True:
+            if self.datalistener.listen():
                 port = self.datalistener.local.port
                 i = incident("dionaea.connection.link")
                 i.parent = self.ctrl
@@ -262,7 +262,7 @@ class FTPClient:
         if self.datalistener and self.datalistener is not None:
             self.datalistener.close()
             self.datalistener = None
-        if self.dataconn and self.dataconn != None:
+        if self.dataconn and self.dataconn is not None:
             self.dataconn.close()
             self.dataconn = None
 

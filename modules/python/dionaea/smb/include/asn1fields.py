@@ -81,7 +81,7 @@ class ASN1F_field(ASN1F_element):
                  or self.ASN1_tag == x.tag ):
                 return x.enc(pkt.ASN1_codec)
             else:
-                raise ASN1_Error("Encoding Error: got %r instead of an %r for field [%s]" % (
+                raise ASN1_Error("Encoding Error: got {!r} instead of an {!r} for field [{}]".format(
                     x, self.ASN1_tag, self.name))
         return self.ASN1_tag.get_codec(pkt.ASN1_codec).enc(x)
 
@@ -222,7 +222,7 @@ class ASN1F_SEQUENCE(ASN1F_field):
             self.ASN1_tag = kargs["ASN1_tag"]
         self.seq = seq
     def __repr__(self):
-        return "<%s%r>" % (self.__class__.__name__,self.seq,)
+        return "<{}{!r}>".format(self.__class__.__name__,self.seq)
     def set_val(self, pkt, val):
         for f in self.seq:
             f.set_val(pkt,val)
@@ -286,7 +286,7 @@ class ASN1F_SEQUENCE_OF(ASN1F_SEQUENCE):
         while s1:
             try:
                 p = self.asn1pkt(s1)
-            except ASN1F_badsequence as e:
+            except ASN1F_badsequence:
                 lst.append(packet.Raw(s1))
                 break
             lst.append(p)
@@ -300,7 +300,7 @@ class ASN1F_SEQUENCE_OF(ASN1F_SEQUENCE):
     def randval(self):
         return fuzz(self.asn1pkt())
     def __repr__(self):
-        return "<%s %s>" % (self.__class__.__name__,self.name)
+        return "<{} {}>".format(self.__class__.__name__,self.name)
 
 class ASN1F_PACKET(ASN1F_field):
     holds_packets = 1

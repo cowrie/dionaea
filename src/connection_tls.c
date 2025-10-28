@@ -652,12 +652,12 @@ void connection_tls_accept_cb (EV_P_ struct ev_io *w, int revents)
 //		sslconn->ssl = ssl;
 
 		/*
-		 *  Configure callbacks for SSL connection
+		 *  Configure DH parameters for SSL connection
 		 */
 //		memcpy(accepted->transport.ssl.pTmpKeys, con->transport.ssl.pTmpKeys, sizeof(void *)*SSL_TMP_KEY_MAX);
 //		accepted->transport.ssl.parent = con;
-		SSL_set_tmp_rsa_callback(accepted->transport.tls.ssl, ssl_callback_TmpRSA);
-		SSL_set_tmp_dh_callback(accepted->transport.tls.ssl,  ssl_callback_TmpDH);
+		/* Use automatic DH parameter selection in OpenSSL 3.0+ */
+		SSL_set_dh_auto(accepted->transport.tls.ssl, 1);
 
 
 		ev_timer_init(&accepted->events.handshake_timeout, connection_tls_handshake_again_timeout_cb, 0., con->events.handshake_timeout.repeat);

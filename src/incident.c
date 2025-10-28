@@ -378,7 +378,7 @@ void incident_report(struct incident *i)
 	for( GList *it=g_dionaea->ihandlers->handlers; it != NULL; it = g_list_next(it) )
 	{
 		struct ihandler *ih = it->data;
-		if( g_pattern_match(ih->match, strlen(i->origin), i->origin, NULL ) == TRUE )
+		if( g_pattern_spec_match(ih->match, strlen(i->origin), i->origin, NULL ) == TRUE )
 		{
 			ih->cb(i, ih->ctx);
 		}

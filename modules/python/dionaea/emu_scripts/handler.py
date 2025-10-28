@@ -10,7 +10,7 @@ import re
 logger = logging.getLogger("emu_scripts")
 
 
-class BaseHandler(object):
+class BaseHandler:
     name = ""
 
     def __init__(self, config=None):
@@ -22,7 +22,7 @@ class BaseHandler(object):
         self._regex_detect = []
 
         self._regex_url = re.compile(
-            b"(?P<url>(http|ftp|https)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?)"
+            br"(?P<url>(http|ftp|https)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?)"
         )
 
     def run(self, data):
@@ -43,7 +43,7 @@ class BaseHandler(object):
         return urls
 
 
-class RawURL(object):
+class RawURL:
     name = "raw_url"
 
     def __init__(self, config=None):
@@ -52,7 +52,7 @@ class RawURL(object):
             self._config = config
 
         self._regex_url = re.compile(
-            b"(?P<url>(http|ftp|https)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?)"
+            br"(?P<url>(http|ftp|https)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?)"
         )
 
     def run(self, data):
@@ -70,13 +70,13 @@ class PowerShell(BaseHandler):
 
         self.min_match_count = 2
         self._regex_detect = [
-            re.compile(b"New-Object\s+System\.Net\.WebClient"),
+            re.compile(br"New-Object\s+System\.Net\.WebClient"),
             re.compile(b"DownloadFile([^,]+?,[^,]+?)"),
             re.compile(b"Invoke-Expression([^)]+?)")
         ]
 
         self._regex_url = re.compile(
-            b"\w+\s*=\s*\"\s*(?P<url>(http|ftp|https)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?)\s*\""
+            b"\\w+\\s*=\\s*\"\\s*(?P<url>(http|ftp|https)://([\\w_-]+(?:(?:\\.[\\w_-]+)+))([\\w.,@?^=%&:/~+#-]*[\\w@?^=%&/~+#-])?)\\s*\""
         )
 
 
@@ -88,9 +88,9 @@ class VBScript(BaseHandler):
 
         self.min_match_count = 1
         self._regex_detect = [
-            re.compile(b"Set\s+\w+\s+=\s+CreateObject\(.*?(Msxml2.XMLHTTP|Wscript.Shell).*?\)")
+            re.compile(br"Set\s+\w+\s+=\s+CreateObject\(.*?(Msxml2.XMLHTTP|Wscript.Shell).*?\)")
         ]
 
         self._regex_url = re.compile(
-            b"\.Open\s+\"GET\"\s*,\s*\"(?P<url>(http|ftp|https)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?)\""
+            b"\\.Open\\s+\"GET\"\\s*,\\s*\"(?P<url>(http|ftp|https)://([\\w_-]+(?:(?:\\.[\\w_-]+)+))([\\w.,@?^=%&:/~+#-]*[\\w@?^=%&/~+#-])?)\""
         )

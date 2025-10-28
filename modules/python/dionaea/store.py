@@ -62,7 +62,7 @@ class storehandler(ihandler):
             i = incident("dionaea.download.complete.again")
             logger.debug("file %s already existed" % md5)
         except OSError:
-            logger.debug("saving new file %s to %s" % (md5, n))
+            logger.debug(f"saving new file {md5} to {n}")
             os.link(p, n)
             i = incident("dionaea.download.complete.unique")
         i.file = n

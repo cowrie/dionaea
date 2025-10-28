@@ -32,7 +32,7 @@ if __name__ == '__main__':
     cursor = dbh.cursor()
 
     for f in args.files:
-        print("Processing File %s" % (f,))
+        print("Processing File {}".format(f))
         c = csv.reader(
             codecs.open(f, 'r', encoding="utf-8-sig"), delimiter=',', quotechar='"')
         table = f[:-4]
@@ -43,21 +43,21 @@ if __name__ == '__main__':
             cols2 = "%s INTEGER PRIMARY KEY, " % args.primary_key + cols
         else:
             cols2 = cols
-        create_table = "CREATE TABLE %s ( %s )" % (table, cols2)
-        insert_into = "INSERT INTO %s (%s) VALUES (%s) " % (
+        create_table = "CREATE TABLE {} ( {} )".format(table, cols2)
+        insert_into = "INSERT INTO {} ({}) VALUES ({}) ".format(
             table, cols, ','.join(['?' for i in colnames]))
 
         try:
             dbh.execute(create_table)
         except Exception as e:
-            print("Could not CREATE table %s (%s))" % (table,e))
+            print("Could not CREATE table {} ({}))".format(table,e))
             continue
         for i in c:
             try:
                 cursor.execute(insert_into, i)
             except Exception as e:
-                print("Could not insert %s into table %s (%s)" % (i,table,e))
+                print("Could not insert {} into table {} ({})".format(i,table,e))
                 print(insert_into)
         for i in cols:
-            create_idx = "CREATE INDEX %s_idx ON %s (%s)" % (i,table,i)
+            create_idx = "CREATE INDEX {}_idx ON {} ({})".format(i,table,i)
         dbh.commit()

@@ -4,6 +4,8 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+# cython: language_level=3
+
 import inspect
 import logging
 import weakref

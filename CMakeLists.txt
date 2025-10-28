@@ -20,7 +20,7 @@ if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
     endif()
 endif()
 
-cmake_minimum_required(VERSION 3.4 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 
 project(
     dionaea
@@ -57,7 +57,7 @@ endif()
 
 option(VERBOSE "Enable verbose output?" OFF)
 option(WITH_MODULE_CURL "Build the curl module" ON)
-option(WITH_MODULE_EMU "Build the emu module" ON)
+option(WITH_MODULE_EMU "Build the emu module" OFF)
 #option(WITH_MODULE_NC "Build the nc module" OFF)
 option(WITH_MODULE_NFQ "Build the nfq module" ON)
 option(WITH_MODULE_NL "Build the nl module" OFF)
@@ -75,13 +75,17 @@ set(DIONAEA_VERSION ${PROJECT_VERSION})
 if(NOT RELEASE_BUILD AND EXISTS ${PROJECT_SOURCE_DIR}/.git)
     find_package(Git)
     if(GIT_FOUND)
-        exec_program(
-            ${GIT_EXECUTABLE}
-            ${PROJECT_SOURCE_DIR}
-            ARGS "describe --tag --dirty=-dev"
+        execute_process(
+            COMMAND ${GIT_EXECUTABLE} describe --tag --dirty=-dev
+            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
             OUTPUT_VARIABLE DIONAEA_VERSION
-            RETURN_VALUE TAG_RESULT
+            RESULT_VARIABLE TAG_RESULT
+            OUTPUT_STRIP_TRAILING_WHITESPACE
         )
+        if(TAG_RESULT)
+            message(STATUS "Git describe failed, using project version")
+            set(DIONAEA_VERSION ${PROJECT_VERSION})
+        endif()
     else()
         message(STATUS "Git revision could not be determined")
         set(DIONAEA_REVISION "${PROJECT_VERSION}-dev-build")
@@ -108,9 +112,7 @@ pkg_check_modules(NFQUEUE libnetfilter_queue)
 pkg_check_modules(LIBNL3 libnl-3.0)
 pkg_check_modules(LIBNL3_ROUTE libnl-route-3.0)
 
-set(Python_ADDITIONAL_VERSIONS 3.4 3.5 3.6 3.7 3.8)
-find_package(PythonInterp REQUIRED)
-find_package(PythonLibs ${PYTHON_VERSION_STRING} REQUIRED)
+find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
 find_package(OpenSSL REQUIRED)
 
 find_package(UDNS REQUIRED)

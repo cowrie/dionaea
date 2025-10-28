@@ -31,7 +31,7 @@ GitHub
 
     Use the issue tracker to report any problem.
 
-    Website: `Issue tracker <https://github.com/DinoTools/dionaea/issues>`_
+    Website: `Issue tracker <https://github.com/cowrie/dionaea/issues>`_
 
 IRC
 

@@ -73,7 +73,7 @@ class BER_BadTag_Decoding_Error(BER_Decoding_Error, ASN1_BadTag_Decoding_Error):
 def BER_identifier_enc(l, pr=0, num=0):
     ident = l
     #print ("ident %s" % ident)
-    if ident != None :
+    if ident is not None :
         cls = int(ident) & 0x03
         cls <<=6
         #print ("cls %i" %cls)
@@ -118,8 +118,8 @@ def BER_identifier_dec(l):
 
     try:
         cls = (val>>6) & 0x03
-        pc = (val>>5) & 0x01;
-        tag = val&0x1F;
+        pc = (val>>5) & 0x01
+        tag = val&0x1F
     except Exception as e:
         raise BER_Exception(
             "BER_Exception: %s, val is %s" % (format(e), format(val)))

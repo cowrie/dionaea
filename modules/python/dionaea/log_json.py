@@ -18,7 +18,7 @@ logger = logging.getLogger("log_json")
 logger.setLevel(logging.DEBUG)
 
 
-class FileHandler(object):
+class FileHandler:
     handle_schemes = ["file"]
 
     def __init__(self, url):
@@ -36,7 +36,7 @@ class FileHandler(object):
         self.fp.flush()
 
 
-class HTTPHandler(object):
+class HTTPHandler:
     handle_schemes = ["http", "https"]
 
     def __init__(self, url):
@@ -54,7 +54,7 @@ class HTTPHandler(object):
             }
         )
         # ToDo: parse response
-        response = urlopen(req)
+        urlopen(req)
         # Debug:
         #from pprint import pprint
         #pprint(response)
@@ -231,7 +231,7 @@ class LogJsonHandler(ihandler):
                     handler.submit(data)
             del self.attacks[con]
         else:
-            logger.warn("no attack data for %s:%s" % (con.local.host, con.local.port))
+            logger.warn(f"no attack data for {con.local.host}:{con.local.port}")
 
     def handle_incident_dionaea_modules_python_ftp_command(self, icd):
         con = icd.con

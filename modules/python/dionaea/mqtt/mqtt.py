@@ -6,12 +6,8 @@
 
 from dionaea.core import *
 
-import datetime
 import traceback
 import logging
-import binascii
-import os
-import tempfile
 
 from dionaea.mqtt.include.packets import *
 
@@ -28,8 +24,6 @@ class mqttd(connection):
 
 	def handle_io_in(self, data):
 		l=0
-		size = 0
-		chunk = b''
 
 		if len(data) > l:
 			p = None
@@ -37,11 +31,11 @@ class mqttd(connection):
 			try:
 
 				if len(data) > 0:
-					p = MQTT_ControlMessage_Type(data);
+					p = MQTT_ControlMessage_Type(data)
 					p.show()
 
 					self.pendingPacketType = p.ControlPacketType
-					logger.debug("MQTT Control Packet Type {}".format(self.pendingPacketType))
+					logger.debug(f"MQTT Control Packet Type {self.pendingPacketType}")
 
 				if len(data) == 0:
 					logger.warn("Bad MQTT Packet, Length = 0")
@@ -135,7 +129,6 @@ class mqttd(connection):
 
 	def process(self, PacketType, p):
 		r =''
-		rp = None
 
 		if PacketType == MQTT_CONTROLMESSAGE_TYPE_CONNECT:
 			r = MQTT_ConnectACK()
@@ -192,7 +185,7 @@ class mqttd(connection):
 				r.PacketIdentifier = packetidentifier
 				r.HeaderFlags = MQTT_CONTROLMESSAGE_TYPE_PUBLISHCOM
 		else:
-			logger.warn("Unknown Packet Type for MQTT {}".format(PacketType))
+			logger.warn(f"Unknown Packet Type for MQTT {PacketType}")
 
 		return r
 

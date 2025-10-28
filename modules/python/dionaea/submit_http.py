@@ -5,7 +5,7 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-from dionaea.core import ihandler, incident, g_dionaea
+from dionaea.core import ihandler, incident
 from dionaea.util import md5file, sha512file
 from dionaea import IHandlerLoader
 
@@ -123,7 +123,7 @@ class handler(ihandler):
     def handle_incident_dionaea_modules_python_submithttp_result(self, icd):
         fh = open(icd.path, mode="rb")
         c = fh.read()
-        logger.info("submithttp result: {0}".format(c))
+        logger.info(f"submithttp result: {c}")
 
         cookie = icd._userdata
         mr = self.cookies[cookie]
@@ -161,6 +161,6 @@ class handler(ihandler):
     def handle_incident_dionaea_modules_python_submithttp_uploadresult(self, icd):
         fh = open(icd.path, mode="rb")
         c = fh.read()
-        logger.info("submithttp uploadresult: {0}".format(c))
+        logger.info(f"submithttp uploadresult: {c}")
 
         del self.cookies[icd._userdata]

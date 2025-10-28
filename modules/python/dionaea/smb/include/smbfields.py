@@ -573,7 +573,7 @@ class SMBNullField(StrField):
             return StrNullField.addfield(self, pkt, s, val)
     def getfield(self, pkt, s):
         smbhdr = pkt
-        while not isinstance(smbhdr, SMB_Header) and smbhdr != None:
+        while not isinstance(smbhdr, SMB_Header) and smbhdr is not None:
             smbhdr = smbhdr.underlayer
 
         if smbhdr and smbhdr.Flags2 & 0x8000:
@@ -583,7 +583,7 @@ class SMBNullField(StrField):
 
     def i2m(self, pkt, s):
         smbhdr = pkt
-        while not isinstance(smbhdr, SMB_Header) and smbhdr != None:
+        while not isinstance(smbhdr, SMB_Header) and smbhdr is not None:
             smbhdr = smbhdr.underlayer
 
         if smbhdr and smbhdr.Flags2 & 0x8000:
@@ -593,7 +593,7 @@ class SMBNullField(StrField):
 
     def i2repr(self, pkt, s):
         smbhdr = pkt
-        while not isinstance(smbhdr, SMB_Header) and smbhdr != None:
+        while not isinstance(smbhdr, SMB_Header) and smbhdr is not None:
             smbhdr = smbhdr.underlayer
 
         if smbhdr and smbhdr.Flags2 & 0x8000:
@@ -603,7 +603,7 @@ class SMBNullField(StrField):
 
     def size(self, pkt, s):
         smbhdr = pkt
-        while not isinstance(smbhdr, SMB_Header) and smbhdr != None:
+        while not isinstance(smbhdr, SMB_Header) and smbhdr is not None:
             smbhdr = smbhdr.underlayer
 
         if smbhdr and smbhdr.Flags2 & 0x8000:
@@ -775,7 +775,7 @@ class SMB_Sessionsetup_ESEC_AndX_Request(Packet):
     def lengthfrom_Extrabytes(self):
         x = self.ByteCount
         x -= len(self.SecurityBlob)
-        if hasattr(self,'Padding') and self.Padding != None:
+        if hasattr(self,'Padding') and self.Padding is not None:
             x -= len(self.Padding)
         x -= len(self.NativeOS)
         x -= len(self.NativeLanManager)
@@ -946,7 +946,7 @@ class SMB_Treeconnect_AndX_Request(Packet):
     def lengthof_Extrabytes(self):
         x = self.ByteCount
         x -= len(self.Password)
-        if hasattr(self,'Padding') and self.Padding != None:
+        if hasattr(self,'Padding') and self.Padding is not None:
             x -= len(self.Padding)
         x -= len(self.Path)
         x -= len(self.Service)
@@ -1046,7 +1046,7 @@ class SMB_NTcreate_AndX_Request(Packet):
     ]
     def lengthfrom_Extrabytes(self):
         x = self.ByteCount
-        if hasattr(self,'Padding') and self.Padding != None:
+        if hasattr(self,'Padding') and self.Padding is not None:
             x -= len(self.Padding)
         x -= len(self.Filename)
         return x
@@ -1244,7 +1244,7 @@ class SMB_Trans_Request(Packet):
         r += 11*2                    # 11 words
         r += 4                        # 1 int
         r += self.SetupCount*2            # SetupCount words
-        if hasattr(self, 'Padding') and self.Padding != None:
+        if hasattr(self, 'Padding') and self.Padding is not None:
             r += len(self.Padding)        # optional Padding
         r += len(self.TransactionName)    # TransactionName
 #        print("r %i usize %i txn %i" % ( r, self.underlayer.size(), len(self.TransactionName)))
@@ -1259,7 +1259,7 @@ class SMB_Trans_Request(Packet):
         r += 11*2                    # 11 words
         r += 4                        # 1 int
         r += self.SetupCount*2            # SetupCount words
-        if hasattr(self, 'Padding') and self.Padding != None:
+        if hasattr(self, 'Padding') and self.Padding is not None:
             r += len(self.Padding)        # optional Padding
         r += len(self.TransactionName)    # TransactionName
         r += len(self.Pad)                # Param Padding

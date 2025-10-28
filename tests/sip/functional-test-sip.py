@@ -8,7 +8,6 @@
 
 import socket
 import sys
-import os
 import hashlib
 from time import sleep
 from random import randint

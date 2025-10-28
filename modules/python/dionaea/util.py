@@ -74,14 +74,14 @@ def detect_shellshock(connection, data, report_incidents=True):
     :return: List of urls or None
     """
     from dionaea.core import incident
-    regex = re.compile(b"\(\)\s*\t*\{.*;\s*\}\s*;")
+    regex = re.compile(b"\\(\\)\\s*\t*\\{.*;\\s*\\}\\s*;")
     if not regex.search(data):
         return None
     logger.debug("Shellshock attack found")
 
     urls = []
     regex = re.compile(
-        b"(wget|curl).+(?P<url>(http|ftp|https)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?)"
+        br"(wget|curl).+(?P<url>(http|ftp|https)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?)"
     )
     for m in regex.finditer(data):
         logger.debug("Found download command with url %s", m.group("url"))
@@ -107,7 +107,7 @@ def find_shell_download(connection, data, report_incidents=True):
     from dionaea.core import incident
     urls = []
     regex = re.compile(
-        b"(wget|curl).+(?P<url>(http|ftp|https)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?)"
+        br"(wget|curl).+(?P<url>(http|ftp|https)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?)"
     )
     for m in regex.finditer(data):
         logger.debug("Found download command with url %s", m.group("url"))
@@ -121,10 +121,10 @@ def find_shell_download(connection, data, report_incidents=True):
     return urls
 
 def xor(data, key):
-    l = len(key)
-    return bytearray((
-        (data[i] ^ key[i % l]) for i in range(0, len(data))
-    ))
+    keylength = len(key)
+    return bytearray(
+        (data[i] ^ key[i % keylength]) for i in range(0, len(data))
+    )
 
 def calculate_doublepulsar_opcode(t):
     op = (t) + (t >> 8) + (t >> 16) + (t >> 24)

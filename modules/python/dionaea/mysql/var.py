@@ -4,9 +4,7 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-import random
 from collections import OrderedDict
-from datetime import datetime
 
 CFG_VARS = [
     {
@@ -3186,7 +3184,7 @@ CFG_VARS = [
 ]
 
 
-class VarHandler(object):
+class VarHandler:
     def __init__(self):
         self._class_map = {
             "boolean": Bool,
@@ -3213,7 +3211,7 @@ class VarHandler(object):
             self.values[var.get("name")] = var_cls(**type_options)
 
 
-class BaseVar(object):
+class BaseVar:
     def __init__(self, dynamic=None, scopes=None):
         self.dynamic = dynamic
         self.scopes = scopes

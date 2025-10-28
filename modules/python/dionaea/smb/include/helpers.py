@@ -23,7 +23,7 @@ class VolatileValue:
     def _fix(self):
         return None
 
-class Gen(object):
+class Gen:
     def __iter__(self):
         return iter([])
 
@@ -127,7 +127,7 @@ class EnumElement:
         self._key = key
         self._value = value
     def __repr__(self):
-        return "<%s %s[%r]>" % (self.__dict__.get("_name", self.__class__.__name__), self._key, self._value)
+        return "<{} {}[{!r}]>".format(self.__dict__.get("_name", self.__class__.__name__), self._key, self._value)
     def __getattr__(self, attr):
         return getattr(self._value, attr)
     def __int__(self):
@@ -148,7 +148,7 @@ class Enum_metaclass(type):
                 dct[k] = v
                 rdict[type(v)] = k
         dct["__rdict__"] = rdict
-        return super(Enum_metaclass, cls).__new__(cls, name, bases, dct)
+        return super().__new__(cls, name, bases, dct)
     def __getitem__(self, attr):
         return self.__rdict__[attr]
     def __contains__(self, val):

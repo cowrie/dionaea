@@ -125,7 +125,7 @@ bool log_filter_match(struct log_filter *filter, const char *log_domain, int log
 
 		for( unsigned int i=0; filter->domains[i] != NULL; i++ )
 		{
-			if( g_pattern_match(filter->domains[i]->pattern,
+			if( g_pattern_spec_match(filter->domains[i]->pattern,
 								strlen(log_domain_work),
 								log_domain_work,  NULL) == TRUE )
 				goto domain_matched;

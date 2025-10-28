@@ -87,7 +87,7 @@ class Field:
                     x[i] = x[i].copy()
         return x
     def __repr__(self):
-        return "<Field (%s).%s>" % (",".join(x.__name__ for x in self.owners),self.name)
+        return "<Field ({}).{}>".format(",".join(x.__name__ for x in self.owners),self.name)
     def copy(self):
         return copy.deepcopy(self)
     def randval(self):
@@ -103,7 +103,7 @@ class Field:
             return RandBin(l)
         else:
             warning(
-                "no random class for [%s] (fmt=%s)." % (self.name, self.fmt))
+                "no random class for [{}] (fmt={}).".format(self.name, self.fmt))
 
 
 
@@ -188,7 +188,7 @@ class MACField(Field):
     def m2i(self, pkt, x):
         return str2mac(x)
     def any2i(self, pkt, x):
-        if type(x) is str and len(x) is 6:
+        if type(x) is str and len(x) == 6:
             x = self.m2i(pkt, x)
         return x
     def i2repr(self, pkt, x):
@@ -205,7 +205,7 @@ class IPField(Field):
         if type(x) is str:
             try:
                 inet_aton(x)
-            except socket.error:
+            except OSError:
                 x = Net(x)
         elif type(x) is list:
             x = [self.h2i(pkt, n) for n in x]
@@ -993,7 +993,7 @@ class FlagsField(BitField):
         BitField.__init__(self, name, default, size)
     def any2i(self, pkt, x):
         if type(x) is str:
-            if self.rnames == None:
+            if self.rnames is None:
                 for i in self.names:
                     self.rnames[self.names[i]] = i
             x = x.split("+")

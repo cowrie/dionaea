@@ -138,7 +138,7 @@ static void python_mkshell_ihandler_cb(struct incident *i, void *ctx)
 		Py_DECREF(module);
 		PyObject *func = PyObject_GetAttrString(module, "remoteshell");
 		PyObject *arglist = Py_BuildValue("()");
-		PyObject *r = PyEval_CallObject(func, arglist);
+		PyObject *r = PyObject_CallObject(func, arglist);
 		Py_DECREF(arglist);
 		g_debug("r %p", r);
 		struct head
@@ -181,7 +181,7 @@ static bool hupy(void)
 			PyObject *func = PyObject_GetAttrString(i->module, "stop");
 			if ( func != NULL ) {
 				PyObject *arglist = Py_BuildValue("()");
-				PyObject *r = PyEval_CallObject(func, arglist);
+				PyObject *r = PyObject_CallObject(func, arglist);
 				traceback();
 				// PyErr_Print();
 				Py_DECREF(arglist);
@@ -203,7 +203,7 @@ static bool hupy(void)
 			func = PyObject_GetAttrString(module, "new");
 			if( func != NULL ) {
 				PyObject *arglist = Py_BuildValue("()");
-				PyObject *r = PyEval_CallObject(func, arglist);
+				PyObject *r = PyObject_CallObject(func, arglist);
 				traceback();
 				Py_DECREF(arglist);
 				Py_XDECREF(r);
@@ -214,7 +214,7 @@ static bool hupy(void)
 			func = PyObject_GetAttrString(module, "start");
 			if( func != NULL ) {
 				PyObject *arglist = Py_BuildValue("()");
-				PyObject *r = PyEval_CallObject(func, arglist);
+				PyObject *r = PyObject_CallObject(func, arglist);
 				traceback();
 				Py_DECREF(arglist);
 				Py_XDECREF(r);
@@ -239,7 +239,7 @@ static bool hupy(void)
 			PyObject *func = PyObject_GetAttrString(module, "new");
 			if( func != NULL ) {
 				PyObject *arglist = Py_BuildValue("()");
-				PyObject *r = PyEval_CallObject(func, arglist);
+				PyObject *r = PyObject_CallObject(func, arglist);
 				Py_DECREF(arglist);
 				Py_XDECREF(r);
 				Py_DECREF(func);
@@ -273,7 +273,7 @@ static bool freepy(void)
 		if( func != NULL )
 		{
 			PyObject *arglist = Py_BuildValue("()");
-			PyObject *r = PyEval_CallObject(func, arglist);
+			PyObject *r = PyObject_CallObject(func, arglist);
 			Py_DECREF(arglist);
 			Py_XDECREF(r);
 			Py_DECREF(func);
@@ -306,7 +306,7 @@ static bool start(void)
 		if( func != NULL )
 		{
 			PyObject *arglist = Py_BuildValue("()");
-			PyObject *r = PyEval_CallObject(func, arglist);
+			PyObject *r = PyObject_CallObject(func, arglist);
 			Py_DECREF(arglist);
 			Py_XDECREF(r);
 			Py_DECREF(func);
@@ -329,10 +329,24 @@ static bool new(struct dionaea *dionaea)
 	size_t pybinsize = mbstowcs(NULL, PYTHON_PATH, 0);
 	wchar_t *pybin = g_malloc0((pybinsize + 1) * sizeof(wchar_t));
 	mbstowcs(pybin, PYTHON_PATH, pybinsize + 1);
-	Py_SetProgramName(pybin);
 
-	Py_Initialize();
-	PyEval_InitThreads();
+	PyStatus status;
+	PyConfig config;
+	PyConfig_InitPythonConfig(&config);
+
+	status = PyConfig_SetString(&config, &config.program_name, pybin);
+	if (PyStatus_Exception(status)) {
+		PyConfig_Clear(&config);
+		g_free(pybin);
+		Py_ExitStatusException(status);
+	}
+
+	status = Py_InitializeFromConfig(&config);
+	PyConfig_Clear(&config);
+	g_free(pybin);
+	if (PyStatus_Exception(status)) {
+		Py_ExitStatusException(status);
+	}
 
 	PyGILState_STATE gil_state = PyGILState_Ensure();
 
@@ -389,7 +403,7 @@ static bool new(struct dionaea *dionaea)
 		PyObject *func = PyObject_GetAttrString(module, "new");
 		if( func != NULL ) {
 			PyObject *arglist = Py_BuildValue("()");
-			PyObject *r = PyEval_CallObject(func, arglist);
+			PyObject *r = PyObject_CallObject(func, arglist);
 			Py_DECREF(arglist);
 			Py_XDECREF(r);
 			Py_DECREF(func);

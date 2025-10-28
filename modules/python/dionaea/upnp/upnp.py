@@ -4,17 +4,9 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-from dionaea.core import connection, incident, ihandler
-import struct
+from dionaea.core import connection, incident
 import logging
-import os
-import sys
-import datetime
-import io
-import cgi
 import urllib.parse
-import re
-import tempfile
 
 logger = logging.getLogger('upnp')
 logger.setLevel(logging.DEBUG)
@@ -39,7 +31,7 @@ class upnpreq:
 			hset = hline.split(b":", 1)
 			try:
 				self.headers[hset[0].lower()] = hset[1].strip()
-			except:
+			except Exception:
 				logger.info("potential upnp exploit: %s", hset[0])
 
 	def print(self):

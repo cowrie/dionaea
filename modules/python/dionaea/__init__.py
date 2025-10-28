@@ -10,7 +10,8 @@ import logging
 import pkgutil
 import traceback
 from threading import Event, Thread
-from typing import Callable, Optional
+from typing import Optional
+from collections.abc import Callable
 
 import yaml
 
@@ -22,7 +23,7 @@ loaded_submodules = []
 
 class RegisterClasses(type):
     def __init__(self, name, bases, nmspc):
-        super(RegisterClasses, self).__init__(name, bases, nmspc)
+        super().__init__(name, bases, nmspc)
         if not hasattr(self, 'registry'):
             self.registry = set()
 
@@ -33,7 +34,7 @@ class RegisterClasses(type):
         return iter(self.registry)
 
 
-class ServiceLoader(object, metaclass=RegisterClasses):
+class ServiceLoader(metaclass=RegisterClasses):
     @classmethod
     def start(cls, addr, iface=None):
         raise NotImplementedError("do it")
@@ -43,7 +44,7 @@ class ServiceLoader(object, metaclass=RegisterClasses):
         daemon.close()
 
 
-class IHandlerLoader(object, metaclass=RegisterClasses):
+class IHandlerLoader(metaclass=RegisterClasses):
     @classmethod
     def start(cls):
         raise NotImplementedError("do it")
@@ -64,8 +65,8 @@ class SubTimer(Thread):
     :param args: Optional arguments passed to the callback function.
     :param kwargs: Opional arguments passed to the callback function.
     """
-    def __init__(self, interval: float, function: Callable, delay: Optional[float] = None, repeat=False,
-                 args: Optional[list] = None, kwargs: Optional[dict] = None):
+    def __init__(self, interval: float, function: Callable, delay: float | None = None, repeat=False,
+                 args: list | None = None, kwargs: dict | None = None):
         Thread.__init__(self)
         self.interval = interval
         self.function = function
@@ -90,7 +91,7 @@ class SubTimer(Thread):
                 self.function(*self.args, **self.kwargs)
 
 
-class Timer(object):
+class Timer:
     """
     Extend Timer with additional functions like cancel and reset it. It uses the SubTimer() internally.
 
@@ -101,8 +102,8 @@ class Timer(object):
     :param args: Optional arguments passed to the callback function.
     :param kwargs: Opional arguments passed to the callback function.
     """
-    def __init__(self, interval: float, function: Callable, delay: Optional[float] = None, repeat=False,
-                 args: Optional[list] = None, kwargs: Optional[dict] = None):
+    def __init__(self, interval: float, function: Callable, delay: float | None = None, repeat=False,
+                 args: list | None = None, kwargs: dict | None = None):
         self.interval = interval
         self.function = function
         self.delay = delay
@@ -111,7 +112,7 @@ class Timer(object):
         self.repeat = repeat
         self.args = args if args is not None else []
         self.kwargs = kwargs if kwargs is not None else {}
-        self._timer: Optional[SubTimer] = None
+        self._timer: SubTimer | None = None
 
     def start(self) -> None:
         """Start the Timer"""
@@ -149,7 +150,7 @@ def load_submodules(base_pkg=None):
         try:
             __import__(modname, fromlist="dummy")
         except Exception as e:
-            logger.warning("Error loading module: {}".format(str(e)))
+            logger.warning(f"Error loading module: {str(e)}")
 
             for msg in traceback.format_exc().split("\n"):
                 logger.warning(msg.rstrip())

@@ -5,18 +5,14 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 import logging
-import os
-import re
-import tempfile
 from datetime import datetime
-from decimal import Decimal
 
 try:
     import bson
 except ImportError:
     bson = None
 
-from dionaea.core import incident, connection, g_dionaea
+from dionaea.core import connection
 from . import packets
 from dionaea.smb.include.packet import Raw
 
@@ -73,7 +69,7 @@ class mongod(connection):
         elif command_name == b"whatsmyuri":
             return [{
                 "ok": 1.0,
-                "you": "%s:%s" % (self.local.host, self.local.port)
+                "you": "{}:{}".format(self.local.host, self.local.port)
             }, {}]
 
     def _handle_command_db_test(self, command_name, metadata, command_args, input_docs):

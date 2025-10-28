@@ -40,7 +40,7 @@ class DionaeaHTTPError(Exception):
         self.code = code
 
 
-class FileListItem(object):
+class FileListItem:
     def __init__(self, path, name):
         self.path = path
         self.name = name
@@ -159,7 +159,7 @@ class httpreq:
             logger.debug(i + b":" + self.headers[i])
 
 
-class Headers(object):
+class Headers:
     def __init__(self, headers, global_headers=None, filename_pattern=None, methods=None, status_codes=None):
         if global_headers is not None:
             headers = global_headers + headers
@@ -199,7 +199,7 @@ class Headers(object):
             try:
                 yield (n, v.format(**values))
             except KeyError:
-                logger.warning("Key error in header: %s: %s" % (n, v), exc_info=True)
+                logger.warning(f"Key error in header: {n}: {v}", exc_info=True)
 
     def send(self, connection, values):
         for header in self.prepare(values):
@@ -232,15 +232,15 @@ class httpd(connection):
         logger.debug("http test")
         connection.__init__(self, proto)
         self.state = STATE_HEADER
-        self.header: Optional[httpreq] = None
+        self.header: httpreq | None = None
         self.rwchunksize = 64*1024
         self._out.speed.limit = 16*1024
         self.env = None
         self.boundary = None
         self.fp_tmp = None
         self.cur_length = 0
-        self.content_length: Optional[int] = None
-        self.content_type: Optional[str] = None
+        self.content_length: int | None = None
+        self.content_type: str | None = None
 
         self.headers = []
         self.max_request_size = 32768 * 1024
@@ -268,7 +268,7 @@ class httpd(connection):
         # Use own class so we can add additional files later
         self._mimetypes = mimetypes.MimeTypes()
 
-        self.request_form: Optional[cgi.FieldStorage] = None
+        self.request_form: cgi.FieldStorage | None = None
 
     @property
     def request_fields(self):
@@ -774,7 +774,7 @@ class httpd(connection):
         apath = os.path.abspath(fpath)
         aroot = os.path.abspath(self.root)
         logger.debug(
-            "root %s aroot %s rpath %s fpath %s apath %s" % (
+            "root {} aroot {} rpath {} fpath {} apath {}".format(
                 self.root,
                 aroot,
                 rpath,
@@ -827,7 +827,7 @@ class httpd(connection):
                 f.seek(0)
                 content_length = len(content)
             else:
-                f = io.open(apath, "rb")
+                f = open(apath, "rb")
                 content_length = os.stat(apath).st_size
 
             content_type = self.default_content_type
@@ -876,7 +876,7 @@ class httpd(connection):
         """
         try:
             filenames = os.listdir(path)
-        except os.error:
+        except OSError:
             self.send_error(404, "No permission to list directory")
             return None
 
@@ -915,7 +915,7 @@ class httpd(connection):
                     displayname = file.name + "@"
                     # Note: a link to a directory displays with @ and links with /
                 r.append(
-                    '<li><a href="%s">%s</a>\n' % (
+                    '<li><a href="{}">{}</a>\n'.format(
                         urllib.parse.quote(linkname),
                         html.escape(displayname)
                     )
@@ -1002,7 +1002,7 @@ class httpd(connection):
         return f
 
     def send_header(self, key, value):
-        self.send("%s: %s\r\n" % (key, value))
+        self.send(f"{key}: {value}\r\n")
 
     def end_headers(self):
         self.send("\r\n")

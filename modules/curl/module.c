@@ -60,8 +60,7 @@ struct session
 
 		struct
 		{
-			struct curl_httppost    *formpost;
-			struct curl_httppost    *last;
+			curl_mime               *mime;
 			struct curl_slist       *headers;
 			char 					*username;
 			char 					*password;
@@ -110,7 +109,7 @@ static void session_free(struct session *session)
 		break;
 
 	case session_type_upload:
-		curl_formfree(session->action.upload.formpost);
+		curl_mime_free(session->action.upload.mime);
 		curl_slist_free_all(session->action.upload.headers);
 		if( session->action.upload.username != NULL )
 			g_free(session->action.upload.username);
@@ -353,12 +352,12 @@ static size_t curl_writefunction_cb(void *ptr, size_t size, size_t nmemb, void *
 	return size * nmemb;
 }
 
-/* CURLOPT_PROGRESSFUNCTION */
-static int curl_progressfunction_cb (void *p, double dltotal, double dlnow, double ult, double uln)
+/* CURLOPT_XFERINFOFUNCTION */
+static int curl_progressfunction_cb (void *p, curl_off_t dltotal, curl_off_t dlnow, curl_off_t ult, curl_off_t uln)
 {
 #ifdef DEBUG
 	struct session *session = (struct session *)p;
-	g_debug("Progress: %s (down:%g/%g up:%g/%g)", session->url, dlnow, dltotal, uln, ult);
+	g_debug("Progress: %s (down:%lld/%lld up:%lld/%lld)", session->url, (long long)dlnow, (long long)dltotal, (long long)uln, (long long)ult);
 #endif
 	return 0;
 }
@@ -417,6 +416,8 @@ void session_upload_new(struct incident *i)
 	url = gstemp->str;
 	session->url = g_strdup(url);
 
+	session->action.upload.mime = curl_mime_init(session->easy);
+
 	g_hash_table_iter_init (&iter, i->data);
 
 	while( g_hash_table_iter_next (&iter, &key, &value) )
@@ -456,29 +457,23 @@ void session_upload_new(struct incident *i)
 			}else
 			if( strncmp(name, "file://", 7) == 0 )
 			{ /* we upload this file */
-				curl_formadd(&session->action.upload.formpost,
-							 &session->action.upload.last,
-							 CURLFORM_COPYNAME, name + 7,
-							 CURLFORM_FILE, d->opaque.string->str,
-							 CURLFORM_END);
+				curl_mimepart *part = curl_mime_addpart(session->action.upload.mime);
+				curl_mime_name(part, name + 7);
+				curl_mime_filedata(part, d->opaque.string->str);
 			}else
 			{ /* all other values */
 				snprintf(name_and_param, 1024, "%s_ct", name);
 				if ( incident_value_string_get(i, name_and_param, &gstemp) == true)
 				{ /* with content type */
-					curl_formadd(&session->action.upload.formpost,
-								 &session->action.upload.last,
-								 CURLFORM_COPYNAME, name,
-								 CURLFORM_CONTENTTYPE, gstemp->str,
-								 CURLFORM_COPYCONTENTS, d->opaque.string->str,
-								 CURLFORM_END);
+					curl_mimepart *part = curl_mime_addpart(session->action.upload.mime);
+					curl_mime_name(part, name);
+					curl_mime_data(part, d->opaque.string->str, CURL_ZERO_TERMINATED);
+					curl_mime_type(part, gstemp->str);
 				} else
 				{ /* without content type */
-					curl_formadd(&session->action.upload.formpost,
-								 &session->action.upload.last,
-								 CURLFORM_COPYNAME, name,
-								 CURLFORM_COPYCONTENTS, d->opaque.string->str,
-								 CURLFORM_END);
+					curl_mimepart *part = curl_mime_addpart(session->action.upload.mime);
+					curl_mime_name(part, name);
+					curl_mime_data(part, d->opaque.string->str, CURL_ZERO_TERMINATED);
 				}
 			}
 		}
@@ -489,7 +484,7 @@ void session_upload_new(struct incident *i)
 
 
 	curl_easy_setopt(session->easy, CURLOPT_URL, session->url);
-	curl_easy_setopt(session->easy, CURLOPT_HTTPPOST, session->action.upload.formpost);
+	curl_easy_setopt(session->easy, CURLOPT_MIMEPOST, session->action.upload.mime);
 	curl_easy_setopt(session->easy, CURLOPT_HTTPHEADER, session->action.upload.headers);
 	curl_easy_setopt(session->easy, CURLOPT_WRITEFUNCTION, curl_writefunction_cb);
 	curl_easy_setopt(session->easy, CURLOPT_WRITEDATA, session);
@@ -498,8 +493,8 @@ void session_upload_new(struct incident *i)
 	curl_easy_setopt(session->easy, CURLOPT_ERRORBUFFER, session->error);
 	curl_easy_setopt(session->easy, CURLOPT_PRIVATE, session);
 	curl_easy_setopt(session->easy, CURLOPT_NOPROGRESS, 0L);
-	curl_easy_setopt(session->easy, CURLOPT_PROGRESSFUNCTION, curl_progressfunction_cb);
-	curl_easy_setopt(session->easy, CURLOPT_PROGRESSDATA, session);
+	curl_easy_setopt(session->easy, CURLOPT_XFERINFOFUNCTION, curl_progressfunction_cb);
+	curl_easy_setopt(session->easy, CURLOPT_XFERINFODATA, session);
 	curl_easy_setopt(session->easy, CURLOPT_LOW_SPEED_TIME, 3L);
 	curl_easy_setopt(session->easy, CURLOPT_LOW_SPEED_LIMIT, 10L);
 	curl_easy_setopt(session->easy, CURLOPT_USERAGENT, "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0)");
@@ -540,8 +535,8 @@ static void session_download_new(struct incident *i, char *url)
 	curl_easy_setopt(session->easy, CURLOPT_PRIVATE, session);
 	curl_easy_setopt(session->easy, CURLOPT_NOPROGRESS, 0L);
 	curl_easy_setopt(session->easy, CURLOPT_FOLLOWLOCATION, 10);
-	curl_easy_setopt(session->easy, CURLOPT_PROGRESSFUNCTION, curl_progressfunction_cb);
-	curl_easy_setopt(session->easy, CURLOPT_PROGRESSDATA, session);
+	curl_easy_setopt(session->easy, CURLOPT_XFERINFOFUNCTION, curl_progressfunction_cb);
+	curl_easy_setopt(session->easy, CURLOPT_XFERINFODATA, session);
 	curl_easy_setopt(session->easy, CURLOPT_LOW_SPEED_TIME, 3L);
 	curl_easy_setopt(session->easy, CURLOPT_LOW_SPEED_LIMIT, 10L);
 	curl_easy_setopt(session->easy, CURLOPT_USERAGENT, "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0)");
@@ -648,7 +643,7 @@ static bool curl_new(struct dionaea *d)
 	CURLMcode rc;
 	do
 	{
-		rc = curl_multi_socket_all(curl_runtime.multi, &curl_runtime.active);
+		rc = curl_multi_socket_action(curl_runtime.multi, CURL_SOCKET_TIMEOUT, 0, &curl_runtime.active);
 	} while( CURLM_CALL_MULTI_PERFORM == rc );
 
 	curl_runtime.download_ihandler = ihandler_new("dionaea.download.offer", curl_ihandler_cb, NULL);

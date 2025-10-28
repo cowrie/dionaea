@@ -6,7 +6,6 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-from __future__ import print_function
 from optparse import OptionParser
 import sqlite3
 import json
@@ -393,7 +392,7 @@ def print_db(options, args):
     dbpath = '/opt/dionaea/var/dionaea/logsql.sqlite'
     if len(args) >= 1:
         dbpath = args[0]
-    print("using database located at {0}".format(dbpath))
+    print(f"using database located at {dbpath}")
     dbh = sqlite3.connect(dbpath)
     cursor = dbh.cursor()
 
@@ -426,15 +425,15 @@ WHERE
 
     if options.remote_host:
         query = query + \
-            "\tAND remote_host = '{:s}' \n".format(options.remote_host)
+            f"\tAND remote_host = '{options.remote_host:s}' \n"
 
     if options.connection:
         query = query + \
-            "\tAND c.connection = {:d} \n".format(options.connection)
+            f"\tAND c.connection = {options.connection:d} \n"
 
     if options.in_offer_url:
         query = query + \
-            "\tAND offer_url LIKE '%{:s}%' \n".format(options.in_offer_url)
+            f"\tAND offer_url LIKE '%{options.in_offer_url:s}%' \n"
 
     if options.in_download_url:
         query = query + \
@@ -443,38 +442,38 @@ WHERE
 
     if options.time_from:
         query = query + \
-            "\tAND connection_timestamp > {:s} \n".format(options.time_from)
+            f"\tAND connection_timestamp > {options.time_from:s} \n"
 
     if options.time_to:
         query = query + \
-            "\tAND connection_timestamp < {:s} \n".format(options.time_to)
+            f"\tAND connection_timestamp < {options.time_to:s} \n"
 
     if options.uuid:
         query = query + \
-            "\tAND dcerpcbind_uuid = '{:s}' \n".format(options.uuid)
+            f"\tAND dcerpcbind_uuid = '{options.uuid:s}' \n"
 
     if options.opnum:
         query = query + \
-            "\tAND dcerpcrequest_opnum = {:s} \n".format(options.opnum)
+            f"\tAND dcerpcrequest_opnum = {options.opnum:s} \n"
 
     if options.protocol:
         query = query + \
-            "\tAND connection_protocol = '{:s}' \n".format(options.protocol)
+            f"\tAND connection_protocol = '{options.protocol:s}' \n"
 
     if options.md5sum:
         query = query + \
-            "\tAND download_md5_hash = '{:s}' \n".format(options.md5sum)
+            f"\tAND download_md5_hash = '{options.md5sum:s}' \n"
 
     if options.type:
         query = query + \
-            "\tAND connection_type = '{:s}' \n".format(options.type)
+            f"\tAND connection_type = '{options.type:s}' \n"
 
     if options.query:
         print(query)
         return
 
     while True:
-        lquery = query + "\t LIMIT {:d} OFFSET {:d} \n".format(limit, offset)
+        lquery = query + f"\t LIMIT {limit:d} OFFSET {offset:d} \n"
         result = cursor.execute(lquery)
         connections = resolve_result(result)
 #		print(connections)
