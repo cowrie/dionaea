@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: CC0-1.0
 
-FROM ubuntu:24.04
+FROM ubuntu:24.04 AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -54,26 +54,26 @@ RUN   mkdir -p /code/build && \
       make && \
       make install && \
       chown -R dionaea:dionaea /opt/dionaea/var && \
-      cp /code/docker/entrypoint.sh /usr/local/sbin/entrypoint.sh && \
+      cp /code/docker/entrypoint.sh /opt/dionaea/entrypoint.sh && \
       mkdir -p /opt/dionaea/template && \
       (cd /opt/dionaea && mv var/lib template/ && mv var/log template/ && mv etc template/)
 
-# Remove dev packages
-RUN apt-get purge -y \
-        build-essential \
-        cmake \
-        cython3 \
-        libcurl4-openssl-dev \
-        libev-dev \
-        libglib2.0-dev \
-        libnetfilter-queue-dev \
-        libpcap-dev \
-        libssl-dev \
-        libtool \
-        libudns-dev \
-        python3-dev
 
-# Install required packages
+FROM ubuntu:24.04 AS runtime
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+ENV DIONAEA_GROUP=dionaea \
+    DIONAEA_USER=dionaea \
+    DIONAEA_HOME=/opt/dionaea
+
+ENV LC_ALL=C.UTF-8 \
+    LANG=C.UTF-8 \
+    LANGUAGE=C.UTF-8
+
+RUN groupadd -r ${DIONAEA_GROUP} && \
+    useradd -r -d ${DIONAEA_HOME} -m -g ${DIONAEA_GROUP} ${DIONAEA_USER}
+
 RUN apt-get -qq install -y \
         -o APT::Install-Suggests=false \
         -o APT::Install-Recommends=false \
@@ -88,6 +88,8 @@ RUN apt-get -qq install -y \
         libudns0 && \
     apt-get autoremove --purge -y && \
     apt-get clean && \
-    rm -rf /code/ /var/lib/apt/lists/* /tmp/* /var/tmp/*
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-ENTRYPOINT ["/usr/local/sbin/entrypoint.sh"]
+COPY --from=builder --chown=${DIONAEA_USER}:${DIONAEA_GROUP} ${DIONAEA_HOME} ${DIONAEA_HOME}
+
+ENTRYPOINT ["/opt/dioanea/entrypoint.sh"]
