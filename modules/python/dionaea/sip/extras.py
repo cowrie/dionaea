@@ -175,7 +175,7 @@ class SipConfig:
 
     def get_user_by_username(self, personality, username):
         def regexp(expr, value):
-            if type(expr) != str:
+            if not isinstance(expr, str):
                 expr = str(expr)
             regex = re.compile(expr)
             return regex.match(value) is not None
@@ -198,7 +198,7 @@ class SipConfig:
             return None
 
         password = row[1]
-        if type(password) == int:
+        if isinstance(password, int):
             password = str(password)
 
         # ToDo: sdp is not used! Recheck!!!
@@ -337,12 +337,12 @@ class PCAP:
         try:
             if not os.path.exists(path):
                 os.makedirs(path)
-        except:
+        except Exception:
             logger.info("Can't create RTP-Dump dir: %s", path)
 
         try:
             self._fp = open(os.path.join(path, filename), "wb")
-        except:
+        except Exception:
             logger.warning("Can't create RTP-Dump file: %s", os.path.join(path, filename))
 
         if self._fp is None:
@@ -485,19 +485,22 @@ def msg_to_icd(msg, d=None):
         return d
 
     def connectiondata_to_dict(c, d=None):
-        if d is None: d = {}
+        if d is None:
+            d = {}
         for i in ['addrtype', 'connection_address', 'nettype', 'number_of_addresses', 'ttl']:
             d[i] = c.__dict__[i]
         return d
 
     def origin_to_dict(o, d=None):
-        if d is None: d = {}
+        if d is None:
+            d = {}
         for i in ['addrtype', 'nettype', 'sess_id', 'sess_version', 'unicast_address', 'username']:
             d[i] = o.__dict__[i]
         return d
 
     def media_to_dict(m, d=None):
-        if d is None: d = {}
+        if d is None:
+            d = {}
         # 'attributes'
         for i in ['fmt', 'media', 'number_of_ports', 'port', 'proto']:
             d[i] = m.__dict__[i]
