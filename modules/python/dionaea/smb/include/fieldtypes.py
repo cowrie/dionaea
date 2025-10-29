@@ -29,7 +29,6 @@ from .helpers import (
     RandSInt,
     RandShort,
     RandTermString,
-    Raw,
     VolatileValue,
     inet_aton,
     inet_ntoa,
@@ -38,6 +37,7 @@ from .helpers import (
     str2mac,
     warning,
 )
+from .packet import Raw
 
 ############
 ## Fields ##
