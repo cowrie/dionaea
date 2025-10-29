@@ -17,6 +17,7 @@ from .asn1.asn1 import (
     ASN1_Class_UNIVERSAL,
     ASN1_Error,
     ASN1_Object,
+    fuzz,
 )
 from .asn1.ber import (
     BER_Decoding_Error,

@@ -40,6 +40,11 @@ logger = logging.getLogger('asn1')
 #            return o([x._fix(n+1) for x in [self.__class__(objlist=self.objlist)]*z])
 #        return ASN1_INTEGER(int(random.gauss(0,1000)))
 
+# Stub for fuzzing function (unused in dionaea honeypot, never actually called)
+def fuzz(p):
+    """Stub for scapy's fuzz() function - not used in honeypot"""
+    return p
+
 
 ##############
 #### ASN1 ####
