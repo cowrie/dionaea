@@ -122,10 +122,12 @@ void python_io_in_cb(EV_P_ struct ev_io *w, int revents)
 		return;
 	}
 
+	PyGILState_STATE gil_state = PyGILState_Ensure();
 	tcsetattr(0, TCSANOW, &runtime.read_termios);
 	PyRun_InteractiveOneFlags(runtime.stdIN, "<stdin>", &cf);
 	traceback();
 	tcsetattr(0, TCSANOW, &runtime.poll_termios);
+	PyGILState_Release(gil_state);
 }
 
 static void python_mkshell_ihandler_cb(struct incident *i, void *ctx)
