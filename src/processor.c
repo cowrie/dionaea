@@ -28,11 +28,22 @@ bool processors_tree_create(GNode *tree, gchar *proc_conf_name)
 	gchar *group_name = g_strjoin(".", "processor", proc_conf_name, NULL);
 	gchar *proc_name = g_key_file_get_string(g_dionaea->config, group_name, "name", &error);
 
+	if( proc_name == NULL )
+	{
+		g_error("Config section [%s] missing required 'name' field: %s",
+		        group_name, error ? error->message : "unknown error");
+		g_clear_error(&error);
+		g_free(group_name);
+		return false;
+	}
+
 	struct processor *p = g_hash_table_lookup(g_dionaea->processors->names, proc_name);
 
 	if( p == NULL )
 	{
 		g_error("Could not find processor '%s' (from config section [%s])", proc_name, group_name);
+		g_free(proc_name);
+		g_free(group_name);
 		return false;
 	}
 
