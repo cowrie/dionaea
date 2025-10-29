@@ -20,7 +20,7 @@ g_handlers = None
 g_handler_configs = []
 
 
-def new():
+def new() -> None:
     global g_handler_configs
     logger.info("Load iHandlers")
     load_submodules()
@@ -30,7 +30,7 @@ def new():
     g_handler_configs = load_config_from_files(filename_patterns)
 
 
-def start():
+def start() -> None:
     global g_handlers
     g_handlers = {}
     logger.info("START THE IHANDLERS")
@@ -56,7 +56,7 @@ def start():
                 method()
 
 
-def stop():
+def stop() -> None:
     global g_handlers
     for handler_loader, ihandlers in g_handlers.items():
         for i in ihandlers:

@@ -1079,12 +1079,19 @@ void traceback(void)
 		size_t k;
 		for( k = PyList_GET_SIZE(res); k; --k )
 		{
-			PyObject *tuple = PyList_GET_ITEM(res, k-1);
-			char *filename = pyobjectstring(PyTuple_GET_ITEM(tuple, 0));
-			char *line_no = pyobjectstring(PyTuple_GET_ITEM(tuple, 1));
-			char *function_name = pyobjectstring(PyTuple_GET_ITEM(tuple, 2));
-			char *text = pyobjectstring(PyTuple_GET_ITEM(tuple, 3));
-//			g_warning(" %s:%s in %s \n\t %s", filename, line_no, function_name, text);
+			PyObject *frame = PyList_GET_ITEM(res, k-1);
+			// In Python 3.5+, extract_tb returns FrameSummary objects, not tuples
+			// Access attributes: filename, lineno, name, line
+			PyObject *py_filename = PyObject_GetAttrString(frame, "filename");
+			PyObject *py_lineno = PyObject_GetAttrString(frame, "lineno");
+			PyObject *py_name = PyObject_GetAttrString(frame, "name");
+			PyObject *py_line = PyObject_GetAttrString(frame, "line");
+
+			char *filename = py_filename ? pyobjectstring(py_filename) : g_strdup("?");
+			char *line_no = py_lineno ? pyobjectstring(py_lineno) : g_strdup("?");
+			char *function_name = py_name ? pyobjectstring(py_name) : g_strdup("?");
+			char *text = py_line ? pyobjectstring(py_line) : g_strdup("");
+
 			g_warning("%s:%s in %s", filename, line_no, function_name);
 			g_warning("\t %s", text);
 
@@ -1093,6 +1100,10 @@ void traceback(void)
 			g_free(function_name);
 			g_free(text);
 
+			Py_XDECREF(py_filename);
+			Py_XDECREF(py_lineno);
+			Py_XDECREF(py_name);
+			Py_XDECREF(py_line);
 		}
 	}
 
