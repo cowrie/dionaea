@@ -78,7 +78,7 @@ class Packet_metaclass(type):
         return i
 
 class Packet(BasePacket, metaclass=Packet_metaclass):
-    name=None
+    name: str | None = None
 
     fields_desc = []
 
