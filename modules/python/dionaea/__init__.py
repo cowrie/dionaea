@@ -10,7 +10,6 @@ import logging
 import pkgutil
 import traceback
 from threading import Event, Thread
-from typing import Optional
 from collections.abc import Callable
 
 import yaml

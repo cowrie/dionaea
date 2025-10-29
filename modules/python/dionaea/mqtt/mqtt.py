@@ -40,7 +40,7 @@ class mqttd(connection):
 				if len(data) == 0:
 					logger.warn("Bad MQTT Packet, Length = 0")
 
-			except:
+			except Exception:
 				t = traceback.format_exc()
 				logger.error(t)
 				return l

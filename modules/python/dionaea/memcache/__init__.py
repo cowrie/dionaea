@@ -7,7 +7,7 @@
 import logging
 
 from dionaea import ServiceLoader
-from dionaea.core import connection, incident
+from dionaea.core import connection
 from dionaea.exception import ServiceConfigError
 from .command import Command
 from .var import VarHandler

@@ -206,7 +206,7 @@ class FTPClient:
                 import socket
                 host = socket.gethostbyname(host)
                 logger.info("resolved host %s", host)
-        except:
+        except Exception:
             host = self.ctrl.local.host
             logger.info("except datalisten host %s", self.ctrl.local.host)
 

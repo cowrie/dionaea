@@ -426,7 +426,7 @@ class logsqlhandler(ihandler):
             try:
                 self.cursor.execute("INSERT INTO mysql_command_ops (mysql_command_cmd, mysql_command_op_name) VALUES (?,?)",
                                     (num, name))
-            except:
+            except Exception:
                 pass
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
