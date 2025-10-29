@@ -10,8 +10,17 @@
 name: "CodeQL"
 
 on:  # yamllint disable-line rule:truthy
-  push:
-    branches: [main]
+  #  push:
+  #    branches: [main]
+
+  workflow_dispatch:
+    inputs:
+      logLevel:
+        description: 'Log level'
+        required: true
+        default: 'warning'
+      tags:
+        description: 'CodeQL'
 
 permissions:
   actions: read
