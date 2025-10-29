@@ -5,7 +5,7 @@
 download.dir=@DIONAEA_STATEDIR@/binaries/
 #modules=curl,python,nfq,emu,pcap
 modules=curl,python
-processors=filter_streamdumper,filter_emu
+processors=filter_streamdumper
 
 listen.mode=getifaddrs
 # listen.addresses=127.0.0.1

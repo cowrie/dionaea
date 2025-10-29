@@ -32,7 +32,8 @@ bool processors_tree_create(GNode *tree, gchar *proc_conf_name)
 
 	if( p == NULL )
 	{
-		//g_error("Could not find processor '%s' (%s)", node->key, key);
+		g_error("Could not find processor '%s' (from config section [%s])", proc_name, group_name);
+		return false;
 	}
 
 	struct processor *pt = g_malloc0(sizeof(struct processor));
