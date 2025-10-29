@@ -17,7 +17,7 @@ from urllib.parse import urlparse
 
 try:
     import magic
-except:
+except Exception:
     def filetype(fpath):
         return ''
 else:
@@ -25,7 +25,7 @@ else:
         try:
             mc = magic.Magic()
             ftype = mc.from_file(fpath)
-        except:
+        except Exception:
             ftype = ''
         return ftype
 
@@ -104,7 +104,7 @@ class handler(ihandler):
             try:
                 i.filename = urlparse(icd.url).path.split('/')[-1]
                 mr.filename = i.filename
-            except:
+            except Exception:
                 pass
             mr.download_url = icd.url
 

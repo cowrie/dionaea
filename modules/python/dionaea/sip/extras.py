@@ -117,7 +117,7 @@ class SipConfig:
 
             for n in ["domain", "name", "personality", "serve", "default_sdp", "handle"]:
                 v = personality.get(n, self.personalities["default"][n])
-                if type(v) != type(self.personalities["default"][n]):
+                if type(v) is not type(self.personalities["default"][n]):
                     v = self.personalities["default"][n]
                 # convert values
                 if n == "handle":

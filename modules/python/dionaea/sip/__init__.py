@@ -113,7 +113,7 @@ class User:
         # get expires
         try:
             self.expires = int(msg.headers.get(b"expires"))
-        except:
+        except Exception:
             pass
 
 
@@ -431,7 +431,7 @@ class SipCall(connection):
 
         self._timers["idle"].reset()
 
-        if type(msg) == rfc3261.Message:
+        if isinstance(msg, rfc3261.Message):
             self._msg_stack.append(("out", msg))
             msg = msg.dumps()
 
@@ -555,7 +555,7 @@ class SipCall(connection):
 
         try:
             func = getattr(self, "handle_" + handler_name, None)
-        except:
+        except Exception:
             func = None
 
         if func is not None and callable(func):
@@ -669,7 +669,7 @@ class SipSession(connection):
         else:
             try:
                 func = getattr(self, "handle_" + handler_name, None)
-            except:
+            except Exception:
                 func = None
             if func is not None and callable(func):
                 func(msg)

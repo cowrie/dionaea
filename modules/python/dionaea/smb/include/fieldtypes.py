@@ -35,7 +35,8 @@ from .helpers import (
     str2mac,
     warning,
 )
-from .packet import Raw
+# Raw is imported inside functions to avoid circular import
+# (packet.py imports from fieldtypes.py)
 
 ############
 ## Fields ##
@@ -397,6 +398,7 @@ class PacketField(StrField):
     def m2i(self, pkt, m):
         return self.cls(m)
     def getfield(self, pkt, s):
+        from .packet import Raw  # Lazy import to avoid circular dependency
         p = self.m2i(pkt, s)
         if 'Raw' in p:
             remain = p.load
@@ -411,6 +413,7 @@ class PacketLenField(PacketField):
         PacketField.__init__(self, name, default, cls)
         self.length_from = length_from
     def getfield(self, pkt, s):
+        from .packet import Raw  # Lazy import to avoid circular dependency
         l = self.length_from(pkt)
         try:
             i = self.m2i(pkt, s[:l])
@@ -449,6 +452,7 @@ class PacketListField(PacketField):
     def do_copy(self, x):
         return [p.copy() for p in x]
     def getfield(self, pkt, s):
+        from .packet import Raw  # Lazy import to avoid circular dependency
         c = l = None
         if self.length_from is not None:
             l = self.length_from(pkt)
