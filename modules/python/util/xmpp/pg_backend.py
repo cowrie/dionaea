@@ -20,7 +20,6 @@ import codecs
 import base64
 import md5
 import argparse
-import io
 import os
 from pyPgSQL import PgSQL
 

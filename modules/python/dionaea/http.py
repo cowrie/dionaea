@@ -21,7 +21,6 @@ import urllib.parse
 import re
 import tempfile
 from datetime import datetime
-from typing import Optional
 
 try:
     import jinja2
