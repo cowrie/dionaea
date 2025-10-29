@@ -42,8 +42,7 @@ g_call_ids = {}
 
 
 def cleanup(*args):
-    logger.warning("Cleanup")
-
+    # logger.debug("Cleanup")
     # remove closed calls
     for key in list(g_call_ids.keys()):
         if g_call_ids[key] is None:
@@ -75,7 +74,7 @@ class SIPService(ServiceLoader):
         if len(daemons) > 0:
             global g_timer_cleanup
             if g_timer_cleanup is None:
-                logger.warning("Starting cleanup loop")
+                logger.info("Starting cleanup loop")
                 g_timer_cleanup = Timer(
                     60,
                     cleanup,
@@ -83,7 +82,7 @@ class SIPService(ServiceLoader):
                 )
                 g_timer_cleanup.start()
             else:
-                logger.debug("Cleanup loop already started!")
+                logger.info("Cleanup loop already started!")
         return daemons
 
 
