@@ -4,8 +4,17 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-from dionaea.smb.include.packet import *
-from dionaea.smb.include.fieldtypes import *
+from dionaea.smb.include.packet import Packet
+from dionaea.smb.include.fieldtypes import (
+    ByteField,
+    ConditionalField,
+    FieldLenField,
+    FlagsField,
+    StrFixedLenField,
+    StrLenField,
+    XByteEnumField,
+    XShortField,
+)
 
 #MQTT Control Message Types
 MQTT_CONTROLMESSAGE_TYPE_CONNECT     = 0x10

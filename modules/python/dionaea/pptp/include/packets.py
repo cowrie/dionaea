@@ -4,8 +4,16 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-from dionaea.smb.include.packet import *
-from dionaea.smb.include.fieldtypes import *
+from dionaea.smb.include.packet import Packet
+from dionaea.smb.include.fieldtypes import (
+    ByteField,
+    LEIntField,
+    LEShortField,
+    StrFixedLenField,
+    XByteField,
+    XIntField,
+    XShortField,
+)
 
 # PPTP Control Message Types
 PPTP_CTRMSG_TYPE_STARTCTRCON_REQUEST = 0x01
