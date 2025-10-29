@@ -116,22 +116,18 @@ class HTTPService(ServiceLoader):
 
 class httpreq:
     def __init__(self, header: bytes, connection):
-        hlines = header.split(b'\n')
-        req = hlines[0]
-        reqparts = req.split(b" ")
-        self.type = reqparts[0]
-        path_parsed = urllib.parse.urlsplit(reqparts[1].decode('utf-8'))
-        self.path = urllib.parse.unquote_plus(path_parsed.path)
-        self.fields = {}
         try:
-            if sys.version_info[1] >= 8:
-                self.fields = urllib.parse.parse_qs(
-                    path_parsed.query,
-                    max_num_fields=connection.get_max_num_fields
-                )
-            else:
-                logger.warning("max_num_fields is only supported with Python >= 3.8")
-                self.fields = urllib.parse.parse_qs(path_parsed.query)
+            hlines = header.split(b'\n')
+            req = hlines[0]
+            reqparts = req.split(b" ")
+            self.type = reqparts[0]
+            path_parsed = urllib.parse.urlsplit(reqparts[1].decode('utf-8'))
+            self.path = urllib.parse.unquote_plus(path_parsed.path)
+            self.fields = {}
+            self.fields = urllib.parse.parse_qs(
+                path_parsed.query,
+                max_num_fields=connection.get_max_num_fields
+            )
         except Exception:
             logger.warning("Unable to parse query string", exc_info=True)
 
@@ -689,18 +685,11 @@ class httpd(connection):
                 'CONTENT_LENGTH': self.content_length,
                 'CONTENT_TYPE': self.content_type
             }
-            if sys.version_info[1] >= 8:
-                self.request_form = cgi.FieldStorage(
-                    fp=self.fp_tmp,
-                    environ=tmp_environ,
-                    max_num_fields=self.get_max_num_fields
-                )
-            else:
-                logger.warning("max_num_fields is only supported with Python >= 3.8")
-                self.request_form = cgi.FieldStorage(
-                    fp=self.fp_tmp,
-                    environ=tmp_environ
-                )
+            self.request_form = cgi.FieldStorage(
+                fp=self.fp_tmp,
+                environ=tmp_environ,
+                max_num_fields=self.get_max_num_fields
+            )
             for field_name in self.request_form.keys():
                 # dump only files
                 if self.request_form[field_name].filename is None:
