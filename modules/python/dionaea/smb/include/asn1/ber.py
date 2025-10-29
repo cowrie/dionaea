@@ -398,7 +398,7 @@ class BERcodec_IPADDRESS(BERcodec_STRING):
             ipaddr_ascii = inet_ntoa(s)
         except Exception:
             raise BER_Decoding_Error(
-                "IP address could not be decoded", decoded=obj)
+                "IP address could not be decoded", decoded=s)
         return cls.asn1_object(ipaddr_ascii), t
 
 class BERcodec_UTC_TIME(BERcodec_STRING):
@@ -472,3 +472,29 @@ class BERcodec_OID(BERcodec_Object):
             lst.insert(0,int((lst[0]-(lst[0]%40))/40))
             lst[1] %= 40
         return cls.asn1_object(".".join([str(k) for k in lst])), t
+
+# Stub classes for random value generation (unused fuzzing code from Scapy)
+# These are never called in dionaea but referenced in ASN1 field definitions
+class RandNum:
+    """Stub for random number generator"""
+    def __init__(self, min=0, max=100):
+        self.min = min
+        self.max = max
+
+class RandInt:
+    """Stub for random int generator"""
+    pass
+
+class RandChoice:
+    """Stub for random choice generator"""
+    def __init__(self, *args):
+        self.choices = args
+
+class RandString:
+    """Stub for random string generator"""
+    def __init__(self, size):
+        self.size = size
+
+class RandOID:
+    """Stub for random OID generator"""
+    pass
