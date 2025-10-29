@@ -208,7 +208,7 @@ void logger_stdout_log(const gchar *log_domain,
 		stamp = time(NULL);
 
 	struct tm t;
-	localtime_r(&stamp, &t);
+	gmtime_r(&stamp, &t);
 
 #ifdef DEBUG
 	if( log_domain == NULL )
@@ -218,13 +218,13 @@ void logger_stdout_log(const gchar *log_domain,
 	if( (fileinfo = strstr(domain, " ")) != NULL )
 		*fileinfo++ = '\0';
 
-	printf("[%02d%02d%04d %02d:%02d:%02d] %s%s\033[0m %s: %s\n",
-		   t.tm_mday, t.tm_mon + 1, t.tm_year + 1900, t.tm_hour, t.tm_min, t.tm_sec,
+	printf("[%04d-%02d-%02dT%02d:%02d:%02dZ] %s%s\033[0m %s: %s\n",
+		   t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec,
 		   level, domain, fileinfo, message);
 	g_free(domain);
 #else
-	printf("[%02d%02d%04d %02d:%02d:%02d] %s%s\033[0m: %s\n",
-		   t.tm_mday, t.tm_mon + 1, t.tm_year + 1900, t.tm_hour, t.tm_min, t.tm_sec,
+	printf("[%04d-%02d-%02dT%02d:%02d:%02dZ] %s%s\033[0m: %s\n",
+		   t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec,
 		   level, log_domain, message);
 #endif
 }
@@ -315,9 +315,9 @@ void logger_file_log(const gchar *log_domain,
 		stamp = time(NULL);
 
 	struct tm t;
-	localtime_r(&stamp, &t);
-	fprintf(data->f, "[%02d%02d%04d %02d:%02d:%02d] %s-%s: %s\n",
-			t.tm_mday, t.tm_mon + 1, t.tm_year + 1900, t.tm_hour, t.tm_min, t.tm_sec,
+	gmtime_r(&stamp, &t);
+	fprintf(data->f, "[%04d-%02d-%02dT%02d:%02d:%02dZ] %s-%s: %s\n",
+			t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec,
 			log_domain, level, message);
 //	fflush(data->f);
 }
