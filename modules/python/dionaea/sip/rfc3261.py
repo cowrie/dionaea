@@ -11,7 +11,7 @@ import time
 try:
     from dionaea.sip import rfc2396, rfc4566
     from dionaea.sip.extras import int2bytes, ErrorWithResponse
-except:
+except Exception:
     import rfc2396
     import rfc4566
     from extras import int2bytes, ErrorWithResponse
@@ -587,7 +587,7 @@ class Message:
         # remove first line and parse it
         try:
             h1, h2, h3 = headers_data[0].split(b" ", 2)
-        except:
+        except Exception:
             logger.warning("Can't parse first line of sip message: %s", repr(headers_data[0])[:128])
             raise SipParsingError
 
@@ -597,7 +597,7 @@ class Message:
         status_message = None
         try:
             response_code, protocol, status_message = int(h2), h1, h3
-        except:
+        except Exception:
             method, uri, protocol = h1, rfc2396.Address.froms(h2), h3
 
         # ToDo: check protocol
@@ -609,7 +609,7 @@ class Message:
         sdp = None
         try:
             content_length = int(headers.get(b"content-length", None).value)
-        except:
+        except Exception:
             content_length = None
 
         if content_length is not None:
@@ -734,7 +734,7 @@ class Via:
         if port is not None:
             try:
                 port = int(port)
-            except:
+            except Exception:
                 # error parsing port, set default value
                 self.port = 5060
 

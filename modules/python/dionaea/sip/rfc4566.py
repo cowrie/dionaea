@@ -15,7 +15,7 @@ import re
 
 try:
     from dionaea.sip.extras import int2bytes
-except:
+except Exception:
     from extras import int2bytes
 
 logger = logging.getLogger('sip')
