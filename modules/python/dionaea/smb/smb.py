@@ -11,6 +11,7 @@
 
 from dionaea.core import incident, connection, g_dionaea
 
+import inspect
 import socket
 import struct
 import traceback
@@ -19,6 +20,8 @@ import logging
 import os
 import tempfile
 from uuid import UUID
+
+from . import rpcservices
 
 from .include.smbfields import (
     CAP_EXTENDED_SECURITY,
@@ -162,7 +165,7 @@ class smbd(connection):
     def handle_io_in(self,data):
         try:
             p = NBTSession(data, _ctx=self)
-        except:
+        except Exception:
             t = traceback.format_exc()
             smblog.error(t)
             return len(data)
@@ -595,7 +598,7 @@ class smbd(connection):
             rdata = SMB_Data()
 
             TransactionName = h.TransactionName
-            if type(TransactionName) == bytes:
+            if isinstance(TransactionName, bytes):
                 if smbh.Flags2 & SMB_FLAGS2_UNICODE:
                     TransactionName = TransactionName.decode('utf-16')
                 else:
@@ -815,7 +818,7 @@ class smbd(connection):
         smblog.debug("data")
         try:
             dcep.show()
-        except:
+        except Exception:
             return None
         if dcep.AuthLen > 0:
             #			print(dcep.getlayer(Raw).underlayer.load)
@@ -904,7 +907,7 @@ class epmapper(smbd):
     def handle_io_in(self,data):
         try:
             p = DCERPC_Header(data)
-        except:
+        except Exception:
             t = traceback.format_exc()
             smblog.error(t)
             return len(data)
@@ -936,8 +939,6 @@ class epmapper(smbd):
         return len(data)
 
 
-from . import rpcservices
-import inspect
 services = inspect.getmembers(rpcservices, inspect.isclass)
 for name, servicecls in services:
     if not name == 'RPCService' and issubclass(servicecls, rpcservices.RPCService):
