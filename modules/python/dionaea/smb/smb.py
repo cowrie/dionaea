@@ -11,6 +11,8 @@
 
 from dionaea.core import incident, connection, g_dionaea
 
+import socket
+import struct
 import traceback
 import hashlib
 import logging
@@ -18,7 +20,82 @@ import os
 import tempfile
 from uuid import UUID
 
-from .include.smbfields import *
+from .include.smbfields import (
+    CAP_EXTENDED_SECURITY,
+    DCERPC_Ack_CtxItem,
+    DCERPC_Bind_Ack,
+    DCERPC_Header,
+    NBTSession,
+    RAP_OP_NETSHAREENUM,
+    RAP_Request,
+    RAP_Response,
+    SMB_COM_CLOSE,
+    SMB_COM_DELETE,
+    SMB_COM_ECHO,
+    SMB_COM_LOGOFF_ANDX,
+    SMB_COM_NEGOTIATE,
+    SMB_COM_NT_CREATE_ANDX,
+    SMB_COM_NT_TRANSACT,
+    SMB_COM_OPEN_ANDX,
+    SMB_COM_READ_ANDX,
+    SMB_COM_SESSION_SETUP_ANDX,
+    SMB_COM_TRANSACTION,
+    SMB_COM_TRANSACTION2,
+    SMB_COM_TRANSACTION2_SECONDARY,
+    SMB_COM_TREE_CONNECT_ANDX,
+    SMB_COM_TREE_DISCONNECT,
+    SMB_COM_WRITE,
+    SMB_COM_WRITE_ANDX,
+    SMB_Close,
+    SMB_Close_Response,
+    SMB_Commands,
+    SMB_Data,
+    SMB_Delete_Request,
+    SMB_Delete_Response,
+    SMB_FA_ARCHIVE,
+    SMB_FA_DIRECTORY,
+    SMB_FA_HIDDEN,
+    SMB_FA_NORMAL,
+    SMB_FA_SYSTEM,
+    SMB_FLAGS2_EXT_SEC,
+    SMB_FLAGS2_UNICODE,
+    SMB_Header,
+    SMB_Logoff_AndX,
+    SMB_NT_Trans_Request,
+    SMB_NT_Trans_Response,
+    SMB_NTcreate_AndX_Request,
+    SMB_NTcreate_AndX_Response,
+    SMB_Negociate_Protocol_Request_Counts,
+    SMB_Negociate_Protocol_Response,
+    SMB_Open_AndX_Request,
+    SMB_Open_AndX_Response,
+    SMB_Read_AndX_Request,
+    SMB_Read_AndX_Response,
+    SMB_Sessionsetup_AndX_Request2,
+    SMB_Sessionsetup_AndX_Response2,
+    SMB_Sessionsetup_ESEC_AndX_Request,
+    SMB_Sessionsetup_ESEC_AndX_Response,
+    SMB_TRANS2_FIND_FIRST2,
+    SMB_TRANS2_SESSION_SETUP,
+    SMB_Trans2_FIND_FIRST2_Response,
+    SMB_Trans2_Request,
+    SMB_Trans2_Response,
+    SMB_Trans2_Secondary_Request,
+    SMB_Trans_Request,
+    SMB_Trans_Response,
+    SMB_Trans_Response_Simple,
+    SMB_Treeconnect_AndX_Request,
+    SMB_Treeconnect_AndX_Response,
+    SMB_Treeconnect_AndX_Response2,
+    SMB_Treeconnect_AndX_Response_Extended,
+    SMB_Treedisconnect,
+    SMB_Write_AndX_Request,
+    SMB_Write_AndX_Response,
+    SMB_Write_Request,
+    SMB_Write_Response,
+    TRANS_NMPIPE_PEEK,
+    TRANS_NMPIPE_TRANSACT,
+)
 from .rpcservices import __shares__
 from .include.gssapifields import GSSAPI,SPNEGO, NegTokenTarg
 from .include.ntlmfields import NTLMSSP_Header, NTLM_Negotiate, NTLM_Challenge
