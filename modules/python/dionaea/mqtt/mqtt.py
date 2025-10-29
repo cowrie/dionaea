@@ -4,12 +4,34 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-from dionaea.core import *
+from dionaea.core import connection, incident
 
 import traceback
 import logging
 
-from dionaea.mqtt.include.packets import *
+from dionaea.mqtt.include.packets import (
+    MQTT_CONTROLMESSAGE_TYPE_CONNECT,
+    MQTT_CONTROLMESSAGE_TYPE_DISCONNECT,
+    MQTT_CONTROLMESSAGE_TYPE_PINGREQ,
+    MQTT_CONTROLMESSAGE_TYPE_PUBLISH,
+    MQTT_CONTROLMESSAGE_TYPE_PUBLISHCOM,
+    MQTT_CONTROLMESSAGE_TYPE_PUBLISHRCV,
+    MQTT_CONTROLMESSAGE_TYPE_PUBLISHREL,
+    MQTT_CONTROLMESSAGE_TYPE_QoS1,
+    MQTT_CONTROLMESSAGE_TYPE_QoS2,
+    MQTT_CONTROLMESSAGE_TYPE_SUBSCRIBE,
+    MQTT_Connect,
+    MQTT_ConnectACK,
+    MQTT_ControlMessage_Type,
+    MQTT_DisconnectReq,
+    MQTT_PingRequest,
+    MQTT_PingResponse,
+    MQTT_Publish,
+    MQTT_PublishACK_Identifier,
+    MQTT_Publish_Release,
+    MQTT_Subscribe,
+    MQTT_SubscribeACK_Identifier,
+)
 
 logger = logging.getLogger('mqtt')
 
