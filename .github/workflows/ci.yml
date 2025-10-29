@@ -18,14 +18,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Debian 11
-            container: buildpack-deps:bullseye-scm
           - name: Debian 12
             container: buildpack-deps:bookworm-scm
           - name: Debian 13
             container: buildpack-deps:trixie-scm
-          - name: Ubuntu 20.04
-            container: buildpack-deps:20.04-scm
           - name: Ubuntu 22.04
             container: buildpack-deps:22.04-scm
           - name: Ubuntu 24.04
