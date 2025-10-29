@@ -114,6 +114,7 @@ void python_io_in_cb(EV_P_ struct ev_io *w, int revents)
 {
 	PyCompilerFlags cf;
 	cf.cf_flags = 0;
+	cf.cf_feature_version = PY_MINOR_VERSION;
 
 	if( runtime.stdIN == NULL )
 	{
