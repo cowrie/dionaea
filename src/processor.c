@@ -382,10 +382,17 @@ ssize_t format_timeval(struct timeval *tv, char *buf, size_t sz)
 	struct tm *gm = gmtime(&tv->tv_sec);
 
 	if (gm) {
-		written = (ssize_t)strftime(buf, sz, "%Y-%m-%dT%H:%M:%d", gm);
-		if ((written > 0) && ((size_t)written < sz)) {
-			int w = snprintf(buf+written, sz-(size_t)written, ".%06ld", tv->tv_usec);
-			written = (w > 0) ? written + w : -1;
+		written = (ssize_t)strftime(buf, sz, "%Y-%m-%dT%H:%M:%S", gm);
+		if ((written > 0) && ((size_t)written + 8 <= sz)) {
+			// Room for .123456Z (7 chars + null terminator)
+			int w = snprintf(buf+written, sz-(size_t)written, ".%06ldZ", tv->tv_usec);
+			if (w > 0) {
+				written += w;
+			}
+		} else if ((written > 0) && ((size_t)written + 1 < sz)) {
+			// Only room for Z
+			buf[written++] = 'Z';
+			buf[written] = '\0';
 		}
 	}
 	return written;
@@ -414,7 +421,7 @@ void proc_streamdumper_on_io(struct connection *con, struct processor_data *pd, 
 		else
 			stamp = time(NULL);
 		struct tm t;
-		localtime_r(&stamp, &t);
+		gmtime_r(&stamp, &t);
 		char path[128];
 		strftime(path, sizeof(path), ((struct streamdumper_config *)pd->processor->config)->path, &t);
 		char prefix[512];
