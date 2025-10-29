@@ -14,13 +14,11 @@ import time
 import itertools
 import logging
 
-logger = logging.getLogger('scapy')
-logger.setLevel(logging.DEBUG)
-
-
 from .fieldtypes import StrField,ConditionalField
 from .helpers import VolatileValue, Gen, SetGen, BasePacket
 
+logger = logging.getLogger('scapy')
+logger.setLevel(logging.DEBUG)
 
 ######################################
 ## Packet abstract and base classes ##
@@ -385,7 +383,7 @@ class Packet(BasePacket, metaclass=Packet_metaclass):
                 p = cls(s, _internal=1, _underlayer=self)
             except KeyboardInterrupt:
                 raise
-            except:
+            except Exception:
                 if isinstance(cls,type) and issubclass(cls,Packet):
                     print("%s dissector failed" % cls.name)
                 else:
@@ -736,7 +734,7 @@ A side effect is that, to obtain "{" and "}" characters, you must use
                     cls,num = cls.split(":")
                     num = int(num)
                 fmt = fmt[i+1:]
-            except:
+            except Exception:
                 raise Exception(
                     "Bad format string [%{}{}]".format(fmt[:25], fmt[25:] and "..."))
             else:

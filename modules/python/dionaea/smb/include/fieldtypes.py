@@ -30,8 +30,6 @@ from .helpers import (
     RandShort,
     RandTermString,
     VolatileValue,
-    inet_aton,
-    inet_ntoa,
     lhex,
     mac2str,
     str2mac,
@@ -226,7 +224,7 @@ class IPField(Field):
     def h2i(self, pkt, x):
         if type(x) is str:
             try:
-                inet_aton(x)
+                socket.inet_aton(x)
             except OSError:
                 x = Net(x)
         elif type(x) is list:
@@ -236,16 +234,16 @@ class IPField(Field):
         if True:
             try:
                 ret = socket.gethostbyaddr(x)[0]
-            except:
+            except Exception:
                 pass
             else:
                 if ret:
                     return ret
         return x
     def i2m(self, pkt, x):
-        return inet_aton(x)
+        return socket.inet_aton(x)
     def m2i(self, pkt, x):
-        return inet_ntoa(x)
+        return socket.inet_ntoa(x)
     def any2i(self, pkt, x):
         return self.h2i(pkt,x)
     def i2repr(self, pkt, x):
@@ -509,7 +507,7 @@ class StrFixedLenField(StrField):
     def randval(self):
         try:
             l = self.length_from(None)
-        except:
+        except Exception:
             l = RandNum(0,200)
         return RandBin(l)
 

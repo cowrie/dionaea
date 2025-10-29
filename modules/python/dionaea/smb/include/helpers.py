@@ -10,7 +10,10 @@
 # Copyright (C) Philippe Biondi <phil@secdev.org>
 # This program is published under a GPLv2 license
 
+import random
 import re
+import socket
+import warnings
 
 
 class VolatileValue:
@@ -157,3 +160,71 @@ class Enum_metaclass(type):
         return self._rdict__.get(attr, val)
     def __repr__(self):
         return "<%s>" % self.__dict__.get("name", self.__name__)
+
+
+# Utility functions for MAC address conversion (from scapy)
+def mac2str(mac):
+    """Convert MAC address from human readable format to binary string"""
+    # Handle both str and bytes input
+    if isinstance(mac, bytes):
+        mac = mac.decode('ascii')
+    return b''.join(bytes([int(x, 16)]) for x in mac.split(':'))
+
+def str2mac(s):
+    """Convert binary string to MAC address format"""
+    # Handle both str and bytes input (Python 2/3 compatibility)
+    if isinstance(s, str):
+        return ("%02x:" * len(s))[:-1] % tuple(map(ord, s))
+    return ("%02x:" * len(s))[:-1] % tuple(s)
+
+def warning(msg):
+    """Print warning message"""
+    warnings.warn(msg, stacklevel=2)
+
+# Stub classes for random value generation (unused fuzzing code from Scapy)
+# These are never called in dionaea but referenced in dead code paths
+class RandNum:
+    """Stub for random number generator"""
+    def __init__(self, min=0, max=100):
+        self.min = min
+        self.max = max
+
+class RandByte:
+    """Stub for random byte generator"""
+    pass
+
+class RandShort:
+    """Stub for random short generator"""
+    pass
+
+class RandInt:
+    """Stub for random int generator"""
+    pass
+
+class RandLong:
+    """Stub for random long generator"""
+    pass
+
+class RandSInt:
+    """Stub for random signed int generator"""
+    pass
+
+class RandBin:
+    """Stub for random binary data generator"""
+    def __init__(self, size):
+        self.size = size
+
+class RandTermString:
+    """Stub for random terminated string generator"""
+    pass
+
+class RandIP:
+    """Stub for random IP generator"""
+    pass
+
+class RandMAC:
+    """Stub for random MAC generator"""
+    pass
+
+# Placeholder for field length management deprecation warning
+FIELD_LENGTH_MANAGEMENT_DEPRECATION = "Field length management is deprecated"

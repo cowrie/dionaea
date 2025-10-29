@@ -6,7 +6,7 @@
 
 from datetime import datetime
 
-from .packet import Packet, PacketField, bind_bottom_up, bind_top_down
+from .packet import Packet, bind_bottom_up, bind_top_down
 from .fieldtypes import (
     ByteField,
     ConditionalField,
@@ -18,6 +18,7 @@ from .fieldtypes import (
     LEShortEnumField,
     LEShortField,
     NTTimeField,
+    PacketField,
     ShortField,
     StrField,
     StrFixedLenField,
@@ -132,7 +133,7 @@ class NTLMv2_Client_Challenge(Packet):
         ByteField("HiRespType", 0x01),
         ShortField("Reserved1", 0),
         IntField("Reserved2", 0),
-        NTTimeField("TimeStamp",datetime.datetime.now()),
+        NTTimeField("TimeStamp",datetime.now()),
         StrFixedLenField("ChallengeFromClient", "", 8),
         IntField("Reserved3", 0),
         # FIXME AvPairs until MsAvEOL

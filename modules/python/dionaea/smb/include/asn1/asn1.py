@@ -9,15 +9,15 @@
 # Copyright (C) Philippe Biondi <phil@secdev.org>
 # This program is published under a GPLv2 license
 
-import logging
-logger = logging.getLogger('asn1')
-
 #from scapy.config import conf
 #from scapy.error import Scapy_Exception,warning
 #from scapy.volatile import RandField
 
 #from scapy.utils import Enum_metaclass, EnumElement
 from dionaea.smb.include.helpers import  Enum_metaclass, EnumElement
+
+import logging
+logger = logging.getLogger('asn1')
 
 #class RandASN1Object(RandField):
 #    def __init__(self, objlist=None):
@@ -184,7 +184,7 @@ class ASN1_Object_metaclass(type):
         c = super(ASN1_Object_metaclass, cls).__new__(cls, name, bases, dct)
         try:
             c.tag.register_asn1_object(c)
-        except:
+        except Exception:
             logger.warning("Error registering %r for %r" % (c.tag, c.codec))
         return c
 

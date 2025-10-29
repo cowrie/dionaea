@@ -9,14 +9,14 @@
 # Copyright (C) Philippe Biondi <phil@secdev.org>
 # This program is published under a GPLv2 license
 
-import logging
 from functools import reduce
+import logging
 
+from . import packet
 from .asn1.asn1 import (
     ASN1_Class_UNIVERSAL,
     ASN1_Error,
     ASN1_Object,
-    fuzz,
 )
 from .asn1.ber import (
     BER_Decoding_Error,
@@ -366,4 +366,3 @@ class ASN1F_CHOICE(ASN1F_PACKET):
     def randval(self):
         return RandChoice(*[fuzz(x()) for x in list(self.choice.values())])
 
-from . import packet
