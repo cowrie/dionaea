@@ -9,7 +9,7 @@
 # Copyright (C) Philippe Biondi <phil@secdev.org>
 # This program is published under a GPLv2 license
 
-from .packet import *
+from .packet import Packet
 
 class ASN1_Packet(Packet):
     ASN1_root = None

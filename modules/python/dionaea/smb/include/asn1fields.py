@@ -10,12 +10,24 @@
 # This program is published under a GPLv2 license
 
 import logging
-
-from .asn1.asn1 import *
-from .asn1.ber import *
-#from volatile import *
-from .helpers import BasePacket
 from functools import reduce
+
+from .asn1.asn1 import (
+    ASN1_Class_UNIVERSAL,
+    ASN1_Error,
+    ASN1_Object,
+    fuzz,
+)
+from .asn1.ber import (
+    ASN1_field,
+    BER_Decoding_Error,
+    RandChoice,
+    RandInt,
+    RandNum,
+    RandOID,
+    RandString,
+)
+from .helpers import BasePacket
 
 logger = logging.getLogger('asn1fields')
 logger.setLevel(logging.DEBUG)
