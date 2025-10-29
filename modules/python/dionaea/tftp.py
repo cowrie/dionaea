@@ -15,15 +15,15 @@
 # gave us a non exclusive permission to use his code in
 # our gpl project
 
-from dionaea import IHandlerLoader, ServiceLoader
-from dionaea.core import connection, ihandler, g_dionaea, incident
-from dionaea.exception import ServiceConfigError
-
 import tempfile
 import struct
 import logging
 import os
+from urllib import parse
 
+from dionaea import IHandlerLoader, ServiceLoader
+from dionaea.core import connection, ihandler, g_dionaea, incident
+from dionaea.exception import ServiceConfigError
 
 DEF_BLKSIZE = 512
 MIN_BLKSIZE = 8
@@ -270,7 +270,7 @@ class TftpPacketInitial(TftpPacket, TftpPacketWithOptions):
         if self.mode == "octet":
             format += "5sx"
         else:
-            raise AssertionError("Unsupported mode: %s" % mode)
+            raise AssertionError("Unsupported mode: %s" % self.mode)
         # Add options.
         options_list = []
         if len(self.options.keys()) > 0:
@@ -1087,7 +1087,6 @@ class TftpClient(TftpSession):
         self.close()
 
 
-from urllib import parse
 
 class tftpdownloadhandler(ihandler):
     def __init__(self, path):
