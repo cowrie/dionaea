@@ -5,11 +5,13 @@ legacy_tox_ini = """
 
 [tox]
 envlist =
-    style
+    lint
 skip_missing_interpreters = true
 
-[testenv:style]
-deps = pre-commit
+[testenv:lint]
+# deps = ruff, mypy
+allowlist_externals = ruff, mypy
 skip_install = true
-commands = pre-commit run --all-files --show-diff-on-failure
+commands = ruff check {toxinidir}/modules
+           mypy {toxinidir}/modules
 """
