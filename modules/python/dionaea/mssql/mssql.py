@@ -10,8 +10,29 @@ import traceback
 import logging
 import tempfile
 
-from dionaea.smb.include.smbfields import *
-from .include.tds import *
+from .include.tds import (
+    TDS_Header,
+    TDS_Login7_Request,
+    TDS_PreTDS7_Login_Request,
+    TDS_Prelogin_Request,
+    TDS_Prelogin_Response,
+    TDS_SQLBatchData,
+    TDS_STATUS_EOM,
+    TDS_TDS5_Query_Request,
+    TDS_TYPES_PRETDS7_LOGIN,
+    TDS_TYPES_PRE_LOGIN,
+    TDS_TYPES_SQL_BATCH,
+    TDS_TYPES_TABULAR_RESULT,
+    TDS_TYPES_TDS5_QUERY,
+    TDS_TYPES_TDS7_LOGIN,
+    TDS_Token,
+    TDS_Token_ColMetaData,
+    TDS_Token_Done,
+    TDS_Token_DoneProc,
+    TDS_Token_LoginACK,
+    TDS_Token_ReturnStatus,
+    TDS_Token_Row,
+)
 
 logger = logging.getLogger('MSSQL')
 

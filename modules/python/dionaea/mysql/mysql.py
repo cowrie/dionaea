@@ -12,7 +12,21 @@ import sqlite3
 import tempfile
 
 from dionaea.core import incident, connection, g_dionaea
-from .include.packets import *
+from .include.packets import (
+    FIELD_TYPE_VAR_STRING,
+    FLAG_NOT_NULL,
+    MySQL_Client_Authentication,
+    MySQL_Command_Header,
+    MySQL_Commands,
+    MySQL_Packet_Header,
+    MySQL_Result_EOF,
+    MySQL_Result_Error,
+    MySQL_Result_Field,
+    MySQL_Result_Header,
+    MySQL_Result_OK,
+    MySQL_Result_Row_Data,
+    MySQL_Server_Greeting,
+)
 
 from .var import VarHandler
 
