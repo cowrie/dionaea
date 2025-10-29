@@ -27,6 +27,7 @@ from dionaea.sip import rfc2617 # auth
 
 
 g_timer_cleanup = None
+g_sip_config = None
 
 logger = logging.getLogger('sip')
 logger.setLevel(logging.DEBUG)
@@ -60,13 +61,18 @@ class SIPService(ServiceLoader):
 
     @classmethod
     def start(cls, addr, iface=None, config=None):
+        global g_sip_config
+        # Create shared config once for all SIP sessions to avoid database locking
+        if g_sip_config is None:
+            g_sip_config = SipConfig(config=config)
+
         daemons = []
         for proto in ("tcp", "tls", "udp"):
             ports = config.get("%s_ports" % proto)
             if ports is None:
                 continue
             for port in ports:
-                daemon = SipSession(proto=proto, config=config)
+                daemon = SipSession(proto=proto, sip_config=g_sip_config)
                 daemon.bind(addr, port, iface=iface)
                 daemon.listen()
                 daemons.append(daemon)
@@ -563,11 +569,11 @@ class SipSession(connection):
         "config"
     ]
 
-    def __init__(self, proto = None, config=None):
+    def __init__(self, proto = None, sip_config=None):
         logger.debug(f"{self!s} __init__")
 
         connection.__init__(self, proto)
-        self.config = SipConfig(config=config)
+        self.config = sip_config
 
         self.personality = self.config.get_personality_by_address(self.local.host)
 
