@@ -21,7 +21,7 @@ def quote(data):
     >>> print(quote(b'test'), quote(b'"test'), quote(b'test"'), quote(b'"test"'))
     b'"test"' b'"test"' b'"test"' b'"test"'
     """
-    if type(data) == str:
+    if isinstance(data, str):
         data = bytes(data, "utf-8")
 
     data = data.strip()
@@ -40,7 +40,7 @@ def unquote(data):
     >>> print(unquote(b'test'), unquote(b'"test'), unquote(b'test"'), unquote(b'"test"'))
     b'test' b'test' b'test' b'test'
     """
-    if type(data) == str:
+    if isinstance(data, str):
         data = bytes(data, "utf-8")
 
     data = data.strip()
@@ -123,7 +123,7 @@ class Authentication:
     @classmethod
     def loads(cls, data):
         l = len(data)
-        if type(data) == str:
+        if isinstance(data, str):
             data = bytes(data, "utf-8")
 
         method, data = re.split(b" *", data, 1)
@@ -154,21 +154,21 @@ def create_digest(algorithm = None, cnonce = None, method = None, nonce = None, 
     >>> print(create_digest(algorithm = "md5", method = "REGISTER", nonce = "foobar", password = "secret", realm = "sip-server", uri = "sip:sip-server", username = "alice"))
     b'8b30552864468e5e6ab1eb2b87d1b92f'
     """
-    if type(algorithm) == str:
+    if isinstance(algorithm, str):
         algorithm = bytes(algorithm, "utf-8")
-    if type(cnonce) == str:
+    if isinstance(cnonce, str):
         cnonce = bytes(cnonce, "utf-8")
-    if type(method) == str:
+    if isinstance(method, str):
         method = bytes(method, "utf-8")
-    if type(nonce) == str:
+    if isinstance(nonce, str):
         nonce = bytes(nonce, "utf-8")
-    if type(password) == str:
+    if isinstance(password, str):
         password = bytes(password, "utf-8")
-    if type(realm) == str:
+    if isinstance(realm, str):
         realm = bytes(realm, "utf-8")
-    if type(uri) == str:
+    if isinstance(uri, str):
         uri = bytes(uri, "utf-8")
-    if type(username) == str:
+    if isinstance(username, str):
         username = bytes(username, "utf-8")
 
     # :See: http://tools.ietf.org/html/rfc2617#page-13

@@ -86,7 +86,7 @@ class Attributes:
         return iter(self._attributes)
 
     def append(self, value):
-        if type(value) == bytes:
+        if isinstance(value, bytes):
             self._attributes.append(Attribute.froms(value))
             return
 
@@ -461,13 +461,13 @@ class SDP:
             if v is None:
                 continue
 
-            if type(v) != list and type(v) != Attributes:
+            if not isinstance(v, list) and not isinstance(v, Attributes):
                 v = [v]
 
             for v2 in v:
-                if type(v2) == int:
+                if isinstance(v2, int):
                     d = int2bytes(v2)
-                elif type(v2) == bytes:
+                elif isinstance(v2, bytes):
                     d = v2
                 else:
                     d = v2.dumps()

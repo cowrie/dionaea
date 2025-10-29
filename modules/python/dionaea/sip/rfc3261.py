@@ -166,9 +166,9 @@ class CSeq:
     """
     def __init__(self, data = None, seq = None, method = None):
         # do we need to convert the data?
-        if seq is not None and type(seq) == str:
+        if seq is not None and isinstance(seq, str):
             seq = int(seq)
-        if type(method) == str:
+        if isinstance(method, str):
             method = bytes(method, "utf-8")
 
         self.seq = seq
@@ -183,7 +183,7 @@ class CSeq:
 
     @classmethod
     def loads(cls, data):
-        if type(data) == str:
+        if isinstance(data, str):
             data = bytes(data, "utf-8")
 
         d = data.partition(b" ")
@@ -233,11 +233,11 @@ class Header:
     }
 
     def __init__(self, name, value = None):
-        if type(name) == str:
+        if isinstance(name, str):
             name = bytes(name, "utf-8")
         self.name = name.lower()
 
-        if type(value) == str:
+        if isinstance(value, str):
             value = bytes(value, "utf-8")
         self._value = value
 
@@ -253,9 +253,9 @@ class Header:
 
     @classmethod
     def loads(cls, data, name):
-        if type(data) == str:
+        if isinstance(data, str):
             data = bytes(data, "utf-8")
-        if type(name) == str:
+        if isinstance(name, str):
             name = bytes(name, "utf-8")
 
         if name is None:
@@ -267,7 +267,7 @@ class Header:
         name = name.lower()
         name = cls._header_compact2long.get(name, name)
 
-        if type(data) != bytes:
+        if not isinstance(data, bytes):
             value = data
         elif name in cls._address:
             # FIXME may cause problems?
@@ -302,9 +302,9 @@ class Header:
         """
         Prepare the value and return it as bytes.
         """
-        if type(self._value) == bytes:
+        if isinstance(self._value, bytes):
             return self._value
-        if type(self._value) == int:
+        if isinstance(self._value, int):
             return int2bytes(self._value)
 
         return self._value.dumps()
@@ -348,7 +348,7 @@ class Headers:
         if headers is None:
             return
 
-        if type(headers) != list:
+        if not isinstance(headers, list):
             headers = [headers]
         for header in headers:
             if copy:
@@ -366,7 +366,7 @@ class Headers:
     def dump_list(self):
         ret = []
         for name, header in self._headers.items():
-            if not type(header) == list:
+            if not isinstance(header, list):
                 header = [header]
             for h in header:
                 ret.append(h.dumps())
@@ -374,7 +374,7 @@ class Headers:
         return ret
 
     def get(self, name, default = None):
-        if type(name) == str:
+        if isinstance(name, str):
             name = bytes(name, "utf-8")
 
         name = name.lower()
@@ -483,7 +483,7 @@ class Message:
             else:
                 res.status_message = b""
 
-        if type(res.status_message) == str:
+        if isinstance(res.status_message, str):
             res.status_message = bytes(res.status_message, "utf-8")
 
         for name in [b"cseq", b"call-id", b"via"]:
@@ -542,7 +542,7 @@ class Message:
         """
         Check if a header with the given name exists
         """
-        if type(header_name) == str:
+        if isinstance(header_name, str):
             header_name = bytes(header_name, "utf-8")
 
         return self.headers_exist([header_name], True)
@@ -566,7 +566,7 @@ class Message:
         :return: bytes used
         """
         # End Of Head
-        if type(data) == bytes:
+        if isinstance(data, bytes):
             pos = re.search(b"\r?\n\r?\n", data)
         else:
             pos = re.search("\r?\n\r?\n", data)

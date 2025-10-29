@@ -196,7 +196,7 @@ class URI:
             port = m.group("port")
             # ToDo: error check
             try:
-                if type(port) == bytes or type(port) == str:
+                if isinstance(port, bytes) or isinstance(port, str):
                     port = int(port)
             except Exception as e:
                 logger.info("%s", e)
