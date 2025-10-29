@@ -115,6 +115,12 @@ void python_io_in_cb(EV_P_ struct ev_io *w, int revents)
 	PyCompilerFlags cf;
 	cf.cf_flags = 0;
 
+	if( runtime.stdIN == NULL )
+	{
+		g_warning("python_io_in_cb called but runtime.stdIN is NULL");
+		return;
+	}
+
 	tcsetattr(0, TCSANOW, &runtime.read_termios);
 	PyRun_InteractiveOneFlags(runtime.stdIN, "<stdin>", &cf);
 	traceback();
@@ -416,7 +422,7 @@ static bool new(struct dionaea *dionaea)
 
 	signal(SIGINT, SIG_DFL);
 
-	if( isatty(STDOUT_FILENO) )
+	if( isatty(STDIN_FILENO) && isatty(STDOUT_FILENO) )
 	{
 		g_debug("Interactive Python shell");
 		runtime.stdIN = fdopen(STDIN_FILENO, "r");
