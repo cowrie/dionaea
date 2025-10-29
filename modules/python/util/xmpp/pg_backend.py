@@ -19,7 +19,7 @@ import locale
 import codecs
 import base64
 import md5
-import optparse
+import argparse
 import io
 import os
 from pyPgSQL import PgSQL
@@ -990,28 +990,28 @@ if not encoding:
 sys.stdout=codecs.getwriter(encoding)(sys.stdout,errors="replace")
 sys.stderr=codecs.getwriter(encoding)(sys.stderr,errors="replace")
 
-p = optparse.OptionParser()
-p.add_option('-U', '--username', dest='username',
-             help='user e.g. user@example.com', type="string", action="store")
-p.add_option('-R', '--resource', dest='resource', default="backend",
-             help='e.g. backend', type="string", action="store")
-p.add_option('-P', '--password', dest='password',
-             help='e.g. secret', type="string", action="store")
-p.add_option('-M', '--muc', dest='muc',
-             help='conference.example.com', type="string", action="store")
-p.add_option('-C', '--channel', dest='channels',
-             help='conference.example.com', type="string", action="append")
-p.add_option('-s', '--database-host', dest='database_host',
-             help='localhost:5432', type="string", action="store")
-p.add_option('-d', '--database', dest='database',
-             help='for example xmpp', type="string", action="store")
-p.add_option('-u', '--database-user', dest='database_user',
-             help='for example xmpp', type="string", action="store")
-p.add_option('-p', '--database-password', dest='database_password',
-             help='the database users password', type="string", action="store")
-p.add_option('-f', '--files-destination', dest='files',
-             help='where to store new files', type="string", action="store")
-(options, args) = p.parse_args()
+p = argparse.ArgumentParser()
+p.add_argument('-U', '--username', dest='username',
+             help='user e.g. user@example.com')
+p.add_argument('-R', '--resource', dest='resource', default="backend",
+             help='e.g. backend')
+p.add_argument('-P', '--password', dest='password',
+             help='e.g. secret')
+p.add_argument('-M', '--muc', dest='muc',
+             help='conference.example.com')
+p.add_argument('-C', '--channel', dest='channels',
+             help='conference.example.com', action="append")
+p.add_argument('-s', '--database-host', dest='database_host',
+             help='localhost:5432')
+p.add_argument('-d', '--database', dest='database',
+             help='for example xmpp')
+p.add_argument('-u', '--database-user', dest='database_user',
+             help='for example xmpp')
+p.add_argument('-p', '--database-password', dest='database_password',
+             help='the database users password')
+p.add_argument('-f', '--files-destination', dest='files',
+             help='where to store new files')
+options = p.parse_args()
 
 if not options.username or not options.resource or not options.password:
     print("Missing credentials")

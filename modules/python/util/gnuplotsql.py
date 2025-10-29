@@ -11,7 +11,7 @@ import os
 import datetime
 import calendar
 import sys
-from optparse import OptionParser
+import argparse
 
 def resolve_result(resultcursor):
     names = [resultcursor.description[x][0]
@@ -525,22 +525,22 @@ def plot_overview_data(ranges, path_destination, filename_data, protocol, filena
         os.system(f"gnuplot {filename_gnuplot}")
 
 if __name__ == "__main__":
-    parser = OptionParser()
-    parser.add_option("-d", "--database", action="store", type="string",
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-d", "--database",
                       dest="database", default="/opt/dionaea/var/dionaea/logsql.sqlite")
-    parser.add_option("-D", "--destination", action="store",
-                      type="string", dest="destination", default="/tmp/dionaea-gnuplot")
-    parser.add_option("-t", "--tempfile", action="store", type="string",
+    parser.add_argument("-D", "--destination",
+                      dest="destination", default="/tmp/dionaea-gnuplot")
+    parser.add_argument("-t", "--tempfile",
                       dest="tempfile", default="/tmp/dionaea-gnuplotsql.data")
-    parser.add_option('-p', '--protocol', dest='protocols',
-                      help='none', 	type="string", action="append")
-    parser.add_option('', '--all-protocols', dest='all_protocols',
+    parser.add_argument('-p', '--protocol', dest='protocols',
+                      help='none', action="append")
+    parser.add_argument('--all-protocols', dest='all_protocols',
                       help='none', action="store_true", default=False)
-    parser.add_option('-g', '--gnuplot-tpl', dest='gnuplot_tpl',
-                      help='none', type="string", action="store", default=None)
-    parser.add_option('', '--image-ext', dest='image_ext',
-                      help='none', type="string", action="store", default="png")
-    (options, args) = parser.parse_args()
+    parser.add_argument('-g', '--gnuplot-tpl', dest='gnuplot_tpl',
+                      help='none', default=None)
+    parser.add_argument('--image-ext', dest='image_ext',
+                      help='none', default="png")
+    options = parser.parse_args()
 
     dbh = sqlite3.connect(options.database)
     cursor = dbh.cursor()

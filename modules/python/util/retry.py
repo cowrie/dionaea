@@ -6,7 +6,7 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-from optparse import OptionParser
+import argparse
 import socket
 import os
 import shutil
@@ -15,57 +15,50 @@ import time
 
 
 def main():
-    parser = OptionParser()
-    parser.add_option(
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
         "-f", "--file",
-        action="store",
-        type="string",
         dest="filename"
     )
-    parser.add_option(
+    parser.add_argument(
         "-H", "--host",
-        action="store",
-        type="string",
         dest="host"
     )
-    parser.add_option(
+    parser.add_argument(
         "-p", "--port",
-        action="store",
-        type="int",
+        type=int,
         dest="port"
     )
-    parser.add_option(
+    parser.add_argument(
         "-s", "--send",
         action="store_true",
         dest="send",
         default=False
     )
-    parser.add_option(
+    parser.add_argument(
         "-r", "--recv",
         action="store_true",
         dest="recv",
         default=False
     )
-    parser.add_option(
+    parser.add_argument(
         "-t", "--tempfile",
-        action="store",
-        type="string",
         dest="tempfile",
         default="retrystream"
     )
-    parser.add_option(
+    parser.add_argument(
         "-u", "--udp",
         action="store_true",
         dest="udp",
         default=False
     )
-    parser.add_option(
+    parser.add_argument(
         "-v", "--verbose",
         action="store_true",
         dest="verbose",
         default=False
     )
-    (options, args) = parser.parse_args()
+    options = parser.parse_args()
 
     if os.path.exists(options.tempfile):
         os.unlink(options.tempfile)

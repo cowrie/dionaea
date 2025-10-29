@@ -11,7 +11,7 @@
 
 import sqlite3
 import postgresql.driver as pg_driver
-import optparse
+import argparse
 
 def copy(name, lite, pg, src, dst):
     print(f"[+] {name}")
@@ -353,20 +353,22 @@ cando = {
 }
 
 if __name__ == "__main__":
-    p = optparse.OptionParser()
-    p.add_option('-s', '--database-host', dest='database_host',
-                 help='localhost:5432', type="string", action="store")
-    p.add_option('-d', '--database', dest='database',
-                 help='for example xmpp', type="string", action="store")
-    p.add_option('-u', '--database-user', dest='database_user',
-                 help='for example xmpp', type="string", action="store")
-    p.add_option('-p', '--database-password', dest='database_password',
-                 help='the database users password', type="string", action="store")
-    p.add_option('-f', '--sqlite-file', dest='sqlite_file',
-                 help='path to sqlite db', type="string", action="store")
-    (options, args) = p.parse_args()
+    p = argparse.ArgumentParser()
+    p.add_argument('-s', '--database-host', dest='database_host',
+                 help='localhost:5432')
+    p.add_argument('-d', '--database', dest='database',
+                 help='for example xmpp')
+    p.add_argument('-u', '--database-user', dest='database_user',
+                 help='for example xmpp')
+    p.add_argument('-p', '--database-password', dest='database_password',
+                 help='the database users password')
+    p.add_argument('-f', '--sqlite-file', dest='sqlite_file',
+                 help='path to sqlite db')
+    p.add_argument('tables', nargs='*',
+                 help='tables to copy (e.g., connections downloads)')
+    options = p.parse_args()
 
-    if len(args) == 0:
+    if len(options.tables) == 0:
         print("use {} as args".format( ' '.join(cando.keys()) ) )
 
     db = {}
@@ -382,7 +384,7 @@ if __name__ == "__main__":
         host = options.database_host,
         port = 5432)
 
-    for i in args:
+    for i in options.tables:
         if i in cando:
             copy(i,
                  db['sqlite']['cursor'],

@@ -6,7 +6,7 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-from optparse import OptionParser
+import argparse
 import sqlite3
 import json
 
@@ -388,10 +388,8 @@ def recursive_print(cursor, connection, indent):
         print_sip_commands(cursor, c['connection'], indent+2)
         recursive_print(cursor, c['connection'], indent+2)
 
-def print_db(options, args):
-    dbpath = '/opt/dionaea/var/dionaea/logsql.sqlite'
-    if len(args) >= 1:
-        dbpath = args[0]
+def print_db(options):
+    dbpath = options.database
     print(f"using database located at {dbpath}")
     dbh = sqlite3.connect(dbpath)
     cursor = dbh.cursor()
@@ -499,30 +497,33 @@ WHERE
             break
 
 if __name__ == "__main__":
-    parser = OptionParser()
-    parser.add_option(
-        "-r", "--remote-host", action="store", type="string", dest="remote_host")
-    parser.add_option(
-        "-o", "--in-offer-url", action="store", type="string", dest="in_offer_url")
-    parser.add_option("-d", "--in-download-url",
-                      action="store", type="string", dest="in_download_url")
-    parser.add_option(
-        "-c", "--connection", action="store", type="int", dest="connection")
-    parser.add_option(
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-r", "--remote-host", dest="remote_host")
+    parser.add_argument(
+        "-o", "--in-offer-url", dest="in_offer_url")
+    parser.add_argument("-d", "--in-download-url",
+                      dest="in_download_url")
+    parser.add_argument(
+        "-c", "--connection", type=int, dest="connection")
+    parser.add_argument(
         "-q", "--query-only", action="store_true", dest="query", default=False)
-    parser.add_option(
-        "-t", "--time-from", action="store", type="string", dest="time_from")
-    parser.add_option(
-        "-T", "--time-to", action="store", type="string", dest="time_to")
-    parser.add_option(
-        "-u", "--dcerpcbind-uuid", action="store", type="string", dest="uuid")
-    parser.add_option(
-        "-p", "--dcerpcrequest-opnum", action="store", type="string", dest="opnum")
-    parser.add_option(
-        "-P", "--protocol", action="store", type="string", dest="protocol")
-    parser.add_option(
-        "-m", "--downloads-md5sum", action="store", type="string", dest="md5sum")
-    parser.add_option(
-        "-y", "--connection-type", action="store", type="string", dest="type")
-    (options, args) = parser.parse_args()
-    print_db(options, args)
+    parser.add_argument(
+        "-t", "--time-from", dest="time_from")
+    parser.add_argument(
+        "-T", "--time-to", dest="time_to")
+    parser.add_argument(
+        "-u", "--dcerpcbind-uuid", dest="uuid")
+    parser.add_argument(
+        "-p", "--dcerpcrequest-opnum", dest="opnum")
+    parser.add_argument(
+        "-P", "--protocol", dest="protocol")
+    parser.add_argument(
+        "-m", "--downloads-md5sum", dest="md5sum")
+    parser.add_argument(
+        "-y", "--connection-type", dest="type")
+    parser.add_argument(
+        "database", nargs='?', default='/opt/dionaea/var/dionaea/logsql.sqlite',
+        help="Path to the SQLite database")
+    options = parser.parse_args()
+    print_db(options)
