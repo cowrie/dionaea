@@ -206,8 +206,14 @@ class ASN1_Object(metaclass=ASN1_Object_metaclass):
         print(self.strshow(lvl))
     def __eq__(self, other):
         return self.val == other
-    def __cmp__(self, other):
-        return cmp(self.val, other)
+    def __lt__(self, other):
+        return self.val < other
+    def __le__(self, other):
+        return self.val <= other
+    def __gt__(self, other):
+        return self.val > other
+    def __ge__(self, other):
+        return self.val >= other
 
 class ASN1_DECODING_ERROR(ASN1_Object):
     tag = ASN1_Class_UNIVERSAL.ERROR
