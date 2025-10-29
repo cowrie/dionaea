@@ -385,6 +385,10 @@ class StrField(Field):
             return s[-self.remain:],self.m2i(pkt, s[:-self.remain])
     def size(self, pkt, val):
         return len(self.i2m(pkt, val))
+    def i2repr(self, pkt, x):
+        if isinstance(x, bytes):
+            return x.hex()
+        return repr(x)
     def randval(self):
         return RandBin(RandNum(0,1200))
 
@@ -491,6 +495,8 @@ class StrFixedLenField(StrField):
         if length is not None:
             self.length_from = lambda pkt,length=length: length
     def i2repr(self, pkt, v):
+        if isinstance(v, bytes):
+            return v.hex()
         if type(v) is str:
             v = v.rstrip("\0")
         return repr(v)
