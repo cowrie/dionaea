@@ -125,7 +125,7 @@ class ASN1_Class_metaclass(Enum_metaclass):
 
         rdict = {}
         for k,v in dct.items():
-            if type(v) is int:
+            if isinstance(v, int):
                 v = ASN1Tag(k,v)
                 dct[k] = v
              # FIXME  TypeError: unhashable type: 'ASN1Tag'

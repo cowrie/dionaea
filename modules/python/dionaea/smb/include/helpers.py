@@ -80,7 +80,7 @@ class Net(Gen):
 class SetGen(Gen):
     def __init__(self, set, _iterpacket=1):
         self._iterpacket=_iterpacket
-        if type(set) is list:
+        if isinstance(set, list):
             self.set = set
         elif isinstance(set, BasePacketList):
             self.set = list(set)
@@ -90,7 +90,7 @@ class SetGen(Gen):
         return element
     def __iter__(self):
         for i in self.set:
-            if (type(i) is tuple) and (len(i) == 2) and type(i[0]) is int and type(i[1]) is int:
+            if isinstance(i, tuple) and len(i) == 2 and isinstance(i[0], int) and isinstance(i[1], int):
                 if  (i[0] <= i[1]):
                     j=i[0]
                     while j <= i[1]:
@@ -111,11 +111,11 @@ class BasePacketList:
     pass
 
 def lhex(x):
-    if type(x) in (int,int):
+    if isinstance(x, int):
         return hex(x)
-    elif type(x) is tuple:
+    elif isinstance(x, tuple):
         return "(%s)" % ", ".join(map(lhex, x))
-    elif type(x) is list:
+    elif isinstance(x, list):
         return "[%s]" % ", ".join(map(lhex, x))
     else:
         return x
@@ -146,7 +146,7 @@ class Enum_metaclass(type):
     def __new__(cls, name, bases, dct):
         rdict={}
         for k,v in dct.items():
-            if type(v) is int:
+            if isinstance(v, int):
                 v = cls.element_class(k,v)
                 dct[k] = v
                 rdict[type(v)] = k

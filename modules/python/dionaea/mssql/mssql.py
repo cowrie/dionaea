@@ -113,7 +113,7 @@ class mssqld(connection):
                 mssqlheader.Status = TDS_STATUS_EOM
                 mssqlheader.PacketID = p.getlayer(TDS_Header).PacketID
                 mssqlheader.SPID = p.getlayer(TDS_Header).SPID
-                if type(r) == list:
+                if isinstance(r, list):
                     # I'm pretty sure only TDS_Tokens have
                     # TDS_TYPES_TABULAR_RESULT
                     mssqlheader.Type = TDS_TYPES_TABULAR_RESULT

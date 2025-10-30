@@ -80,9 +80,9 @@ class LengthCodedBinaryField(StrField):
         if x is None:
             y = None
         else:
-            if type(x) is str:
+            if isinstance(x, str):
                 x = x.encode('ascii')
-            elif type(x) is not bytes:
+            elif not isinstance(x, bytes):
                 x = str(x).encode('ascii')
             y=len(x)
 

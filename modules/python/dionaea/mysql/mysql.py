@@ -461,7 +461,7 @@ class mysqld(connection):
                 p = MySQL_Client_Authentication(data[offset+4:offset+4+h.Length])
                 if p.DatabaseName != b'\x00':
                     Database = p.DatabaseName[:-1]
-                    if type(Database) == str:
+                    if isinstance(Database, str):
                         Database = Database.encode('ascii')
                     if self._open_db(Database):
                         r = MySQL_Result_Error(Message="Could not open Database %s" % Database)
@@ -501,7 +501,7 @@ class mysqld(connection):
             h.show()
 
             if r is not None:
-                if type(r) is not list:
+                if not isinstance(r, list):
                     r = [r]
                 buf = b''
                 for i in range(len(r)):

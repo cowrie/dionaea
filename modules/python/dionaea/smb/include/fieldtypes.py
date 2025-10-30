@@ -104,7 +104,7 @@ class Field:
     def do_copy(self, x):
         if hasattr(x, "copy"):
             return x.copy()
-        if type(x) is list:
+        if isinstance(x, list):
             x = x[:]
             for i in range(len(x)):
                 if isinstance(x[i], BasePacket):
@@ -212,7 +212,7 @@ class MACField(Field):
     def m2i(self, pkt, x):
         return str2mac(x)
     def any2i(self, pkt, x):
-        if type(x) is str and len(x) == 6:
+        if isinstance(x, str) and len(x) == 6:
             x = self.m2i(pkt, x)
         return x
     def i2repr(self, pkt, x):
@@ -226,12 +226,12 @@ class IPField(Field):
     def __init__(self, name, default):
         Field.__init__(self, name, default, "4s")
     def h2i(self, pkt, x):
-        if type(x) is str:
+        if isinstance(x, str):
             try:
                 socket.inet_aton(x)
             except OSError:
                 x = Net(x)
-        elif type(x) is list:
+        elif isinstance(x, list):
             x = [self.h2i(pkt, n) for n in x]
         return x
     def resolve(self, x):
@@ -346,7 +346,7 @@ class XLongField(LongField):
 
 class NTTimeField(LELongField):
     def i2m(self, pkt, x):
-        if type(x) is datetime.datetime:
+        if isinstance(x, datetime.datetime):
             # converts datetime to nt time epoch and to nanoseconds (stupid
             # windows...)
             x = (int(x.strftime('%s')) + 11644473600) * \
@@ -371,9 +371,9 @@ class StrField(Field):
     def i2m(self, pkt, x):
         if x is None:
             x = b''
-        elif type(x) is str:
+        elif isinstance(x, str):
             x = x.encode('ascii')
-        elif type(x) is not bytes:
+        elif not isinstance(x, bytes):
             x=str(x).encode('ascii')
         return x
     def addfield(self, pkt, s, val):
@@ -441,12 +441,12 @@ class PacketListField(PacketField):
 
 
     def any2i(self, pkt, x):
-        if type(x) is not list:
+        if not isinstance(x, list):
             return [x]
         else:
             return x
     def i2count(self, pkt, val):
-        if type(val) is list:
+        if isinstance(val, list):
             return len(val)
         return 1
     def i2len(self, pkt, val):
@@ -500,7 +500,7 @@ class StrFixedLenField(StrField):
     def i2repr(self, pkt, v):
         if isinstance(v, bytes):
             return v.hex()
-        if type(v) is str:
+        if isinstance(v, str):
             v = v.rstrip("\0")
         return repr(v)
     def getfield(self, pkt, s):
@@ -580,7 +580,7 @@ class FieldListField(Field):
         self.field = field
 
     def i2count(self, pkt, val):
-        if type(val) is list:
+        if isinstance(val, list):
             return len(val)
         return 1
     def i2len(self, pkt, val):
@@ -596,7 +596,7 @@ class FieldListField(Field):
             x += self.field.i2repr(pkt, v) + ","
         return "[" + x[0:len(x)-1] + "]"
     def any2i(self, pkt, x):
-        if type(x) is not list:
+        if not isinstance(x, list):
             return [x]
         else:
             return x
@@ -679,10 +679,10 @@ class FieldLenField(Field):
 
 class StrNullField(StrField):
     def __init__(self, name, default, fmt="H", remain=0):
-        if type(default) is bytes:
+        if isinstance(default, bytes):
             default = default+b'\0'
             default = default.decode('ascii')
-        elif type(default) is str:
+        elif isinstance(default, str):
             default = default+'\0'
         StrField.__init__(self,name,default,fmt, remain=remain)
     def addfield(self, pkt, s, val):
@@ -702,10 +702,10 @@ class StrNullField(StrField):
 class UnicodeNullField(StrField):
     # machine representation is bytes
     def __init__(self, name, default, fmt="H", remain=0):
-        if type(default) is bytes:
+        if isinstance(default, bytes):
             default = default+b'\0'
             default = default.decode('ascii')
-        elif type(default) is str:
+        elif isinstance(default, str):
             default = default+'\0'
         StrField.__init__(self,name,default,fmt, remain=remain)
     def addfield(self, pkt, s, val):
@@ -747,9 +747,9 @@ class UnicodeNullField(StrField):
         #        print(x)
         if x is None:
             x = b"\0\0"
-        elif type(x) is str:
+        elif isinstance(x, str):
             x = x.encode('utf-16')[2:]
-        elif type(x) is not bytes:
+        elif not isinstance(x, bytes):
             x=str(x).encode('utf-16')[2:]
 #        print(x)
         return x
@@ -757,7 +757,7 @@ class UnicodeNullField(StrField):
     def i2repr(self, pkt, x):
         if x is None:
             x = b''
-        elif type(x) is bytes:
+        elif isinstance(x, bytes):
             x=x.decode('utf-16')
         eos = x.find('\0')
         return x[:eos]
@@ -809,7 +809,7 @@ class BitField(Field):
 
     def addfield(self, pkt, s, val):
         val = self.i2m(pkt, val)
-        if type(s) is tuple:
+        if isinstance(s, tuple):
             s,bitsdone,v = s
         else:
             bitsdone = 0
@@ -832,7 +832,7 @@ class BitField(Field):
         return int(round(self._size/8))
 
     def getfield(self, pkt, s):
-        if type(s) is tuple:
+        if isinstance(s, tuple):
             s,bn = s
         else:
             bn = 0
@@ -887,18 +887,18 @@ class EnumField(Field):
     def __init__(self, name, default, enum, fmt = "H"):
         i2s = self.i2s = {}
         s2i = self.s2i = {}
-        if type(enum) is list:
+        if isinstance(enum, list):
             keys = list(range(len(enum)))
         else:
             keys = list(enum.keys())
-        if [x for x in keys if type(x) is str]:
+        if [x for x in keys if isinstance(x, str)]:
             i2s,s2i = s2i,i2s
         for k in keys:
             i2s[k] = enum[k]
             s2i[enum[k]] = k
         Field.__init__(self, name, default, fmt)
     def any2i_one(self, pkt, x):
-        if type(x) is str:
+        if isinstance(x, str):
             x = self.s2i[x]
         return x
     def i2repr_one(self, pkt, x):
@@ -907,12 +907,12 @@ class EnumField(Field):
         return repr(x)
 
     def any2i(self, pkt, x):
-        if type(x) is list:
+        if isinstance(x, list):
             return list(map(lambda z,pkt=pkt:self.any2i_one(pkt,z), x))
         else:
             return self.any2i_one(pkt,x)
     def i2repr(self, pkt, x):
-        if type(x) is list:
+        if isinstance(x, list):
             return list(map(lambda z,pkt=pkt:self.i2repr_one(pkt,z), x))
         else:
             return self.i2repr_one(pkt,x)
@@ -990,7 +990,7 @@ class MultiEnumField(EnumField):
                 self.s2i_all[v] = k
         Field.__init__(self, name, default, fmt)
     def any2i_one(self, pkt, x):
-        if type (x) is str:
+        if isinstance(x, str):
             v = self.depends_on(pkt)
             if v in self.s2i_multi:
                 s2i = self.s2i_multi[v]
@@ -1014,7 +1014,7 @@ class LEFieldLenField(FieldLenField):
 
 class FlagsField(BitField):
     def __init__(self, name, default, size, names):
-        if type(names) is list:
+        if isinstance(names, list):
             self.names = {}
             self.rnames = {}
             for i in range(0,len(names)):
@@ -1025,7 +1025,7 @@ class FlagsField(BitField):
         self.rnames = None
         BitField.__init__(self, name, default, size)
     def any2i(self, pkt, x):
-        if type(x) is str:
+        if isinstance(x, str):
             if self.rnames is None:
                 for i in self.names:
                     self.rnames[self.names[i]] = i
@@ -1036,7 +1036,7 @@ class FlagsField(BitField):
             x = y
         return x
     def i2repr(self, pkt, x):
-        if type(x) is list or type(x) is tuple:
+        if isinstance(x, (list, tuple)):
             return repr(x)
 
         if x == 0:
