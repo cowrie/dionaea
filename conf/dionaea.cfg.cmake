@@ -14,7 +14,7 @@ listen.mode=getifaddrs
 # Use IPv4 mapped IPv6 addresses
 # It is not recommended to use this feature, try to use nativ IPv4 and IPv6 adresses
 # Valid values: true|false
-# listen.use_ipv4_mapped_ipv6=false
+listen.use_ipv4_mapped_ipv6=false
 
 # Country
 # ssl.default.c=GB
