@@ -242,6 +242,7 @@ uint32_t proto_nc_io_in_http(struct connection *con, void *context, unsigned cha
 	static const char *header = "200 HTTP/1.0\r\nContent-Length: 1048576\r\n\r\n";
 	if( f == NULL )
 	{
+		// TODO: Check malloc() return value - could be NULL
 		f = malloc(1024*1024 + strlen(header));
 		memcpy(f, header, strlen(header));
 	}

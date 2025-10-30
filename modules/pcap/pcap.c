@@ -208,6 +208,7 @@ static bool pcap_prepare(void)
 			g_strfreev(parts);
 			continue;
 		}
+		// TODO: Check malloc() return value - could be NULL
 		struct pcap_device *dev = malloc(sizeof(struct pcap_device));
 		key = g_strjoin(".", parts[0], "interface", NULL);
 		dev->name = g_key_file_get_string(g_dionaea->config, "module.pcap", key, &error);

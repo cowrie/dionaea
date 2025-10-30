@@ -462,6 +462,7 @@ void session_upload_new(struct incident *i)
 				curl_mime_filedata(part, d->opaque.string->str);
 			}else
 			{ /* all other values */
+				// TODO: Check snprintf() return value - could be truncated if >= 1024
 				snprintf(name_and_param, 1024, "%s_ct", name);
 				if ( incident_value_string_get(i, name_and_param, &gstemp) == true)
 				{ /* with content type */
