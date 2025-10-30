@@ -498,8 +498,8 @@ int main (int argc, char *argv[])
 	show_version(&v);
 	g_log_set_default_handler(logger_stdout_log, NULL);
 
-	struct options *opt = malloc(sizeof(struct options));
-	memset(opt, 0, sizeof(struct options));
+	struct options opt_storage = {0};
+	struct options *opt = &opt_storage;
 
 	if( options_parse(opt, argc, argv) == false )
 	{

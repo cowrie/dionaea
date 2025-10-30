@@ -186,10 +186,12 @@ int pchild_sent_bind(int sx, struct sockaddr *s, socklen_t size)
 	}
 
 	int ret=0;
+	// TODO: Check recv() return value - could fail or return short read
 	recv(g_dionaea->pchild->fd, &ret, sizeof(int), 0);
 	g_mutex_unlock(&g_dionaea->pchild->mutex);
 	if( ret != 0 )
 	{
+		// TODO: Check recv() return value - could fail or return short read
 		recv(g_dionaea->pchild->fd, &ret, sizeof(int), 0);
 		g_critical("bind failed (%s)", strerror(ret));
 		errno = ret;
