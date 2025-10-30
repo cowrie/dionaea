@@ -16,7 +16,7 @@ class pptpd(connection):
     shared_config_values = ["firmware_revision", "hostname", "vendor_name"]
     IDLE, ESTABLISHED = range(2)
 
-    def __init__(self):
+    def __init__(self) -> None:
         connection.__init__(self, "tcp")
         self.buf = b''
         self.pending_packet_type = None
@@ -25,7 +25,7 @@ class pptpd(connection):
         self.hostname = ""
         self.vendor_name = ""
 
-    def _handle_controll_message(self, message_type, data):
+    def _handle_control_message(self, message_type, data):
         if self.state == self.ESTABLISHED:
             if message_type == packets.PPTP_CTRMSG_TYPE_OUTGOINGCALL_REQUEST:
                 p = packets.PPTP_OutgoingCall_Request(data)
@@ -55,11 +55,11 @@ class pptpd(connection):
         self.hostname = config.get("hostname", self.hostname)
         self.vendor_name = config.get("vendor_name", self.vendor_name)
 
-    def handle_established(self):
+    def handle_established(self) -> None:
         self.timeouts.idle = 120
         self.processors()
 
-    def handle_io_in(self, data):
+    def handle_io_in(self, data: bytes) -> int:
         if self.state == self.IDLE:
             p = packets.PPTP_StartControlConnection_Request(data)
             p.show()
@@ -85,17 +85,17 @@ class pptpd(connection):
             self.send(r.build())
             return len(data)
         elif self.state == self.ESTABLISHED:
-            p = packets.BaseControllMessage(data)
+            p = packets.BaseControlMessage(data)
             if p.MessageType == 0x01:
-                return self._handle_controll_message(p.ControlMessageType, data)
+                return self._handle_control_message(p.ControlMessageType, data)
 
             logger.warning("Wrong message type %d", p.MessageType)
             return len(data)
 
         return len(data)
 
-    def handle_timeout_idle(self):
+    def handle_timeout_idle(self) -> bool:
         return False
 
-    def handle_disconnect(self):
+    def handle_disconnect(self) -> bool:
         return False

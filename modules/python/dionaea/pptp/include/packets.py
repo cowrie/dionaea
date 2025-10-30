@@ -27,7 +27,7 @@ PPP_LCP_Configuration_Request = 0x01
 
 
 # https://www.ietf.org/rfc/rfc2637.txt
-class BaseControllMessage(Packet):
+class BaseControlMessage(Packet):
     fields_desc = [
         XShortField("Length", 0),
         XShortField("MessageType", 0),
