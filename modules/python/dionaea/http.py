@@ -5,10 +5,6 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-from dionaea import ServiceLoader
-from dionaea.core import connection, g_dionaea, incident
-from dionaea.util import detect_shellshock
-from dionaea.exception import ServiceConfigError
 from collections import OrderedDict
 import logging
 import os
@@ -21,6 +17,11 @@ import urllib.parse
 import re
 import tempfile
 from datetime import datetime
+
+from dionaea import ServiceLoader
+from dionaea.core import connection, g_dionaea, incident
+from dionaea.util import detect_shellshock
+from dionaea.exception import ServiceConfigError
 
 try:
     import jinja2
@@ -35,7 +36,7 @@ STATE_HEADER, STATE_SENDFILE, STATE_POST, STATE_PUT = range(0, 4)
 
 
 class DionaeaHTTPError(Exception):
-    def __init__(self, code: int):
+    def __init__(self, code: int) -> None:
         self.code = code
 
 
@@ -52,7 +53,7 @@ class FileListItem:
         return os.path.join(self.path, self.name)
 
     @property
-    def is_dir(self):
+    def is_dir(self) -> bool:
         return os.path.isdir(self.fullname)
 
     @property
@@ -60,7 +61,7 @@ class FileListItem:
         return datetime.fromtimestamp(self.stat.st_mtime)
 
     @property
-    def is_link(self):
+    def is_link(self) -> bool:
         return os.path.islink(self.fullname)
 
     @property
@@ -116,10 +117,10 @@ class HTTPService(ServiceLoader):
 class httpreq:
     def __init__(self, header: bytes, connection):
         try:
-            hlines = header.split(b'\n')
-            req = hlines[0]
-            reqparts = req.split(b" ")
-            self.type = reqparts[0]
+            hlines: list[bytes] = header.split(b'\n')
+            req: bytes = hlines[0]
+            reqparts: list[bytes] = req.split(b" ")
+            self.type: bytes = reqparts[0]
             path_parsed = urllib.parse.urlsplit(reqparts[1].decode('utf-8'))
             self.path = urllib.parse.unquote_plus(path_parsed.path)
             self.fields = {}
@@ -147,7 +148,7 @@ class httpreq:
                 continue
             self.headers[header_name.lower()] = header_value.strip()
 
-    def log_req(self):
+    def log_req(self) -> None:
         logger.debug(
             self.type + b" " + self.path.encode('utf-8') + b" " + self.version)
         for i in self.headers:
@@ -231,9 +232,9 @@ class httpd(connection):
         self.rwchunksize = 64*1024
         self._out.speed.limit = 16*1024
         self.env = None
-        self.boundary = None
-        self.fp_tmp = None
-        self.cur_length = 0
+        self.boundary: bytes | None = None
+        self.fp_tmp: tempfile._TemporaryFileWrapper[bytes] | None = None
+        self.cur_length: int = 0
         self.content_length: int | None = None
         self.content_type: str | None = None
 
@@ -494,14 +495,14 @@ class httpd(connection):
     def handle_origin(self, parent):
         pass
 
-    def handle_established(self):
+    def handle_established(self) -> None:
         self.timeouts.idle = 10
         self.processors()
 
     def chroot(self, path):
         self.root = path
 
-    def handle_io_in(self, data):
+    def handle_io_in(self, data: bytes) -> int:
         if self.state == STATE_HEADER:
             # End Of Head
             end_of_head = data.find(b'\r\n\r\n')
@@ -558,8 +559,9 @@ class httpd(connection):
                     # http://www.apps.ietf.org/rfc/rfc2046.html#sec-5.1.1
                     self.boundary = bytes("--" + m.group("boundary") + "--\r\n", "utf-8")
 
-                # dump post content to file
+                # dump post content to file (binary mode for POST data)
                 self.fp_tmp = tempfile.NamedTemporaryFile(
+                    mode='w+b',
                     delete=False,
                     dir=self.download_dir,
                     prefix="http-",
@@ -640,20 +642,20 @@ class httpd(connection):
 
         return len(data)
 
-    def handle_GET(self):
+    def handle_GET(self) -> None:
         """Handle the GET method. Send the header and the file."""
         x = self.send_head()
         if x:
             self.copyfile(x)
 
-    def handle_HEAD(self):
+    def handle_HEAD(self) -> None:
         """Handle the HEAD method. Send only the header but not the file."""
         x = self.send_head()
         if x:
             x.close()
             self.close()
 
-    def handle_OPTIONS(self):
+    def handle_OPTIONS(self) -> None:
         """
         Handle the OPTIONS method. Returns the HTTP methods that the server supports.
         """
@@ -670,7 +672,7 @@ class httpd(connection):
         self.end_headers()
         self.close()
 
-    def handle_POST(self):
+    def handle_POST(self) -> None:
         """
         Handle the POST method. Send the head and the file. But ignore the POST params.
         Use the bistreams for a better analysis.
@@ -727,7 +729,7 @@ class httpd(connection):
         if x:
             self.copyfile(x)
 
-    def handle_POST_SOAP(self, data):
+    def handle_POST_SOAP(self, data: bytes) -> int:
         soap_action = self.header.headers[b'soapaction']
         content_length = int(self.header.headers[b'content-length'].decode("ascii"))
         if len(data) < content_length:
@@ -743,10 +745,10 @@ class httpd(connection):
         self.close()
         return content_length
 
-    def handle_PUT(self):
+    def handle_PUT(self) -> None:
         pass
 
-    def handle_unknown(self):
+    def handle_unknown(self) -> None:
         x = self.send_error(501)
         if x:
             self.copyfile(x)
@@ -841,7 +843,7 @@ class httpd(connection):
 
         return self.send_error(404)
 
-    def handle_io_out(self):
+    def handle_io_out(self) -> None:
         logger.debug("handle_io_out")
         if self.state == STATE_SENDFILE:
             w = self.file.read(self.rwchunksize)
@@ -992,13 +994,13 @@ class httpd(connection):
     def send_header(self, key, value):
         self.send(f"{key}: {value}\r\n")
 
-    def end_headers(self):
+    def end_headers(self) -> None:
         self.send("\r\n")
 
-    def handle_disconnect(self):
+    def handle_disconnect(self) -> bool:
         return False
 
-    def handle_timeout_idle(self):
+    def handle_timeout_idle(self) -> bool:
         return False
 
     responses = {
