@@ -264,7 +264,7 @@ static void options_free(struct options *opt)
 	g_free(opt->root);
 	g_free(opt->user.name);
 	g_free(opt->workingdir);
-	free(opt);
+	// Note: opt itself is not freed as it's stack-allocated
 }
 
 void show_version(struct version *ver)
