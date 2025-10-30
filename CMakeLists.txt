@@ -69,27 +69,14 @@ option(RELEASE_BUILD "Remove Git revision from program version (use for stable r
 include(GNUInstallDirs)
 include(InstallConfig)
 include(Packaging)
+include(GetVersionFromGit)
 
-# Set default version
-set(DIONAEA_VERSION ${PROJECT_VERSION})
-if(NOT RELEASE_BUILD AND EXISTS ${PROJECT_SOURCE_DIR}/.git)
-    find_package(Git)
-    if(GIT_FOUND)
-        execute_process(
-            COMMAND ${GIT_EXECUTABLE} describe --tag --dirty=-dev
-            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-            OUTPUT_VARIABLE DIONAEA_VERSION
-            RESULT_VARIABLE TAG_RESULT
-            OUTPUT_STRIP_TRAILING_WHITESPACE
-        )
-        if(TAG_RESULT)
-            message(STATUS "Git describe failed, using project version")
-            set(DIONAEA_VERSION ${PROJECT_VERSION})
-        endif()
-    else()
-        message(STATUS "Git revision could not be determined")
-        set(DIONAEA_REVISION "${PROJECT_VERSION}-dev-build")
-    endif()
+# Set version using setuptools-scm-style versioning from git
+if(RELEASE_BUILD)
+    set(DIONAEA_VERSION ${PROJECT_VERSION})
+    message(STATUS "Release build, using project version: ${DIONAEA_VERSION}")
+else()
+    get_version_from_git(DIONAEA_VERSION ${PROJECT_VERSION})
 endif()
 
 set(DIONAEA_USER "dionaea" CACHE STRING "Dionaea user")
