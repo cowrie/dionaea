@@ -373,7 +373,7 @@ void incident_dump(struct incident *e)
 
 void incident_report(struct incident *i)
 {
-	g_debug("reporting %p", i);
+	// g_debug("reporting %p", i);
 	incident_dump(i);
 	for( GList *it=g_dionaea->ihandlers->handlers; it != NULL; it = g_list_next(it) )
 	{
