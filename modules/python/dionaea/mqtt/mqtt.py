@@ -67,6 +67,7 @@ class mqttd(connection):
 				logger.error(t)
 				return l
 
+			x = None
 			if self.pendingPacketType == MQTT_CONTROLMESSAGE_TYPE_CONNECT:
 				x = MQTT_Connect(data)
 
@@ -136,16 +137,20 @@ class mqttd(connection):
 
 			elif self.pendingPacketType == MQTT_CONTROLMESSAGE_TYPE_DISCONNECT:
 				x = MQTT_DisconnectReq(data)
+			else:
+				logger.warning(f"Unknown MQTT packet type: {self.pendingPacketType}")
 
 			self.buf = b''
-			x.show()
 
-			r = None
-			r = self.process( self.pendingPacketType, x)
+			if x is not None:
+				x.show()
 
-			if r:
-				r.show()
-				self.send(r.build())
+				r = None
+				r = self.process( self.pendingPacketType, x)
+
+				if r:
+					r.show()
+					self.send(r.build())
 
 		return len(data)
 
