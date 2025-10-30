@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <stddef.h>
+#include <limits.h>
 
 // set terminal to char mode
 #include <termios.h>
@@ -359,7 +360,12 @@ static bool new(struct dionaea *dionaea)
 
 	PyGILState_STATE gil_state = PyGILState_Ensure();
 
-	runtime.sys_path = g_string_new(DIONAEA_PYTHON_SITELIBDIR);
+	// Make sys_path absolute by prepending install prefix
+	// DIONAEA_PYTHON_SITELIBDIR is relative (e.g. "lib/dionaea/python")
+	// PREFIX is absolute (e.g. "/opt/dionaea")
+	char abs_sys_path[PATH_MAX];
+	snprintf(abs_sys_path, sizeof(abs_sys_path), "%s/%s", PREFIX, DIONAEA_PYTHON_SITELIBDIR);
+	runtime.sys_path = g_string_new(abs_sys_path);
 
 	PyObject *name = PyUnicode_FromString("traceback");
 	runtime.traceback.module = PyImport_Import(name);
