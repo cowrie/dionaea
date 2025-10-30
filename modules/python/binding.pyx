@@ -1147,6 +1147,8 @@ cdef class incident:
 	def keys(self):
 		cdef char **x
 		cdef int i = 0
+		# TODO: Check return value from c_incident_keys_get()
+		# Returns c_bool but we don't check if it succeeds - x could be uninitialized on failure
 		c_incident_keys_get(self.thisptr, &x)
 		r = []
 		while x[i] is not NULL:
@@ -1166,6 +1168,8 @@ cdef class incident:
 		if isinstance(key, str):
 			key = key.encode(u'UTF-8')
 
+		# TODO: Check return values from c_incident_value_*_set() calls
+		# All these functions return c_bool but we don't check if they succeed
 		if isinstance(value, connection) :
 			con = <connection>value
 			c_incident_value_con_set(self.thisptr, key, con.thisptr)
