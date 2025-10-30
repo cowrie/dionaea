@@ -485,6 +485,8 @@ def msg_to_icd(msg, d=None):
         return d
 
     def connectiondata_to_dict(c, d=None):
+        if c is None:
+            return None
         if d is None:
             d = {}
         for i in ['addrtype', 'connection_address', 'nettype', 'number_of_addresses', 'ttl']:
@@ -492,6 +494,8 @@ def msg_to_icd(msg, d=None):
         return d
 
     def origin_to_dict(o, d=None):
+        if o is None:
+            return None
         if d is None:
             d = {}
         for i in ['addrtype', 'nettype', 'sess_id', 'sess_version', 'unicast_address', 'username']:
@@ -499,6 +503,8 @@ def msg_to_icd(msg, d=None):
         return d
 
     def media_to_dict(m, d=None):
+        if m is None:
+            return None
         if d is None:
             d = {}
         # 'attributes'
