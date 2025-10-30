@@ -59,10 +59,12 @@ author = 'dionaea'
 # The short X.Y version.
 version = "undefined"
 regex_version = re.compile(
-    "^project\s*\([^)]+?\s+VERSION\s+(?P<version>[0-9]+\.[0-9]+\.[0-9]+)$",
+    r"^project\s*\([^)]+?\s+VERSION\s+(?P<version>[0-9]+\.[0-9]+\.[0-9]+)$",
     re.MULTILINE|re.DOTALL
 )
-data = open("../../CMakeLists.txt", "r").read()
+with open("../../CMakeLists.txt", "r") as f:
+    data = f.read()
+
 m = regex_version.search(data)
 if m:
     version = m.group("version")
