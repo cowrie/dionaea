@@ -177,7 +177,7 @@ int pchild_sent_bind(int sx, struct sockaddr *s, socklen_t size)
 
 	msg.msg_controllen = cmsg->cmsg_len;
 
-	g_debug("sending msg to child to bind port ...");
+	// g_debug("sending msg to child to bind port ...");
 	if( sendmsg(g_dionaea->pchild->fd, &msg, 0) < 0 )
 	{
 		g_critical("sendmsg failed (%s)", strerror(errno));
@@ -196,7 +196,7 @@ int pchild_sent_bind(int sx, struct sockaddr *s, socklen_t size)
 		return -1;
 	} else
 	{
-		g_debug("child could bind the socket!");
+		// g_debug("child could bind the socket!");
 		errno = 0;
 		return ret;
 	}
