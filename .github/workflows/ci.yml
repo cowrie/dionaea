@@ -155,9 +155,6 @@ jobs:
     name: Documentation - Sphinx
     runs-on: ubuntu-latest
 
-    container:
-      image: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -187,9 +184,6 @@ jobs:
     name: Documentation - Doxygen
     runs-on: ubuntu-latest
 
-    container:
-      image: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -207,9 +201,6 @@ jobs:
   style:
     name: Code Style
     runs-on: ubuntu-latest
-
-    container:
-      image: ubuntu-latest
 
     steps:
       - name: Checkout code
