@@ -9,8 +9,9 @@ envlist =
 skip_missing_interpreters = true
 
 [testenv:lint]
-# deps = ruff, mypy
-allowlist_externals = ruff, mypy
+deps =
+    ruff
+    mypy
 skip_install = true
 commands = ruff check {toxinidir}/modules
            mypy {toxinidir}/modules
