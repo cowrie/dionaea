@@ -4,8 +4,6 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-from collections import OrderedDict
-
 CFG_VARS = [
     {
         "name": "authentication_windows_log_level",
@@ -3191,7 +3189,7 @@ class VarHandler:
             "integer": Integer,
             "string": String
         }
-        self.values = OrderedDict()
+        self.values = {}
 
     def _get_var_class(self, name):
         cls = self._class_map.get(name)

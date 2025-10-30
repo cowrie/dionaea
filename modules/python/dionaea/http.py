@@ -5,7 +5,6 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-from collections import OrderedDict
 import logging
 import os
 import sys
@@ -160,7 +159,7 @@ class Headers:
         if global_headers is not None:
             headers = global_headers + headers
 
-        self.headers = OrderedDict(headers)
+        self.headers = dict(headers)
         logger.debug("Headers: %r", self.headers)
 
         self.methods = None

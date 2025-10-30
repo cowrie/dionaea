@@ -5,7 +5,6 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 import random
-from collections import OrderedDict
 from datetime import datetime
 
 CFG_STAT_VARS = [
@@ -576,7 +575,7 @@ CFG_STAT_VARS = [
 
 class VarHandler:
     def __init__(self):
-        self.values = OrderedDict()
+        self.values = {}
 
     def _get_var_class(self, name):
         if name == "bool":
