@@ -96,7 +96,31 @@ jobs:
 
       - name: Test
         run: |
-          docker run -d --rm dionaea:test
+          # Start container with a name
+          docker run -d --name dionaea-test dionaea:test
+
+          # Wait for container to initialize
+          sleep 5
+
+          # Check if container is still running
+          if ! docker ps | grep -q dionaea-test; then
+            echo "Container exited unexpectedly!"
+            docker logs dionaea-test
+            docker rm -f dionaea-test 2>/dev/null || true
+            exit 1
+          fi
+
+          # Try to connect to HTTP service
+          CONTAINER_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' dionaea-test)
+          if ! timeout 10 bash -c "until curl -sf http://$CONTAINER_IP/ > /dev/null; do sleep 1; done"; then
+            echo "Could not connect to dionaea HTTP service!"
+            docker logs dionaea-test
+            docker rm -f dionaea-test
+            exit 1
+          fi
+
+          echo "Dionaea is running successfully!"
+          docker rm -f dionaea-test
 
       - name: Docker Push
         id: docker_push
