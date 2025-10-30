@@ -726,12 +726,12 @@ class RoomHandler(MucRoomHandler):
                 try:
                     inet_pton(AF_INET, addr['uri']['host'])
                     host = addr['uri']['host']
-                except:
+                except Exception:
                     pass
                 try:
                     inet_pton(AF_INET6, addr['uri']['host'])
                     host = addr['uri']['host']
-                except:
+                except Exception:
                     pass
 
                 cursor.execute("""INSERT INTO dionaea.sip_addrs

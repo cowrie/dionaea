@@ -117,7 +117,7 @@ def gencc(card):
 
     if card in cards:
         return credit_card_number(generator, cards[card]['prefix'], cards[card]['length'])
-    raise ValueException("card %s is unknown" % card)
+    raise ValueError("card %s is unknown" % card)
 
 if __name__ == '__main__':
 
