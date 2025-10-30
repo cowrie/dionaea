@@ -615,6 +615,11 @@ class SipSession(connection):
 
         logger.debug(f"{self!s} handle_io_in")
 
+        # Lazily initialize personality if config was set after __init__
+        if self.personality is None and self.config is not None:
+            self.personality = self.config.get_personality_by_address(self.local.host)
+            logger.info(f"SIP Session personality set to '{self.personality}'")
+
         if self.transport == "udp":
             # Header must be terminated by an empty line.
             # If empty line is missing add it.
