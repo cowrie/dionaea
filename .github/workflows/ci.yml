@@ -201,7 +201,7 @@ jobs:
           doxygen Doxyfile
 
   style:
-    name: Code Style
+    name: Lint
     runs-on: ubuntu-latest
     container: buildpack-deps:bookworm-scm
 
@@ -214,6 +214,6 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends git tox
 
-      - name: Run style checks
+      - name: Run linters
         run: |
-          tox -e style
+          tox -e lint
