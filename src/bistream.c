@@ -122,6 +122,8 @@ void print_stream_chunk2(struct stream_chunk *sc)
 	uint32_t bistream_offset = sc->bistream_offset;
 	char buf[256];
 	int off=0;
+	// TODO: Replace all sprintf() calls in this function with snprintf() to prevent buffer overflow
+	// The buffer is 256 bytes but there's no bounds checking on the accumulated offset
 	for( c=0;c<sc->data->len; c+=16 )
 	{
 		off += sprintf(buf, "0x%04x | ", bistream_offset + c);

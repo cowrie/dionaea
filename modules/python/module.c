@@ -381,6 +381,7 @@ static bool new(struct dionaea *dionaea)
 	gchar **sys_path;
 	sys_paths = g_key_file_get_string_list(g_dionaea->config, "module.python", "sys_paths", &num, &error);
 
+	// TODO: Replace sprintf() calls below with snprintf() to prevent buffer overflow
 	for (sys_path = sys_paths; *sys_path; sys_path++) {
 		if( strcmp(*sys_path, "default") == 0 ) {
 			sprintf(relpath, "sys.path.insert(%i, '%s')", i, DIONAEA_PYTHON_SITELIBDIR);
@@ -649,6 +650,8 @@ PyObject *pygetifaddrs(PyObject *self, PyObject *args)
 			char *data = (char *)lladdr->sll_addr;
 			char *ptr = ip_string;
 			int j;
+			// TODO: Replace sprintf() with snprintf() to prevent buffer overflow
+			// ip_string is INET6_ADDRSTRLEN+1 bytes, but MAC address could overflow
 			for( j = 0; j < len; j++ )
 			{
 				sprintf (ptr, "%02x:", data[j] & 0xff);
