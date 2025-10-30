@@ -460,4 +460,4 @@ Last commit by original authors.
 
 * Initial release.
 
-.. _`master`: https://github.com/DinoTools/dionaea
+.. _`main`: https://github.com/DinoTools/dionaea
