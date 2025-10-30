@@ -133,7 +133,7 @@ class FeedUnpack:
 
 
 class hpclient(connection):
-    def __init__(self, server, port, ident, secret, reconnect_timeout=10.0):
+    def __init__(self, server=None, port=None, ident=None, secret=None, reconnect_timeout=10.0):
         logger.debug('hpclient init')
         connection.__init__(self, 'tcp')
         self.unpacker = FeedUnpack()

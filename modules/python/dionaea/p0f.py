@@ -24,7 +24,7 @@ class P0FHandlerLoader(IHandlerLoader):
 
 
 class p0fconnection(connection):
-    def __init__(self, p0fpath, con):
+    def __init__(self, p0fpath=None, con=None):
         connection.__init__(self, 'tcp')
         self.con = con
         self.con.ref()

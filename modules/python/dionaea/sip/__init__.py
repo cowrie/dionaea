@@ -135,7 +135,7 @@ g_reg_manager = RegistrationManager()
 class RtpUdpStream(connection):
     """RTP stream that can send data and writes the whole conversation to a
     file"""
-    def __init__(self, name, call, session, local_address, local_port, remote_address, remote_port, bistream_enabled = False, pcap = None):
+    def __init__(self, name=None, call=None, session=None, local_address=None, local_port=None, remote_address=None, remote_port=None, bistream_enabled = False, pcap = None):
         logger.debug(f"{self!s} __init__")
         connection.__init__(self, 'udp')
 
@@ -238,7 +238,7 @@ class SipCall(connection):
     """
     CLOSED, SESSION_SETUP, ACTIVE_SESSION, SESSION_TEARDOWN, INVITE, INVITE_TRYING, INVITE_RINGING, INVITE_CANCEL, CALL = range(9)
 
-    def __init__(self, proto, call_id, session, invite_message):
+    def __init__(self, proto=None, call_id=None, session=None, invite_message=None):
         logger.debug(f"{self!s} __init__")
 
         logger.debug(f"SipCall {self} session {session} ")

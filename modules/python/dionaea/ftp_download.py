@@ -30,7 +30,7 @@ class FTPIhandlerLoader(IHandlerLoader):
 
 
 class FTPCtrl(connection):
-    def __init__(self, ftp, config=None):
+    def __init__(self, ftp=None, config=None):
         connection.__init__(self, "tcp")
         self.ftp = ftp
         self.state = "NONE"

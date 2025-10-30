@@ -616,7 +616,7 @@ class TftpPacketFactory:
 
 
 class TftpServerHandler(TftpSession):
-    def __init__ (self, state, root, localhost, remotehost, remoteport, packet):
+    def __init__ (self, state=None, root=None, localhost=None, remotehost=None, remoteport=None, packet=None):
         TftpSession.__init__(self)
         self.bind(localhost,0)
         self.connect(remotehost, remoteport)
