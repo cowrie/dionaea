@@ -575,9 +575,12 @@ class SipSession(connection):
         connection.__init__(self, proto)
         self.config = sip_config
 
-        self.personality = self.config.get_personality_by_address(self.local.host)
+        if self.config is not None:
+            self.personality = self.config.get_personality_by_address(self.local.host)
+            logger.info(f"SIP Session created with personality '{self.personality}'")
+        else:
+            self.personality = None
 
-        logger.info(f"SIP Session created with personality '{self.personality}'")
         self._auth = None
         self._state = None
 
