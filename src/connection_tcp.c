@@ -207,13 +207,16 @@ void connection_tcp_io_in_cb(EV_P_ struct ev_io *w, int revents)
 
 	int recv_throttle = connection_throttle(con, &con->stats.io_in.throttle);
 	int recv_size = MIN(buf_size, recv_throttle);
+	// Explicitly cap to buffer size for safety
+	recv_size = MIN(recv_size, CONNECTION_MAX_RECV_SIZE);
 
 	g_debug("io_in: throttle can %i want %i", buf_size, recv_size);
 
 	if( recv_size == 0 )
 		return;
 
-	unsigned char buf[buf_size];
+	// Use fixed-size buffer instead of VLA to prevent stack overflow
+	unsigned char buf[CONNECTION_MAX_RECV_SIZE];
 
 	GString *new_in = g_string_sized_new(buf_size);
 

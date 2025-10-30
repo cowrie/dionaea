@@ -1771,7 +1771,7 @@ int connection_throttle(struct connection *con, struct connection_throttle *thr)
 {
 
 	if( thr->max_bytes_per_second == 0 )
-		return 64*1024;
+		return CONNECTION_MAX_RECV_SIZE;
 
 	g_debug("%s con %p thr %p", __PRETTY_FUNCTION__, con, thr);
 

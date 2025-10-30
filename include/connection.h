@@ -34,6 +34,10 @@ typedef void (*event_fn)(struct connection *con);
 #define SSL_TMP_KEY_DH_1024  (3)
 #define SSL_TMP_KEY_MAX      (4)
 
+// Maximum buffer size for receiving data from connections
+// Used by connection_throttle() and recv buffers to stay in sync
+#define CONNECTION_MAX_RECV_SIZE (64*1024)
+
 #define CONOFF(x)							((void *)x - sizeof(struct connection))
 #define CONOFF_IO_IN(x)  					((struct connection *)(((void *)x) - offsetof (struct connection, events.io_in)))
 #define CONOFF_IO_OUT(x) 					((struct connection *)(((void *)x) - offsetof (struct connection, events.io_out)))

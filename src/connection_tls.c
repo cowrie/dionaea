@@ -481,10 +481,13 @@ void connection_tls_io_in_cb(EV_P_ struct ev_io *w, int revents)
 		g_debug("recv throttle %i", recv_throttle);
 		return;
 	}
+	// Explicitly cap to buffer size for safety
+	int recv_size = MIN(recv_throttle, CONNECTION_MAX_RECV_SIZE);
 
-	unsigned char buf[recv_throttle];
+	// Use fixed-size buffer instead of VLA to prevent stack exhaustion
+	unsigned char buf[CONNECTION_MAX_RECV_SIZE];
 	int err=0;
-	if( (err = SSL_read(con->transport.tls.ssl, buf, recv_throttle)) > 0 )
+	if( (err = SSL_read(con->transport.tls.ssl, buf, recv_size)) > 0 )
 	{
 //		g_debug("SSL_read %i %.*s", err, err, buf);
 		g_string_append_len(con->transport.tls.io_in, (gchar *)buf, err);
