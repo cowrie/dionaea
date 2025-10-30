@@ -27,24 +27,27 @@ class pptpd(connection):
 
     def _handle_control_message(self, message_type, data):
         if self.state == self.ESTABLISHED:
-            if message_type == packets.PPTP_CTRMSG_TYPE_OUTGOINGCALL_REQUEST:
-                p = packets.PPTP_OutgoingCall_Request(data)
-                p.show()
-                r = packets.PPTP_OutgoingCall_Reply()
-                r.show()
-                self.send(r.build())
-                return len(data)
-            elif message_type == packets.CTRMSG_TYPE_CALLCLEAR_REQUEST:
-                p = packets.PPTP_CallClear_Request(data)
-                p.show()
-                r = packets.CallDisconnectNotify()
-                r.ResultCode = 4
-                r.show()
-                self.state = self.IDLE
-                self.send(r.build())
-                return len(data)
-            else:
-                logger.warning("Unexpected control message type %d", message_type)
+            try:
+                if message_type == packets.PPTP_CTRMSG_TYPE_OUTGOINGCALL_REQUEST:
+                    p = packets.PPTP_OutgoingCall_Request(data)
+                    p.show()
+                    r = packets.PPTP_OutgoingCall_Reply()
+                    r.show()
+                    self.send(r.build())
+                    return len(data)
+                elif message_type == packets.CTRMSG_TYPE_CALLCLEAR_REQUEST:
+                    p = packets.PPTP_CallClear_Request(data)
+                    p.show()
+                    r = packets.CallDisconnectNotify()
+                    r.ResultCode = 4
+                    r.show()
+                    self.state = self.IDLE
+                    self.send(r.build())
+                    return len(data)
+                else:
+                    logger.warning("Unexpected control message type %d", message_type)
+            except Exception as e:
+                logger.warn("Failed to parse PPTP control message: %s", e)
         return len(data)
 
     def apply_config(self, config):
@@ -61,7 +64,11 @@ class pptpd(connection):
 
     def handle_io_in(self, data: bytes) -> int:
         if self.state == self.IDLE:
-            p = packets.PPTP_StartControlConnection_Request(data)
+            try:
+                p = packets.PPTP_StartControlConnection_Request(data)
+            except Exception as e:
+                logger.warn("Failed to parse PPTP packet: %s", e)
+                return len(data)
             p.show()
             if p.Length == 0:
                 logger.warn("Bad PPTP Packet, Length = 0")
@@ -85,7 +92,11 @@ class pptpd(connection):
             self.send(r.build())
             return len(data)
         elif self.state == self.ESTABLISHED:
-            p = packets.BaseControlMessage(data)
+            try:
+                p = packets.BaseControlMessage(data)
+            except Exception as e:
+                logger.warn("Failed to parse PPTP packet: %s", e)
+                return len(data)
             if p.MessageType == 0x01:
                 return self._handle_control_message(p.ControlMessageType, data)
 

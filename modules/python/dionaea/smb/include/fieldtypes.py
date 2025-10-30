@@ -97,6 +97,9 @@ class Field:
         return s+struct.pack(self.fmt, self.i2m(pkt,val))
     def getfield(self, pkt, s):
         """Extract an internal value from a string"""
+        if len(s) < self.sz:
+            raise struct.error("Not enough data to unpack field '{}': need {} bytes, got {}".format(
+                self.name, self.sz, len(s)))
         return  s[self.sz:], self.m2i(pkt, struct.unpack(self.fmt, s[:self.sz])[0])
     def do_copy(self, x):
         if hasattr(x, "copy"):
