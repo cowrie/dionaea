@@ -111,7 +111,7 @@ class ASN1Tag(EnumElement):
         try:
             c = self._codec[type(codec)]
         except KeyError:
-            raise ASN1_Error("Codec %r not found for tag %r" % (codec, self))
+            raise ASN1_Error("Codec {!r} not found for tag {!r}".format(codec, self))
         return c
 
 class ASN1_Class_metaclass(Enum_metaclass):
@@ -186,11 +186,11 @@ class ASN1_Class_UNIVERSAL(ASN1_Class):
 
 class ASN1_Object_metaclass(type):
     def __new__(cls, name, bases, dct):
-        c = super(ASN1_Object_metaclass, cls).__new__(cls, name, bases, dct)
+        c = super().__new__(cls, name, bases, dct)
         try:
             c.tag.register_asn1_object(c)
         except Exception:
-            logger.warning("Error registering %r for %r" % (c.tag, c.codec))
+            logger.warning("Error registering {!r} for {!r}".format(c.tag, c.codec))
         return c
 
 
@@ -201,7 +201,7 @@ class ASN1_Object(metaclass=ASN1_Object_metaclass):
     def enc(self, codec):
         return self.tag.get_codec(codec).enc(self.val)
     def __repr__(self):
-        return "<%s[%r]>" % (self.__dict__.get("name", self.__class__.__name__), self.val)
+        return "<{}[{!r}]>".format(self.__dict__.get("name", self.__class__.__name__), self.val)
     def __str__(self):
         #        return self.enc(conf.ASN1_default_codec)
         return self.enc(ASN1_Codecs.BER)
@@ -226,7 +226,7 @@ class ASN1_DECODING_ERROR(ASN1_Object):
         ASN1_Object.__init__(self, val)
         self.exc = exc
     def __repr__(self):
-        return "<%s[%r]{{%s}}>" % (self.__dict__.get("name", self.__class__.__name__),
+        return "<{}[{!r}]{{{{{}}}}}>".format(self.__dict__.get("name", self.__class__.__name__),
                                    self.val, self.exc.args[0])
     def enc(self, codec):
         if isinstance(self.val, ASN1_Object):
@@ -316,7 +316,7 @@ class ASN1_OID(ASN1_Object):
     def __repr__(self):
         # return "<%s[%r]>" % (self.__dict__.get("name",
         # self.__class__.__name__), conf.mib._oidname(self.val))
-        return "<%s[%s]>" % (self.__dict__.get("name", self.__class__.__name__), self.val)
+        return "<{}[{}]>".format(self.__dict__.get("name", self.__class__.__name__), self.val)
     def __oidname__(self):
         #        return '%s'%conf.mib._oidname(self.val)
         return '%s'%self.val

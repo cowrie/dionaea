@@ -114,7 +114,7 @@ class Memcache(connection):
     def _handle_stats(self, data):
         if self.command.sub_command is None:
             for name, var in self.stat_vars.values.items():
-                self._send_line("STAT {} {}".format(name, str(var)))
+                self._send_line(f"STAT {name} {str(var)}")
             self._send_line("END")
         elif self.command.sub_command == "conns":
             self._send_line("END")

@@ -85,7 +85,7 @@ class LogSQLHandler(ihandler):
             # - update the connection_root and connection_parent for all connections which had the pending
             # - update the connection_root for all connections which had the 'childid' as connection_root
             for i in self.pending[con]:
-                print("{} {} {}".format(attackid, attackid, i))
+                print(f"{attackid} {attackid} {i}")
                 self.db_session.query(
                     model.Connection
                 ).filter(

@@ -37,7 +37,7 @@ class DCERPCValueError(Exception):
         self.reason = reason
         self.value = value
     def __str__(self):
-        return "{} is {} ({})".format(self.varname, self.reason, self.value)
+        return f"{self.varname} is {self.reason} ({self.value})"
 
 
 class RPCService:

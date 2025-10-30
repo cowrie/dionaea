@@ -66,7 +66,7 @@ class SmbConfig:
             value = config.get(name)
             if value is None:
                 continue
-            smblog.debug("Set '{}' to '{}'".format(name, value))
+            smblog.debug(f"Set '{name}' to '{value}'")
             setattr(self, name, value)
 
         shares = config.get("shares")

@@ -234,7 +234,7 @@ class ASN1F_SEQUENCE(ASN1F_field):
             self.ASN1_tag = kargs["ASN1_tag"]
         self.seq = seq
     def __repr__(self):
-        return "<{}{!r}>".format(self.__class__.__name__,self.seq)
+        return f"<{self.__class__.__name__}{self.seq!r}>"
     def set_val(self, pkt, val):
         for f in self.seq:
             f.set_val(pkt,val)
@@ -312,7 +312,7 @@ class ASN1F_SEQUENCE_OF(ASN1F_SEQUENCE):
     def randval(self):
         return fuzz(self.asn1pkt())
     def __repr__(self):
-        return "<{} {}>".format(self.__class__.__name__,self.name)
+        return f"<{self.__class__.__name__} {self.name}>"
 
 class ASN1F_PACKET(ASN1F_field):
     holds_packets = 1

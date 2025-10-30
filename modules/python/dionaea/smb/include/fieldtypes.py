@@ -127,7 +127,7 @@ class Field:
             return RandBin(l)
         else:
             warning(
-                "no random class for [{}] (fmt={}).".format(self.name, self.fmt))
+                f"no random class for [{self.name}] (fmt={self.fmt}).")
 
 
 

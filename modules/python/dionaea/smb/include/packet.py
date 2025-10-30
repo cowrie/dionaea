@@ -744,7 +744,7 @@ A side effect is that, to obtain "{" and "}" characters, you must use
                 elif cls == self.__class__.__name__ and hasattr(self, fld):
                     if num > 1:
                         val = self.payload.sprintf(
-                            "%{},{}:{}.{}%".format(f,cls,num-1,fld), relax)
+                            f"%{f},{cls}:{num-1}.{fld}%", relax)
                         f = "s"
                     elif f[-1] == "r":  # Raw field value
                         val = getattr(self,fld)
@@ -785,7 +785,7 @@ A side effect is that, to obtain "{" and "}" characters, you must use
             found = 1
         if not ret:
             ret = self.__class__.__name__
-        ret = "{}{}".format(ret,s)
+        ret = f"{ret}{s}"
         if intern:
             return found,ret,needed
         else:
@@ -811,7 +811,7 @@ A side effect is that, to obtain "{" and "}" characters, you must use
                 fv = "[%s]" % ",".join( map(Packet.command, fv))
             else:
                 fv = repr(fv)
-            f.append("{}={}".format(fn, fv))
+            f.append(f"{fn}={fv}")
         c = "{}({})".format(self.__class__.__name__, ", ".join(f))
         pc = self.payload.command()
         if pc:

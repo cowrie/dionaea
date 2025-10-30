@@ -97,7 +97,7 @@ class mysqld(connection):
         logger.warn("DATABASE opening %s" % Database)
         try:
             p = self.config[Database]['path']
-            logger.warn("open db {} -> {}".format(Database, p))
+            logger.warn(f"open db {Database} -> {p}")
             self.dbh = sqlite3.connect(p)
             self.cursor = self.dbh.cursor()
             self.database = Database
