@@ -187,7 +187,7 @@ cdef class node_info:
 		def __get__(self):
 			return bytes.decode(self.thisptr.ip_string, u'UTF-8')
 		def __set__(self, addr):
-			if isinstance(addr, unicode):
+			if isinstance(addr, str):
 				addr = addr.encode(u'UTF-8')
 			c_node_info_set_addr(self.thisptr, addr)
 
@@ -460,7 +460,7 @@ cdef class connection:
 
 		cdef c_connection_transport enum_type
 		if self.thisptr == NULL:
-			if isinstance(con_type, unicode):
+			if isinstance(con_type, str):
 				con_type_utf8 = con_type.encode(u'UTF-8')
 			else:
 				raise ValueError(u"requires text input, got %s" % type(con_type))
@@ -601,12 +601,12 @@ cdef class connection:
 		if self.thisptr == NULL:
 			raise ReferenceError(u'the object requested does not exist')
 
-		if isinstance(addr, unicode):
+		if isinstance(addr, str):
 			addr_utf8 = addr.encode(u'UTF-8')
 		else:
 			raise ValueError(u"addr requires text input, got %s" % type(addr))
 
-		if isinstance(iface, unicode):
+		if isinstance(iface, str):
 			iface_utf8 = iface.encode(u'UTF-8')
 		elif not iface:
 			iface_utf8 = u''.encode(u'UTF-8')
@@ -626,12 +626,12 @@ cdef class connection:
 		if self.thisptr == NULL:
 			raise ReferenceError(u'the object requested does not exist')
 
-		if isinstance(addr, unicode):
+		if isinstance(addr, str):
 			addr_utf8 = addr.encode(u'UTF-8')
 		else:
 			raise ValueError(u"addr requires text input, got %s" % type(addr))
 
-		if isinstance(iface, unicode):
+		if isinstance(iface, str):
 			iface_utf8 = iface.encode(u'UTF-8')
 		else:
 			raise ValueError(u"iface requires text input, got %s" % type(iface))
@@ -657,7 +657,7 @@ cdef class connection:
 				c_node_info_set_port(&self.thisptr.local, port)
 			else:
 				raise ValueError(u"requires tuple input, got %s" % type(local))
-		if isinstance(data, unicode):
+		if isinstance(data, str):
 			data_bytes = data.encode(u'UTF-8')
 		elif isinstance(data, bytes):
 			data_bytes = data
@@ -905,11 +905,11 @@ cdef c_bool process_process(c_connection *con, void *config) except * with gil:
 	instance.bistream = []
 
 def dlhfn(name, number, path, line, msg):
-	if isinstance(name, unicode):
+	if isinstance(name, str):
 		name = name.encode(u'UTF-8')
-	if isinstance(path, unicode):
+	if isinstance(path, str):
 		path = path.encode(u'UTF-8')
-	if isinstance(msg, unicode):
+	if isinstance(msg, str):
 		msg = msg.encode(u'UTF-8')
 	c_log_wrap(name, number, path, line, msg)
 
@@ -1077,7 +1077,7 @@ cdef c_opaque_data *py_to_opaque(value) with gil:
 			c_opaque_data_free(o)
 			x = str(value)
 			return py_to_opaque(x)
-	elif isinstance(value, unicode):
+	elif isinstance(value, str):
 		value = value.encode(u'UTF-8')
 		c_opaque_data_string_set(o, c_g_string_new(value))
 	elif isinstance(value, bytes):
@@ -1163,7 +1163,7 @@ cdef class incident:
 
 	def __setattr__(self, key, value):
 		cdef connection con
-		if isinstance(key, unicode):
+		if isinstance(key, str):
 			key = key.encode(u'UTF-8')
 
 		if isinstance(value, connection) :
@@ -1173,7 +1173,7 @@ cdef class incident:
 			c_incident_value_int_set(self.thisptr, key, value)
 		elif isinstance(value, bytes):
 			c_incident_value_bytes_set(self.thisptr, key, c_g_string_new(value))
-		elif isinstance(value, unicode):
+		elif isinstance(value, str):
 			value = value.encode(u'UTF-8')
 			c_incident_value_string_set(self.thisptr, key, c_g_string_new(value))
 		elif isinstance(value, list):
@@ -1191,7 +1191,7 @@ cdef class incident:
 		cdef long int i
 		cdef c_GList *l
 		cdef GHashTable *d
-		if isinstance(key, unicode):
+		if isinstance(key, str):
 			key = key.encode(u'UTF-8')
 		if c_incident_value_con_get(self.thisptr, key, &cc) == True:
 			c = NEW_C_CONNECTION_CLASS(connection)
@@ -1253,7 +1253,7 @@ cdef void c_python_ihandler_cb (c_incident *i, void *ctx) except * with gil:
 	origin = pi.origin
 	if isinstance(origin, bytes):
 		origin = origin.decode(u'ascii')
-	elif not isinstance(origin, unicode):
+	elif not isinstance(origin, str):
 		raise ValueError(u"requires text/bytes input, got %s" % type(origin))
 	origin = origin.replace(u".",u"_")
 	try:
