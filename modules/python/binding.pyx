@@ -752,7 +752,7 @@ def connection_new(type):
 cdef extern from "./module.h":
 	cdef connection CLONE_C_CONNECTION_CLASS "PY_CLONE"(object T)
 	cdef connection NEW_C_CONNECTION_CLASS "PY_NEW"(object T)
-	cdef void INIT_C_CONNECTION_CLASS "PY_INIT" (object P, object O)
+	cdef int INIT_C_CONNECTION_CLASS "PY_INIT" (object P, object O)
 #	cdef int PRINT_REFCOUNT "REFCOUNT"(object T)
 
 
@@ -762,7 +762,9 @@ cdef connection _factory(c_connection *con) with gil:
 	instance = CLONE_C_CONNECTION_CLASS(parent)
 	instance.factory = True
 	instance.thisptr = con
-	INIT_C_CONNECTION_CLASS(parent,instance)
+	if INIT_C_CONNECTION_CLASS(parent,instance) == -1:
+		# __init__ raised an exception, propagate it
+		return None
 	c_connection_protocol_ctx_set(con, <void *>instance)
 	instance.apply_parent_config(parent)
 	return instance
@@ -1109,7 +1111,9 @@ cdef py_from_opaque(c_opaque_data *value) with gil:
 		c_opaque_data_con_get(value,&cc)
 		c = NEW_C_CONNECTION_CLASS(connection)
 		c.thisptr = <c_connection *>cc
-		INIT_C_CONNECTION_CLASS(c, c)
+		if INIT_C_CONNECTION_CLASS(c, c) == -1:
+			# __init__ raised an exception
+			return None
 		return c
 	elif value.type == opaque_type_list:
 		c_opaque_data_list_get(value,&l)
@@ -1192,7 +1196,9 @@ cdef class incident:
 		if c_incident_value_con_get(self.thisptr, key, &cc) == True:
 			c = NEW_C_CONNECTION_CLASS(connection)
 			c.thisptr = <c_connection *>cc
-			INIT_C_CONNECTION_CLASS(c, c)
+			if INIT_C_CONNECTION_CLASS(c, c) == -1:
+				# __init__ raised an exception
+				return None
 			return c
 		elif c_incident_value_bytes_get(self.thisptr, key, &s) == True:
 			return bytesfrom(s.str, s.len)
@@ -1219,7 +1225,7 @@ cdef class incident:
 
 cdef extern from "module.h":
 	cdef incident NEW_C_INCIDENT_CLASS "PY_NEW"(object T)
-	cdef void INIT_C_INCIDENT_CLASS "PY_INIT" (object P, object O)
+	cdef int INIT_C_INCIDENT_CLASS "PY_INIT" (object P, object O)
 
 ######
 cdef extern from "../../include/incident.h":
@@ -1241,7 +1247,9 @@ cdef void c_python_ihandler_cb (c_incident *i, void *ctx) except * with gil:
 	handler = <ihandler>ctx
 	pi = NEW_C_INCIDENT_CLASS(incident)
 	pi.thisptr = i
-	INIT_C_INCIDENT_CLASS(pi,pi)
+	if INIT_C_INCIDENT_CLASS(pi,pi) == -1:
+		# __init__ raised an exception, propagate it
+		return
 	origin = pi.origin
 	if isinstance(origin, bytes):
 		origin = origin.decode(u'ascii')
