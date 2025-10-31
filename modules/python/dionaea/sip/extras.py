@@ -517,9 +517,9 @@ def msg_to_icd(msg, d=None):
             return None
         if d is None:
             d = {}
-        d['c']= connectiondata_to_dict(b[b'c'])
-        d['o']= origin_to_dict(b[b'o'])
-        d['m']= [media_to_dict(i) for i in b[b'm']]
+        d['c']= connectiondata_to_dict(b[b'c']) if b.get(b'c') is not None else None
+        d['o']= origin_to_dict(b[b'o']) if b.get(b'o') is not None else None
+        d['m']= [media_to_dict(i) for i in b[b'm']] if b.get(b'm') is not None else []
         return d
 
     def allow_to_list(a):
