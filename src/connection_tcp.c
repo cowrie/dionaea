@@ -255,7 +255,6 @@ void connection_tcp_io_in_cb(EV_P_ struct ev_io *w, int revents)
 			size == MIN(buf_size, recv_throttle) ||
 			recv_size <= 0 )
 	{
-		g_debug("EAGAIN");
 		if( ev_is_active(&con->events.idle_timeout) )
 			ev_timer_again(EV_A_  &con->events.idle_timeout);
 
