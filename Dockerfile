@@ -32,6 +32,7 @@ RUN apt-get update && \
         build-essential \
         cmake \
         cython3 \
+        git \
         libcurl4-openssl-dev \
         libev-dev \
         libglib2.0-dev \
