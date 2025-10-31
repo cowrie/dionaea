@@ -445,7 +445,7 @@ class hpfeedihandler(ihandler):
         except Exception as e:
             logger.warn(f'exception when publishing: {e}')
 
-    def _dynip_resolve(self, events, data):
+    def _dynip_resolve(self):
         i = incident("dionaea.upload.request")
         i._url = self.dynip_resolve
         i._callback = "dionaea.modules.python.hpfeeds.dynipresult"

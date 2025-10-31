@@ -281,7 +281,7 @@ class SipCall(connection):
 
         self._timers["idle"].start()
 
-    def __handle_timeout_idle(self, watcher, events):
+    def __handle_timeout_idle(self):
         logger.debug(f"{self!s} __handle_timeout_idle")
 
         # check if at least one rtp stream is active

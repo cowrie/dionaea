@@ -64,7 +64,7 @@ class virustotalhandler(ihandler):
                 submit_time INTEGER
             );""")
 
-    def __handle_backlog_timeout(self, watcher, event):
+    def __handle_backlog_timeout(self):
         logger.debug("backlog_timeout")
 
         # try to comment on files
