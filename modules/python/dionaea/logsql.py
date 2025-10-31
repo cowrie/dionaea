@@ -950,8 +950,10 @@ class logsqlhandler(ihandler):
         add_addr(cmdid,'addr',icd.get('addr'))
         add_addr(cmdid,'to',icd.get('to'))
         add_addr(cmdid,'contact',icd.get('contact'))
-        for i in icd.get('from', []):
-            add_addr(cmdid,'from',i)
+        from_addrs = icd.get('from')
+        if from_addrs:
+            for i in from_addrs:
+                add_addr(cmdid,'from',i)
 
         def add_via(cmd, via):
             if via is None:
@@ -965,8 +967,10 @@ class logsqlhandler(ihandler):
 
                                 ))
 
-        for i in icd.get('via', []):
-            add_via(cmdid, i)
+        via_addrs = icd.get('via')
+        if via_addrs:
+            for i in via_addrs:
+                add_via(cmdid, i)
 
         def add_sdp(cmd, sdp):
             def add_origin(cmd, o):
