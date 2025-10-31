@@ -353,7 +353,6 @@ void connection_tcp_io_out_cb(EV_P_ struct ev_io *w, int revents)
 
 void connection_tcp_disconnect(struct connection *con)
 {
-	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 	enum connection_state state = con->state;
 	connection_set_state(con, connection_state_close);
 	connection_disconnect(con);

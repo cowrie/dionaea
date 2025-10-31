@@ -912,7 +912,6 @@ bool traceable_disconnect_cb(struct connection *con, void *context)
 
 bool traceable_idle_timeout_cb(struct connection *con, void *context)
 {
-	g_debug("%s con %p ctx %p ",__PRETTY_FUNCTION__, con, context);
 	bool ret = runtime.traceables.proto.idle_timeout(con, context);
 	traceback();
 	return ret;

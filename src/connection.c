@@ -1319,7 +1319,7 @@ double connection_idle_timeout_get(struct connection *con)
 void connection_idle_timeout_cb(struct ev_loop *loop, struct ev_timer *w, int revents)
 {
 	struct connection *con = CONOFF_IDLE_TIMEOUT(w);
-	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
+	g_message("idle timeout con %p [%s->%s]", con, con->local.node_string, con->remote.node_string);
 
 	if( con->protocol.idle_timeout == NULL || con->protocol.idle_timeout(con, con->protocol.ctx) == false )
 	{
@@ -2173,15 +2173,14 @@ void connection_set_state(struct connection *con, enum connection_state state)
 	enum connection_state old_state;
 	old_state = con->state;
 	con->state = state;
-	g_message("connection %p %s/%s/%s [%s->%s] state: %s->%s",
-			  con,
-			  connection_type_to_string(con->type),
-			  connection_transport_to_string(con->trans),
-			  connection_state_to_string(old_state),
-			  con->local.node_string,
-			  con->remote.node_string,
-			  connection_state_to_string(old_state),
-			  connection_state_to_string(state));
+	g_message("con %p [%s->%s] %s/%s %s->%s",
+		  con,
+		  con->local.node_string,
+		  con->remote.node_string,
+		  connection_type_to_string(con->type),
+		  connection_transport_to_string(con->trans),
+		  connection_state_to_string(old_state),
+		  connection_state_to_string(state));
 }
 
 int connection_ref(struct connection *con)
