@@ -719,8 +719,6 @@ class TftpServerHandler(TftpSession):
                     logger.warn("Requested file %s does not exist." %
                                 self.filename)
                     self.senderror(TftpErrors.FileNotFound)
-#                    raise TftpException("Requested file not found: %s" % self.filename)
-                    logger.warn("Requested file not found: %s" % self.filename)
                     self.close()
                     return len(data)
 
