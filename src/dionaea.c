@@ -349,10 +349,8 @@ void show_version(struct version *ver)
 	ver->info.machine = g_strdup(sysinfo.machine);
 	ver->info.release = g_strdup(sysinfo.release);
 
-
-	printf("\n");
-	printf("Dionaea Version %s \n", ver->dionaea.version);
-	printf("Compiled on %s/%s at %s with %s %s \n",
+	printf("Dionaea Version %s\n", ver->dionaea.version);
+	printf("Compiled on %s/%s at %s with %s %s\n",
 		   ver->compiler.os,
 		   ver->compiler.arch,
 		   ver->compiler.datetime,
@@ -373,8 +371,6 @@ void show_version(struct version *ver)
 	g_free(ver->info.sys);
 	g_free(ver->info.machine);
 	g_free(ver->info.release);
-
-	printf("\n");
 }
 
 void show_help(bool defaults)
@@ -493,7 +489,6 @@ int main (int argc, char *argv[])
 {
 	GError *error = NULL;
 	struct version v;
-	show_version(&v);
 	g_log_set_default_handler(logger_stdout_log, NULL);
 
 	struct options opt_storage = {0};
@@ -503,6 +498,8 @@ int main (int argc, char *argv[])
 	{
 		g_error("Could not parse options!\n");
 	}
+
+	show_version(&v);
 
 	opt->stdOUT.filter = log_filter_new(opt->stdOUT.domains, opt->stdOUT.levels);
 	if (opt->stdOUT.filter == NULL) {
