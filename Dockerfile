@@ -29,6 +29,7 @@ RUN apt-get update && \
         -o APT::Install-Suggests=false \
         -o APT::Install-Recommends=false \
         -o Dpkg::Use-Pty="0" \
+        -o Dpkg::Progress-Fancy="0" \
         build-essential \
         cmake \
         cython3 \
@@ -49,7 +50,8 @@ RUN apt-get update && \
         python3-boto3 \
         fonts-liberation
 
-RUN   mkdir -p /code/build && \
+RUN   git config --global --add safe.directory /code && \
+      mkdir -p /code/build && \
       cd /code/build && \
       cmake -DCMAKE_INSTALL_PREFIX:PATH=/opt/dionaea /code && \
       make && \

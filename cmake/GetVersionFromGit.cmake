@@ -12,9 +12,9 @@ function(get_version_from_git OUTPUT_VAR FALLBACK_VERSION)
                 COMMAND ${GIT_EXECUTABLE} describe --tags --long --dirty --match "*[0-9]*"
                 WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
                 OUTPUT_VARIABLE GIT_DESCRIBE
+                ERROR_VARIABLE GIT_DESCRIBE_ERROR
                 RESULT_VARIABLE TAG_RESULT
                 OUTPUT_STRIP_TRAILING_WHITESPACE
-                ERROR_QUIET
             )
 
             if(NOT TAG_RESULT)
@@ -50,7 +50,8 @@ function(get_version_from_git OUTPUT_VAR FALLBACK_VERSION)
                     message(STATUS "Could not parse git describe output: ${GIT_DESCRIBE}")
                 endif()
             else()
-                message(STATUS "Git describe failed, using fallback version")
+                message(STATUS "Git describe failed (exit code ${TAG_RESULT}): ${GIT_DESCRIBE_ERROR}")
+                message(STATUS "Using fallback version")
             endif()
         else()
             message(STATUS "Git not found, using fallback version")
