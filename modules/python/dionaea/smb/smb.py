@@ -14,7 +14,6 @@ from dionaea.core import incident, connection, g_dionaea
 import inspect
 import socket
 import struct
-import traceback
 import hashlib
 import logging
 import os
@@ -165,9 +164,8 @@ class smbd(connection):
     def handle_io_in(self,data):
         try:
             p = NBTSession(data, _ctx=self)
-        except Exception:
-            t = traceback.format_exc()
-            smblog.error(t)
+        except Exception as e:
+            smblog.warning("NBTSession packet parsing failed: %s", str(e))
             return len(data)
 
         if len(data) < (p.LENGTH+4):
@@ -907,9 +905,8 @@ class epmapper(smbd):
     def handle_io_in(self,data):
         try:
             p = DCERPC_Header(data)
-        except Exception:
-            t = traceback.format_exc()
-            smblog.error(t)
+        except Exception as e:
+            smblog.warning("DCERPC packet parsing failed: %s", str(e))
             return len(data)
 
         if len(data) < p.FragLen:
