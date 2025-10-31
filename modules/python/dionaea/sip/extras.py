@@ -549,5 +549,4 @@ def msg_to_icd(msg, d=None):
         d.set('user_agent', msg.headers.get('user-agent')._value)
     else:
         d.set('user_agent',None)
-    print(d)
     return d
