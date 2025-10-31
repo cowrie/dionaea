@@ -79,6 +79,10 @@ RUN apt-get update && \
         -o APT::Install-Suggests=false \
         -o APT::Install-Recommends=false \
         -o Dpkg::Use-Pty="0" \
+        gdb \
+        vim \
+        netcat-openbsd \
+        curl \
         ca-certificates \
         libcurl4 \
         libev4 \

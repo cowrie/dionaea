@@ -165,8 +165,6 @@ class ASN1F_enum_INTEGER(ASN1F_INTEGER):
         for k in keys:
             i2s[k] = enum[k]
             s2i[enum[k]] = k
-        logger.debug("i2s %s", self.i2s)
-        logger.debug("s2i %s", self.s2i)
 
     def any2i_one(self, pkt, x):
         if type(x) is str:

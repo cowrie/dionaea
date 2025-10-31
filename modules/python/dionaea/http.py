@@ -160,7 +160,6 @@ class Headers:
             headers = global_headers + headers
 
         self.headers = dict(headers)
-        logger.debug("Headers: %r", self.headers)
 
         self.methods = None
         if methods:
@@ -224,7 +223,6 @@ class httpd(connection):
     ]
 
     def __init__(self, proto="tcp"):
-        logger.debug("http test")
         connection.__init__(self, proto)
         self.state = STATE_HEADER
         self.header: httpreq | None = None
