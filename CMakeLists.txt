@@ -79,6 +79,9 @@ else()
     get_version_from_git(DIONAEA_VERSION ${PROJECT_VERSION})
 endif()
 
+# Generate ISO 8601 build timestamp
+string(TIMESTAMP DIONAEA_BUILD_TIMESTAMP "%Y-%m-%dT%H:%M:%SZ" UTC)
+
 set(DIONAEA_USER "dionaea" CACHE STRING "Dionaea user")
 set(DIONAEA_GROUP "dionaea" CACHE STRING "Dionaea group")
 set(DIONAEA_MODDIR ${CMAKE_INSTALL_LIBDIR}/dionaea)

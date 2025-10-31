@@ -340,8 +340,7 @@ void show_version(struct version *ver)
 	ver->dionaea.version = DIONAEA_VERSION;
 	ver->compiler.os = MY_OS;
 	ver->compiler.arch = MY_ARCH;
-	ver->compiler.date = __DATE__;
-	ver->compiler.time = __TIME__;
+	ver->compiler.datetime = DIONAEA_BUILD_TIMESTAMP;
 	ver->compiler.name = MY_COMPILER;
 	ver->compiler.version = __VERSION__;
 
@@ -353,11 +352,10 @@ void show_version(struct version *ver)
 
 	printf("\n");
 	printf("Dionaea Version %s \n", ver->dionaea.version);
-	printf("Compiled on %s/%s at %s %s with %s %s \n",
+	printf("Compiled on %s/%s at %s with %s %s \n",
 		   ver->compiler.os,
 		   ver->compiler.arch,
-		   ver->compiler.date,
-		   ver->compiler.time,
+		   ver->compiler.datetime,
 		   ver->compiler.name,
 		   ver->compiler.version);
 

@@ -27,8 +27,7 @@ struct version
 	{
 		char *os;
 		char *arch;
-		char *date;
-		char *time;
+		char *datetime;
 		char *name;
 		char *version;
 	} compiler;
