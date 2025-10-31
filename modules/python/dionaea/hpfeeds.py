@@ -299,7 +299,7 @@ class hpfeedihandler(ihandler):
 
     def stop(self):
         if self.dynip_timer:
-            self.dynip_timer.stop()
+            self.dynip_timer.cancel()
             self.dynip_timer = None
 
     def _ownip(self, icd):

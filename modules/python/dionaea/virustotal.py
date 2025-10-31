@@ -109,7 +109,7 @@ class virustotalhandler(ihandler):
             return
 
     def stop(self):
-        self.backlog_timer.stop()
+        self.backlog_timer.cancel()
         self.backlog_timer = None
 
     def handle_incident(self, icd):
