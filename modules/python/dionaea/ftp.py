@@ -650,7 +650,7 @@ class FTPDataCon(connection):
         logger.debug(p)
         self.mode = 'recv_file'
         self.file = open(p, 'wb+')
-        print(self.file)
+        logger.debug(f"Opened file for receiving: {self.file}")
 
     def send_file(self, p):
         self.mode = "file"

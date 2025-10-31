@@ -62,11 +62,11 @@ class nlslave(ihandler):
         self.daemons = {}
 
     def handle_incident(self, icd):
-        print("SERVANT!\n")
+        logger.debug("Services handling incident")
         addr = icd.get("addr")
         iface = icd.get("iface")
         for i in self.ifaces:
-            print(f"iface:{iface} pattern:{i}")
+            logger.debug(f"Checking interface - iface:{iface} pattern:{i}")
             if fnmatch.fnmatch(iface, i):
                 if icd.origin == "dionaea.module.nl.addr.new" or "dionaea.module.nl.addr.hup":
                     self.daemons[addr] = {}
@@ -76,7 +76,7 @@ class nlslave(ihandler):
                                 continue
                             if service not in self.daemons[addr]:
                                 self.daemons[addr][service] = []
-                            print(service)
+                            logger.debug(f"Starting service: {service}")
                             try:
                                 daemons = service.start(addr, iface=iface, config=srv.get("config", {}))
                             except Exception:
@@ -88,7 +88,7 @@ class nlslave(ihandler):
                                 self.daemons[addr][service].append(daemons)
 
                 if icd.origin == "dionaea.module.nl.addr.del":
-                    print(icd.origin)
+                    logger.debug(f"Handling address deletion: {icd.origin}")
                     for s in self.daemons[addr]:
                         for d in self.daemons[addr][s]:
                             s.stop(s, d)

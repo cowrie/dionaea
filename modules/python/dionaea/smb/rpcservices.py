@@ -12,6 +12,8 @@ import logging
 import tempfile
 
 from uuid import UUID
+
+logger = logging.getLogger('smb.rpcservices')
 from time import time, localtime, altzone
 
 from dionaea import ndrlib
@@ -2740,17 +2742,17 @@ class spoolss(RPCService):
         x = ndrlib.Unpacker(p.StubData)
         x.unpack_pointer()
         PrinterName = x.unpack_string()
-        print("PrinterName %s" % PrinterName)
+        logger.debug(f"PrinterName {PrinterName}")
 
         pDatatype = x.unpack_pointer()
-        print("Datatype %s" % pDatatype)
+        logger.debug(f"Datatype {pDatatype}")
 
         x.unpack_long()
         pDevMode = x.unpack_pointer()
-        print("DevMode %s" % pDevMode)
+        logger.debug(f"DevMode {pDevMode}")
 
         DesiredAccess = x.unpack_long()
-        print("DesiredAccess %x" % DesiredAccess)
+        logger.debug(f"DesiredAccess {DesiredAccess:x}")
 
         #Below is the ClientInfo structure which showed in
         #Microsoft Network Monitor, but I cant find the correct doc to refer
@@ -2760,7 +2762,7 @@ class spoolss(RPCService):
         Size = x.unpack_long()
         Buff = x.unpack_raw(Size)
 
-        print("Size %i Buff %s" % (Size, Buff))
+        logger.debug(f"Size {Size} Buff {Buff}")
 
         r = ndrlib.Packer()
         # Returned Handle
@@ -3709,7 +3711,7 @@ class SRVSVC(RPCService):
         p.unpack_pointer()
         ServerName = p.unpack_string()
         Level = p.unpack_long()
-        print("ServerName %s Level %i" % (ServerName,Level))
+        logger.debug(f"ServerName {ServerName} Level {Level}")
 
         r = ndrlib.Packer()
         r.pack_long(Level)

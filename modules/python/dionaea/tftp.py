@@ -849,7 +849,7 @@ class TftpServer(TftpSession):
         try:
             recvpkt = self.packet.parse(buffer)
         except TftpException as e:
-            print(e)
+            logger.debug(f"TFTP packet parse error: {e}")
             return len(data)
 
         if isinstance(recvpkt, TftpPacketRRQ):

@@ -191,7 +191,7 @@ class logsqlhandler(ihandler):
             else:
                 logger.info("... not required")
         except Exception as e:
-            print(e)
+            logger.debug(f"Migration check failed: {e}")
             logger.info("... not required")
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
@@ -629,7 +629,7 @@ class logsqlhandler(ihandler):
             # - update the connection_root and connection_parent for all connections which had the pending
             # - update the connection_root for all connections which had the 'childid' as connection_root
             for i in self.pending[con]:
-                print(f"{attackid} {attackid} {i}")
+                logger.debug(f"Updating connection root/parent: attackid={attackid} connection={i}")
                 self.cursor.execute("UPDATE connections SET connection_root = ?, connection_parent = ? WHERE connection = ?",
                                     (attackid, attackid, i ) )
                 self.cursor.execute("UPDATE connections SET connection_root = ? WHERE connection_root = ?",
