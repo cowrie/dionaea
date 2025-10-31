@@ -685,10 +685,14 @@ class httpd(connection):
                 'CONTENT_LENGTH': self.content_length,
                 'CONTENT_TYPE': self.content_type
             }
+            # Wrap binary file in TextIOWrapper for cgi.FieldStorage
+            # Use latin-1 encoding which preserves bytes as-is
+            fp_text = io.TextIOWrapper(self.fp_tmp, encoding='latin-1')
             self.request_form = cgi.FieldStorage(
-                fp=self.fp_tmp,
+                fp=fp_text,
                 environ=tmp_environ,
-                max_num_fields=self.get_max_num_fields
+                max_num_fields=self.get_max_num_fields,
+                encoding='latin-1'
             )
             for field_name in self.request_form.keys():
                 # dump only files
