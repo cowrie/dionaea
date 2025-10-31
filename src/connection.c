@@ -166,7 +166,6 @@ bool connection_socket(struct connection *con, int family, int type, int protoco
  */
 bool bind_local(struct connection *con)
 {
-	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 	struct sockaddr_storage sa;
 	memset(&sa, 0,  sizeof(struct sockaddr_storage));
 
@@ -181,8 +180,6 @@ bool bind_local(struct connection *con)
 
 	if( !parse_addr(con->local.hostname, con->local.iface_scope, ntohs(con->local.port), &sa, &socket_domain, &sizeof_sa) )
 		return false;
-
-	g_debug("%s socket %i %s:%i", __PRETTY_FUNCTION__, con->socket, con->local.hostname, ntohs(con->local.port));
 
 //	memcpy(&con->src.addr,  &sa, sizeof(struct sockaddr_storage));
 
@@ -205,7 +202,7 @@ bool bind_local(struct connection *con)
 		// fill src node
 		connection_node_set_local(con);
 
-		g_debug("ip '%s' node '%s'", con->local.ip_string, con->local.node_string);
+		g_debug("bind_local socket %i %s", con->socket, con->local.node_string);
 
 //		connection_set_nonblocking(con);
 		return true;
@@ -362,7 +359,7 @@ bool connection_listen(struct connection *con, int len)
 	const char *cert_filename = NULL;
 	const char *key_filename = NULL;
 
-	g_debug("%s con %p len %i", __PRETTY_FUNCTION__, con, len);
+	// Debug: connection_listen called (details in connection_bind)
 
 	switch( con->trans )
 	{
@@ -741,7 +738,6 @@ void connection_free_report_cb(EV_P_ struct ev_timer *w, int revents)
  */
 void connection_set_nonblocking(struct connection *con)
 {
-	g_debug(__PRETTY_FUNCTION__);
 	int flags = fcntl(con->socket, F_GETFL, 0);
 	flags |= O_NONBLOCK;
 	fcntl(con->socket, F_SETFL, flags);
