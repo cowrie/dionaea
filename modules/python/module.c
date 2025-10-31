@@ -538,8 +538,7 @@ PyObject *pyversion(PyObject *self, PyObject *args)
 
 	DICT_SET_ITEM(compiler, compiler, os);
 	DICT_SET_ITEM(compiler, compiler, arch);
-	DICT_SET_ITEM(compiler, compiler, date);
-	DICT_SET_ITEM(compiler, compiler, time);
+	DICT_SET_ITEM(compiler, compiler, datetime);
 	DICT_SET_ITEM(compiler, compiler, name);
 	DICT_SET_ITEM(compiler, compiler, version);
 
