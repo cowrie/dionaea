@@ -917,7 +917,6 @@ void connection_connect_next_addr(struct connection *con)
 			// create protocol specific data
 //			con->protocol.ctx = con->protocol.ctx_new(con);
 
-			g_debug("udp");
 			if( con->socket == -1 )
 				if( connection_socket(con, socket_domain, SOCK_DGRAM, 0) == false )
 					return;
