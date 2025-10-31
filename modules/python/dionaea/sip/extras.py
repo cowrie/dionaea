@@ -534,12 +534,22 @@ def msg_to_icd(msg, d=None):
     if d is None:
         d = {}
     d.set('method', msg.method)
-    d.set('call_id', msg.headers.get('call-id').value)
+
+    call_id = msg.headers.get('call-id')
+    d.set('call_id', call_id.value if call_id is not None else None)
+
     d.set('addr', addr_to_dict(msg.uri))
-    d.set('via', [via_to_dict(i._value) for i in msg.headers.get('via')])
-    d.set('to', addr_to_dict(msg.headers.get('to')._value))
-    d.set('contact', addr_to_dict(msg.headers.get('to')._value))
-    d.set('from', [addr_to_dict(f._value) for f in msg.headers.get('from')])
+
+    via = msg.headers.get('via')
+    d.set('via', [via_to_dict(i._value) for i in via] if via is not None else [])
+
+    to = msg.headers.get('to')
+    d.set('to', addr_to_dict(to._value) if to is not None else None)
+    d.set('contact', addr_to_dict(to._value) if to is not None else None)
+
+    from_hdr = msg.headers.get('from')
+    d.set('from', [addr_to_dict(f._value) for f in from_hdr] if from_hdr is not None else [])
+
     d.set('sdp', sdp_to_dict(msg.sdp))
     if msg.headers.get('allow') is not None:
         d.set('allow',allow_to_list(msg.headers.get('allow')))
