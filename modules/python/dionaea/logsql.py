@@ -935,6 +935,8 @@ class logsqlhandler(ihandler):
         cmdid = self.cursor.lastrowid
 
         def add_addr(cmd, _type, addr):
+            if addr is None:
+                return
             self.cursor.execute("""INSERT INTO sip_addrs
                 (sip_command, sip_addr_type, sip_addr_display_name,
                 sip_addr_uri_scheme, sip_addr_uri_user, sip_addr_uri_password,
@@ -948,10 +950,12 @@ class logsqlhandler(ihandler):
         add_addr(cmdid,'addr',icd.get('addr'))
         add_addr(cmdid,'to',icd.get('to'))
         add_addr(cmdid,'contact',icd.get('contact'))
-        for i in icd.get('from'):
+        for i in icd.get('from', []):
             add_addr(cmdid,'from',i)
 
         def add_via(cmd, via):
+            if via is None:
+                return
             self.cursor.execute("""INSERT INTO sip_vias
                 (sip_command, sip_via_protocol, sip_via_address, sip_via_port)
                 VALUES (?,?,?,?)""",
@@ -961,7 +965,7 @@ class logsqlhandler(ihandler):
 
                                 ))
 
-        for i in icd.get('via'):
+        for i in icd.get('via', []):
             add_via(cmdid, i)
 
         def add_sdp(cmd, sdp):
