@@ -141,7 +141,10 @@ class TftpSession(connection):
     def senderror(self, errorcode):
         """This method uses the socket passed, and uses the errorcode, address
         and port to compose and send an error packet."""
-        logger.debug("In senderror, being asked to send error %d to %s:%i", errorcode, self.remote.host, self.remote.port)
+        try:
+            logger.debug("In senderror, being asked to send error %d to %s:%i", errorcode, self.remote.host, self.remote.port)
+        except (ReferenceError, AttributeError):
+            logger.debug("In senderror, being asked to send error %d (connection closed)", errorcode)
         errpkt = TftpPacketERR()
         errpkt.errorcode = errorcode
         self.send(errpkt.encode().buffer)
@@ -654,6 +657,7 @@ class TftpServerHandler(TftpSession):
                 #raise TftpException("Unsupported mode: %s" % recvpkt.mode)
                 logger.warn("Unsupported mode: %s" % recvpkt.mode)
                 self.close()
+                return len(data)
 
 
             if self.state.state == 'rrq':
