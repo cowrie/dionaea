@@ -620,7 +620,7 @@ class smbd(connection):
                 if rap.Opcode == RAP_OP_NETSHAREENUM:
                     (InfoLevel,ReceiveBufferSize) = struct.unpack(
                         "<HH",rap.Params)
-                    print("InfoLevel {} ReceiveBufferSize {}".format(
+                    smblog.debug("InfoLevel {} ReceiveBufferSize {}".format(
                         InfoLevel, ReceiveBufferSize) )
                     if InfoLevel == 1:
                         l = len(__shares__)

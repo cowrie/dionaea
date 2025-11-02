@@ -385,9 +385,9 @@ class Packet(BasePacket, metaclass=Packet_metaclass):
                 raise
             except Exception:
                 if isinstance(cls,type) and issubclass(cls,Packet):
-                    print("%s dissector failed" % cls.name)
+                    logger.debug("%s dissector failed" % cls.name)
                 else:
-                    print("{}.guess_payload_class() returned [{}]".format(
+                    logger.debug("{}.guess_payload_class() returned [{}]".format(
                         self.__class__.__name__,repr(cls)))
                 if cls is not None:
                     raise
