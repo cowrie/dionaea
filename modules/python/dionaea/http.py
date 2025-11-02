@@ -9,13 +9,14 @@ import logging
 import os
 import sys
 import io
-import cgi
 import html
 import mimetypes
 import urllib.parse
 import re
 import tempfile
 from datetime import datetime
+from email import message_from_binary_file
+from email.policy import HTTP
 
 from dionaea import ServiceLoader
 from dionaea.core import connection, g_dionaea, incident
@@ -37,6 +38,98 @@ STATE_HEADER, STATE_SENDFILE, STATE_POST, STATE_PUT = range(0, 4)
 class DionaeaHTTPError(Exception):
     def __init__(self, code: int) -> None:
         self.code = code
+
+
+class MultipartFormField:
+    """Represents a single field from multipart/form-data"""
+    def __init__(self, name: str, filename: str | None = None, content: bytes = b''):
+        self.name = name
+        self.filename = filename
+        self.content = content
+        self.file = io.BytesIO(content)
+
+
+class MultipartParser:
+    """Parser for multipart/form-data using Python's email module"""
+
+    def __init__(self, fp: io.BufferedReader, content_type: str, max_fields: int = 100):
+        """
+        Parse multipart/form-data from a file-like object
+
+        Args:
+            fp: File-like object positioned at start of multipart data
+            content_type: The Content-Type header value
+            max_fields: Maximum number of fields to parse
+        """
+        self.fields: dict[str, MultipartFormField] = {}
+        self._parse(fp, content_type, max_fields)
+
+    def _parse(self, fp: io.BufferedReader, content_type: str, max_fields: int) -> None:
+        """Parse the multipart message"""
+        try:
+            # Create a synthetic HTTP-like message with headers
+            # The email parser needs the Content-Type header to know the boundary
+            header_bytes = f"Content-Type: {content_type}\r\n\r\n".encode('utf-8')
+
+            # Combine header and body
+            combined = io.BytesIO(header_bytes + fp.read())
+            combined.seek(0)
+
+            # Parse using email module
+            msg = message_from_binary_file(combined, policy=HTTP)
+
+            field_count = 0
+            for part in msg.walk():
+                if field_count >= max_fields:
+                    logger.warning("Maximum field count reached (%d), stopping parse", max_fields)
+                    break
+
+                # Skip the container message itself
+                if part.get_content_maintype() == 'multipart':
+                    continue
+
+                # Get the Content-Disposition header which contains field name and filename
+                content_disp = part.get('Content-Disposition', '')
+                if not content_disp:
+                    continue
+
+                # Parse Content-Disposition to extract name and filename
+                name = self._extract_param(content_disp, 'name')
+                if not name:
+                    continue
+
+                filename = self._extract_param(content_disp, 'filename')
+
+                # Get the content
+                content = part.get_content()
+                if isinstance(content, str):
+                    # Convert string to bytes if needed
+                    content = content.encode('latin-1')
+
+                self.fields[name] = MultipartFormField(name, filename, content)
+                field_count += 1
+
+        except Exception as e:
+            logger.warning("Failed to parse multipart data: %s", e)
+            # For honeypot purposes, we want to be resilient to malformed data
+
+    def _extract_param(self, header_value: str, param_name: str) -> str | None:
+        """Extract a parameter from a Content-Disposition header"""
+        # Simple regex-based extraction
+        # Handles both: name="value" and name=value
+        pattern = rf'{param_name}=(?:"([^"]*)"|([^;,\s]*))'
+        match = re.search(pattern, header_value, re.IGNORECASE)
+        if match:
+            return match.group(1) or match.group(2)
+        return None
+
+    def keys(self):
+        """Return field names"""
+        return self.fields.keys()
+
+    def __getitem__(self, key: str) -> MultipartFormField:
+        """Access fields like a dictionary"""
+        return self.fields[key]
 
 
 class FileListItem:
@@ -676,19 +769,11 @@ class httpd(connection):
         """
         if self.fp_tmp is not None:
             self.fp_tmp.seek(0)
-            # at least this information are needed for
-            # cgi.FieldStorage() to parse the content
-            tmp_environ = {
-                'REQUEST_METHOD': 'POST',
-                'CONTENT_LENGTH': self.content_length,
-                'CONTENT_TYPE': self.content_type
-            }
-            # Pass binary file directly - FieldStorage handles binary in Python 3
-            self.request_form = cgi.FieldStorage(
+            # Parse multipart form data using our MultipartParser
+            self.request_form = MultipartParser(
                 fp=self.fp_tmp,
-                environ=tmp_environ,
-                max_num_fields=self.get_max_num_fields,
-                encoding='latin-1'
+                content_type=self.content_type,
+                max_fields=self.get_max_num_fields
             )
             for field_name in self.request_form.keys():
                 # dump only files
