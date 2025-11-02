@@ -683,11 +683,9 @@ class httpd(connection):
                 'CONTENT_LENGTH': self.content_length,
                 'CONTENT_TYPE': self.content_type
             }
-            # Wrap binary file in TextIOWrapper for cgi.FieldStorage
-            # Use latin-1 encoding which preserves bytes as-is
-            fp_text = io.TextIOWrapper(self.fp_tmp, encoding='latin-1')
+            # Pass binary file directly - FieldStorage handles binary in Python 3
             self.request_form = cgi.FieldStorage(
-                fp=fp_text,
+                fp=self.fp_tmp,
                 environ=tmp_environ,
                 max_num_fields=self.get_max_num_fields,
                 encoding='latin-1'

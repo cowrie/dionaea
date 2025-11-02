@@ -202,7 +202,7 @@ class smbd(connection):
         smblog.debug("packet: %s" % p.summary())
 
         if p.haslayer(Raw):
-            smblog.warning("p.haslayer(Raw): %s" % p.getlayer(Raw).build())
+            smblog.debug("p.haslayer(Raw): %s" % p.getlayer(Raw).build())
             p.show()
 
 #		i = incident("dionaea.module.python.smb.info")
@@ -232,7 +232,7 @@ class smbd(connection):
             smblog.error('process() returned None.')
 
         if p.haslayer(Raw):
-            smblog.warning("p.haslayer(Raw): %s" % p.getlayer(Raw).build())
+            smblog.debug("p.haslayer(Raw): %s" % p.getlayer(Raw).build())
             p.show()
             # some rest seems to be not parsed correctly
             # could be start of some other packet, junk, or failed packet dissection
@@ -930,7 +930,7 @@ class epmapper(smbd):
         self.send(r.build())
 
         if p.haslayer(Raw):
-            smblog.warning("p.haslayer(Raw): %s" % p.getlayer(Raw).build())
+            smblog.debug("p.haslayer(Raw): %s" % p.getlayer(Raw).build())
             p.show()
 
         return len(data)
