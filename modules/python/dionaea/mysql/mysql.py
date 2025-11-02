@@ -94,10 +94,10 @@ class mysqld(connection):
         self._open_db('information_schema')
 
     def _open_db(self, Database):
-        logger.warn("DATABASE opening %s" % Database)
+        logger.info("DATABASE opening %s" % Database)
         try:
             p = self.config[Database]['path']
-            logger.warn(f"open db {Database} -> {p}")
+            logger.info(f"open db {Database} -> {p}")
             self.dbh = sqlite3.connect(p)
             self.cursor = self.dbh.cursor()
             self.database = Database
