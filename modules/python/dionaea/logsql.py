@@ -1008,11 +1008,11 @@ class logsqlhandler(ihandler):
                                         c['port'], c['number_of_ports'],
                                         c['proto']
                                     ))
-            if 'o' in sdp:
+            if 'o' in sdp and sdp['o'] is not None:
                 add_origin(cmd, sdp['o'])
-            if 'c' in sdp:
+            if 'c' in sdp and sdp['c'] is not None:
                 add_condata(cmd, sdp['c'])
-            if 'm' in sdp:
+            if 'm' in sdp and sdp['m'] is not None:
                 for i in sdp['m']:
                     add_media(cmd, i)
 
