@@ -111,5 +111,5 @@ RUN apt-get update && \
 
 COPY --from=builder --chown=${DIONAEA_USER}:${DIONAEA_GROUP} ${DIONAEA_HOME} ${DIONAEA_HOME}
 RUN setcap cap_net_bind_service=+ep /opt/dionaea/bin/dionaea
-USER ${DIONAEA_USER}:${DIONAEA_GROUP}
+
 ENTRYPOINT ["/opt/dionaea/entrypoint.sh"]
