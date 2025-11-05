@@ -44,11 +44,13 @@ RUN apt-get update && \
         libudns-dev \
         python3 \
         python3-dev \
+        python3-pip \
         python3-setuptools \
         python3-bson \
         python3-yaml \
         python3-boto3 \
-        fonts-liberation
+        fonts-liberation && \
+    pip3 install --no-cache-dir 'construct>=2.10.0' --break-system-packages
 
 RUN   git config --global --add safe.directory /code && \
       mkdir -p /code/build && \
@@ -95,11 +97,13 @@ RUN apt-get update && \
         libpython3.12t64 \
         libudns0 \
         python3 \
+        python3-pip \
         python3-setuptools \
         python3-bson \
         python3-yaml \
         python3-boto3 \
         fonts-liberation && \
+    pip3 install --no-cache-dir 'construct>=2.10.0' --break-system-packages && \
     apt-get autoremove --purge -y && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*

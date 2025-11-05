@@ -1,3 +1,6 @@
+# ABOUTME: TFTP server implementation for dionaea honeypot with RFC compliance
+# ABOUTME: Supports file downloads (RRQ) and uploads (WRQ) using Construct parser
+#
 # This file is part of the dionaea honeypot
 #
 # SPDX-FileCopyrightText: 2006-2009 Michael P. Soulier
@@ -19,7 +22,16 @@ import tempfile
 import struct
 import logging
 import os
+import hashlib
+import shutil
+from typing import Any
 from urllib import parse
+
+from construct import (
+    Struct, Int16ub, CString, GreedyRange,
+    Computed, Switch, this, Pass, GreedyBytes,
+    Adapter, ConstructError, Default
+)
 
 from dionaea import IHandlerLoader, ServiceLoader
 from dionaea.core import connection, ihandler, g_dionaea, incident
@@ -27,18 +39,142 @@ from dionaea.exception import ServiceConfigError
 
 DEF_BLKSIZE = 512
 MIN_BLKSIZE = 8
-DEF_BLKSIZE = 512
-MAX_BLKSIZE = 65536
+MAX_BLKSIZE = 65464
+
+# Upload limits (configurable)
+MAX_UPLOAD_SIZE = 100 * 1024 * 1024  # 100MB default
+MIN_FREE_DISK_SPACE = 1024 * 1024 * 1024  # 1GB minimum free space
 
 logger = logging.getLogger('tftp')
 logger.setLevel(logging.INFO)
+
+
+# ============================================================================
+# Construct-based TFTP Parser (replaces manual parsing)
+# ============================================================================
+
+# TFTP Opcodes
+OPCODE_RRQ = 1   # Read request
+OPCODE_WRQ = 2   # Write request
+OPCODE_DATA = 3  # Data packet
+OPCODE_ACK = 4   # Acknowledgment
+OPCODE_ERROR = 5 # Error
+OPCODE_OACK = 6  # Option acknowledgment
+
+
+class TFTPOptionsAdapter(Adapter):
+    """Adapter to convert TFTP options to/from dictionary"""
+    def _decode(self, obj: list[str], context: Any, path: Any) -> dict[str, str]:
+        if not obj:
+            return {}
+        result: dict[str, str] = {}
+        try:
+            for i in range(0, len(obj), 2):
+                if i + 1 < len(obj):
+                    key = obj[i].lower()
+                    value = obj[i + 1]
+                    result[key] = value
+                else:
+                    logger.debug(f"Odd number of option items, ignoring last: {obj[i]}")
+        except Exception as e:
+            logger.debug(f"Error parsing TFTP options: {e}")
+            return {}
+        return result
+
+    def _encode(self, obj: dict[str, Any], context: Any, path: Any) -> list[str]:
+        result: list[str] = []
+        for key, value in obj.items():
+            result.append(key)
+            result.append(str(value))
+        return result
+
+
+# TFTP packet structure definitions
+TFTPOptions = TFTPOptionsAdapter(GreedyRange(CString("utf8")))
+
+TFTPRequestPacket = Struct(
+    "filename" / Default(CString("utf8"), ""),
+    "mode" / Default(CString("utf8"), "octet"),
+    "options" / Default(TFTPOptions, {})
+)
+
+TFTPDataPacket = Struct(
+    "block_number" / Int16ub,
+    "data" / GreedyBytes
+)
+
+TFTPAckPacket = Struct(
+    "block_number" / Int16ub
+)
+
+TFTPErrorPacket = Struct(
+    "error_code" / Int16ub,
+    "error_msg" / Default(CString("utf8"), "")
+)
+
+TFTPOackPacket = Struct(
+    "options" / Default(TFTPOptions, {})
+)
+
+
+def _opcode_to_name(opcode: int) -> str:
+    """Convert opcode to human-readable name"""
+    names = {
+        OPCODE_RRQ: "RRQ",
+        OPCODE_WRQ: "WRQ",
+        OPCODE_DATA: "DATA",
+        OPCODE_ACK: "ACK",
+        OPCODE_ERROR: "ERROR",
+        OPCODE_OACK: "OACK"
+    }
+    return names.get(opcode, f"UNKNOWN({opcode})")
+
+
+# Main TFTP packet structure
+TFTPPacketStruct = Struct(
+    "opcode" / Int16ub,
+    "payload" / Switch(
+        this.opcode,
+        {
+            OPCODE_RRQ: TFTPRequestPacket,
+            OPCODE_WRQ: TFTPRequestPacket,
+            OPCODE_DATA: TFTPDataPacket,
+            OPCODE_ACK: TFTPAckPacket,
+            OPCODE_ERROR: TFTPErrorPacket,
+            OPCODE_OACK: TFTPOackPacket,
+        },
+        default=Pass
+    ),
+    "packet_type" / Computed(lambda ctx: _opcode_to_name(ctx.opcode))
+)
+
+
+def parse_tftp_packet(data: bytes) -> dict | None:
+    """
+    Parse TFTP packet using Construct.
+    Returns dictionary with parsed fields, or None if parsing fails.
+    """
+    try:
+        packet = TFTPPacketStruct.parse(data)
+        return packet
+    except ConstructError as e:
+        logger.debug(f"Failed to parse TFTP packet: {e}")
+        return None
+    except Exception as e:
+        logger.warning(f"Unexpected error parsing TFTP packet: {e}")
+        return None
+
+
+# ============================================================================
+# End of Construct Parser
+# ============================================================================
 
 
 class TFTPDownloadHandlerLoader(IHandlerLoader):
     name = "tftp_download"
 
     @classmethod
-    def start(cls, config=None):
+    def start(cls, config: dict[str, Any] | None = None) -> 'tftpdownloadhandler':
         return tftpdownloadhandler("dionaea.download.offer")
 
 
@@ -46,17 +182,18 @@ class TFTPService(ServiceLoader):
     name = "tftp"
 
     @classmethod
-    def start(cls, addr,  iface=None, config=None):
+    def start(cls, addr: str, iface: str | None = None, config: dict[str, Any] | None = None) -> 'TftpServer':
         daemon = TftpServer()
-        try:
-            daemon.apply_config(config)
-        except ServiceConfigError as e:
-            logger.error(e.msg, *e.args)
+        if config is not None:
+            try:
+                daemon.apply_config(config)
+            except ServiceConfigError as e:
+                logger.error(e.msg, *e.args)
         daemon.bind(addr, 69, iface=iface)
         return daemon
 
 
-def tftpassert(condition, msg):
+def tftpassert(condition: Any, msg: str) -> None:
     """This function is a simple utility that will check the condition
     passed for a false state. If it finds one, it throws a TftpException
     with the message passed. This just makes the code throughout cleaner
@@ -109,13 +246,13 @@ class TftpState:
               'err',
               'fin']
 
-    def __init__(self, state='nil'):
+    def __init__(self, state: str = 'nil') -> None:
         self.state = state
 
-    def getState(self):
+    def getState(self) -> str:
         return self.__state
 
-    def setState(self, state):
+    def setState(self, state: str) -> None:
         if state in TftpState.states:
             self.__state = state
 
@@ -125,20 +262,20 @@ class TftpSession(connection):
     """This class is the base class for the tftp client and server. Any shared
     code should be in this class."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Class constructor. Note that the state property must be a TftpState
         object."""
-        self.options = None
-        self.state = TftpState()
-        self.dups = 0
-        self.errors = 0
+        self.options: dict[str, Any] | None = None
+        self.state: TftpState = TftpState()
+        self.dups: int = 0
+        self.errors: int = 0
         connection.__init__(self, 'udp')
 
 #    def __del__(self):
 #        print('__del__' + str(self))
 
 
-    def senderror(self, errorcode):
+    def senderror(self, errorcode: int) -> None:
         """This method uses the socket passed, and uses the errorcode, address
         and port to compose and send an error packet."""
         try:
@@ -154,13 +291,13 @@ class TftpPacketWithOptions:
     regarding options handling. It does not inherit from TftpPacket, as the
     goal is just to share code here, and not cause diamond inheritance."""
 
-    def __init__(self):
-        self.options = []
+    def __init__(self) -> None:
+        self.options: list | dict[str, str] = []
 
-    def setoptions(self, options):
+    def setoptions(self, options: dict[str, Any]) -> None:
         logger.debug("in TftpPacketWithOptions.setoptions")
         logger.debug("options: %s", str(options))
-        myoptions = {}
+        myoptions: dict[str, str] = {}
         for key in options:
             newkey = str(key)
             myoptions[newkey] = str(options[key])
@@ -169,7 +306,7 @@ class TftpPacketWithOptions:
         logger.debug("setting options hash to: " + str(myoptions))
         self._options = myoptions
 
-    def getoptions(self):
+    def getoptions(self) -> dict[str, str]:
         logger.debug("in TftpPacketWithOptions.getoptions")
         return self._options
 
@@ -178,55 +315,16 @@ class TftpPacketWithOptions:
     # client to necessarily enter strings if we can avoid it.
     options = property(getoptions, setoptions)
 
-    def decode_options(self, buffer):
-        """This method decodes the section of the buffer that contains an
-        unknown number of options. It returns a dictionary of option names and
-        values."""
-        format = "!"
-        options = {}
-
-        logger.debug("decode_options: buffer is: " + repr(buffer))
-        logger.debug("size of buffer is %d bytes" % len(buffer))
-        if len(buffer) == 0:
-            logger.debug("size of buffer is zero, returning empty hash")
-            return {}
-
-        # Count the nulls in the buffer. Each one terminates a string.
-        logger.debug("about to iterate options buffer counting nulls")
-        length = 0
-        for c in buffer:
-            #logger.debug("iterating this byte: " + repr(c))
-            if c == 0 or c == '\x00':
-                logger.debug("found a null at length %d" % length)
-                if length > 0:
-                    format += "%dsx" % length
-                    length = -1
-                else:
-                    raise TftpException("Invalid options in buffer")
-            length += 1
-
-        logger.debug("about to unpack, format is: %s" % format)
-        mystruct = struct.unpack(format, buffer)
-
-        tftpassert(len(mystruct) % 2 == 0,
-                   "packet with odd number of option/value pairs")
-
-        for i in range(0, len(mystruct), 2):
-            logger.debug("setting option %s to %s" %
-                         (mystruct[i], mystruct[i+1]))
-            options[mystruct[i].decode()] = mystruct[i+1].decode()
-
-        return options
 
 class TftpPacket:
     """This class is the parent class of all tftp packet classes. It is an
     abstract class, providing an interface, and should not be instantiated
     directly."""
-    def __init__(self):
-        self.opcode = 0
-        self.buffer = None
+    def __init__(self) -> None:
+        self.opcode: int = 0
+        self.buffer: bytes | None = None
 
-    def encode(self):
+    def encode(self) -> 'TftpPacket':
         """The encode method of a TftpPacket takes keyword arguments specific
         to the type of packet, and packs an appropriate buffer in network-byte
         order suitable for sending over the wire.
@@ -234,29 +332,22 @@ class TftpPacket:
         This is an abstract method."""
         raise NotImplementedError("Abstract method")
 
-    def decode(self):
-        """The decode method of a TftpPacket takes a buffer off of the wire in
-        network-byte order, and decodes it, populating internal properties as
-        appropriate. This can only be done once the first 2-byte opcode has
-        already been decoded, but the data section does include the entire
-        datagram.
-
-        This is an abstract method."""
-        raise NotImplementedError("Abstract method")
 
 class TftpPacketInitial(TftpPacket, TftpPacketWithOptions):
     """This class is a common parent class for the RRQ and WRQ packets, as
     they share quite a bit of code."""
-    def __init__(self):
+    def __init__(self) -> None:
         TftpPacket.__init__(self)
         TftpPacketWithOptions.__init__(self)
-        self.filename = None
-        self.mode = None
+        self.filename: str | None = None
+        self.mode: str | None = None
 
-    def encode(self):
+    def encode(self) -> 'TftpPacketInitial':
         """Encode the packet's buffer from the instance variables."""
         tftpassert(self.filename, "filename required in initial packet")
         tftpassert(self.mode, "mode required in initial packet")
+        assert self.filename is not None  # For mypy
+        assert self.mode is not None  # For mypy
 
         ptype = None
         if self.opcode == 1:
@@ -299,49 +390,6 @@ class TftpPacketInitial(TftpPacket, TftpPacketWithOptions):
         logger.debug("buffer is " + repr(self.buffer))
         return self
 
-    def decode(self):
-        tftpassert(self.buffer, "Can't decode, buffer is empty")
-
-        # FIXME - this shares a lot of code with decode_options
-        nulls = 0
-        format = ""
-        nulls = length = tlength = 0
-        logger.debug("in decode: about to iterate buffer counting nulls")
-        subbuf = self.buffer[2:]
-        for c in subbuf:
-            logger.debug("iterating this byte: " + repr(c))
-            if c == 0 or c == '\x00':
-                nulls += 1
-                logger.debug("found a null at length %d, now have %d"
-                             % (length, nulls))
-                format += "%dsx" % length
-                length = -1
-                # At 2 nulls, we want to mark that position for decoding.
-                if nulls == 2:
-                    break
-            length += 1
-            tlength += 1
-
-        logger.debug("hopefully found end of mode at length %d" % tlength)
-        # length should now be the end of the mode.
-        tftpassert(nulls == 2, "malformed packet")
-        shortbuf = subbuf[:tlength+1]
-        logger.debug("about to unpack buffer with format: %s" % format)
-        logger.debug("unpacking buffer: " + repr(shortbuf))
-        mystruct = struct.unpack(format, shortbuf)
-
-        tftpassert(len(mystruct) == 2, "malformed packet")
-
-        try:
-            logger.debug("setting filename to %s" % mystruct[0])
-            self.filename = mystruct[0].decode()
-            logger.debug("setting mode to %s" % mystruct[1])
-            self.mode = mystruct[1].decode()
-        except Exception:
-            tftpassert(0, "malformed packet, filename is not decodeable")
-
-        self.options = self.decode_options(subbuf[tlength+1:])
-        return self
 
 class TftpPacketRRQ(TftpPacketInitial):
     """
@@ -350,11 +398,11 @@ class TftpPacketRRQ(TftpPacketInitial):
 RRQ/  | 01/02 |  Filename  |   0  |    Mode    |   0  |
 WRQ     -----------------------------------------------
     """
-    def __init__(self):
+    def __init__(self) -> None:
         TftpPacketInitial.__init__(self)
         self.opcode = 1
 
-    def __str__(self):
+    def __str__(self) -> str:
         s = 'RRQ packet: filename = %s' % self.filename
         s += ' mode = %s' % self.mode
         if self.options:
@@ -368,11 +416,11 @@ class TftpPacketWRQ(TftpPacketInitial):
 RRQ/  | 01/02 |  Filename  |   0  |    Mode    |   0  |
 WRQ     -----------------------------------------------
     """
-    def __init__(self):
+    def __init__(self) -> None:
         TftpPacketInitial.__init__(self)
         self.opcode = 2
 
-    def __str__(self):
+    def __str__(self) -> str:
         s = 'WRQ packet: filename = %s' % self.filename
         s += ' mode = %s' % self.mode
         if self.options:
@@ -386,21 +434,22 @@ class TftpPacketDAT(TftpPacket):
 DATA  | 03    |   Block #  |    Data    |
         ---------------------------------
     """
-    def __init__(self):
+    def __init__(self) -> None:
         TftpPacket.__init__(self)
-        self.opcode = 3
-        self.blocknumber = 0
-        self.data = None
+        self.opcode: int = 3
+        self.blocknumber: int = 0
+        self.data: bytes | None = None
 
-    def __str__(self):
+    def __str__(self) -> str:
         s = 'DAT packet: block %s' % self.blocknumber
         if self.data:
             s += '\n    data: %d bytes' % len(self.data)
         return s
 
-    def encode(self):
+    def encode(self) -> 'TftpPacketDAT':
         """Encode the DAT packet. This method populates self.buffer, and
         returns self for easy method chaining."""
+        assert self.data is not None  # For mypy
         if len(self.data) == 0:
             logger.debug("Encoding an empty DAT packet")
         format = "!HH%ds" % len(self.data)
@@ -410,20 +459,6 @@ DATA  | 03    |   Block #  |    Data    |
                                   self.data)
         return self
 
-    def decode(self):
-        """Decode self.buffer into instance variables. It returns self for
-        easy method chaining."""
-        # We know the first 2 bytes are the opcode. The second two are the
-        # block number.
-        (self.blocknumber,) = struct.unpack("!H", self.buffer[2:4])
-        logger.debug("decoding DAT packet, block number %d" % self.blocknumber)
-        logger.debug("should be %d bytes in the packet total"
-                     % len(self.buffer))
-        # Everything else is data.
-        self.data = self.buffer[4:]
-        logger.debug("found %d bytes of data"
-                     % len(self.data))
-        return self
 
 class TftpPacketACK(TftpPacket):
     """
@@ -432,25 +467,20 @@ class TftpPacketACK(TftpPacket):
 ACK   | 04    |   Block #  |
         --------------------
     """
-    def __init__(self):
+    def __init__(self) -> None:
         TftpPacket.__init__(self)
-        self.opcode = 4
-        self.blocknumber = 0
+        self.opcode: int = 4
+        self.blocknumber: int = 0
 
-    def __str__(self):
+    def __str__(self) -> str:
         return 'ACK packet: block %d' % self.blocknumber
 
-    def encode(self):
+    def encode(self) -> 'TftpPacketACK':
         logger.debug("encoding ACK: opcode = %d, block = %d"
                      % (self.opcode, self.blocknumber))
         self.buffer = struct.pack("!HH", self.opcode, self.blocknumber)
         return self
 
-    def decode(self):
-        self.opcode, self.blocknumber = struct.unpack("!HH", self.buffer)
-        logger.debug("decoded ACK packet: opcode = %d, block = %d"
-                     % (self.opcode, self.blocknumber))
-        return self
 
 class TftpPacketERR(TftpPacket):
     """
@@ -472,13 +502,13 @@ ERROR | 05    |  ErrorCode |   ErrMsg   |   0  |
     7         No such user.
     8         Failed to negotiate options
     """
-    def __init__(self):
+    def __init__(self) -> None:
         TftpPacket.__init__(self)
-        self.opcode = 5
-        self.errorcode = 0
-        self.errmsg = None
+        self.opcode: int = 5
+        self.errorcode: int = 0
+        self.errmsg: str | None = None
         # FIXME - integrate in TftpErrors references?
-        self.errmsgs = {
+        self.errmsgs: dict[int, str] = {
             1: "File not found",
             2: "Access violation",
             3: "Disk full or allocation exceeded",
@@ -489,12 +519,12 @@ ERROR | 05    |  ErrorCode |   ErrMsg   |   0  |
             8: "Failed to negotiate options"
         }
 
-    def __str__(self):
+    def __str__(self) -> str:
         s = 'ERR packet: errorcode = %d' % self.errorcode
         s += '\n    msg = %s' % self.errmsgs.get(self.errorcode, '')
         return s
 
-    def encode(self):
+    def encode(self) -> 'TftpPacketERR':
         """Encode the DAT packet based on instance variables, populating
         self.buffer, returning self."""
         format = "!HH%dsx" % len(self.errmsgs[self.errorcode])
@@ -505,18 +535,6 @@ ERROR | 05    |  ErrorCode |   ErrMsg   |   0  |
                                   self.errmsgs[self.errorcode].encode("utf-8"))
         return self
 
-    def decode(self):
-        "Decode self.buffer, populating instance variables and return self."
-        tftpassert(len(self.buffer) > 4, "malformed ERR packet, too short")
-        logger.debug("Decoding ERR packet, length %s bytes" %
-                     len(self.buffer))
-        format = "!HH%dsx" % (len(self.buffer) - 5)
-        logger.debug("Decoding ERR packet with format: %s" % format)
-        self.opcode, self.errorcode, self.errmsg = struct.unpack(format,
-                                                                 self.buffer)
-        logger.warn("ERR packet - errorcode: %d, message: %s"
-                    % (self.errorcode, self.errmsg))
-        return self
 
 class TftpPacketOACK(TftpPacket, TftpPacketWithOptions):
     """
@@ -524,17 +542,17 @@ class TftpPacketOACK(TftpPacket, TftpPacketWithOptions):
     #  |  opc  |  opt1  | 0 | value1 | 0 |  optN  | 0 | valueN | 0 |
     #  +-------+---~~---+---+---~~---+---+---~~---+---+---~~---+---+
     """
-    def __init__(self):
+    def __init__(self) -> None:
         TftpPacket.__init__(self)
         TftpPacketWithOptions.__init__(self)
-        self.opcode = 6
+        self.opcode: int = 6
 
-    def __str__(self):
+    def __str__(self) -> str:
         return 'OACK packet:\n    options = %s' % self.options
 
-    def encode(self):
+    def encode(self) -> 'TftpPacketOACK':
         format = "!H" # opcode
-        options_list = []
+        options_list: list[bytes] = []
         logger.debug("in TftpPacketOACK.encode")
         for key in self.options:
             logger.debug("looping on option key %s" % key)
@@ -546,11 +564,7 @@ class TftpPacketOACK(TftpPacket, TftpPacketWithOptions):
         self.buffer = struct.pack(format, self.opcode, *options_list)
         return self
 
-    def decode(self):
-        self.options = self.decode_options(self.buffer[2:])
-        return self
-
-    def match_options(self, options):
+    def match_options(self, options: dict[str, Any]) -> bool:
         """This method takes a set of options, and tries to match them with
         its own. It can accept some changes in those options from the server as
         part of a negotiation. Changed or unchanged, it will return a dict of
@@ -573,8 +587,8 @@ class TftpPacketFactory:
     """This class generates TftpPacket objects. It is responsible for parsing
     raw buffers off of the wire and returning objects representing them, via
     the parse() method."""
-    def __init__(self):
-        self.classes = {
+    def __init__(self) -> None:
+        self.classes: dict[int, type] = {
             1: TftpPacketRRQ,
             2: TftpPacketWRQ,
             3: TftpPacketDAT,
@@ -583,22 +597,55 @@ class TftpPacketFactory:
             6: TftpPacketOACK
         }
 
-    def parse(self, buffer):
+    def parse(self, buffer: bytes) -> TftpPacket:
         """This method is used to parse an existing datagram into its
         corresponding TftpPacket object. The buffer is the raw bytes off of
         the network."""
         logger.debug("parsing a %d byte packet" % len(buffer))
-        (opcode,) = struct.unpack("!H", buffer[:2])
+
+        # Use construct-based parser
+        result = parse_tftp_packet(buffer)
+        if result is None:
+            raise TftpException("Failed to parse TFTP packet")
+
+        opcode = result['opcode']
         logger.debug("opcode is %d" % opcode)
+
+        # Create packet object
         packet = self.__create(opcode)
         packet.buffer = buffer
-        return packet.decode()
 
-    def __create(self, opcode):
+        # Populate packet from parsed result
+        packet_type = result['packet_type']
+        payload = result['payload']
+
+        # Check for unknown packet types
+        if 'UNKNOWN' in packet_type or payload is None:
+            raise TftpException(f"Unknown or malformed TFTP packet: {packet_type}")
+
+        if packet_type in ('RRQ', 'WRQ'):
+            packet.filename = payload['filename']
+            packet.mode = payload['mode']
+            packet.options = payload['options']
+        elif packet_type == 'DATA':
+            packet.blocknumber = payload['block_number']
+            packet.data = payload['data']
+        elif packet_type == 'ACK':
+            packet.blocknumber = payload['block_number']
+        elif packet_type == 'ERROR':
+            packet.errorcode = payload['error_code']
+            packet.errmsg = payload['error_msg']
+        elif packet_type == 'OACK':
+            packet.options = payload['options']
+
+        return packet
+
+    def __create(self, opcode: int) -> TftpPacket:
         """This method returns the appropriate class object corresponding to
         the passed opcode."""
         tftpassert( opcode in self.classes,
                     "Unsupported opcode: %d" % opcode)
+        packet: TftpPacket
         if opcode == 1:
             packet = TftpPacketRRQ()
         elif opcode == 2:
@@ -619,179 +666,458 @@ class TftpPacketFactory:
 
 
 class TftpServerHandler(TftpSession):
-    def __init__ (self, state=None, root=None, localhost=None, remotehost=None, remoteport=None, packet=None):
+    def __init__(self, state: Any = None, root: str | None = None, localhost: str | None = None,
+                 remotehost: str | None = None, remoteport: int | None = None, packet: Any = None) -> None:
         TftpSession.__init__(self)
-        self.bind(localhost,0)
+        self.bind(localhost, 0)
         self.connect(remotehost, remoteport)
-        self.packet = packet
-        self.state = state
-        self.root = root
-        self.mode = None
-        self.filename = None
-        self.options = { 'blksize': DEF_BLKSIZE }
-        self.blocknumber = 0
-        self.buffer = None
-        self.fileobj = None
+        self.packet: Any = packet
+        self.state: Any = state
+        self.root: str | None = root
+        self.mode: str | None = None
+        self.filename: str | None = None
+        self.original_filename: str | None = None  # Store client's requested filename
+        self.options: dict[str, Any] = {'blksize': DEF_BLKSIZE}
+        self.blocknumber: int = 0
+        self.buffer: bytes | None = None
+        self.fileobj: Any = None
         self.timeouts.idle = 3
         self.timeouts.sustain = 120
+        # Upload tracking
+        self.bytes_uploaded: int = 0
+        self.upload_hash: Any = hashlib.sha256()  # For computing file hash during upload
 
-    def handle_timeout_idle(self):
+    def handle_timeout_idle(self) -> bool:
         return False
 
-    def handle_timeout_sustain(self):
+    def handle_timeout_sustain(self) -> bool:
         return False
 
-    def handle_io_in(self, data):
-        """This method informs a handler instance that it has data waiting on
-        its socket that it must read and process."""
-        recvpkt = self.packet.parse(data)
+    def _handle_rrq(self, recvpkt: Any, data: bytes) -> int:
+        """Handle RRQ (Read Request) packet."""
+        assert self.root is not None  # Root must be set for handler
+        logger.debug("Handler %s received RRQ packet" % self)
+        logger.debug("Requested file is %s, mode is %s" %
+                     (recvpkt.filename, recvpkt.mode))
 
-        # FIXME - refactor into another method, this is too big
-        if isinstance(recvpkt, TftpPacketRRQ):
-            logger.debug("Handler %s received RRQ packet" % self)
-            logger.debug("Requested file is %s, mode is %s" %
-                         (recvpkt.filename, recvpkt.mode))
+        # Accept both octet (binary) and netascii (text) modes
+        # For honeypot purposes, we serve raw bytes in both cases
+        if recvpkt.mode not in ['octet', 'netascii']:
+            self.senderror(TftpErrors.IllegalTftpOp)
+            logger.warn("Unsupported mode: %s" % recvpkt.mode)
+            self.close()
+            return len(data)
 
-            if recvpkt.mode != 'octet':
-                self.senderror(TftpErrors.IllegalTftpOp)
-                #raise TftpException("Unsupported mode: %s" % recvpkt.mode)
-                logger.warn("Unsupported mode: %s" % recvpkt.mode)
+        if self.state.state == 'rrq':
+            logger.debug("Received RRQ. Composing response.")
+            self.filename = self.root + os.sep + recvpkt.filename
+            logger.debug("The path to the desired file is %s" %
+                         self.filename)
+            self.filename = os.path.abspath(self.filename)
+            logger.debug("The absolute path is %s" % self.filename)
+            # Security check. Make sure it's prefixed by the tftproot.
+            if self.filename.startswith(os.path.abspath(self.root)):
+                logger.debug("The path appears to be safe: %s" %
+                             self.filename)
+            else:
+                self.errors += 1
+                self.senderror(TftpErrors.AccessViolation)
+                logger.warn("Insecure path: %s" % self.filename)
                 self.close()
                 return len(data)
 
+            # Does the file exist?
+            if os.path.exists(self.filename):
+                logger.debug("File %s exists." % self.filename)
 
-            if self.state.state == 'rrq':
-                logger.debug("Received RRQ. Composing response.")
-                self.filename = self.root + os.sep + recvpkt.filename
-                logger.debug("The path to the desired file is %s" %
-                             self.filename)
-                self.filename = os.path.abspath(self.filename)
-                logger.debug("The absolute path is %s" % self.filename)
-                # Security check. Make sure it's prefixed by the tftproot.
-                if self.filename.startswith(os.path.abspath(self.root)):
-                    logger.debug("The path appears to be safe: %s" %
-                                 self.filename)
+                # Check options
+                if 'blksize' in recvpkt.options:
+                    logger.debug("RRQ includes a blksize option")
+                    blksize = int(recvpkt.options['blksize'])
+                    del recvpkt.options['blksize']
+                    if blksize >= MIN_BLKSIZE and blksize <= MAX_BLKSIZE:
+                        logger.info("Client requested blksize = %d"
+                                    % blksize)
+                        self.options['blksize'] = blksize
+                    else:
+                        logger.warning("Client %s requested invalid "
+                                       "blocksize %d, responding with default"
+                                       % (self.remote.host, blksize))
+                        self.options['blksize'] = DEF_BLKSIZE
+
+                if 'tsize' in recvpkt.options:
+                    logger.info('RRQ includes tsize option')
+                    self.options['tsize'] = os.stat(self.filename).st_size
+                    del recvpkt.options['tsize']
+
+                if 'rollover' in recvpkt.options:
+                    rollover_val = recvpkt.options['rollover']
+                    logger.debug('RRQ includes rollover option: %s' % rollover_val)
+                    # We support block number rollover (see send_dat)
+                    # Only acknowledge non-standard rollover values in OACK
+                    # rollover:0 is standard TFTP (no rollover), doesn't need OACK
+                    if rollover_val != '0':
+                        logger.debug('Non-zero rollover value, will acknowledge in OACK')
+                        self.options['rollover'] = rollover_val
+                    else:
+                        logger.debug('rollover:0 is standard behavior, no OACK needed')
+                    del recvpkt.options['rollover']
+
+                if len(list(recvpkt.options.keys())) > 0:
+                    logger.warning("Client %s requested unsupported options: %s"
+                                   % (self.remote.host, recvpkt.options))
+
+                if self.options['blksize'] != DEF_BLKSIZE or 'tsize' in self.options or 'rollover' in self.options:
+                    logger.info("Options requested, sending OACK")
+                    self.send_oack()
                 else:
-                    self.errors += 1
+                    logger.debug("Client %s requested no options."
+                                 % self.remote.host)
+                    self.start_download()
+
+            else:
+                logger.warn("Requested file %s does not exist." %
+                            self.filename)
+                self.senderror(TftpErrors.FileNotFound)
+                self.close()
+                return len(data)
+
+        else:
+            # We're receiving an RRQ when we're not expecting one.
+            logger.warn("Received an RRQ in handler %s "
+                        "but we're in state %s" % (self.remote.host, self.state))
+            self.errors += 1
+
+        return len(data)
+
+    def _handle_wrq(self, recvpkt: Any, data: bytes) -> int:
+        """Handle WRQ (Write Request) packet."""
+        assert self.root is not None  # Root must be set for handler
+        logger.info(f"Handler {self} received WRQ packet in state {self.state.state}")
+        logger.info("Client wants to upload file %s, mode is %s" %
+                    (recvpkt.filename, recvpkt.mode))
+
+        # Accept both octet (binary) and netascii (text) modes
+        # For honeypot purposes, we save raw bytes in both cases
+        if recvpkt.mode not in ['octet', 'netascii']:
+            self.senderror(TftpErrors.IllegalTftpOp)
+            logger.warn("Unsupported mode: %s" % recvpkt.mode)
+            self.close()
+            return len(data)
+
+        if self.state.state == 'wrq':
+            logger.debug("Received WRQ. Preparing to receive file.")
+
+            # Store original filename for logging
+            self.original_filename = recvpkt.filename
+
+            # Check disk space
+            upload_dir = self.root + os.sep + "uploads"
+            if os.path.exists(upload_dir):
+                free_space = shutil.disk_usage(upload_dir).free
+                if free_space < MIN_FREE_DISK_SPACE:
+                    logger.error("Insufficient disk space: %d bytes free" % free_space)
+                    self.senderror(TftpErrors.DiskFull)
+                    self.close()
+                    return len(data)
+
+            # Create uploads directory if it doesn't exist
+            if not os.path.exists(upload_dir):
+                try:
+                    os.makedirs(upload_dir)
+                except OSError as e:
+                    logger.error("Failed to create uploads directory: %s" % e)
                     self.senderror(TftpErrors.AccessViolation)
-#                    raise TftpException("Insecure path: %s" % self.filename)
-                    logger.warn("Insecure path: %s" % self.filename)
                     self.close()
                     return len(data)
 
+            # We'll use a temporary filename until we compute the final hash
+            # For now, create a temp file to write to
+            safe_filename = os.path.basename(recvpkt.filename)
+            temp_filename = os.path.join(upload_dir, ".tmp_" + safe_filename)
+            self.filename = temp_filename
+            logger.debug("Will save uploaded file to temporary location: %s" % self.filename)
 
-                # Does the file exist?
-                if os.path.exists(self.filename):
-                    logger.debug("File %s exists." % self.filename)
+            # Security check - make sure it's in uploads directory
+            self.filename = os.path.abspath(self.filename)
+            if not self.filename.startswith(os.path.abspath(upload_dir)):
+                logger.warn("Insecure upload path: %s" % self.filename)
+                self.senderror(TftpErrors.AccessViolation)
+                self.close()
+                return len(data)
 
-                    # Check options. Currently we only support the blksize
-                    # option.
-                    if 'blksize' in recvpkt.options:
-                        logger.debug("RRQ includes a blksize option")
-                        blksize = int(recvpkt.options['blksize'])
-                        # Delete the option now that it's handled.
-                        del recvpkt.options['blksize']
-                        if blksize >= MIN_BLKSIZE and blksize <= MAX_BLKSIZE:
-                            logger.info("Client requested blksize = %d"
-                                        % blksize)
-                            self.options['blksize'] = blksize
-                        else:
-                            logger.warning("Client %s requested invalid "
-                                           "blocksize %d, responding with default"
-                                           % (self.remote.host, blksize))
-                            self.options['blksize'] = DEF_BLKSIZE
-
-                    if 'tsize' in recvpkt.options:
-                        logger.info('RRQ includes tsize option')
-                        self.options['tsize'] = os.stat(self.filename).st_size
-                        # Delete the option now that it's handled.
-                        del recvpkt.options['tsize']
-
-                    if len(list(recvpkt.options.keys())) > 0:
-                        logger.warning("Client %s requested unsupported options: %s"
-                                       % (self.remote.host, recvpkt.options))
-
-                    if self.options['blksize'] != DEF_BLKSIZE or 'tsize' in self.options:
-                        logger.info("Options requested, sending OACK")
-                        self.send_oack()
-                    else:
-                        logger.debug("Client %s requested no options."
-                                     % self.remote.host)
-                        self.start_download()
-
+            # Handle options
+            if 'blksize' in recvpkt.options:
+                logger.debug("WRQ includes a blksize option")
+                blksize = int(recvpkt.options['blksize'])
+                del recvpkt.options['blksize']
+                if blksize >= MIN_BLKSIZE and blksize <= MAX_BLKSIZE:
+                    logger.info("Client requested blksize = %d" % blksize)
+                    self.options['blksize'] = blksize
                 else:
-                    logger.warn("Requested file %s does not exist." %
-                                self.filename)
-                    self.senderror(TftpErrors.FileNotFound)
-                    self.close()
-                    return len(data)
+                    logger.warning("Client %s requested invalid blocksize %d, using default"
+                                   % (self.remote.host, blksize))
+                    self.options['blksize'] = DEF_BLKSIZE
 
-
-            else:
-                # We're receiving an RRQ when we're not expecting one.
-                logger.warn("Received an RRQ in handler %s "
-                            "but we're in state %s" % (self.remote.host, self.state))
-                self.errors += 1
-
-        # Next packet type
-        elif isinstance(recvpkt, TftpPacketACK):
-            logger.debug("Received an ACK from the client.")
-            if recvpkt.blocknumber == 0 and self.state.state == 'oack':
-                logger.debug(
-                    "Received ACK with 0 blocknumber, starting download")
-                self.start_download()
-            else:
-                if self.state.state == 'dat' or self.state.state == 'fin':
-                    if self.blocknumber == recvpkt.blocknumber:
-                        logger.debug("Received ACK for block %d"
-                                     % recvpkt.blocknumber)
-                        if self.state.state == 'fin':
-                            #                            raise TftpException, "Successful transfer."
+            if 'tsize' in recvpkt.options:
+                tsize_val = recvpkt.options['tsize']
+                logger.info('WRQ includes tsize option: %s bytes' % tsize_val)
+                # Check if upload would exceed maximum size
+                if tsize_val != '0':
+                    try:
+                        size = int(tsize_val)
+                        if size > MAX_UPLOAD_SIZE:
+                            logger.error("Upload size %d exceeds maximum %d" % (size, MAX_UPLOAD_SIZE))
+                            self.senderror(TftpErrors.DiskFull)
                             self.close()
-                        else:
-                            self.send_dat()
-                    elif recvpkt.blocknumber < self.blocknumber:
-                        # Don't resend a DAT due to an old ACK. Fixes the
-                        # sorceror's apprentice problem.
-                        logger.warn("Received old ACK for block number %d"
-                                    % recvpkt.blocknumber)
-                    else:
-                        logger.warn("Received ACK for block number "
-                                    "%d, apparently from the future"
-                                    % recvpkt.blocknumber)
+                            return len(data)
+                        logger.debug('Non-zero tsize, will acknowledge in OACK')
+                        self.options['tsize'] = tsize_val
+                    except ValueError:
+                        logger.warning("Invalid tsize value: %s" % tsize_val)
                 else:
-                    logger.warn("Received ACK with block number %d "
-                                "while in state %s"
-                                % (recvpkt.blocknumber,
-                                    self.state.state))
+                    logger.debug('tsize:0 in WRQ is meaningless, ignoring')
+                del recvpkt.options['tsize']
+
+            if 'rollover' in recvpkt.options:
+                rollover_val = recvpkt.options['rollover']
+                logger.debug('WRQ includes rollover option: %s' % rollover_val)
+                # We support block number rollover
+                # Only acknowledge non-standard rollover values in OACK
+                # rollover:0 is standard TFTP (no rollover), doesn't need OACK
+                if rollover_val != '0':
+                    logger.debug('Non-zero rollover value, will acknowledge in OACK')
+                    self.options['rollover'] = rollover_val
+                else:
+                    logger.debug('rollover:0 is standard behavior, no OACK needed')
+                del recvpkt.options['rollover']
+
+            if len(list(recvpkt.options.keys())) > 0:
+                logger.warning("Client %s requested unsupported options: %s"
+                               % (self.remote.host, recvpkt.options))
+
+            # Open file for writing
+            try:
+                self.fileobj = open(self.filename, "wb")
+            except OSError as e:
+                logger.error("Failed to open file for writing: %s" % e)
+                self.senderror(TftpErrors.AccessViolation)
+                self.close()
+                return len(data)
+
+            # Send OACK only if we negotiated options beyond defaults
+            # Don't send OACK with just default values - confuses clients
+            has_negotiated_options = (
+                self.options.get('blksize', DEF_BLKSIZE) != DEF_BLKSIZE or
+                'rollover' in self.options or
+                'tsize' in self.options
+            )
+
+            if has_negotiated_options:
+                logger.info("WRQ: Options negotiated, sending OACK: %s" % self.options)
+                self.send_oack()
+            else:
+                logger.info("WRQ: No options to negotiate, sending ACK 0 to start upload")
+                self.send_ack(0)
+                self.state.state = 'dat'
+                logger.info("WRQ: ACK 0 sent, state now 'dat', ready to receive DATA")
+        else:
+            logger.warn("Received WRQ in unexpected state %s" % self.state.state)
+            self.errors += 1
+
+        return len(data)
+
+    def _handle_ack(self, recvpkt: Any, data: bytes) -> int:
+        """Handle ACK packet."""
+        logger.debug("Received an ACK from the client.")
+        if recvpkt.blocknumber == 0 and self.state.state == 'oack':
+            logger.debug(
+                "Received ACK with 0 blocknumber, starting download")
+            self.start_download()
+        else:
+            if self.state.state == 'dat' or self.state.state == 'fin':
+                if self.blocknumber == recvpkt.blocknumber:
+                    logger.debug("Received ACK for block %d"
+                                 % recvpkt.blocknumber)
+                    if self.state.state == 'fin':
+                        self.close()
+                    else:
+                        self.send_dat()
+                elif recvpkt.blocknumber < self.blocknumber:
+                    # Don't resend a DAT due to an old ACK. Fixes the
+                    # sorceror's apprentice problem.
+                    logger.warn("Received old ACK for block number %d"
+                                % recvpkt.blocknumber)
+                else:
+                    logger.warn("Received ACK for block number "
+                                "%d, apparently from the future"
+                                % recvpkt.blocknumber)
+            else:
+                logger.warn("Received ACK with block number %d "
+                            "while in state %s"
+                            % (recvpkt.blocknumber,
+                                self.state.state))
+
+        return len(data)
+
+    def _handle_data(self, recvpkt: Any, data: bytes) -> int:
+        """Handle DATA packet (client uploading to us)."""
+        assert self.filename is not None  # Filename must be set during WRQ
+        if self.state.state not in ['dat', 'oack', 'fin']:
+            logger.warn("Received DATA packet in unexpected state %s" % self.state.state)
+            return len(data)
+
+        logger.debug("Received DATA packet %d from client" % recvpkt.blocknumber)
+
+        # Handle ACK to OACK transition
+        if self.state.state == 'oack':
+            logger.debug("Transitioning from oack to dat state")
+            self.state.state = 'dat'
+            self.blocknumber = 0
+
+        # Check if this is the expected block
+        expected_block = self.blocknumber + 1
+        if expected_block > 65535:
+            expected_block = 0
+
+        if recvpkt.blocknumber == expected_block:
+            # Check upload size limit
+            if self.bytes_uploaded + len(recvpkt.data) > MAX_UPLOAD_SIZE:
+                logger.error("Upload exceeds maximum size of %d bytes" % MAX_UPLOAD_SIZE)
+                self.senderror(TftpErrors.DiskFull)
+                if self.fileobj:
+                    self.fileobj.close()
+                    # Clean up temp file
+                    try:
+                        os.unlink(self.filename)
+                    except OSError:
+                        pass
+                self.close()
+                return len(data)
+
+            # Write data to file and update hash
+            try:
+                self.fileobj.write(recvpkt.data)
+                self.upload_hash.update(recvpkt.data)
+                self.bytes_uploaded += len(recvpkt.data)
+                self.blocknumber = recvpkt.blocknumber
+                logger.debug("Wrote %d bytes to file, block %d (total: %d bytes)" %
+                             (len(recvpkt.data), self.blocknumber, self.bytes_uploaded))
+            except OSError as e:
+                logger.error("Failed to write to file: %s" % e)
+                self.senderror(TftpErrors.AccessViolation)
+                self.close()
+                return len(data)
+
+            # Send ACK
+            self.send_ack(self.blocknumber)
+
+            # Check if this was the last packet (less than blksize)
+            if len(recvpkt.data) < int(self.options['blksize']):
+                logger.info("Upload complete: %s (%d blocks, %d bytes total)" %
+                            (self.filename, self.blocknumber, self.bytes_uploaded))
+                self.fileobj.close()
+
+                # Compute final hash
+                file_hash = self.upload_hash.hexdigest()
+                logger.info("Upload SHA256: %s" % file_hash)
+
+                # Determine final filename based on hash
+                upload_dir = os.path.dirname(self.filename)
+                hash_filename = os.path.join(upload_dir, file_hash)
+
+                # Check if file with this hash already exists
+                if os.path.exists(hash_filename):
+                    logger.info("File with hash %s already exists, discarding duplicate" % file_hash)
+                    # Remove temp file
+                    try:
+                        os.unlink(self.filename)
+                    except OSError as e:
+                        logger.warning("Failed to remove temp file: %s" % e)
+                    final_path = hash_filename
+                else:
+                    # Rename temp file to hash
+                    try:
+                        os.rename(self.filename, hash_filename)
+                        logger.info(f"Renamed {self.filename} to {hash_filename}")
+                        final_path = hash_filename
+                    except OSError as e:
+                        logger.error("Failed to rename temp file: %s" % e)
+                        final_path = self.filename
+
+                # Create incident for upload
+                icd = incident("dionaea.upload.complete")
+                icd.path = final_path
+                icd.con = self
+                icd.url = "tftp://{}/{}".format(self.local.host, self.original_filename or "unknown")
+                # Add custom fields for hash and original filename
+                icd.sha256 = file_hash
+                icd.origin_filename = self.original_filename or os.path.basename(final_path)
+                icd.report()
+
+                # Set state to 'fin' instead of closing immediately
+                # This allows final ACK to be transmitted and handles retransmissions
+                # Connection will close via idle timeout (3 seconds)
+                self.state.state = 'fin'
+                logger.debug("Upload finished, state set to 'fin', waiting for idle timeout")
+
+        elif recvpkt.blocknumber < expected_block:
+            logger.warn("Received old DATA block %d, expected %d" %
+                        (recvpkt.blocknumber, expected_block))
+            # Resend ACK for old block
+            self.send_ack(recvpkt.blocknumber)
+        else:
+            logger.warn("Received DATA block %d from future, expected %d" %
+                        (recvpkt.blocknumber, expected_block))
+
+        return len(data)
+
+    def handle_io_in(self, data: bytes) -> int:
+        """This method informs a handler instance that it has data waiting on
+        its socket that it must read and process.
+
+        Dispatches to packet-specific handlers for cleaner code organization.
+        """
+        recvpkt = self.packet.parse(data)
+
+        # Dispatch to appropriate handler based on packet type
+        if isinstance(recvpkt, TftpPacketRRQ):
+            return self._handle_rrq(recvpkt, data)
+
+        elif isinstance(recvpkt, TftpPacketWRQ):
+            return self._handle_wrq(recvpkt, data)
+
+        elif isinstance(recvpkt, TftpPacketACK):
+            return self._handle_ack(recvpkt, data)
+
+        elif isinstance(recvpkt, TftpPacketDAT):
+            return self._handle_data(recvpkt, data)
 
         elif isinstance(recvpkt, TftpPacketERR):
             logger.warn("Received error packet from client: %s" % recvpkt)
             self.state.state = 'err'
             logger.warn("Received error from client")
-#            raise TftpException("Received error from client")
             self.close()
             return len(data)
 
-        # Handle other packet types.
         else:
-            logger.warn("Received packet %s while handling a download"
-                        % recvpkt)
+            logger.warn("Received unexpected packet type %s" % recvpkt)
             self.senderror(TftpErrors.IllegalTftpOp)
-#            raise TftpException("Invalid packet received during download")
-            logger.warn("Invalid packet received during download")
+            logger.warn("Invalid packet received")
             self.close()
             return len(data)
+
         return len(data)
 
-    def start_download(self):
+    def start_download(self) -> None:
         """This method opens self.filename, stores the resulting file object
         in self.fileobj, and calls send_dat()."""
+        assert self.filename is not None  # Filename set during RRQ handling
         self.state.state = 'dat'
         self.fileobj = open(self.filename, "rb")
         self.send_dat()
 
-    def send_dat(self, resend=False):
+    def send_dat(self, resend: bool = False) -> None:
         """This method reads sends a DAT packet based on what is in self.buffer."""
         if not resend:
             blksize = int(self.options['blksize'])
@@ -814,27 +1140,47 @@ class TftpServerHandler(TftpSession):
 
 
     # FIXME - should these be factored-out into the session class?
-    def send_oack(self):
+    def send_oack(self) -> None:
         """This method sends an OACK packet based on current params."""
         logger.debug("Composing and sending OACK packet")
         oack = TftpPacketOACK()
-        oack.options = self.options
+        # Only send options that differ from defaults
+        negotiated_opts: dict[str, str] = {}
+        for key, value in self.options.items():
+            if key == 'blksize' and value == DEF_BLKSIZE:
+                # Skip default blksize unless explicitly negotiated
+                continue
+            negotiated_opts[key] = str(value)
+        oack.options = negotiated_opts
+        logger.info("Sending OACK with options: %s" % negotiated_opts)
         self.send(oack.encode().buffer)
         self.state.state = 'oack'
         logger.debug("state %s" % self.state.state)
 
+    def send_ack(self, blocknumber: int) -> None:
+        """Send an ACK packet for the given block number."""
+        logger.info("Sending ACK for block %d to %s:%d" % (blocknumber, self.remote.host, self.remote.port))
+        ack = TftpPacketACK()
+        ack.blocknumber = blocknumber
+        encoded_ack = ack.encode()
+        assert encoded_ack.buffer is not None  # Buffer set by encode()
+        logger.debug("ACK packet encoded, sending %d bytes" % len(encoded_ack.buffer))
+        self.send(encoded_ack.buffer)
+
 
 class TftpServer(TftpSession):
     shared_config_values = [
-        "root"
+        "root",
+        "allow_uploads"
     ]
 
-    def __init__(self):
+    def __init__(self) -> None:
         TftpSession.__init__(self)
-        self.packet = TftpPacketFactory()
-        self.root = ''
+        self.packet: TftpPacketFactory = TftpPacketFactory()
+        self.root: str = ''
+        self.allow_uploads: bool = True  # Default: allow uploads
 
-    def apply_config(self, config):
+    def apply_config(self, config: dict[str, Any]) -> None:
         self.root = config.get("root", self.root)
         if self.root is None:
             raise ServiceConfigError("Root path not defined")
@@ -843,11 +1189,14 @@ class TftpServer(TftpSession):
         if not os.access(self.root, os.R_OK):
             raise ServiceConfigError("Unable to list files in the '%s' directory", self.root)
 
-    def handle_io_in(self,data):
+        # Configure upload support (default: enabled)
+        self.allow_uploads = config.get("allow_uploads", self.allow_uploads)
+
+    def handle_io_in(self, data: bytes) -> int:
         logger.debug("Data ready on our main socket")
         buffer = data
         logger.debug("Read %d bytes" % len(buffer))
-        recvpkt = None
+        recvpkt: TftpPacket | None = None
         try:
             recvpkt = self.packet.parse(buffer)
         except TftpException as e:
@@ -861,34 +1210,46 @@ class TftpServer(TftpSession):
                 'rrq'), self.root, self.local.host, self.remote.host, self.remote.port, self.packet)
             t.handle_io_in(data)
         elif isinstance(recvpkt, TftpPacketWRQ):
-            logger.warn("Write requests not implemented at this time.")
-            self.senderror(TftpErrors.IllegalTftpOp)
+            if not self.allow_uploads:
+                logger.warn("WRQ packet from %s:%i rejected - uploads disabled" %
+                           (self.remote.host, self.remote.port))
+                # Send access violation error
+                errpkt = TftpPacketERR()
+                errpkt.errorcode = TftpErrors.AccessViolation
+                self.send(errpkt.encode().buffer)
+            else:
+                logger.info("WRQ packet from %s:%i, file: %s" %
+                            (self.remote.host, self.remote.port, recvpkt.filename))
+                t = TftpServerHandler(TftpState(
+                    'wrq'), self.root, self.local.host, self.remote.host, self.remote.port, self.packet)
+                logger.debug("Created WRQ handler, processing request...")
+                t.handle_io_in(data)
         return len(data)
 
 
 class TftpClient(TftpSession):
     """This class is an implementation of a tftp client. Once instantiated, a
     download can be initiated via the download() method."""
-    def __init__(self):
+    def __init__(self) -> None:
         TftpSession.__init__(self)
         self.timeouts.idle=5
         self.timeouts.sustain = 120
-        self.options = {}
-        self.packet = TftpPacketFactory()
-        self.expected_block = 0
-        self.curblock = 0
-        self.bytes = 0
-        self.filename = None
-        self.port = 0
-        self.connected = False
-        self.idlecount = 0
+        self.options: dict[str, Any] = {}
+        self.packet: TftpPacketFactory = TftpPacketFactory()
+        self.expected_block: int = 0
+        self.curblock: int = 0
+        self.bytes: int = 0
+        self.filename: str | None = None
+        self.port: int = 0
+        self.connected: bool = False
+        self.idlecount: int = 0
 
-    def __del__(self):
+    def __del__(self) -> None:
         if self.con is not None:
             self.con.unref()
             self.con = None
 
-    def download(self, con, host, port, filename, url):
+    def download(self, con: Any, host: str, port: int, filename: str, url: str) -> None:
         logger.info("Connecting to %s to download" % host)
         logger.info("    filename -> %s" % filename)
 
@@ -915,7 +1276,7 @@ class TftpClient(TftpSession):
             i.report()
 
 
-    def handle_established(self):
+    def handle_established(self) -> None:
         logger.info("connection to %s established" % self.remote.host)
         logger.info("port %i established" % self.port)
         self.remote.port = self.port
@@ -934,7 +1295,7 @@ class TftpClient(TftpSession):
 #            self.con.unref()
 #        return False
 
-    def handle_io_in(self, data):
+    def handle_io_in(self, data: bytes) -> int:
         logger.debug('Received packet from server %s:%i' %
                      (self.remote.host, self.remote.port))
 
@@ -950,6 +1311,7 @@ class TftpClient(TftpSession):
 
         recvpkt = self.packet.parse(data)
         if isinstance(recvpkt, TftpPacketDAT):
+            assert recvpkt.data is not None  # DAT packets always have data
             logger.debug("recvpkt.blocknumber = %d" % recvpkt.blocknumber)
             logger.debug("curblock = %d" % self.curblock)
 
@@ -988,7 +1350,7 @@ class TftpClient(TftpSession):
                     icd = incident("dionaea.download.complete")
                     icd.url = self.url
                     icd.path = self.fileobj.name
-                    icd.con = self.con
+                    icd.con = self
                     icd.report()
                     self.close()
                     self.fileobj.unlink(self.fileobj.name)
@@ -1065,15 +1427,15 @@ class TftpClient(TftpSession):
 
         return len(data)
 
-    def handle_error(self, err):
+    def handle_error(self, err: Any) -> None:
         pass
 
-    def handle_timeout_sustain(self):
+    def handle_timeout_sustain(self) -> bool:
         logger.debug("tftp sustain timeout!")
         self.fail()
         return False
 
-    def handle_timeout_idle(self):
+    def handle_timeout_idle(self) -> bool:
         logger.debug("tftp idle timeout!")
         if self.idlecount > 10:
             self.fail()
@@ -1082,7 +1444,7 @@ class TftpClient(TftpSession):
         self.send(self.last_packet)
         return True
 
-    def fail(self):
+    def fail(self) -> None:
         if self.fileobj:
             self.fileobj.close()
             self.fileobj.unlink(self.fileobj.name)
@@ -1091,10 +1453,11 @@ class TftpClient(TftpSession):
 
 
 class tftpdownloadhandler(ihandler):
-    def __init__(self, path):
+    def __init__(self, path: str) -> None:
         logger.debug("%s ready!" % (self.__class__.__name__))
         ihandler.__init__(self, path)
-    def handle_incident(self, icd):
+
+    def handle_incident(self, icd: Any) -> None:
         url = icd.get("url")
         if isinstance(url, bytes):
             try:

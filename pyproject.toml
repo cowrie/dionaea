@@ -1,3 +1,9 @@
+[project]
+name = "dionaea"
+dependencies = [
+    "construct>=2.10.0",
+]
+
 [tool.tox]
 legacy_tox_ini = """
 # SPDX-FileCopyrightText: none

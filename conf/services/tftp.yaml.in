@@ -4,3 +4,6 @@
 - name: tftp
   config:
     root: "@DIONAEA_STATEDIR@/tftp/root"
+    # Enable or disable upload support (WRQ packets)
+    # Default: true (allow uploads to capture attacker files)
+    allow_uploads: true
