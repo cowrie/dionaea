@@ -4,6 +4,7 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+from typing import Any
 from . import rpcservices
 from .smb import smblog
 
@@ -12,7 +13,7 @@ class SmbConfig:
     This class helps to access the config values.
     """
 
-    def __init__(self, config=None):
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
         """
         :param config: The config dict from dionaea
         :type config: Dict
@@ -21,14 +22,14 @@ class SmbConfig:
         if config is None:
             config = {}
 
-        self.native_os = "Windows 5.1"
-        self.native_lan_manager = "Windows 2000 LAN Manager"
-        self.oem_domain_name = "WORKGROUP"
-        self.os_type = 2
-        self.primary_domain = "WORKGROUP"
-        self.server_name = "HOMEUSER-3AF6FE"
-        self.shares = {}
-        self.port = 445
+        self.native_os: str = "Windows 5.1"
+        self.native_lan_manager: str = "Windows 2000 LAN Manager"
+        self.oem_domain_name: str = "WORKGROUP"
+        self.os_type: int = 2
+        self.primary_domain: str = "WORKGROUP"
+        self.server_name: str = "HOMEUSER-3AF6FE"
+        self.shares: dict[str, dict[str, Any]] = {}
+        self.port: int = 445
 
         default_shares = {
             "ADMIN$" : {
@@ -72,6 +73,7 @@ class SmbConfig:
         shares = config.get("shares")
         if shares is None:
             shares = default_shares
+        assert isinstance(shares, dict)  # For mypy
         for name, options in shares.items():
             cfg_share_types = options["type"]
             if not isinstance(cfg_share_types, list):
