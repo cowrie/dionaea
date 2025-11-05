@@ -88,8 +88,3 @@ ihandler_configs=@DIONAEA_CONFDIR@/ihandlers-enabled/*.yaml
 
 [module.pcap]
 any.interface=any
-
-[module.pptp]
-firmware_revision=1
-hostname=Vigor
-vendor_name=DrayTek

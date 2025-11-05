@@ -9,9 +9,9 @@
 #    vendor_name: Cisco Systems
 
 # DrayTek
-#    firmware_revision: 1
-#    hostname: Vigor
-#    vendor_name: DrayTek
+    firmware_revision: 1
+    hostname: Vigor
+    vendor_name: DrayTek
 
 # Linux
 #    firmware_revision: 1
