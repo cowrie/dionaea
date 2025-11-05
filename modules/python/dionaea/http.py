@@ -23,11 +23,17 @@ from dionaea.core import connection, g_dionaea, incident
 from dionaea.util import detect_shellshock
 from dionaea.exception import ServiceConfigError
 
-try:
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
     import jinja2
     import jinja2.exceptions
-except ImportError:
-    jinja2 = None
+else:
+    try:
+        import jinja2
+        import jinja2.exceptions
+    except ImportError:
+        jinja2 = None  # type: ignore[assignment]
 
 logger = logging.getLogger('http')
 logger.setLevel(logging.DEBUG)
@@ -52,7 +58,7 @@ class MultipartFormField:
 class MultipartParser:
     """Parser for multipart/form-data using Python's email module"""
 
-    def __init__(self, fp: io.BufferedReader, content_type: str, max_fields: int = 100):
+    def __init__(self, fp: io.BufferedReader | tempfile._TemporaryFileWrapper[bytes], content_type: str, max_fields: int = 100):
         """
         Parse multipart/form-data from a file-like object
 
@@ -64,7 +70,7 @@ class MultipartParser:
         self.fields: dict[str, MultipartFormField] = {}
         self._parse(fp, content_type, max_fields)
 
-    def _parse(self, fp: io.BufferedReader, content_type: str, max_fields: int) -> None:
+    def _parse(self, fp: io.BufferedReader | tempfile._TemporaryFileWrapper[bytes], content_type: str, max_fields: int) -> None:
         """Parse the multipart message"""
         try:
             # Create a synthetic HTTP-like message with headers
@@ -354,7 +360,7 @@ class httpd(connection):
         # Use own class so we can add additional files later
         self._mimetypes = mimetypes.MimeTypes()
 
-        self.request_form: cgi.FieldStorage | None = None
+        self.request_form: MultipartParser | None = None
 
     @property
     def request_fields(self):
@@ -689,6 +695,8 @@ class httpd(connection):
             return len(data)
 
         elif self.state == STATE_POST:
+            assert self.fp_tmp is not None  # For mypy - fp_tmp is always set when entering STATE_POST
+            assert self.content_length is not None  # For mypy - content_length is always set when entering STATE_POST
             data_length = len(data)
             if self.boundary:
                 pos = data.find(self.boundary)
@@ -767,7 +775,7 @@ class httpd(connection):
         Handle the POST method. Send the head and the file. But ignore the POST params.
         Use the bistreams for a better analysis.
         """
-        if self.fp_tmp is not None:
+        if self.fp_tmp is not None and self.content_type is not None:
             self.fp_tmp.seek(0)
             # Parse multipart form data using our MultipartParser
             self.request_form = MultipartParser(
@@ -814,6 +822,7 @@ class httpd(connection):
             self.copyfile(x)
 
     def handle_POST_SOAP(self, data: bytes) -> int:
+        assert self.header is not None  # For mypy - header is always set when this method is called
         soap_action = self.header.headers[b'soapaction']
         content_length = int(self.header.headers[b'content-length'].decode("ascii"))
         if len(data) < content_length:
