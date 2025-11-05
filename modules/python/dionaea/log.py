@@ -7,20 +7,20 @@
 from dionaea.core import dlhfn
 import logging
 
-handler = None
-logger = None
+handler: 'DionaeaLogHandler | None' = None
+logger: logging.Logger | None = None
 
 
 class DionaeaLogHandler(logging.Handler):
-    def __init__(self):
+    def __init__(self) -> None:
         logging.Handler.__init__(self, logging.DEBUG)
 
-    def emit(self, record):
+    def emit(self, record: logging.LogRecord) -> None:
         msg = self.format(record)
         dlhfn(record.name, record.levelno, record.pathname, record.lineno, msg)
 
 
-def new():
+def new() -> None:
     global logger
     global handler
     logger = logging.getLogger('')
@@ -29,9 +29,11 @@ def new():
     logger.addHandler(handler)
 
 
-def start():
+def start() -> None:
     pass
 
 
-def stop():
+def stop() -> None:
+    assert logger is not None  # For mypy
+    assert handler is not None  # For mypy
     logger.removeHandler(handler)

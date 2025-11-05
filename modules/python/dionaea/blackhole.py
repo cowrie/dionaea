@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 import logging
+from typing import Any
 
 from dionaea import ServiceLoader
 from dionaea.core import connection
@@ -19,15 +20,16 @@ class BlackholeService(ServiceLoader):
     name = "blackhole"
 
     @classmethod
-    def start(cls, addr, iface=None, config=None):
+    def start(cls, addr: str, iface: str | None = None, config: dict[str, Any] | None = None) -> list['Blackhole']:
         if config is None:
             config = {}
 
         services = config.get("services")
         if services is None:
             logger.warning("No services configured")
+            return []
 
-        daemons = []
+        daemons: list[Blackhole] = []
 
         for service in services:
             protocol = service.get("protocol")
@@ -57,18 +59,21 @@ class BlackholeService(ServiceLoader):
 
 
 class Blackhole(connection):
-    def __init__(self, proto=None):
+    def __init__(self, proto: str | None = None) -> None:
         logger.debug("start blackhole")
         connection.__init__(self, proto)
 
-    def handle_established(self):
+    def apply_config(self, config: dict[str, Any]) -> None:
+        pass
+
+    def handle_established(self) -> None:
         self.timeouts.idle = 10
         self.processors()
 
-    def handle_io_in(self, data):
+    def handle_io_in(self, data: bytes) -> int:
         return len(data)
 
-    def handle_timeout_idle(self):
+    def handle_timeout_idle(self) -> bool:
         logger.debug("%r handle_timeout_idle", self)
         self.close()
         return False

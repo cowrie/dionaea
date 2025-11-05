@@ -19,6 +19,7 @@ class connection:
     class _Stream:
         class _Accounting:
             bytes: int
+            limit: int
 
         class _Speed:
             limit: int
@@ -31,10 +32,12 @@ class connection:
     remote: _Endpoint
     timeouts: _Timeouts
     status: str
+    protocol: str
+    transport: str
     _in: _Stream
     _out: _Stream
 
-    def __init__(self, proto: str) -> None: ...
+    def __init__(self, proto: str | None = None) -> None: ...
     def bind(self, host: str, port: int, iface: str | None = None) -> bool: ...
     def connect(self, host: str, port: int) -> None: ...
     def listen(self, backlog: int = 1) -> bool: ...
@@ -92,5 +95,5 @@ class _Dionaea:
 # Global instance
 g_dionaea: _Dionaea
 
-# Download log handler filename (used in log.py)
-def dlhfn(filename: str) -> str: ...
+# Download log handler function (used in log.py)
+def dlhfn(name: str, level: int, pathname: str, lineno: int, msg: str) -> None: ...
