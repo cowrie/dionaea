@@ -6,15 +6,15 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 init_etc () {
-    (cd /opt/dionaea/ && cp -va --update=none template/etc .)
+    (cd /opt/dionaea/ && cp -au template/etc .)
 }
 
 init_lib () {
-    (cd /opt/dionaea/ && cp -va --update=none template/lib var/)
+    (cd /opt/dionaea/ && cp -au template/lib var/)
 }
 
 init_log () {
-    (cd /opt/dionaea/ && cp -va --update=none template/log var/)
+    (cd /opt/dionaea/ && cp -au template/log var/)
 }
 
 if [ "x$DIONAEA_FORCE_INIT" = "x1" ]; then
