@@ -4,8 +4,9 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+from typing import Any
 from dionaea import IHandlerLoader
-from dionaea.core import ihandler, incident
+from dionaea.core import ihandler, incident, connection
 from dionaea.cmd import cmdexe
 import logging
 import json
@@ -18,19 +19,20 @@ class EMUProfileHandlerLoader(IHandlerLoader):
     name = "emuprofile"
 
     @classmethod
-    def start(cls, config=None):
+    def start(cls, config: dict[str, Any] | None = None) -> 'emuprofilehandler':
         return emuprofilehandler("dionaea.module.emu.profile", config=config)
 
 
 class emuprofilehandler(ihandler):
 
-    def __init__(self, path, config=None):
+    def __init__(self, path: str, config: dict[str, Any] | None = None) -> None:
         logger.debug("%s ready!" % (self.__class__.__name__))
         ihandler.__init__(self, path)
 
-    def handle_incident(self, icd):
+    def handle_incident(self, icd: incident) -> None:
         logger.debug("profiling")
         p = icd.get("profile")
+        con: connection | None
         try:
             con = icd.get("con")
         except AttributeError:
@@ -57,11 +59,11 @@ class emuprofilehandler(ihandler):
                     i.report()
                 if api['call'] == 'WinExec':
                     r = cmdexe(None)
-                    r.con = con
+                    r.con = con  # type: ignore[attr-defined]
                     r.handle_io_in(api['args'][0].encode() + b'\0')
                 if api['call'] == 'CreateProcess':
                     r = cmdexe(None)
-                    r.con = con
+                    r.con = con  # type: ignore[attr-defined]
                     r.handle_io_in(api['args'][1].encode() + b'\0')
 
             elif state == "SOCKET":
@@ -88,6 +90,7 @@ class emuprofilehandler(ihandler):
                 if api['call'] == 'CreateProcess':
                     logger.debug("bindshell host %s port %s"  % (host, port) )
                     i = incident("dionaea.service.shell.listen")
+                    assert port is not None  # For mypy
                     i.set("port", int(port))
                     if con is not None:
                         i.set("con", con)
@@ -98,6 +101,7 @@ class emuprofilehandler(ihandler):
                     logger.debug(
                         "connectbackshell host %s port %s"  % (host, port) )
                     i = incident("dionaea.service.shell.connect")
+                    assert port is not None  # For mypy
                     i.set("port", int(port))
                     i.set("host", host)
                     if con is not None:
@@ -111,6 +115,7 @@ class emuprofilehandler(ihandler):
                     logger.debug(
                         "connectbackshell host %s port %s"  % (host, port) )
                     i = incident("dionaea.service.shell.connect")
+                    assert port is not None  # For mypy
                     i.set("port", int(port))
                     i.set("host", host)
                     if con is not None:
@@ -120,4 +125,5 @@ class emuprofilehandler(ihandler):
 
 
         # set connection sustain timeout to low value, fainting death
-        con.timeouts.sustain = 3.0
+        if con is not None:
+            con.timeouts.sustain = 3.0

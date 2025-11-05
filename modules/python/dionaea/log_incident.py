@@ -4,6 +4,7 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+from typing import Any, TextIO
 from datetime import datetime
 import hashlib
 import json
@@ -11,7 +12,7 @@ import logging
 from urllib.parse import urlparse
 
 from dionaea import IHandlerLoader
-from dionaea.core import ihandler, connection
+from dionaea.core import ihandler, connection, incident
 from dionaea.exception import LoaderError
 
 
@@ -22,17 +23,17 @@ logger.setLevel(logging.DEBUG)
 class FileHandler:
     handle_schemes = ["file"]
 
-    def __init__(self, url):
-        self.url = url
-        url = urlparse(url)
+    def __init__(self, url: str) -> None:
+        self.url: str = url
+        parsed_url = urlparse(url)
         try:
-            self.fp = open(url.path, "a")
+            self.fp: TextIO = open(parsed_url.path, "a")
         except OSError as e:
-            raise LoaderError("Unable to open file %s Error message '%s'", url.path, e.strerror)
+            raise LoaderError("Unable to open file %s Error message '%s'", parsed_url.path, e.strerror)
 
-    def submit(self, data):
-        data = json.dumps(data)
-        self.fp.write(data)
+    def submit(self, data: dict[str, Any]) -> None:
+        json_data = json.dumps(data)
+        self.fp.write(json_data)
         self.fp.write("\n")
         self.fp.flush()
 
@@ -40,16 +41,16 @@ class FileHandler:
 class HTTPHandler:
     handle_schemes = ["http", "https"]
 
-    def __init__(self, url):
-        self.url = url
+    def __init__(self, url: str) -> None:
+        self.url: str = url
 
-    def submit(self, data):
+    def submit(self, data: dict[str, Any]) -> None:
         from urllib.request import Request, urlopen
-        data = json.dumps(data)
-        data = data.encode("ASCII")
+        json_data = json.dumps(data)
+        encoded_data = json_data.encode("ASCII")
         req = Request(
             self.url,
-            data=data,
+            data=encoded_data,
             headers={
                 "Content-Type": "application/json"
             }
@@ -62,22 +63,25 @@ class LogJsonHandlerLoader(IHandlerLoader):
     name = "log_incident"
 
     @classmethod
-    def start(cls, config=None):
+    def start(cls, config: dict[str, Any] | None = None) -> 'LogJsonHandler | None':
         try:
             return LogJsonHandler("*", config=config)
         except LoaderError as e:
             logger.error(e.msg, *e.args)
+            return None
 
 
 class LogJsonHandler(ihandler):
-    def __init__(self, path, config=None):
+    def __init__(self, path: str, config: dict[str, Any] | None = None) -> None:
         logger.debug("%s ready!", self.__class__.__name__)
         ihandler.__init__(self, path)
-        self.path = path
-        self._config = config
-        self._connection_ids = {}
+        self.path: str = path
+        self._config: dict[str, Any] | None = config
+        self._connection_ids: dict[connection, str] = {}
 
-        self.handlers = []
+        self.handlers: list[FileHandler | HTTPHandler] = []
+        if config is None:
+            config = {}
         handlers = config.get("handlers")
         if not isinstance(handlers, list) or len(handlers) == 0:
             logger.warning("No handlers specified")
@@ -91,7 +95,7 @@ class LogJsonHandler(ihandler):
                     self.handlers.append(h(url=handler))
                     break
 
-    def handle_incident(self, icd):
+    def handle_incident(self, icd: incident) -> None:
         icd.dump()
         if icd.origin == "dionaea.connection.link":
             if icd.parent not in self._connection_ids:
@@ -114,9 +118,9 @@ class LogJsonHandler(ihandler):
                 logger.debug("Decode and add '%s' to icd data", n)
                 idata[n] = v.decode(encoding="utf-8", errors="replace")
             elif isinstance(v, connection):
-                k = k.decode("ASCII")
-                if k == "con":
-                    k = "connection"
+                key_name = k.decode("ASCII")
+                if key_name == "con":
+                    key_name = "connection"
 
                 tmp_data = {
                     "protocol": v.protocol,
@@ -139,7 +143,7 @@ class LogJsonHandler(ihandler):
                     conn_id = hashlib.sha256(raw_id.encode("ASCII")).hexdigest()
                     self._connection_ids[v] = conn_id
                 tmp_data["id"] = conn_id
-                idata[k] = tmp_data
+                idata[key_name] = tmp_data
             else:
                 logger.warning("Incident '%s' with unknown data type '%s' for key '%s'", icd.origin, type(v), k)
 

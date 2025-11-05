@@ -72,6 +72,8 @@ class incident:
     def report(self) -> None: ...
     def get(self, key: str, default: Any = None) -> Any: ...
     def set(self, key: str, value: Any) -> None: ...
+    def dump(self) -> None: ...
+    def keys(self) -> list[bytes]: ...
 
     # Common attributes (can have arbitrary attributes assigned)
     con: connection | None
@@ -79,6 +81,8 @@ class incident:
     file: str | None
     url: bytes | str | None
     _url: str | None
+    _callback: str | None
+    _userdata: str | None
     parent: connection | None
     child: connection | None
     username: str | None
@@ -86,9 +90,20 @@ class incident:
     command: str | None
     arguments: list[str] | None
     sha256: str | None
+    sha512: str | None
+    md5: str | None
     md5hash: str | None
+    email: str | None
+    user: str | None
     origin: str | None
     origin_filename: str | None
+    source_host: str | None
+    source_port: str | None
+    target_host: str | None
+    target_port: str | None
+    trigger: bytes | str | None
+    filename: str | None
+    filetype: str | None
 
 class _Dionaea:
     """System-wide configuration and utilities"""
