@@ -629,7 +629,7 @@ class httpd(connection):
                 return len(data)
 
             elif self.header.type == b'POST':
-                if b'content-type' not in self.header.headers and b'content-type' not in self.header.headers:
+                if b'content-type' not in self.header.headers and b'content-length' not in self.header.headers:
                     self.handle_POST()
                     return len(data)
 
@@ -706,7 +706,9 @@ class httpd(connection):
 
                     if self._check_max_request_size_reached():
                         return data_length
-                    self.fp_tmp.write(data[:length_processed])
+                    # Only write to BytesIO if we haven't exceeded max size
+                    if length_processed > 0:
+                        self.fp_tmp.write(data[:length_processed])
                     return length_processed
 
                 # boundary found
@@ -717,6 +719,8 @@ class httpd(connection):
             self.cur_length += data_length
             if self._check_max_request_size_reached():
                 return data_length
+
+            # Only write to BytesIO if we haven't exceeded max size
             if self.fp_tmp.tell() + data_length > self.content_length:
                 logger.warning("More data send as specified in the Content-Length header")
                 self.fp_tmp.write(data[:self.content_length - self.fp_tmp.tell()])
@@ -818,9 +822,23 @@ class httpd(connection):
     def handle_POST_SOAP(self, data: bytes) -> int:
         assert self.header is not None  # For mypy - header is always set when this method is called
         soap_action = self.header.headers[b'soapaction']
-        content_length = int(self.header.headers[b'content-length'].decode("ascii"))
+
+        try:
+            content_length = int(self.header.headers[b'content-length'].decode("ascii"))
+        except (KeyError, ValueError, UnicodeDecodeError) as e:
+            logger.warning("Invalid or missing Content-Length in SOAP request: %s", e)
+            self.close()
+            return len(data)
+
         if len(data) < content_length:
             return 0
+
+        # Limit SOAP message size to prevent ReDoS attacks
+        max_soap_size = 128 * 1024  # 128 KB
+        if content_length > max_soap_size:
+            logger.warning("SOAP message too large (%d bytes), ignoring", content_length)
+            self.close()
+            return content_length
 
         if soap_action == b"urn:dslforum-org:service:Time:1#SetNTPServers":
             regex = re.compile(rb"<(?P<tag_name>NewNTPServer\d)[^>]*>(?P<data>.*?)</(?P=tag_name)\s*>")
