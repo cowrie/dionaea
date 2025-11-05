@@ -300,6 +300,8 @@ void show_version(struct version *ver)
 
 #if defined(__alpha__) || defined(__alpha) || defined(_M_ALPHA)
 	#define MY_ARCH "Alpha"
+#elif defined(__aarch64__) || defined(__arm64__)
+	#define MY_ARCH "ARM64"
 #elif defined(__arm__)
 	#if defined(__ARMEB__)
 		#define MY_ARCH "ARMeb"
@@ -326,6 +328,18 @@ void show_version(struct version *ver)
 	#define MY_ARCH "RS/6000"
 #elif defined(__sparc__) || defined(sparc) || defined(__sparc)
 	#define MY_ARCH "SPARC"
+#elif defined(__riscv)
+	#if __riscv_xlen == 64
+		#define MY_ARCH "RISC-V 64"
+	#elif __riscv_xlen == 32
+		#define MY_ARCH "RISC-V 32"
+	#else
+		#define MY_ARCH "RISC-V"
+	#endif
+#elif defined(__s390x__)
+	#define MY_ARCH "s390x"
+#elif defined(__s390__)
+	#define MY_ARCH "s390"
 #else
 	#define MY_ARCH "Unknown Architecture"
 #endif

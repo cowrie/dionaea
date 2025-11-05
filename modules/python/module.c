@@ -358,6 +358,8 @@ static bool new(struct dionaea *dionaea)
 		Py_ExitStatusException(status);
 	}
 
+	g_message("Python %s", Py_GetVersion());
+
 	PyGILState_STATE gil_state = PyGILState_Ensure();
 
 	// Make sys_path absolute by prepending install prefix
