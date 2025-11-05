@@ -4,6 +4,7 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+from typing import Any
 import logging
 
 from dionaea import IHandlerLoader
@@ -17,17 +18,19 @@ class SubmitHTTPPostLoader(IHandlerLoader):
     name = "submit_http_post"
 
     @classmethod
-    def start(cls, config=None):
+    def start(cls, config: dict[str, Any] | None = None) -> 'SubmitHTTPPost':
         return SubmitHTTPPost("dionaea.download.complete.unique", config=config)
 
 
 class SubmitHTTPPost(ihandler):
-    def __init__(self, path, config=None):
+    def __init__(self, path: str, config: dict[str, Any] | None = None) -> None:
         logger.debug("%s ready!", self.__class__.__name__)
         ihandler.__init__(self, path)
-        self.tos = config.get("submit", [])
+        if config is None:
+            config = {}
+        self.tos: dict[str, Any] = config.get("submit", {})
 
-    def handle_incident(self, icd):
+    def handle_incident(self, icd: incident) -> None:
         logger.debug("submitting file")
 
         for name, to in self.tos.items():

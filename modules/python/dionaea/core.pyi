@@ -68,15 +68,17 @@ class ihandler:
 class incident:
     """Event object with arbitrary attributes"""
 
-    def __init__(self, name: str) -> None: ...
+    def __init__(self, name: str = "", **kwargs: Any) -> None: ...
     def report(self) -> None: ...
     def get(self, key: str, default: Any = None) -> Any: ...
+    def set(self, key: str, value: Any) -> None: ...
 
     # Common attributes (can have arbitrary attributes assigned)
     con: connection | None
     path: str | None
     file: str | None
     url: bytes | str | None
+    _url: str | None
     parent: connection | None
     child: connection | None
     username: str | None

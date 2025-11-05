@@ -4,11 +4,12 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-from dionaea.core import ihandler
+from typing import Any
+from dionaea.core import ihandler, incident
 from dionaea import IHandlerLoader
 
 import logging
-import boto3
+import boto3  # type: ignore[import-not-found]
 
 logger = logging.getLogger('s3')
 logger.setLevel(logging.DEBUG)
@@ -18,29 +19,31 @@ class S3HandlerLoader(IHandlerLoader):
     name = "s3"
 
     @classmethod
-    def start(cls, config=None):
+    def start(cls, config: dict[str, Any] | None = None) -> 's3handler':
         return s3handler("*", config=config)
 
 
 class s3handler(ihandler):
-    def __init__(self, path, config=None):
+    def __init__(self, path: str, config: dict[str, Any] | None = None) -> None:
         logger.debug("%s ready!" % (self.__class__.__name__))
         ihandler.__init__(self, path)
 
-        self.bucket_name = config.get("bucket_name")
-        self.region_name = config.get("region_name")
-        self.access_key_id = config.get("access_key_id")
-        self.secret_access_key = config.get("secret_access_key")
-        self.endpoint_url = config.get("endpoint_url")
-        self.verify = config.get("verify")
-        self.s3_dest_folder = config.get("s3_dest_folder")
-        self.s3 = ''
+        if config is None:
+            config = {}
+        self.bucket_name: str | None = config.get("bucket_name")
+        self.region_name: str | None = config.get("region_name")
+        self.access_key_id: str | None = config.get("access_key_id")
+        self.secret_access_key: str | None = config.get("secret_access_key")
+        self.endpoint_url: str | None = config.get("endpoint_url")
+        self.verify: bool | str | None = config.get("verify")
+        self.s3_dest_folder: str | None = config.get("s3_dest_folder")
+        self.s3: Any = None
 
 
-    def handle_incident(self, icd):
+    def handle_incident(self, icd: incident) -> None:
         pass
 
-    def handle_incident_dionaea_download_complete_unique(self, icd):
+    def handle_incident_dionaea_download_complete_unique(self, icd: incident) -> None:
 
         # Dionaea will upload unique samples to Amazon S3 bucket with Boto3 (AWS SDK Python)
         # Create an S3 client
@@ -55,6 +58,10 @@ class s3handler(ihandler):
 
             # Uploads the given file using a Boto 3 managed uploader, which will split up large
             # files automatically and upload parts in parallel.
+            assert icd.file is not None  # For mypy
+            assert self.bucket_name is not None  # For mypy
+            assert self.s3_dest_folder is not None  # For mypy
+            assert icd.md5hash is not None  # For mypy
             self.s3.upload_file(icd.file, self.bucket_name, self.s3_dest_folder+icd.md5hash)
             logger.info(f"File (MD5) uploaded to S3 bucket: {icd.md5hash}")
 
