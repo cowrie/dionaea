@@ -147,9 +147,7 @@ def load_submodules(base_pkg: Any = None) -> None:
             __import__(modname, fromlist="dummy")
         except Exception as e:
             logger.warning(f"Error loading module: {str(e)}")
-
-            for msg in traceback.format_exc().split("\n"):
-                logger.warning(msg.rstrip())
+            logger.warning(traceback.format_exc())
 
         loaded_submodules.append(modname)
 
