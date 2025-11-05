@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: CC0-1.0
 
-FROM ubuntu:24.04 AS builder
+FROM debian:bookworm AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -18,7 +18,7 @@ ENV LC_ALL=C.UTF-8 \
     LANGUAGE=C.UTF-8
 
 RUN groupadd -r ${DIONAEA_GROUP} && \
-    useradd -r -d ${DIONAEA_HOME} -m -g ${DIONAEA_GROUP} ${DIONAEA_USER}
+    useradd -r -d ${DIONAEA_HOME} -g ${DIONAEA_GROUP} ${DIONAEA_USER}
 #    adduser --system --no-create-home --shell /bin/bash --disabled-password --disabled-login
 
 COPY . /code
@@ -64,7 +64,7 @@ RUN   git config --global --add safe.directory /code && \
       (cd /opt/dionaea && mv var/lib template/ && mv var/log template/ && mv etc template/)
 
 
-FROM ubuntu:24.04 AS runtime
+FROM debian:bookworm AS runtime
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -89,12 +89,13 @@ RUN apt-get update && \
         netcat-openbsd \
         curl \
         ca-certificates \
+        libcap2-bin \
         libcurl4 \
         libev4 \
         libglib2.0-0 \
         libnetfilter-queue1 \
         libpcap0.8 \
-        libpython3.12t64 \
+        libpython3.11 \
         libudns0 \
         python3 \
         python3-pip \
@@ -109,5 +110,6 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 COPY --from=builder --chown=${DIONAEA_USER}:${DIONAEA_GROUP} ${DIONAEA_HOME} ${DIONAEA_HOME}
-
+RUN setcap cap_net_bind_service=+ep /opt/dionaea/bin/dionaea
+USER ${DIONAEA_USER}:${DIONAEA_GROUP}
 ENTRYPOINT ["/opt/dionaea/entrypoint.sh"]
