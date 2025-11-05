@@ -5,6 +5,8 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+from __future__ import annotations
+
 import logging
 import os
 import sys
@@ -58,19 +60,19 @@ class MultipartFormField:
 class MultipartParser:
     """Parser for multipart/form-data using Python's email module"""
 
-    def __init__(self, fp: io.BufferedReader | tempfile._TemporaryFileWrapper[bytes], content_type: str, max_fields: int = 100):
+    def __init__(self, fp: io.BytesIO, content_type: str, max_fields: int = 100):
         """
         Parse multipart/form-data from a file-like object
 
         Args:
-            fp: File-like object positioned at start of multipart data
+            fp: BytesIO object positioned at start of multipart data
             content_type: The Content-Type header value
             max_fields: Maximum number of fields to parse
         """
         self.fields: dict[str, MultipartFormField] = {}
         self._parse(fp, content_type, max_fields)
 
-    def _parse(self, fp: io.BufferedReader | tempfile._TemporaryFileWrapper[bytes], content_type: str, max_fields: int) -> None:
+    def _parse(self, fp: io.BytesIO, content_type: str, max_fields: int) -> None:
         """Parse the multipart message"""
         try:
             # Create a synthetic HTTP-like message with headers
@@ -329,7 +331,7 @@ class httpd(connection):
         self._out.speed.limit = 16*1024
         self.env = None
         self.boundary: bytes | None = None
-        self.fp_tmp: tempfile._TemporaryFileWrapper[bytes] | None = None
+        self.fp_tmp: io.BytesIO | None = None
         self.cur_length: int = 0
         self.content_length: int | None = None
         self.content_type: str | None = None
@@ -655,14 +657,8 @@ class httpd(connection):
                     # http://www.apps.ietf.org/rfc/rfc2046.html#sec-5.1.1
                     self.boundary = bytes("--" + m.group("boundary") + "--\r\n", "utf-8")
 
-                # dump post content to file (binary mode for POST data)
-                self.fp_tmp = tempfile.NamedTemporaryFile(
-                    mode='w+b',
-                    delete=False,
-                    dir=self.download_dir,
-                    prefix="http-",
-                    suffix=self.download_suffix
-                )
+                # accumulate post content in memory
+                self.fp_tmp = io.BytesIO()
 
                 self.cur_length = start_of_content
 
@@ -814,8 +810,6 @@ class httpd(connection):
                 fp_tmp.close()
                 icd.report()
                 os.unlink(fp_tmp.name)
-
-            os.unlink(self.fp_tmp.name)
 
         x = self.send_head()
         if x:
