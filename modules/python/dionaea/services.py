@@ -6,8 +6,9 @@
 
 import logging
 import fnmatch
+from typing import Any
 
-from dionaea.core import g_dionaea, ihandler
+from dionaea.core import g_dionaea, ihandler, incident
 from dionaea import ServiceLoader, load_config_from_files, load_submodules
 
 
@@ -16,18 +17,19 @@ logger = logging.getLogger('services')
 # global slave
 # keeps track of running services (daemons)
 # able to restart them
-g_slave = None
+g_slave: 'slave | nlslave | None' = None
 
-g_service_configs = []
+g_service_configs: list[dict[str, Any]] = []
 
 
 class slave():
-    def __init__(self, addresses=None):
-        self.addresses = addresses
-        self.services = []
-        self.daemons = {}
+    def __init__(self, addresses: dict[str, list[str]] | None = None) -> None:
+        self.addresses: dict[str, list[str]] | None = addresses
+        self.services: list[Any] = []
+        self.daemons: dict[str, dict[Any, list[Any]]] = {}
 
-    def start(self):
+    def start(self) -> None:
+        assert self.addresses is not None  # For mypy
         for iface in self.addresses:
             logger.info("Starting services on interface %s ...", iface)
             for addr in self.addresses[iface]:
@@ -55,16 +57,17 @@ class slave():
 # allows listening on new addrs
 # and discarding listeners on closed addrs
 class nlslave(ihandler):
-    def __init__(self, ifaces=None):
+    def __init__(self, ifaces: list[str] | None = None) -> None:
         ihandler.__init__(self, "dionaea.*.addr.*")
-        self.ifaces = ifaces
-        self.services = []
-        self.daemons = {}
+        self.ifaces: list[str] | None = ifaces
+        self.services: list[Any] = []
+        self.daemons: dict[str, dict[Any, list[Any]]] = {}
 
-    def handle_incident(self, icd):
+    def handle_incident(self, icd: incident) -> None:
         logger.debug("Services handling incident")
         addr = icd.get("addr")
         iface = icd.get("iface")
+        assert self.ifaces is not None  # For mypy
         for i in self.ifaces:
             logger.debug(f"Checking interface - iface:{iface} pattern:{i}")
             if fnmatch.fnmatch(iface, i):
@@ -94,7 +97,7 @@ class nlslave(ihandler):
                             s.stop(s, d)
                 break
 
-    def start(self):
+    def start(self) -> None:
         pass
 
 
@@ -107,19 +110,19 @@ class nlslave(ihandler):
 #    g_slave.start(addrs)
 
 
-def new():
+def new() -> None:
     global g_slave
     global g_service_configs
 
     logger.info("Initializing services ...")
-    dionaea_config = g_dionaea.config().get("dionaea")
+    dionaea_config = g_dionaea.config().get("dionaea", {})
 
     mode = dionaea_config.get("listen.mode")
     interface_names = dionaea_config.get("listen.interfaces")
 
-    if mode == 'manual':
-        addrs = {}
+    addrs: dict[str, list[str]] = {}
 
+    if mode == 'manual':
         addresses = dionaea_config.get("listen.addresses")
         ifaces = g_dionaea.getifaddrs()
         for iface in ifaces.keys():
@@ -135,7 +138,6 @@ def new():
         g_slave = slave(addresses=addrs)
     elif mode == 'getifaddrs':
         ifaces = g_dionaea.getifaddrs()
-        addrs = {}
         for iface in ifaces.keys():
             if interface_names is not None and iface not in interface_names:
                 logger.debug("Skipping interface %s. Not in interface list.", iface)
@@ -155,19 +157,21 @@ def new():
 
     load_submodules()
 
-    module_config = g_dionaea.config().get("module")
+    module_config = g_dionaea.config().get("module", {})
     filename_patterns = module_config.get("service_configs", [])
     g_service_configs = load_config_from_files(filename_patterns)
 
 
-def start():
+def start() -> None:
     logger.info("Starting services ...")
+    assert g_slave is not None  # For mypy
     g_slave.start()
 
 
-def stop():
+def stop() -> None:
     logger.info("Stopping services ...")
     global g_slave
+    assert g_slave is not None  # For mypy
     for addr in g_slave.daemons:
         for s in g_slave.daemons[addr]:
             for d in g_slave.daemons[addr][s]:
