@@ -8,13 +8,14 @@
 import hashlib
 import logging
 import re
+from typing import Any
 
 
 logger = logging.getLogger("util")
 logger.setLevel(logging.DEBUG)
 
 
-def md5file(filename):
+def md5file(filename: str) -> str:
     """
     Compute md5 checksum of file.
 
@@ -25,7 +26,7 @@ def md5file(filename):
     return hashfile(filename, hashlib.md5())
 
 
-def sha512file(filename):
+def sha512file(filename: str) -> str:
     """
     Compute sha512 checksum of file.
 
@@ -35,7 +36,7 @@ def sha512file(filename):
     """
     return hashfile(filename, hashlib.sha512())
 
-def sha256file(filename):
+def sha256file(filename: str) -> str:
     """
     Compute sha256 checksum of file.
 
@@ -45,7 +46,7 @@ def sha256file(filename):
     """
     return hashfile(filename, hashlib.sha256())
 
-def hashfile(filename, digest):
+def hashfile(filename: str, digest: Any) -> str:
     """
     Computer checksum of file.
 
@@ -64,7 +65,7 @@ def hashfile(filename, digest):
     return digest.hexdigest()
 
 
-def detect_shellshock(connection, data, report_incidents=True):
+def detect_shellshock(connection: Any, data: bytes, report_incidents: bool = True) -> list[bytes] | None:
     """
     Try to find Shellshock attacks, included download commands and URLs.
 
@@ -95,7 +96,7 @@ def detect_shellshock(connection, data, report_incidents=True):
     return urls
 
 
-def find_shell_download(connection, data, report_incidents=True):
+def find_shell_download(connection: Any, data: bytes, report_incidents: bool = True) -> list[bytes]:
     """
     Try to analyse the data and find download commands
 
@@ -120,12 +121,12 @@ def find_shell_download(connection, data, report_incidents=True):
 
     return urls
 
-def xor(data, key):
+def xor(data: bytes | bytearray, key: bytes | bytearray) -> bytearray:
     keylength = len(key)
     return bytearray(
         (data[i] ^ key[i % keylength]) for i in range(0, len(data))
     )
 
-def calculate_doublepulsar_opcode(t):
+def calculate_doublepulsar_opcode(t: int) -> int:
     op = (t) + (t >> 8) + (t >> 16) + (t >> 24)
     return op

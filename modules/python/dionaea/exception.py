@@ -4,12 +4,14 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-class DionaeaError(Exception):
-    def __init__(self, msg, *args):
-        self.msg = msg
-        self.args = args
+from typing import Any
 
-    def __str__(self):
+class DionaeaError(Exception):
+    def __init__(self, msg: str, *args: Any) -> None:
+        self.msg: str = msg
+        self.args: tuple[Any, ...] = args
+
+    def __str__(self) -> str:
         return self.msg % self.args
 
 
@@ -22,20 +24,20 @@ class ServiceConfigError(DionaeaError):
 
 
 class ConnectionError(DionaeaError):
-    def __init__(self, connection=None, error_id=None):
-        self.connection = connection
-        self.error_id = error_id
+    def __init__(self, connection: Any = None, error_id: int | None = None) -> None:
+        self.connection: Any = connection
+        self.error_id: int | None = error_id
 
 
 class ConnectionDNSTimeout(ConnectionError):
-    def __str__(self):
+    def __str__(self) -> str:
         return "Timeout resolving the hostname/domain: %s" % (
             self.connection.remote.hostname
         )
 
 
 class ConnectionUnreachable(ConnectionError):
-    def __str__(self):
+    def __str__(self) -> str:
         hostname = self.connection.remote.hostname
         if hostname is None or hostname == "":
             hostname = self.connection.remote.host
@@ -47,19 +49,20 @@ class ConnectionUnreachable(ConnectionError):
 
 
 class ConnectionNoSuchDomain(ConnectionError):
-    def __str__(self):
+    def __str__(self) -> str:
         return "Could not resolve the domain: %s" % (
             self.connection.remote.hostname
         )
 
 
 class ConnectionTooMany(ConnectionError):
-    def __str__(self):
+    def __str__(self) -> str:
         return "Too many connections"
 
 
 class ConnectionUnknownError(ConnectionError):
-    def __str__(self):
+    def __str__(self) -> str:
+        assert self.error_id is not None  # For mypy
         return "Unknown error occured: error_id=%d" % (
             self.error_id
         )
