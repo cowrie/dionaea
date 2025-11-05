@@ -75,6 +75,7 @@ class incident:
     # Common attributes (can have arbitrary attributes assigned)
     con: connection | None
     path: str | None
+    file: str | None
     url: bytes | str | None
     parent: connection | None
     child: connection | None
@@ -83,6 +84,7 @@ class incident:
     command: str | None
     arguments: list[str] | None
     sha256: str | None
+    md5hash: str | None
     origin: str | None
     origin_filename: str | None
 

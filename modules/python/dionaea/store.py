@@ -4,6 +4,7 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+from typing import Any
 from dionaea import IHandlerLoader
 from dionaea.core import ihandler, incident, g_dionaea
 from dionaea.exception import LoaderError
@@ -19,7 +20,7 @@ class StoreHandlerLoader(IHandlerLoader):
     name = "store"
 
     @classmethod
-    def start(cls, config=None):
+    def start(cls, config: dict[str, Any] | None = None) -> 'storehandler | None':
         try:
             return storehandler("dionaea.download.complete", config=config)
         except LoaderError as e:
@@ -28,12 +29,12 @@ class StoreHandlerLoader(IHandlerLoader):
 
 
 class storehandler(ihandler):
-    def __init__(self, path, config=None):
+    def __init__(self, path: str, config: dict[str, Any] | None = None) -> None:
         logger.debug("%s ready!" % (self.__class__.__name__))
         ihandler.__init__(self, path)
 
-        dionaea_config = g_dionaea.config().get("dionaea")
-        self.download_dir = dionaea_config.get("download.dir")
+        dionaea_config = g_dionaea.config().get("dionaea", {})
+        self.download_dir: str | None = dionaea_config.get("download.dir")
         if self.download_dir is None:
             raise LoaderError("Setting download.dir not configured")
         else:
@@ -42,12 +43,14 @@ class storehandler(ihandler):
             if not os.access(self.download_dir, os.W_OK):
                 raise LoaderError("Not allowed to create files in the '%s' directory", self.download_dir)
 
-    def handle_incident(self, icd):
+    def handle_incident(self, icd: incident) -> None:
         logger.debug("storing file")
         p = icd.path
+        assert p is not None  # For mypy
         # ToDo: use sha1 or sha256
         md5 = md5file(p)
         # ToDo: use sys.path.join()
+        assert self.download_dir is not None  # For mypy
         n = os.path.join(self.download_dir, md5)
         i = incident("dionaea.download.complete.hash")
         i.file = n
