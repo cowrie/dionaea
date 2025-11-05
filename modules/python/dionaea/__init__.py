@@ -11,45 +11,46 @@ import pkgutil
 import traceback
 from threading import Event, Thread
 from collections.abc import Callable
+from typing import Any
 
 import yaml
 
 logger = logging.getLogger('dionaea')
 logger.setLevel(logging.DEBUG)
 
-loaded_submodules = []
+loaded_submodules: list[str] = []
 
 
 class RegisterClasses(type):
-    def __init__(self, name, bases, nmspc):
+    def __init__(cls, name: str, bases: tuple[type, ...], nmspc: dict[str, Any]) -> None:
         super().__init__(name, bases, nmspc)
-        if not hasattr(self, 'registry'):
-            self.registry = set()
+        if not hasattr(cls, 'registry'):
+            cls.registry: set[type] = set()
 
-        self.registry.add(self)
-        self.registry -= set(bases)
+        cls.registry.add(cls)
+        cls.registry -= set(bases)
 
-    def __iter__(self):
-        return iter(self.registry)
+    def __iter__(cls) -> Any:
+        return iter(cls.registry)
 
 
 class ServiceLoader(metaclass=RegisterClasses):
     @classmethod
-    def start(cls, addr, iface=None):
+    def start(cls, addr: str, iface: str | None = None, config: dict[str, Any] | None = None) -> Any:
         raise NotImplementedError("do it")
 
     @classmethod
-    def stop(cls, daemon):
+    def stop(cls, daemon: Any) -> None:
         daemon.close()
 
 
 class IHandlerLoader(metaclass=RegisterClasses):
     @classmethod
-    def start(cls):
+    def start(cls, config: dict[str, Any] | None = None) -> Any:
         raise NotImplementedError("do it")
 
     @classmethod
-    def stop(cls, ihandler):
+    def stop(cls, ihandler: Any) -> None:
         ihandler.stop()
 
 
@@ -64,20 +65,18 @@ class SubTimer(Thread):
     :param args: Optional arguments passed to the callback function.
     :param kwargs: Opional arguments passed to the callback function.
     """
-    def __init__(self, interval: float, function: Callable, delay: float | None = None, repeat=False,
-                 args: list | None = None, kwargs: dict | None = None):
+    def __init__(self, interval: float, function: Callable, delay: float | None = None, repeat: bool = False,
+                 args: list | None = None, kwargs: dict | None = None) -> None:
         Thread.__init__(self)
-        self.interval = interval
-        self.function = function
-        self.delay = delay
-        if self.delay is None:
-            self.delay = self.interval
-        self.repeat = repeat
-        self.args = args if args is not None else []
-        self.kwargs = kwargs if kwargs is not None else {}
-        self.finished = Event()
+        self.interval: float = interval
+        self.function: Callable = function
+        self.delay: float = delay if delay is not None else interval
+        self.repeat: bool = repeat
+        self.args: list = args if args is not None else []
+        self.kwargs: dict = kwargs if kwargs is not None else {}
+        self.finished: Event = Event()
 
-    def cancel(self):
+    def cancel(self) -> None:
         """Stop the timer if it hasn't finished yet."""
         self.finished.set()
 
@@ -101,16 +100,14 @@ class Timer:
     :param args: Optional arguments passed to the callback function.
     :param kwargs: Opional arguments passed to the callback function.
     """
-    def __init__(self, interval: float, function: Callable, delay: float | None = None, repeat=False,
-                 args: list | None = None, kwargs: dict | None = None):
-        self.interval = interval
-        self.function = function
-        self.delay = delay
-        if self.delay is None:
-            self.delay = self.interval
-        self.repeat = repeat
-        self.args = args if args is not None else []
-        self.kwargs = kwargs if kwargs is not None else {}
+    def __init__(self, interval: float, function: Callable, delay: float | None = None, repeat: bool = False,
+                 args: list | None = None, kwargs: dict | None = None) -> None:
+        self.interval: float = interval
+        self.function: Callable = function
+        self.delay: float = delay if delay is not None else interval
+        self.repeat: bool = repeat
+        self.args: list = args if args is not None else []
+        self.kwargs: dict = kwargs if kwargs is not None else {}
         self._timer: SubTimer | None = None
 
     def start(self) -> None:
@@ -136,7 +133,7 @@ class Timer:
         self.start()
 
 
-def load_submodules(base_pkg=None):
+def load_submodules(base_pkg: Any = None) -> None:
     if base_pkg is None:
         import dionaea as base_pkg
 
@@ -157,8 +154,8 @@ def load_submodules(base_pkg=None):
         loaded_submodules.append(modname)
 
 
-def load_config_from_files(filename_patterns):
-    configs = []
+def load_config_from_files(filename_patterns: list[str]) -> list[dict[str, Any]]:
+    configs: list[dict[str, Any]] = []
     for filename_pattern in filename_patterns:
         for filename in glob.glob(filename_pattern):
             fp = open(filename)
@@ -166,16 +163,16 @@ def load_config_from_files(filename_patterns):
                 file_configs = yaml.safe_load(fp)
             except yaml.YAMLError as e:
                 if hasattr(e, 'problem_mark'):
-                    mark = e.problem_mark
+                    mark = e.problem_mark  # type: ignore[attr-defined]
                     logger.error(
                         "Error while parsing config file '%s' at line: %d column: %d message: '%s'",
                         filename,
                         mark.line + 1,
                         mark.column + 1,
-                        e.problem
+                        e.problem  # type: ignore[attr-defined]
                     )
-                    if e.context is not None:
-                        logger.debug("Parser(context): %s" % e.context)
+                    if e.context is not None:  # type: ignore[attr-defined]
+                        logger.debug("Parser(context): %s" % e.context)  # type: ignore[attr-defined]
                 else:
                     logger.error("Unknown error while parsing config file '%s'", filename)
 
