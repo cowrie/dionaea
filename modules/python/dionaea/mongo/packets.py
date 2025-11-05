@@ -4,6 +4,7 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+from typing import Any
 from dionaea.smb.include.packet import Packet
 from dionaea.smb.include.fieldtypes import StrNullField, LEIntField, LELongField
 
@@ -18,7 +19,7 @@ class MsgCommand(Packet):
 
 class MsgCommandReply(Packet):
     name = "Wire Protocol OP_COMMANDREPLY"
-    fields_desc = []
+    fields_desc: list[Any] = []
 
 
 class MsgHeader(Packet):
@@ -30,7 +31,7 @@ class MsgHeader(Packet):
         LEIntField("opCode", 0)
     ]
 
-    def post_build(self, p, pay):
+    def post_build(self, p: bytes, pay: bytes) -> bytes:
         self.messageLength = len(pay) + 16
         p = self.do_build()
         return p + pay
