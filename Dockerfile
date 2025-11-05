@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: CC0-1.0
 
-FROM debian:bookworm AS builder
+FROM debian:trixie-slim AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -32,6 +32,7 @@ RUN apt-get update && \
         -o Dpkg::Progress-Fancy="0" \
         build-essential \
         cmake \
+        curl \
         cython3 \
         git \
         libcurl4-openssl-dev \
@@ -44,13 +45,11 @@ RUN apt-get update && \
         libudns-dev \
         python3 \
         python3-dev \
-        python3-pip \
+        python3-construct \
         python3-setuptools \
         python3-bson \
         python3-yaml \
-        python3-boto3 \
-        fonts-liberation && \
-    pip3 install --no-cache-dir 'construct>=2.10.0' --break-system-packages
+        fonts-liberation
 
 RUN   git config --global --add safe.directory /code && \
       mkdir -p /code/build && \
@@ -64,7 +63,7 @@ RUN   git config --global --add safe.directory /code && \
       (cd /opt/dionaea && mv var/lib template/ && mv var/log template/ && mv etc template/)
 
 
-FROM debian:bookworm AS runtime
+FROM debian:trixie-slim AS runtime
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -85,7 +84,7 @@ RUN apt-get update && \
         -o APT::Install-Recommends=false \
         -o Dpkg::Use-Pty="0" \
         gdb \
-        vim \
+        vim-tiny \
         netcat-openbsd \
         curl \
         ca-certificates \
@@ -95,16 +94,14 @@ RUN apt-get update && \
         libglib2.0-0 \
         libnetfilter-queue1 \
         libpcap0.8 \
-        libpython3.11 \
         libudns0 \
         python3 \
-        python3-pip \
+        python3-construct \
         python3-setuptools \
         python3-bson \
         python3-yaml \
-        python3-boto3 \
+#        python3-boto3 \
         fonts-liberation && \
-    pip3 install --no-cache-dir 'construct>=2.10.0' --break-system-packages && \
     apt-get autoremove --purge -y && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
