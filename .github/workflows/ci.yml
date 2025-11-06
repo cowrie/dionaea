@@ -64,7 +64,8 @@ jobs:
             python3-yaml \
             python3-boto3 \
             fonts-liberation
-          pip install --break-system-packages speakeasy-emulator
+          # Install speakeasy-emulator (try with --break-system-packages for newer pip, fallback without)
+          pip install --break-system-packages speakeasy-emulator 2>/dev/null || pip install speakeasy-emulator
 
       - name: Build
         run: |
@@ -120,7 +121,8 @@ jobs:
             python3-yaml \
             python3-boto3 \
             fonts-liberation
-          pip install --break-system-packages speakeasy-emulator \
+          # Install speakeasy-emulator (try with --break-system-packages for newer pip, fallback without)
+          pip install --break-system-packages speakeasy-emulator 2>/dev/null || pip install speakeasy-emulator \
             wget
 
       - name: Build and install
