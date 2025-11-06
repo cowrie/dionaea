@@ -107,6 +107,9 @@ target_include_directories(emu_unicorn PUBLIC
     ${UNICORN_INCLUDE_DIRS}
 )
 
+# Compile with -fPIC since this static library is linked into shared objects
+set_target_properties(emu_unicorn PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 # Note: emu_unicorn is a static library linked into speakeasy.so at build time
 # No need to install it - the code is embedded in speakeasy.so
 
