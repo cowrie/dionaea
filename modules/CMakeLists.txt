@@ -22,6 +22,10 @@ if(WITH_MODULE_EMU)
   endif()
 endif()
 
+if(WITH_MODULE_SPEAKEASY)
+  add_subdirectory(speakeasy)
+endif()
+
 #if(WITH_MODULE_NC)
 #  add_subdirectory(nc)
 #endif()

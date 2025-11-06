@@ -144,6 +144,7 @@ install_available_python_config(
         nfq.yaml
         p0f.yaml
         s3.yaml
+        speakeasy.yaml
         store.yaml
         submit_http_post.yaml
         submit_http.yaml
@@ -159,6 +160,7 @@ install_enabled_python_config(
         emuprofile.yaml
         ftp.yaml
         log_sqlite.yaml
+        speakeasy.yaml
         store.yaml
         tftp_download.yaml
 )

@@ -24,7 +24,7 @@ cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 
 project(
     dionaea
-    VERSION 0.11.0
+    VERSION 0.12.0
     LANGUAGES C
 )
 
@@ -58,6 +58,7 @@ endif()
 option(VERBOSE "Enable verbose output?" OFF)
 option(WITH_MODULE_CURL "Build the curl module" ON)
 option(WITH_MODULE_EMU "Build the emu module" OFF)
+option(WITH_MODULE_SPEAKEASY "Build speakeasy shellcode detection module" ON)
 #option(WITH_MODULE_NC "Build the nc module" OFF)
 option(WITH_MODULE_NFQ "Build the nfq module" ON)
 option(WITH_MODULE_NL "Build the nl module" OFF)
@@ -98,6 +99,12 @@ pkg_check_modules(GLIB2 REQUIRED glib-2.0>=2.30)
 pkg_check_modules(GMODULE2 REQUIRED gmodule-2.0>=2.30)
 
 pkg_check_modules(LIBEMU libemu)
+
+# Build Unicorn-based libemu replacement (for speakeasy module)
+if(WITH_MODULE_SPEAKEASY)
+    add_subdirectory(vendor/unicorn-libemu-shim)
+endif()
+
 pkg_check_modules(NFQUEUE libnetfilter_queue)
 pkg_check_modules(LIBNL3 libnl-3.0)
 pkg_check_modules(LIBNL3_ROUTE libnl-route-3.0)

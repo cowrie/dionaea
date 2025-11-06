@@ -24,3 +24,4 @@ List of available modules
     emu
     pcap
     python
+    speakeasy

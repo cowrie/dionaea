@@ -11,6 +11,23 @@ Changelog
 0.12.0 - (`main`_)
 --------------------
 
+**modules**
+
+* Add new speakeasy shellcode detection module (replaces legacy emu module)
+  * Fast C-based x86 GetPC pattern detection
+  * Python-based Speakeasy emulation for comprehensive shellcode analysis
+  * Detects downloads (URLDownloadToFile), command execution (WinExec, CreateProcess), bind/reverse shells
+  * Integrates with dionaea's download system and command emulation
+  * Enabled by default for SMB, EPMAPPER, NFQMIRROR, MSSQL, HTTP protocols
+
+**core**
+
+* Fix incident logging to display binary data as hex preview instead of raw bytes
+
+**documentation**
+
+* Add comprehensive Speakeasy module documentation (doc/source/module/speakeasy.rst)
+
 0.11.0 - (2020-11-30)
 ---------------------
 

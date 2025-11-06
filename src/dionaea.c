@@ -682,7 +682,7 @@ opt->stdOUT.filter);
 	// ToDo: check error
 	for (proc_name = proc_names; *proc_name; proc_name++) {
 		processors_tree_create(d->processors->tree, *proc_name);
-		g_debug("processo: %s", *proc_name);
+		g_debug("processor: %s", *proc_name);
 	}
 
 	processors_tree_dump(d->processors->tree, 0);

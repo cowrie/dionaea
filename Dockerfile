@@ -45,11 +45,13 @@ RUN apt-get update && \
         libudns-dev \
         python3 \
         python3-dev \
+        python3-pip \
         python3-construct \
         python3-setuptools \
         python3-bson \
         python3-yaml \
-        fonts-liberation
+        fonts-liberation && \
+    pip install --break-system-packages speakeasy-emulator
 
 RUN   git config --global --add safe.directory /code && \
       mkdir -p /code/build && \
@@ -100,13 +102,20 @@ RUN apt-get update && \
         python3-setuptools \
         python3-bson \
         python3-yaml \
-#        python3-boto3 \
         fonts-liberation && \
     apt-get autoremove --purge -y && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 COPY --from=builder --chown=${DIONAEA_USER}:${DIONAEA_GROUP} ${DIONAEA_HOME} ${DIONAEA_HOME}
+
+# Copy Python packages (unicorn, speakeasy, and dependencies) from builder stage
+COPY --from=builder /usr/local/lib/python3.13/dist-packages /usr/local/lib/python3.13/dist-packages
+
+# Create symlink for unicorn library (pip installs as libunicorn.so but we need libunicorn.so.1)
+RUN ln -s /usr/local/lib/python3.13/dist-packages/unicorn/lib/libunicorn.so \
+          /usr/local/lib/python3.13/dist-packages/unicorn/lib/libunicorn.so.1
+
 RUN setcap cap_net_bind_service=+ep /opt/dionaea/bin/dionaea
 
 ENTRYPOINT ["/opt/dionaea/entrypoint.sh"]

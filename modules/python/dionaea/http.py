@@ -638,7 +638,7 @@ class httpd(connection):
 
                 try:
                     self.content_length = int(self.header.headers[b'content-length'].decode("utf-8"))
-                    self.content_type = self.header.headers[b'content-type'].decode("utf-8")
+                    self.content_type = self.header.headers.get(b'content-type', b'application/octet-stream').decode("utf-8")
                 except Exception:
                     # ignore decode() errors
                     logger.warning("Ignoring decode errors", exc_info=True)

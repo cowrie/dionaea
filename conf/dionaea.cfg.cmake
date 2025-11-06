@@ -4,8 +4,8 @@
 [dionaea]
 download.dir=@DIONAEA_STATEDIR@/binaries/
 #modules=curl,python,nfq,emu,pcap
-modules=curl,python
-processors=filter_streamdumper
+modules=curl,python,speakeasy
+processors=filter_streamdumper,filter_speakeasy
 
 listen.mode=getifaddrs
 # listen.addresses=127.0.0.1
@@ -72,6 +72,18 @@ config.limits.listen=30
 config.limits.cpu=120
 #// 1024 * 1024 * 1024
 config.limits.steps=1073741824
+
+# Speakeasy shellcode detector (minimal C detector + Python Speakeasy emulation)
+# Enabled by default for SMB, EPMAPPER, NFQMIRROR, MSSQL protocols
+# HTTP added temporarily for testing
+[processor.filter_speakeasy]
+name=filter
+config.allow.0.types=accept
+config.allow.0.protocols=smbd,epmapper,nfqmirrord,mssqld,httpd
+next=speakeasy
+
+[processor.speakeasy]
+name=speakeasy
 
 [module.nfq]
 queue=2

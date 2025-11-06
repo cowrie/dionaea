@@ -1,0 +1,74 @@
+// ABOUTME: Dionaea module registration for Speakeasy shellcode detector
+// ABOUTME: Registers the processor with dionaea's plugin system
+
+/**
+ * This file is part of the dionaea honeypot
+ *
+ * SPDX-FileCopyrightText: 2009 Paul Baecher & Markus Koetter
+ * SPDX-FileCopyrightText: 2024 Michel Oosterhof
+ *
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ */
+
+#include <glib.h>
+#include <stdio.h>
+
+#include "modules.h"
+#include "connection.h"
+#include "dionaea.h"
+
+#include "module.h"
+#include "log.h"
+#include "processor.h"
+
+#define D_LOG_DOMAIN "speakeasy"
+
+static bool speakeasy_config(void)
+{
+	g_debug("%s", __PRETTY_FUNCTION__);
+	return true;
+}
+
+static bool speakeasy_new(struct dionaea *d)
+{
+	g_debug("%s", __PRETTY_FUNCTION__);
+
+	// Register the speakeasy processor with dionaea
+	g_hash_table_insert(g_dionaea->processors->names,
+	                    (void *)proc_speakeasy.name,
+	                    &proc_speakeasy);
+
+	g_info("Speakeasy shellcode detector registered");
+	return true;
+}
+
+static bool speakeasy_free(void)
+{
+	g_debug("%s", __PRETTY_FUNCTION__);
+	return true;
+}
+
+static bool speakeasy_hup(void)
+{
+	g_debug("%s", __PRETTY_FUNCTION__);
+	return true;
+}
+
+/**
+ * Module initialization entry point
+ * Called by dionaea when loading the module
+ */
+struct module_api *module_init(struct dionaea *d)
+{
+	g_debug("%s:%i %s dionaea %p", __FILE__, __LINE__, __PRETTY_FUNCTION__, d);
+
+	static struct module_api speakeasy_api = {
+		.config = &speakeasy_config,
+		.start = NULL,
+		.new = &speakeasy_new,
+		.free = &speakeasy_free,
+		.hup = &speakeasy_hup
+	};
+
+	return &speakeasy_api;
+}

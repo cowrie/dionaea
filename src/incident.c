@@ -130,6 +130,20 @@ void opaque_data_dump(struct opaque_data *d, int indent)
 		g_snprintf(x+indent, 1023, "%s: (int) %li", d->name, d->opaque.integer);
 		break;
 	case opaque_type_bytes:
+		{
+			// For binary data, show size and hex preview instead of raw bytes
+			int data_len = (int)d->opaque.string->len;
+			int preview_len = (data_len < 16) ? data_len : 16;
+			char hex_preview[49] = {0};  // 16 bytes * 2 hex chars + 1 null
+			for (int i = 0; i < preview_len; i++) {
+				g_snprintf(hex_preview + i*2, 3, "%02x",
+				          (unsigned char)d->opaque.string->str[i]);
+			}
+			g_snprintf(x+indent, 1023, "%s: (bytes) %d bytes [%s%s]",
+			          d->name, data_len, hex_preview,
+			          preview_len < data_len ? "..." : "");
+		}
+		break;
 	case opaque_type_string:
 		g_snprintf(x+indent, 1023, "%s: (string) %.*s", d->name, (int)d->opaque.string->len, d->opaque.string->str);
 		break;

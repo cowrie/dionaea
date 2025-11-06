@@ -9,6 +9,8 @@ Dockerfile
 .idea
 .github
 .drone.yml
+.direnv
 venv/
 doc/venv/
+build
 *.pyc
