@@ -34,11 +34,6 @@ static void hook_code(uc_engine *uc, uint64_t address, uint32_t size, void *user
 
     counter->steps++;
 
-    // Debug: print first few instructions
-    if (counter->steps <= 5) {
-        printf("  Step %u: EIP=0x%08lx size=%u\n", counter->steps, address, size);
-    }
-
     // Stop after max steps
     if (counter->steps >= counter->max_steps) {
         counter->stopped = true;
@@ -102,12 +97,6 @@ static uint32_t try_execute(struct emu *e, uint8_t *data, uint32_t size,
     // Try to execute
     err = uc_emu_start(e->uc, start_eip, STATIC_OFFSET + size, 0, max_steps);
 
-    if (err != UC_ERR_OK && counter.steps < 10) {
-        // Only log if we failed early - indicates a real problem
-        fprintf(stderr, "Unicorn execution failed at offset %u after %u steps: %s\n",
-                offset, counter.steps, uc_strerror(err));
-    }
-
     // Remove hook
     uc_hook_del(e->uc, hook);
 
@@ -140,15 +129,10 @@ int32_t emu_shellcode_test_x86(struct emu *e, uint8_t *data, uint16_t size)
     for (offset = 0; offset < size; offset++) {
         if (emu_getpc_check_x86(e, data, size, offset)) {
             getpc_offsets[getpc_count++] = offset;
-            // Debug: log first few GetPC patterns found
-            if (getpc_count <= 5) {
-                printf("Found GetPC pattern at offset %u (byte: 0x%02x)\n", offset, data[offset]);
-            }
         }
     }
 
     // No GetPC patterns found - probably not shellcode
-    printf("Total GetPC patterns found: %u\n", getpc_count);
     if (getpc_count == 0) {
         free(getpc_offsets);
         return -1;
@@ -175,8 +159,6 @@ int32_t emu_shellcode_test_x86(struct emu *e, uint8_t *data, uint16_t size)
         results[i].steps_executed = steps;
         results[i].success = (steps > 0);
 
-        printf("Offset %u executed %u steps\n", offset, steps);
-
         if (steps > best_steps) {
             best_steps = steps;
             best_offset = offset;
@@ -189,7 +171,6 @@ int32_t emu_shellcode_test_x86(struct emu *e, uint8_t *data, uint16_t size)
     free(results);
 
     // Step 3: Return best offset if it executed enough steps
-    printf("Best offset: %u with %u steps (threshold: %u)\n", best_offset, best_steps, SHELLCODE_THRESHOLD);
     if (best_steps >= SHELLCODE_THRESHOLD)
         return (int32_t)best_offset;
 
