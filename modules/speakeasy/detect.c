@@ -129,8 +129,8 @@ void proc_speakeasy_on_io_in(struct connection *con, struct processor_data *pd)
 
 	g_debug("emu_shellcode_test_x86 returned: %d", ret);
 
-	// Update offset to avoid re-scanning
-	ctx->offset += size;
+	// Update offset to end of scanned data (accounting for lookback)
+	ctx->offset = offset + size;
 
 	if (ret >= 0) {
 		// Shellcode detected at offset ret
