@@ -59,6 +59,7 @@ class SpeakeasyShellcodeHandler(ihandler):
         Receives incident with:
         - data: shellcode bytes
         - offset: detected shellcode offset
+        - arch: architecture (x86 or x86_64)
         - con: connection object
         """
 
@@ -69,27 +70,29 @@ class SpeakeasyShellcodeHandler(ihandler):
         # Extract incident data
         try:
             shellcode_data = icd.get("data")
+            arch = icd.get("arch", "x86")  # Default to x86 for backwards compatibility
             con: connection | None = icd.get("con")
         except (AttributeError, KeyError) as e:
             logger.error("Missing required incident data: %s", e)
             return
 
-        logger.info("Analyzing shellcode: %d bytes", len(shellcode_data))
+        logger.info("Analyzing shellcode: %d bytes (arch: %s)", len(shellcode_data), arch)
 
         # Analyze with Speakeasy
         try:
-            results = self._analyze_shellcode(shellcode_data)
+            results = self._analyze_shellcode(shellcode_data, arch)
             if results:
                 self._process_results(results, con)
         except Exception as e:
             logger.error("Speakeasy analysis failed: %s", e, exc_info=True)
 
-    def _analyze_shellcode(self, data: bytes) -> dict[str, Any] | None:
+    def _analyze_shellcode(self, data: bytes, arch: str = "x86") -> dict[str, Any] | None:
         """
         Run Speakeasy emulation on shellcode.
 
         Args:
             data: Shellcode bytes starting from GetPC position
+            arch: Architecture - "x86" for 32-bit or "x86_64" for 64-bit
 
         Returns emulation results with API calls, network activity, file operations, etc.
         """
@@ -98,7 +101,7 @@ class SpeakeasyShellcodeHandler(ihandler):
         except ImportError:
             return None
 
-        logger.debug("Starting Speakeasy emulation")
+        logger.debug("Starting Speakeasy emulation (arch: %s)", arch)
 
         # Validate shellcode data
         if not data or len(data) == 0:
@@ -109,12 +112,16 @@ class SpeakeasyShellcodeHandler(ihandler):
         # Pass config=None to use Speakeasy's built-in defaults (60s timeout, 256k max API calls)
         se = speakeasy.Speakeasy(logger=logger, config=None)
 
+        # Map architecture name to Speakeasy format
+        # C code sends "x86" or "x86_64", Speakeasy expects "x86" or "x64"
+        speakeasy_arch = "x64" if arch == "x86_64" else "x86"
+
         # Run shellcode emulation
         try:
             # Load shellcode into emulation space
             sc_addr = se.load_shellcode(
                 'shellcode',
-                'x86',  # TODO: Support amd64 when C detector adds 64-bit support
+                speakeasy_arch,
                 data=data
             )
 

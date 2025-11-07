@@ -327,6 +327,111 @@ config = {
 
 ---
 
+## 9. Capstone-Based Validation
+
+**Status**: Planned
+**Priority**: Low
+**Complexity**: Low-Medium
+
+### Description
+Currently, shellcode detection uses pattern matching to find GetPC sequences (CALL/POP, FNSTENV). This is fast but can have false positives when random data happens to contain matching byte sequences.
+
+Adding Capstone disassembler validation would confirm that detected patterns are actually valid executable code, reducing false positives.
+
+### Implementation Notes
+
+**Two-stage detection:**
+
+1. **Pattern matching (fast path):**
+   ```c
+   int offset = detect_shellcode_patterns(data, size);
+   if (offset < 0) return -1;  // No pattern found
+   ```
+
+2. **Capstone validation (slow path, only on match):**
+   ```c
+   if (!capstone_validate_instructions(data + offset, size - offset)) {
+       return -1;  // Pattern found but not valid code
+   }
+   return offset;  // Confirmed shellcode
+   ```
+
+**Capstone validation logic:**
+```c
+#include <capstone/capstone.h>
+
+bool capstone_validate_instructions(void *data, int size, const char *arch) {
+    csh handle;
+    cs_insn *insn;
+
+    // Select architecture
+    cs_arch arch_id = CS_ARCH_X86;
+    cs_mode mode = (strcmp(arch, "x86_64") == 0) ? CS_MODE_64 : CS_MODE_32;
+
+    if (cs_open(arch_id, mode, &handle) != CS_CS_ERR_OK)
+        return false;
+
+    // Disassemble first N bytes
+    size_t count = cs_disasm(handle, data, MIN(size, 128), 0x1000, 0, &insn);
+
+    // Heuristics for valid shellcode:
+    // - At least 5 valid instructions
+    // - High instruction density (>80% of bytes are valid instructions)
+    // - Contains typical shellcode patterns (calls, jumps, syscalls)
+
+    bool is_valid = (count >= 5);
+
+    cs_free(insn, count);
+    cs_close(&handle);
+    return is_valid;
+}
+```
+
+**Configuration option:**
+```yaml
+# conf/services/speakeasy.yaml
+capstone_validation: false  # Optional, disabled by default for performance
+```
+
+### Benefits
+- Reduces false positive rate
+- Validates that patterns are actual executable code
+- Can detect instruction quality/density
+- Same library works for x86-32, x86-64, ARM64
+
+### Performance Impact
+- Pattern matching: ~1ms (current)
+- Capstone validation: +2-5ms (only on pattern match)
+- Since validation only runs on suspected shellcode, impact is minimal
+
+### Dependencies
+- Requires libcapstone-dev package
+- Already used internally by Unicorn/Speakeasy
+- Widely available in package managers
+
+### Alternative: Unicorn-Based Validation
+Instead of Capstone, could use Unicorn to attempt execution:
+```c
+// Try to execute first few instructions
+// If it crashes immediately, probably not shellcode
+bool unicorn_validate(data, size) {
+    uc_engine *uc;
+    uc_open(UC_ARCH_X86, UC_MODE_32, &uc);
+    uc_mem_map(uc, 0x1000, 0x1000, UC_PROT_ALL);
+    uc_mem_write(uc, 0x1000, data, MIN(size, 64));
+
+    // Try to execute first instruction
+    uc_err err = uc_emu_start(uc, 0x1000, 0x1040, 0, 1);
+
+    uc_close(uc);
+    return (err == UC_ERR_OK);
+}
+```
+
+This approach uses existing dependencies but is slower than Capstone.
+
+---
+
 ## Implementation Priority
 
 Recommended order of implementation:

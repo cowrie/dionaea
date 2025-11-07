@@ -73,6 +73,44 @@ void proc_speakeasy_ctx_free(void *ctx)
 }
 
 /**
+ * Detect x86-64 shellcode using GetPC pattern matching
+ *
+ * Scans for common x86-64 GetPC sequences:
+ * - call $+5; pop rax/rbx/rcx/rdx/rsi/rdi
+ *
+ * Returns offset of shellcode start, or -1 if not found
+ */
+static int detect_shellcode_x64(void *data, int size)
+{
+	unsigned char *bytes = (unsigned char *)data;
+
+	// Common x86-64 GetPC patterns: E8 00 00 00 00 <pop reg>
+	// call $+5 is always E8 00 00 00 00
+	// Followed by pop into 64-bit register:
+	// 58 = pop rax, 5B = pop rbx, 59 = pop rcx, 5A = pop rdx
+	// 5E = pop rsi, 5F = pop rdi, 5D = pop rbp, 5C = pop rsp (rare)
+
+	for (int i = 0; i <= size - 6; i++) {
+		// Check for: call $+5 (E8 00 00 00 00)
+		if (bytes[i] == 0xE8 &&
+		    bytes[i+1] == 0x00 &&
+		    bytes[i+2] == 0x00 &&
+		    bytes[i+3] == 0x00 &&
+		    bytes[i+4] == 0x00) {
+
+			// Check for pop into common 64-bit register
+			unsigned char pop_reg = bytes[i+5];
+			if (pop_reg >= 0x58 && pop_reg <= 0x5F) {
+				g_info("Found x86-64 GetPC pattern at offset %d (call+pop)", i);
+				return i;
+			}
+		}
+	}
+
+	return -1;
+}
+
+/**
  * Process incoming data for shellcode detection
  *
  * This function:
@@ -122,19 +160,35 @@ void proc_speakeasy_on_io_in(struct connection *con, struct processor_data *pd)
 		}
 	}
 
-	// Detect shellcode using libemu's GetPC pattern detection
+	// Try detecting shellcode for both architectures
+	// Check x86-32 first (most common), then x86-64
 	struct emu *e = emu_new();
-	int ret = emu_shellcode_test_x86(e, streamdata, size);
+	int ret_x86 = emu_shellcode_test_x86(e, streamdata, size);
 	emu_free(e);
 
-	g_debug("emu_shellcode_test_x86 returned: %d", ret);
+	int ret_x64 = detect_shellcode_x64(streamdata, size);
+
+	g_debug("Detection results: x86=%d x64=%d", ret_x86, ret_x64);
 
 	// Update offset to end of scanned data (accounting for lookback)
 	ctx->offset = offset + size;
 
+	// Determine which architecture was detected (prefer earliest offset)
+	int ret = -1;
+	const char *arch = NULL;
+
+	if (ret_x86 >= 0 && (ret_x64 < 0 || ret_x86 <= ret_x64)) {
+		ret = ret_x86;
+		arch = "x86";
+	} else if (ret_x64 >= 0) {
+		ret = ret_x64;
+		arch = "x86_64";
+	}
+
 	if (ret >= 0) {
 		// Shellcode detected at offset ret
-		g_info("Shellcode detected at offset %d (stream size: %d)", ret, size);
+		g_info("Shellcode detected at offset %d (arch: %s, stream size: %d)",
+		       ret, arch, size);
 
 		// Create incident with shellcode data for Python Speakeasy handler
 		struct incident *ix = incident_new("dionaea.shellcode.detected");
@@ -146,6 +200,9 @@ void proc_speakeasy_on_io_in(struct connection *con, struct processor_data *pd)
 
 		// Offset is always 0 (execution starts at beginning of data)
 		incident_value_int_set(ix, "offset", 0);
+
+		// Attach architecture for Python handler
+		incident_value_string_set(ix, "arch", (char *)arch);
 
 		// Attach connection for context and increase refcount for async processing
 		incident_value_con_set(ix, "con", con);
