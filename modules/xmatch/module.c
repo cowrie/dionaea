@@ -21,32 +21,27 @@
 
 static bool xmatch_config(void)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
 	return true;
 }
 
 static bool xmatch_prepare(void)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
 	g_hash_table_insert(g_dionaea->processors->names, (void *)proc_xmatch.name, &proc_xmatch);
 	return true;
 }
 
 static bool xmatch_new(struct dionaea *d)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
 	return true;
 }
 
 static bool xmatch_free(void)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
 	return true;
 }
 
 static bool xmatch_hup(void)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
 	return true;
 }
 

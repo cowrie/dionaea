@@ -29,7 +29,6 @@ static struct
 
 static bool nc_config(void)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
 	return true;
 }
 
@@ -126,13 +125,11 @@ static bool nc_new(struct dionaea *d)
 
 static bool nc_free(void)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
 	return true;
 }
 
 static bool nc_hup(void)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
 	return true;
 }
 

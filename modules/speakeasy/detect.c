@@ -58,8 +58,6 @@ void *proc_speakeasy_ctx_cfg_new(gchar *group_name)
  */
 void *proc_speakeasy_ctx_new(void *cfg)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
-
 	struct speakeasy_ctx *ctx = g_malloc0(sizeof(struct speakeasy_ctx));
 	ctx->offset = 0;
 
@@ -71,7 +69,6 @@ void *proc_speakeasy_ctx_new(void *cfg)
  */
 void proc_speakeasy_ctx_free(void *ctx)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
 	g_free(ctx);
 }
 

@@ -99,7 +99,6 @@ static void nl_io_in_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 
 static bool nl_config(void)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
 	return true;
 }
 
@@ -334,8 +333,6 @@ static void nl_ihandler_cb(struct incident *i, void *ctx)
 
 static bool nl_new(struct dionaea *d)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
-
 	GError *error = NULL;
 	gboolean lookup_ethernet_addr;
 
@@ -394,14 +391,11 @@ static bool nl_new(struct dionaea *d)
 
 static bool nl_free(void)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
 	return true;
 }
 
 static bool nl_hup(void)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
-
 	GHashTableIter iter;
 	gpointer key, value;
 	g_hash_table_iter_init(&iter, nl_runtime.link_addr_cache);

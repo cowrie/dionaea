@@ -126,8 +126,6 @@ bool nfq_prepare(void)
 
 static bool nfq_start(void)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
-
 	ev_io_init(&nfq_runtime.io, nfq_io_cb, nfq_runtime.fd, EV_READ);
 	ev_io_start(g_dionaea->loop, &nfq_runtime.io);
 	return true;

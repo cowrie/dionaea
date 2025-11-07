@@ -25,14 +25,11 @@
 
 static bool speakeasy_config(void)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
 	return true;
 }
 
 static bool speakeasy_new(struct dionaea *d)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
-
 	// Register the speakeasy processor with dionaea
 	g_hash_table_insert(g_dionaea->processors->names,
 	                    (void *)proc_speakeasy.name,
@@ -44,13 +41,11 @@ static bool speakeasy_new(struct dionaea *d)
 
 static bool speakeasy_free(void)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
 	return true;
 }
 
 static bool speakeasy_hup(void)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
 	return true;
 }
 

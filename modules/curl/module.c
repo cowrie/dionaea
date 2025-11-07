@@ -266,7 +266,6 @@ static void timer_cb(struct ev_loop *loop,  struct ev_timer *w, int revents)
 
 static void session_info_free(struct session_socket *info)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
 	if( info )
 	{
 		if( ev_is_active(&info->io) )
@@ -277,8 +276,6 @@ static void session_info_free(struct session_socket *info)
 
 static void session_set_socket(struct session *session, struct session_socket *info, curl_socket_t s, int action)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
-
 	int kind = (action&CURL_POLL_IN?EV_READ:0)|(action&CURL_POLL_OUT?EV_WRITE:0);
 
 	info->sockfd = s;
@@ -577,8 +574,6 @@ static bool curl_config(void)
 {
   GError *error = NULL;
 
-  g_debug("%s", __PRETTY_FUNCTION__);
-
   curl_runtime.download_dir = g_key_file_get_string(g_dionaea->config, "dionaea", "download.dir", &error);
 
   return true;
@@ -586,8 +581,6 @@ static bool curl_config(void)
 
 static bool curl_new(struct dionaea *d)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
-
 	if( curl_global_init(CURL_GLOBAL_ALL) != 0 )
 		return false;
 
@@ -654,14 +647,12 @@ static bool curl_new(struct dionaea *d)
 
 static bool curl_freex(void)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
 	curl_global_cleanup();
 	return true;
 }
 
 static bool curl_hup(void)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
 	return true;
 }
 

@@ -28,26 +28,22 @@ static struct
 
 static bool emu_config(void)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
 	return true;
 }
 
 static bool emu_new(struct dionaea *d)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
 	g_hash_table_insert(g_dionaea->processors->names, (void *)proc_emu.name, &proc_emu);
 	return true;
 }
 
 static bool emu_free(void)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
 	return true;
 }
 
 static bool emu_hup(void)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
 	return true;
 }
 

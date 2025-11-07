@@ -175,14 +175,11 @@ static void pcap_io_in_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 
 static bool pcap_config(void)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
 	return true;
 }
 
 static bool pcap_prepare(void)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
-
 	pcap_runtime.devices = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
 
 	char errbuf[PCAP_ERRBUF_SIZE];
@@ -340,7 +337,6 @@ static bool pcap_prepare(void)
 
 static bool pcap_new(struct dionaea *d)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
 	pcap_prepare();
 
 	GHashTableIter iter;
@@ -359,7 +355,6 @@ static bool pcap_new(struct dionaea *d)
 
 static bool pcap_free(void)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
 	GHashTableIter iter;
 	gpointer key, value;
 
@@ -377,7 +372,6 @@ static bool pcap_free(void)
 
 static bool pcap_hup(void)
 {
-	g_debug("%s", __PRETTY_FUNCTION__);
 	return true;
 }
 
