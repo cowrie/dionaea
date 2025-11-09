@@ -202,7 +202,7 @@ void proc_speakeasy_on_io_in(struct connection *con, struct processor_data *pd)
 		incident_value_int_set(ix, "offset", 0);
 
 		// Attach architecture for Python handler
-		incident_value_string_set(ix, "arch", (char *)arch);
+		incident_value_string_set(ix, "arch", g_string_new(arch));
 
 		// Attach connection for context and increase refcount for async processing
 		incident_value_con_set(ix, "con", con);
