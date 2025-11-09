@@ -70,8 +70,12 @@ class SpeakeasyShellcodeHandler(ihandler):
         # Extract incident data
         try:
             shellcode_data = icd.get("data")
-            arch = icd.get("arch", "x86")  # Default to x86 for backwards compatibility
             con: connection | None = icd.get("con")
+
+            # Get architecture (may be None for old C code without x64 support)
+            arch = icd.get("arch")
+            if arch is None:
+                arch = "x86"  # Default to x86 for backwards compatibility
         except (AttributeError, KeyError) as e:
             logger.error("Missing required incident data: %s", e)
             return
