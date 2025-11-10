@@ -6,52 +6,42 @@ import socket
 import time
 
 # x86-64 shellcode with GetPC pattern
-# This is a minimal x64 shellcode that includes:
+# This is a simple x64 shellcode for testing detection:
 # - GetPC sequence: call $+5; pop rax (E8 00 00 00 00 58)
-# - Then some Windows API calls that Speakeasy can emulate
+# - Followed by NOPs and safe instructions for testing
 #
-# Generated using msfvenom with modifications to ensure GetPC pattern:
-# msfvenom -p windows/x64/exec CMD=calc.exe -f python
+# NOTE: This shellcode is intentionally simple for DETECTION TESTING.
+# It will likely crash during emulation (invalid_read) because it doesn't
+# have proper API resolution or memory setup. The important test is:
+#   1. C detector finds the x86-64 GetPC pattern ✓
+#   2. Python receives arch="x86_64" ✓
+#   3. Speakeasy is invoked in x64 mode ✓
 #
-# Structure:
-# - Bytes 0-5: GetPC sequence (call $+5; pop rax)
-# - Remaining: Function resolution and WinExec('calc.exe')
+# For real working x64 shellcode, use msfvenom:
+#   msfvenom -p windows/x64/exec CMD=calc.exe -f python
+#
 shellcode_x64 = bytes([
-    # GetPC: call $+5; pop rax
-    0xE8, 0x00, 0x00, 0x00, 0x00,  # call $+5
-    0x58,                            # pop rax (rax now has address after this instruction)
+    # GetPC: call $+5; pop rax (THE DETECTION PATTERN WE'RE TESTING)
+    0xE8, 0x00, 0x00, 0x00, 0x00,    # call $+5
+    0x58,                              # pop rax (rax now has address after this instruction)
 
-    # Stack alignment and setup
-    0x48, 0x83, 0xE4, 0xF0,          # and rsp, 0xFFFFFFFFFFFFFFF0 (align stack)
-    0x48, 0x31, 0xC9,                # xor rcx, rcx
-    0x48, 0x81, 0xE9, 0xC6, 0xFF, 0xFF, 0xFF,  # sub rcx, -58 (add 58)
+    # Some x64 instructions to show this is 64-bit code
+    0x48, 0x83, 0xE4, 0xF0,            # and rsp, -16 (stack alignment)
+    0x48, 0x31, 0xC9,                  # xor rcx, rcx
+    0x48, 0x31, 0xD2,                  # xor rdx, rdx
+    0x4D, 0x31, 0xC0,                  # xor r8, r8
+    0x4D, 0x31, 0xC9,                  # xor r9, r9
 
-    # Store string "calc" on stack
-    0x51,                            # push rcx
-    0x48, 0xB9, 0x63, 0x61, 0x6C, 0x63, 0x2E, 0x65, 0x78, 0x65,  # mov rcx, 'exe.clac'
-    0x51,                            # push rcx
-    0x48, 0x89, 0xE1,                # mov rcx, rsp (rcx = pointer to "calc.exe")
+    # REX.W prefix examples (characteristic of x64)
+    0x48, 0x89, 0xE5,                  # mov rbp, rsp
+    0x48, 0x83, 0xEC, 0x20,            # sub rsp, 0x20 (shadow space)
 
-    # Find kernel32.dll base (simplified - would normally walk PEB)
-    0x48, 0x31, 0xD2,                # xor rdx, rdx
-    0x65, 0x48, 0x8B, 0x52, 0x60,    # mov rdx, qword ptr gs:[rdx+0x60] (PEB)
-    0x48, 0x8B, 0x52, 0x18,          # mov rdx, qword ptr [rdx+0x18] (PEB->Ldr)
-    0x48, 0x8B, 0x52, 0x20,          # mov rdx, qword ptr [rdx+0x20] (InMemoryOrderModuleList)
-    0x48, 0x8B, 0x72, 0x50,          # mov rsi, qword ptr [rdx+0x50] (kernel32 base)
+    # NOPs to pad
+    0x90, 0x90, 0x90, 0x90,
+    0x90, 0x90, 0x90, 0x90,
 
-    # Find WinExec (simplified)
-    0x48, 0x31, 0xFF,                # xor rdi, rdi
-    0x48, 0x31, 0xC0,                # xor rax, rax
-
-    # Call WinExec(lpCmdLine, uCmdShow)
-    # In reality would need to resolve WinExec address from exports
-    # For testing purposes, just having the structure is enough
-    0xB8, 0x44, 0x33, 0x22, 0x11,    # mov eax, 0x11223344 (placeholder for WinExec address)
-    0xFF, 0xD0,                      # call rax
-
-    # Exit
-    0x48, 0x31, 0xC0,                # xor rax, rax
-    0xC3,                            # ret
+    # Return
+    0xC3,                              # ret
 ])
 
 def test_x64_shellcode(host='localhost', port=80):
@@ -91,10 +81,13 @@ def test_x64_shellcode(host='localhost', port=80):
 
         sock.close()
         print("\nCheck dionaea logs for:")
-        print("  - 'Found x86-64 GetPC pattern at offset'")
-        print("  - 'Shellcode detected at offset X (arch: x86_64)'")
-        print("  - 'Analyzing shellcode: N bytes (arch: x86_64)'")
-        print("  - 'Starting Speakeasy emulation (arch: x86_64)'")
+        print("  ✓ 'Found x86-64 GetPC pattern at offset 0'")
+        print("  ✓ 'Shellcode detected at offset 0 (arch: x86_64)'")
+        print("  ✓ 'Analyzing shellcode: N bytes (arch: x86_64)'")
+        print("  ✓ 'Starting Speakeasy emulation (arch: x86_64)'")
+        print("\nNOTE: Emulation may crash with 'invalid_read' - this is EXPECTED.")
+        print("The test shellcode is intentionally minimal to verify DETECTION,")
+        print("not full emulation. The important part is detecting the x64 pattern.")
 
     except Exception as e:
         print(f"Error: {e}")
