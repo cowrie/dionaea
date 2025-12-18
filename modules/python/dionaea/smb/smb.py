@@ -303,7 +303,7 @@ class smbd(connection):
 #							rntlmchallenge.TargetNameFields.Len = 0x1E
 #							rntlmchallenge.TargetNameFields.MaxLen = 0x1E
 
-                        rntlmchallenge.ServerChallenge = b"\xa4\xdf\xe8\x0b\xf5\xc6\x1e\x3a"
+                        rntlmchallenge.ServerChallenge = os.urandom(8)
                         rntlmssp = rntlmssp / rntlmchallenge
                         rntlmssp.show()
                         raw = rntlmssp.build()
@@ -353,7 +353,7 @@ class smbd(connection):
 #								rntlmchallenge.TargetNameFields.Offset = 0x38
 #								rntlmchallenge.TargetNameFields.Len = 0x1E
 #								rntlmchallenge.TargetNameFields.MaxLen = 0x1E
-                            rntlmchallenge.ServerChallenge = b"\xa4\xdf\xe8\x0b\xf5\xc6\x1e\x3a"
+                            rntlmchallenge.ServerChallenge = os.urandom(8)
                             rntlmssp = rntlmssp / rntlmchallenge
                             rntlmssp.show()
                             negtokentarg = NegTokenTarg(
