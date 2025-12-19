@@ -148,8 +148,18 @@ void connection_dtls_error(struct connection *con)
 {
 	con->transport.dtls.ssl_error = ERR_get_error();
 	ERR_error_string(con->transport.dtls.ssl_error, con->transport.dtls.ssl_error_string);
-	if( con->transport.dtls.ssl_error != 0 )
-		g_debug("SSL ERROR %s\t%s", con->transport.dtls.ssl_error_string, SSL_state_string_long(con->transport.dtls.ssl));
+	if( con->transport.dtls.ssl_error != 0 ) {
+		if( strstr(con->transport.dtls.ssl_error_string, "no suitable signature algorithm") != NULL ) {
+			g_warning("DTLS handshake failed: %s (client %s:%s, version: %s, state: %s)",
+				con->transport.dtls.ssl_error_string,
+				con->remote.ip_string,
+				con->remote.port_string,
+				SSL_get_version(con->transport.dtls.ssl),
+				SSL_state_string_long(con->transport.dtls.ssl));
+		} else {
+			g_debug("SSL ERROR %s\t%s", con->transport.dtls.ssl_error_string, SSL_state_string_long(con->transport.dtls.ssl));
+		}
+	}
 }
 
 void connection_dtls_connect_again(struct ev_loop *loop, struct ev_io *w, int revents)
@@ -218,12 +228,22 @@ void connection_dtls_accept_again(struct ev_loop *loop, struct ev_io *w, int rev
 			break;
 
 		case SSL_ERROR_SYSCALL:
-			g_debug("SSL_ERROR_SYSCALL %s:%i", __FILE__,  __LINE__);
+			g_warning("DTLS handshake failed: SYSCALL error (client %s:%s, errno: %d %s, version: %s, state: %s)",
+				con->remote.ip_string,
+				con->remote.port_string,
+				errno, strerror(errno),
+				SSL_get_version(con->transport.dtls.ssl),
+				SSL_state_string_long(con->transport.dtls.ssl));
 //			connection_dtls_disconnect(con);
 			break;
 
 		case SSL_ERROR_SSL:
-			g_debug("SSL_ERROR_SSL %s:%i", __FILE__,  __LINE__);
+			g_warning("DTLS handshake failed: SSL error (client %s:%s, error: %s, version: %s, state: %s)",
+				con->remote.ip_string,
+				con->remote.port_string,
+				con->transport.dtls.ssl_error_string,
+				SSL_get_version(con->transport.dtls.ssl),
+				SSL_state_string_long(con->transport.dtls.ssl));
 //			connection_dtls_disconnect(con);
 			break;
 
@@ -305,11 +325,17 @@ void connection_dtls_io_in(struct ev_loop *loop, struct ev_io *w, int revents)
 			break;
 
 		case SSL_ERROR_SYSCALL:
-			g_debug("SSL_ERROR_SYSCALL %s:%i", __FILE__,  __LINE__);
+			g_warning("DTLS read failed: SYSCALL error (client %s:%s, errno: %d %s)",
+				con->remote.ip_string,
+				con->remote.port_string,
+				errno, strerror(errno));
 			break;
 
 		case SSL_ERROR_SSL:
-			g_debug("SSL_ERROR_SSL %s:%i", __FILE__,  __LINE__);
+			g_warning("DTLS read failed: SSL error (client %s:%s, error: %s)",
+				con->remote.ip_string,
+				con->remote.port_string,
+				con->transport.dtls.ssl_error_string);
 			break;
 		default:
 			g_debug("SSL_ERROR %i %i",r, action);

@@ -515,18 +515,25 @@ void connection_tls_io_in_cb(EV_P_ struct ev_io *w, int revents)
 			break;
 
 		case SSL_ERROR_SYSCALL:
-			g_debug("SSL_ERROR_SYSCALL %s:%i", __FILE__,  __LINE__);
 			if( err == 0 )
-				g_debug("remote closed protocol, violating the specs!");
-			else
-				if( err == -1 )
-				perror("read");
+				g_warning("TLS protocol violation: remote %s:%s closed without proper shutdown (version: %s)",
+					con->remote.ip_string,
+					con->remote.port_string,
+					SSL_get_version(con->transport.tls.ssl));
+			else if( err == -1 )
+				g_warning("TLS read failed: SYSCALL error (client %s:%s, errno: %d %s)",
+					con->remote.ip_string,
+					con->remote.port_string,
+					errno, strerror(errno));
 
 			connection_tls_disconnect(con);
 			break;
 
 		case SSL_ERROR_SSL:
-			g_debug("SSL_ERROR_SSL %s:%i", __FILE__,  __LINE__);
+			g_warning("TLS read failed: SSL error (client %s:%s, error: %s)",
+				con->remote.ip_string,
+				con->remote.port_string,
+				con->transport.tls.ssl_error_string);
 			connection_tls_disconnect(con);
 			break;
 		}
@@ -729,12 +736,22 @@ void connection_tls_handshake_again_cb(EV_P_ struct ev_io *w, int revents)
 			break;
 
 		case SSL_ERROR_SYSCALL:
-			g_debug("SSL_ERROR_SYSCALL %s:%i", __FILE__,  __LINE__);
+			g_warning("TLS handshake failed: SYSCALL error (client %s:%s, errno: %d %s, version: %s, state: %s)",
+				con->remote.ip_string,
+				con->remote.port_string,
+				errno, strerror(errno),
+				SSL_get_version(con->transport.tls.ssl),
+				SSL_state_string_long(con->transport.tls.ssl));
 			connection_tls_disconnect(con);
 			break;
 
 		case SSL_ERROR_SSL:
-			g_debug("SSL_ERROR_SSL %s:%i", __FILE__,  __LINE__);
+			g_warning("TLS handshake failed: SSL error (client %s:%s, error: %s, version: %s, state: %s)",
+				con->remote.ip_string,
+				con->remote.port_string,
+				con->transport.tls.ssl_error_string,
+				SSL_get_version(con->transport.tls.ssl),
+				SSL_state_string_long(con->transport.tls.ssl));
 			connection_tls_disconnect(con);
 			break;
 		}
@@ -761,6 +778,11 @@ void connection_tls_handshake_again_timeout_cb(EV_P_ struct ev_timer *w, int rev
 	switch( con->type )
 	{
 	case connection_type_connect:
+		g_warning("TLS handshake timeout (outbound to %s:%s, version: %s, state: %s)",
+			con->remote.ip_string,
+			con->remote.port_string,
+			SSL_get_version(con->transport.tls.ssl),
+			SSL_state_string_long(con->transport.tls.ssl));
 		ev_timer_stop(EV_A_ &con->events.handshake_timeout);
 		ev_io_stop(EV_A_ &con->events.io_out);
 		(void)close(con->socket);
@@ -768,6 +790,11 @@ void connection_tls_handshake_again_timeout_cb(EV_P_ struct ev_timer *w, int rev
 		connection_connect_next_addr(con);
 		break;
 	case connection_type_accept:
+		g_warning("TLS handshake timeout (inbound from %s:%s, version: %s, state: %s)",
+			con->remote.ip_string,
+			con->remote.port_string,
+			SSL_get_version(con->transport.tls.ssl),
+			SSL_state_string_long(con->transport.tls.ssl));
 		connection_tls_disconnect(con);
 		break;
 	case connection_type_listen:
