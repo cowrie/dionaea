@@ -412,7 +412,7 @@ cdef connection_timeouts connection_timeouts_from(c_connection *con) with gil:
 cdef extern from "modules.h":
 	void * c_traceable_ctx_new_cb "traceable_ctx_new_cb" (c_connection *con)
 	void * c_traceable_ctx_free_cb "traceable_ctx_free_cb" (void *ctx)
-	void c_traceable_origin_cb "traceable_origin_cb" (c_connection *origin, c_connection *con)
+	void c_traceable_origin_cb "traceable_origin_cb" (c_connection *con, c_connection *origin)
 	void c_traceable_established_cb "traceable_established_cb" (c_connection *con)
 	unsigned int c_traceable_io_in_cb "traceable_io_in_cb" (c_connection_ *con, void *context, c_unsigned_char *data, c_uint32_t size)
 	void c_traceable_io_out_cb "traceable_io_out_cb"(c_connection *con, void *context)

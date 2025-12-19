@@ -306,7 +306,7 @@ bool connection_bind(struct connection *con, const char *addr, uint16_t port, co
 #else
 					g_warning("your operating system lacks IP_PKTINFO - if you got multiple ip addresses better turn off udp services");
 #endif
-			}else
+			}
 #endif
 #ifdef SOL_IPV6
 			if( socket_domain == PF_INET6 )

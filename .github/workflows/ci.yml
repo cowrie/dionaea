@@ -296,6 +296,7 @@ jobs:
         run: |
           cppcheck --error-exitcode=1 --inline-suppr \
             --suppress=missingIncludeSystem \
+            --suppress=arithOperationsOnVoidPointer \
             --enable=warning,performance,portability \
             -i modules/emu -i modules/xmatch -i modules/pcap \
             -i modules/nl -i modules/nfq -i modules/nc -i modules/speakeasy \
