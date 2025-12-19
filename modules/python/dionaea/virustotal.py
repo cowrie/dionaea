@@ -142,13 +142,14 @@ class virustotalhandler(ihandler):
         vtr = self.cookies[cookie]
 
         if j['response_code'] == -2:
-            logger.warn("api throttle")
+            logger.warning("VirusTotal API throttle for %s", vtr.sha256hash[:16])
             self.cursor.execute(
                 """UPDATE backlogfiles SET status = ? WHERE backlogfile = ?""", (vtr.status, vtr.backlogfile))
             self.dbh.commit()
         elif j['response_code'] == -1:
-            logger.warn("something is wrong with your virustotal api key")
+            logger.warning("VirusTotal API key invalid or missing")
         elif j['response_code'] == 0: # file unknown
+            logger.info("VirusTotal: file %s not found, queuing for submission", vtr.sha256hash[:16])
             # mark for submit
             if vtr.status == 'new':
                 self.cursor.execute(
@@ -158,7 +159,9 @@ class virustotalhandler(ihandler):
                     """UPDATE backlogfiles SET lastcheck_time = strftime("%s",'now') WHERE backlogfile = ?""", (vtr.backlogfile,))
             self.dbh.commit()
         elif j['response_code'] == 1: # file known
-            #            self.cursor.execute("""UPDATE backlogfiles SET status = 'comment', lastcheck_time = strftime("%s",'now') WHERE backlogfile = ?""", (vtr.backlogfile,))
+            positives = j.get('positives', 0)
+            total = j.get('total', 0)
+            logger.info("VirusTotal: file %s known, detection %d/%d", vtr.sha256hash[:16], positives, total)
             self.cursor.execute(
                 """DELETE FROM backlogfiles WHERE backlogfile = ?""", (vtr.backlogfile,) )
             self.dbh.commit()
@@ -170,7 +173,7 @@ class virustotalhandler(ihandler):
             i.path = icd.path
             i.report()
         else:
-            logger.warn(f"virustotal reported {j}")
+            logger.warning("VirusTotal unexpected response: %s", j)
         del self.cookies[cookie]
 
     def scan_file(self, backlogfile, md5_hash, sha256_hash, path, status):
@@ -194,18 +197,21 @@ class virustotalhandler(ihandler):
         vtr = self.cookies[cookie]
 
         if j['response_code'] == -2:
-            logger.warn("api throttle")
+            logger.warning("VirusTotal API throttle during file submission for %s", vtr.sha256hash[:16])
             self.cursor.execute(
                 """UPDATE backlogfiles SET status = ? WHERE backlogfile = ?""", (vtr.status, vtr.backlogfile))
             self.dbh.commit()
         elif j['response_code'] == -1:
-            logger.warn("something is wrong with your virustotal api key")
+            logger.warning("VirusTotal API key invalid or missing")
         elif j['response_code'] == 1:
             scan_id = j['scan_id']
+            logger.info("VirusTotal: file %s submitted successfully, scan_id: %s", vtr.sha256hash[:16], scan_id[:16])
             # recycle this entry for the query
             self.cursor.execute(
                 """UPDATE backlogfiles SET scan_id = ?, status = 'comment', submit_time = strftime("%s",'now') WHERE backlogfile = ?""", (scan_id, vtr.backlogfile,))
             self.dbh.commit()
+        else:
+            logger.warning("VirusTotal unexpected response during file submission: %s", j)
         del self.cookies[cookie]
 
     def make_comment(self, backlogfile, md5_hash, sha256_hash, path, status):
@@ -228,17 +234,19 @@ class virustotalhandler(ihandler):
         try:
             j = json.load(f)
             if j['response_code'] == -2:
-                logger.warn("api throttle")
+                logger.warning("VirusTotal API throttle during comment for %s", vtr.sha256hash[:16])
                 self.cursor.execute(
                     """UPDATE backlogfiles SET status = ? WHERE backlogfile = ?""", (vtr.status, vtr.backlogfile))
                 self.dbh.commit()
             elif j['response_code'] == -1:
-                logger.warn("something is wrong with your virustotal api key")
+                logger.warning("VirusTotal API key invalid or missing")
             elif j['response_code'] == 1:
+                logger.info("VirusTotal: comment posted for %s", vtr.sha256hash[:16])
                 self.cursor.execute(
                     """UPDATE backlogfiles SET status = 'query' WHERE backlogfile = ? """, (vtr.backlogfile, ))
                 self.dbh.commit()
-
-        except Exception:
-            pass
+            else:
+                logger.warning("VirusTotal unexpected response during comment: %s", j)
+        except Exception as e:
+            logger.warning("VirusTotal comment response parse error: %s", e)
         del self.cookies[cookie]

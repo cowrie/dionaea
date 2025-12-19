@@ -118,10 +118,36 @@ void opaque_data_none_get(struct opaque_data *d)
 	return;
 }
 
+static bool is_sensitive_field(const char *name)
+{
+	if( name == NULL )
+		return false;
+	/* Check for sensitive field names that should be redacted in logs */
+	if( strstr(name, "apikey") != NULL ||
+	    strstr(name, "api_key") != NULL ||
+	    strstr(name, "password") != NULL ||
+	    strstr(name, "passwd") != NULL ||
+	    strstr(name, "secret") != NULL ||
+	    strstr(name, "token") != NULL ||
+	    strstr(name, "credential") != NULL ||
+	    strcmp(name, "pass") == 0 )
+		return true;
+	return false;
+}
+
 void opaque_data_dump(struct opaque_data *d, int indent)
 {
 	char x[1024];
 	memset(x, '\t', indent);
+
+	/* Redact sensitive fields */
+	if( is_sensitive_field(d->name) )
+	{
+		g_snprintf(x+indent, 1023, "%s: [REDACTED]", d->name);
+		g_debug("%s", x);
+		return;
+	}
+
 	switch( d->type )
 	{
 	case opaque_type_none:
@@ -217,7 +243,8 @@ struct opaque_data *incident_value_get(struct incident *e, const char *name, enu
 	struct opaque_data *d;
 	if( ( d = g_hash_table_lookup(e->data, name)) == NULL )
 	{
-		g_debug("could not find key '%s'", name);
+		/* Not logging missing keys - callers handle NULL returns appropriately
+		 * and many lookups are for optional fields (e.g., _ct content-type hints) */
 		return NULL;
 	}
 	if( d->type != t )
