@@ -281,11 +281,22 @@ jobs:
 
       - name: Run clang-tidy
         run: |
-          find src modules -name '*.c' -print0 | xargs -0 clang-tidy -p build
+          # Exclude modules with optional dependencies not installed in this job
+          find src modules -name '*.c' \
+            -not -path 'modules/emu/*' \
+            -not -path 'modules/xmatch/*' \
+            -not -path 'modules/pcap/*' \
+            -not -path 'modules/nl/*' \
+            -not -path 'modules/nfq/*' \
+            -not -path 'modules/nc/*' \
+            -not -path 'modules/speakeasy/*' \
+            -print0 | xargs -0 clang-tidy -p build
 
       - name: Run cppcheck
         run: |
           cppcheck --error-exitcode=1 --inline-suppr \
             --suppress=missingIncludeSystem \
             --enable=warning,performance,portability \
+            -i modules/emu -i modules/xmatch -i modules/pcap \
+            -i modules/nl -i modules/nfq -i modules/nc -i modules/speakeasy \
             src/ modules/

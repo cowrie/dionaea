@@ -23,7 +23,8 @@ commands = ruff check --ignore E741 {toxinidir}/modules
            mypy --no-strict-optional --ignore-missing-imports --allow-untyped-globals \
                --disable-error-code=import-untyped \
                --exclude 'modules/python/dionaea/(submit_http|hpfeeds|virustotal|s3)\\.py' \
-               --exclude 'modules/python/dionaea/(log_db_sql|mqtt|pptp|sip)/' \
+               --exclude 'modules/python/dionaea/(log_db_sql|mqtt|pptp|sip|memcache|mongo)/' \
+               --exclude 'modules/python/dionaea/tftp\\.py' \
                --exclude 'modules/python/util/(csv2sqlite|xmpp/pg_backend)\\.py' \
                {toxinidir}/modules
 """
