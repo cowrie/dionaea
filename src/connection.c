@@ -256,9 +256,12 @@ bool connection_bind(struct connection *con, const char *addr, uint16_t port, co
 	if( con->local.hostname != NULL )
 		g_free(con->local.hostname);
 	con->local.hostname = g_strdup(laddr);
-	if( iface_scope )
-		snprintf(con->local.iface_scope, sizeof(con->local.iface_scope), "%s", iface_scope);
-
+	if( iface_scope ) {
+		int ret = snprintf(con->local.iface_scope, sizeof(con->local.iface_scope), "%s", iface_scope);
+		if (ret < 0 || (size_t)ret >= sizeof(con->local.iface_scope)) {
+			g_warning("iface_scope truncated: %s", iface_scope);
+		}
+	}
 
 	if( !parse_addr(con->local.hostname, con->local.iface_scope, ntohs(con->local.port), &con->local.addr, &socket_domain, &sizeof_sa) )
 		return false;
@@ -996,10 +999,14 @@ void connection_connect(struct connection* con, const char* addr, uint16_t port,
 	int socket_domain = 0;
 
 
-	if( iface_scope )
-		snprintf(con->remote.iface_scope, sizeof(con->remote.iface_scope), "%s", iface_scope);
-	else
+	if( iface_scope ) {
+		int ret = snprintf(con->remote.iface_scope, sizeof(con->remote.iface_scope), "%s", iface_scope);
+		if (ret < 0 || (size_t)ret >= sizeof(con->remote.iface_scope)) {
+			g_warning("iface_scope truncated: %s", iface_scope);
+		}
+	} else {
 		con->remote.iface_scope[0] = '\0';
+	}
 
 	con->remote.port = htons(port);
 
@@ -1229,7 +1236,7 @@ void connection_send(struct connection *con, const void *data, uint32_t size)
 
 	case connection_transport_dtls:
 		{
-			int err = SSL_write(con->transport.dtls.ssl, data, size);
+			int err = SSL_write(con->transport.dtls.ssl, data, (int)size);
 			g_debug("SSL_write %i", err);
 			connection_dtls_error(con);
 			connection_dtls_drain_bio(con);
@@ -1786,9 +1793,8 @@ int connection_throttle(struct connection *con, struct connection_throttle *thr)
 
 	g_debug("throttle: delta  %f expect %f", delta, expect);
 
-	int bytes = 1;
-	bytes = (delta+0.125)* thr->max_bytes_per_second;
-	bytes -= thr->interval_bytes;
+	int bytes = (int)((delta+0.125) * thr->max_bytes_per_second);
+	bytes -= (int)thr->interval_bytes;
 
 	if( expect > delta )
 	{ // we sent to much
@@ -1829,8 +1835,8 @@ int connection_throttle(struct connection *con, struct connection_throttle *thr)
 		}
 	} else
 	{
-		bytes = (delta+0.250)* thr->max_bytes_per_second;
-		bytes -= thr->interval_bytes;
+		bytes = (int)((delta+0.250) * thr->max_bytes_per_second);
+		bytes -= (int)thr->interval_bytes;
 		g_debug("throttle: can do %i bytes", bytes);
 	}
 

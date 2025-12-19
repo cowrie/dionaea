@@ -345,8 +345,16 @@ static bool new(struct dionaea *dionaea)
 
 	g_debug("Python Interpreter %s", PYTHON_PATH);
 	size_t pybinsize = mbstowcs(NULL, PYTHON_PATH, 0);
+	if (pybinsize == (size_t)-1) {
+		g_error("Failed to convert PYTHON_PATH to wide string");
+		return false;
+	}
 	wchar_t *pybin = g_malloc0((pybinsize + 1) * sizeof(wchar_t));
-	mbstowcs(pybin, PYTHON_PATH, pybinsize + 1);
+	if (mbstowcs(pybin, PYTHON_PATH, pybinsize + 1) == (size_t)-1) {
+		g_free(pybin);
+		g_error("Failed to convert PYTHON_PATH to wide string");
+		return false;
+	}
 
 	PyStatus status;
 	PyConfig config;
@@ -380,7 +388,11 @@ static bool new(struct dionaea *dionaea)
 	// DIONAEA_PYTHON_SITELIBDIR is relative (e.g. "lib/dionaea/python")
 	// PREFIX is absolute (e.g. "/opt/dionaea")
 	char abs_sys_path[PATH_MAX];
-	snprintf(abs_sys_path, sizeof(abs_sys_path), "%s/%s", PREFIX, DIONAEA_PYTHON_SITELIBDIR);
+	int ret = snprintf(abs_sys_path, sizeof(abs_sys_path), "%s/%s", PREFIX, DIONAEA_PYTHON_SITELIBDIR);
+	if (ret < 0 || (size_t)ret >= sizeof(abs_sys_path)) {
+		g_error("Python sys_path too long: %s/%s", PREFIX, DIONAEA_PYTHON_SITELIBDIR);
+		return false;
+	}
 	runtime.sys_path = g_string_new(abs_sys_path);
 
 	PyObject *name = PyUnicode_FromString("traceback");
@@ -397,17 +409,16 @@ static bool new(struct dionaea *dionaea)
 	gchar **sys_path;
 	sys_paths = g_key_file_get_string_list(g_dionaea->config, "module.python", "sys_paths", &num, &error);
 
-	// TODO: Replace sprintf() calls below with snprintf() to prevent buffer overflow
 	for (sys_path = sys_paths; *sys_path; sys_path++) {
+		int written;
 		if( strcmp(*sys_path, "default") == 0 ) {
-			sprintf(relpath, "sys.path.insert(%i, '%s')", i, DIONAEA_PYTHON_SITELIBDIR);
+			written = snprintf(relpath, sizeof(relpath), "sys.path.insert(%i, '%s')", i, DIONAEA_PYTHON_SITELIBDIR);
 		} else {
-			// ToDO
-		/*	if( *sys_path == '/' )
-				sprintf(relpath, "sys.path.insert(%i, '%s')", i, name);
-			else
-				sprintf(relpath, "sys.path.insert(%i, '%s/%s')", i, PREFIX, name);
-				*/
+			continue;
+		}
+		if (written < 0 || (size_t)written >= sizeof(relpath)) {
+			g_warning("sys.path entry too long, skipping");
+			continue;
 		}
 		g_debug("running %s %s", relpath, *sys_path);
 		PyRun_SimpleString(relpath);
@@ -446,7 +457,9 @@ static bool new(struct dionaea *dionaea)
 		//free(name);
 	}
 
-	signal(SIGINT, SIG_DFL);
+	if (signal(SIGINT, SIG_DFL) == SIG_ERR) {
+		g_debug("Failed to restore SIGINT handler");
+	}
 
 	if( isatty(STDIN_FILENO) && isatty(STDOUT_FILENO) )
 	{
@@ -670,17 +683,20 @@ PyObject *pygetifaddrs(PyObject *self, PyObject *args)
 			struct sockaddr_ll *lladdr = (struct sockaddr_ll *)iface->ifa_addr;
 
 			int len = lladdr->sll_halen;
-			char *data = (char *)lladdr->sll_addr;
+			unsigned char *data = (unsigned char *)lladdr->sll_addr;
+			size_t buf_remaining = sizeof(ip_string);
 			char *ptr = ip_string;
 			int j;
-			// TODO: Replace sprintf() with snprintf() to prevent buffer overflow
-			// ip_string is INET6_ADDRSTRLEN+1 bytes, but MAC address could overflow
-			for( j = 0; j < len; j++ )
+			for( j = 0; j < len && buf_remaining > 3; j++ )
 			{
-				sprintf (ptr, "%02x:", data[j] & 0xff);
-				ptr += 3;
+				int written = snprintf(ptr, buf_remaining, "%02x:", data[j]);
+				if (written < 0 || (size_t)written >= buf_remaining)
+					break;
+				ptr += written;
+				buf_remaining -= (size_t)written;
 			}
-			*--ptr = '\0';
+			if (ptr > ip_string)
+				*--ptr = '\0';
 			pyaddr = PyUnicode_FromString(ip_string);
 			PyDict_SetItemString(pyafdetails, "addr", pyaddr);
 			Py_DECREF(pyaddr);
@@ -1059,7 +1075,12 @@ static char *pyobjectstring(PyObject *obj)
 	char *cstr = (char *) g_malloc(csize + 1);
 
 	// convert
-	wcstombs(cstr, str, csize + 1);
+	if (wcstombs(cstr, str, csize + 1) == (size_t)-1) {
+		g_free(cstr);
+		PyMem_Free(str);
+		PyGILState_Release(gil_state);
+		return g_strdup("<!wcstombs>");
+	}
 	PyMem_Free(str);
 	PyGILState_Release(gil_state);
 	return cstr;

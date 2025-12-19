@@ -193,10 +193,10 @@ void connection_udp_io_in_cb(EV_P_ struct ev_io *w, int revents)
 
 	socklen_t sizeof_sa = sizeof(struct sockaddr_storage);
 	socklen_t sizeof_sb = sizeof(struct sockaddr_storage);
-	unsigned char buf[64*1024];
-	memset(buf, 0, 64*1024);
-	int ret;
-	while( (ret = recvfromto(con->socket, buf, 64*1024, 0,  (struct sockaddr *)&con->remote.addr, &sizeof_sa, (struct sockaddr *)&con->local.addr, &sizeof_sb)) > 0 )
+	unsigned char buf[64 * 1024];
+	memset(buf, 0, sizeof(buf));
+	ssize_t ret;
+	while( (ret = recvfromto(con->socket, buf, sizeof(buf), 0,  (struct sockaddr *)&con->remote.addr, &sizeof_sa, (struct sockaddr *)&con->local.addr, &sizeof_sb)) > 0 )
 	{
 		node_info_set(&con->remote, &con->remote.addr);
 		node_info_set(&con->local, &con->local.addr);
@@ -233,7 +233,7 @@ void connection_udp_io_in_cb(EV_P_ struct ev_io *w, int revents)
 
 				g_hash_table_insert(con->transport.udp.type.server.peers, peer, peer);
 			}
-			g_debug("%s -> %s %i bytes", peer->remote.node_string, peer->local.node_string, ret);
+			g_debug("%s -> %s %zd bytes", peer->remote.node_string, peer->local.node_string, ret);
 			break;
 		case connection_type_bind:
 		case connection_type_connect:
@@ -251,7 +251,7 @@ void connection_udp_io_in_cb(EV_P_ struct ev_io *w, int revents)
 
 	if( ret == -1 && errno != EAGAIN && errno != EWOULDBLOCK )
 	{
-		g_warning("connection error %i %s", ret, strerror(errno));
+		g_warning("connection error %zd %s", ret, strerror(errno));
 	}
 }
 

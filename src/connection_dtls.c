@@ -87,7 +87,7 @@ void dtls_create_cookie(struct connection *con, unsigned char *hash, unsigned in
 {
 	/* Create buffer with peer's address and port */
 	g_debug("%s con %p %s:%s", __PRETTY_FUNCTION__, con, con->remote.ip_string, con->remote.port_string);
-	int length = sizeof(in_port_t) + addr_size(&con->remote.addr);
+	size_t length = sizeof(in_port_t) + addr_size(&con->remote.addr);
 	unsigned char buffer[length];
 	memcpy(buffer, port_offset(&con->remote.addr), sizeof(in_port_t));
 	memcpy(buffer + sizeof(in_port_t), addr_offset(&con->remote.addr), addr_size(&con->remote.addr));
@@ -343,11 +343,11 @@ void connection_dtls_io_in_cb(struct ev_loop *loop, struct ev_io *w, int revents
 
 	socklen_t sizeof_sa = sizeof(struct sockaddr_storage);
 	socklen_t sizeof_sb = sizeof(struct sockaddr_storage);
-	unsigned char buf[64*1024];
-	memset(buf, 0, 64*1024);
+	unsigned char buf[64 * 1024];
+	memset(buf, 0, sizeof(buf));
 
-	int ret;
-	while( (ret = recvfromto(con->socket, buf, 64*1024, 0,  (struct sockaddr *)&con->remote.addr, &sizeof_sa, (struct sockaddr *)&con->local.addr, &sizeof_sb)) > 0 )
+	ssize_t ret;
+	while( (ret = recvfromto(con->socket, buf, sizeof(buf), 0,  (struct sockaddr *)&con->remote.addr, &sizeof_sa, (struct sockaddr *)&con->local.addr, &sizeof_sb)) > 0 )
 	{
 		node_info_set(&con->remote, &con->remote.addr);
 		node_info_set(&con->local, &con->local.addr);
@@ -385,7 +385,7 @@ void connection_dtls_io_in_cb(struct ev_loop *loop, struct ev_io *w, int revents
 				SSL_set_ex_data(peer->transport.dtls.ssl, _SSL_connection_index, peer);
 				g_hash_table_insert(con->transport.dtls.type.server.peers, peer, peer);
 			}
-			g_debug("%s -> %s %i bytes", peer->remote.node_string, peer->local.node_string, ret);
+			g_debug("%s -> %s %zd bytes", peer->remote.node_string, peer->local.node_string, ret);
 		}else
 		if( con->type == connection_type_connect )
 		{
@@ -414,7 +414,7 @@ void connection_dtls_io_in_cb(struct ev_loop *loop, struct ev_io *w, int revents
 	}
 	if( ret == -1 && errno != EAGAIN && errno != EWOULDBLOCK )
 	{
-		g_warning("connection error %i %s", ret, strerror(errno));
+		g_warning("connection error %zd %s", ret, strerror(errno));
 	}
 }
 

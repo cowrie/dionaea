@@ -193,7 +193,8 @@ void connection_tcp_io_in_cb(EV_P_ struct ev_io *w, int revents)
 	struct connection *con = CONOFF_IO_IN(w);
 	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 
-	int size, buf_size;
+	ssize_t size;
+	int buf_size;
 
 	/* determine how many bytes we can recv */
 #ifdef SIOCINQ
@@ -234,12 +235,12 @@ void connection_tcp_io_in_cb(EV_P_ struct ev_io *w, int revents)
 
 	if( con->processor_data != NULL && new_in->len > 0 )
 	{
-		processors_io_in(con, new_in->str, new_in->len);
+		processors_io_in(con, new_in->str, (int)new_in->len);
 	}
 
-	connection_throttle_update(con, &con->stats.io_in.throttle, new_in->len);
+	connection_throttle_update(con, &con->stats.io_in.throttle, (int)new_in->len);
 	// append
-	g_string_append_len(con->transport.tcp.io_in, new_in->str, new_in->len);
+	g_string_append_len(con->transport.tcp.io_in, new_in->str, (gssize)new_in->len);
 
 	if( size==0 )//&& size != MIN(buf_size, recv_throttle) )
 	{
@@ -261,19 +262,19 @@ void connection_tcp_io_in_cb(EV_P_ struct ev_io *w, int revents)
 		if( ev_is_active(&con->events.idle_timeout) )
 			ev_timer_again(EV_A_  &con->events.idle_timeout);
 
-		int consumed = 0;
+		unsigned int consumed = 0;
 
 		if( new_in->len > 0 )
 			consumed = con->protocol.io_in(con, con->protocol.ctx, (unsigned char *)con->transport.tcp.io_in->str, con->transport.tcp.io_in->len);
 
-		g_string_erase(con->transport.tcp.io_in, 0, consumed);
+		g_string_erase(con->transport.tcp.io_in, 0, (gssize)consumed);
 
 		if( con->transport.tcp.io_out->len > 0 && !ev_is_active(&con->events.io_out) )
 			ev_io_start(EV_A_ &con->events.io_out);
 
 	} else
 	{
-		g_debug("recv failed size %i recv_size %i (%s)", size, recv_size, strerror(lerrno));
+		g_debug("recv failed size %zd recv_size %i (%s)", size, recv_size, strerror(lerrno));
 		connection_tcp_disconnect(con);
 	}
 	g_string_free(new_in, TRUE);
@@ -299,22 +300,22 @@ void connection_tcp_io_out_cb(EV_P_ struct ev_io *w, int revents)
 		return;
 
 
-	int size = send(con->socket, con->transport.tcp.io_out->str, send_size, 0);
+	ssize_t size = send(con->socket, con->transport.tcp.io_out->str, send_size, 0);
 
 	if( ev_is_active(&con->events.idle_timeout) )
 		ev_timer_again(EV_A_  &con->events.idle_timeout);
 
 	if( size > 0 )
 	{
-		connection_throttle_update(con, &con->stats.io_out.throttle, size);
+		connection_throttle_update(con, &con->stats.io_out.throttle, (int)size);
 
 		if( con->processor_data != NULL && size > 0 )
 		{
-			processors_io_out(con, con->transport.tcp.io_out->str, size);
+			processors_io_out(con, con->transport.tcp.io_out->str, (int)size);
 		}
 
 //		bistream_data_add(&con->bistream, bistream_out, con->transport.tcp.io_out->str, size);
-		g_string_erase(con->transport.tcp.io_out, 0 , size);
+		g_string_erase(con->transport.tcp.io_out, 0, (gssize)size);
 		if( con->transport.tcp.io_out->len == 0 )
 		{
 			if( ev_is_active(&con->events.io_out) )

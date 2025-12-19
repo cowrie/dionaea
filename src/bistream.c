@@ -121,46 +121,57 @@ void print_stream_chunk2(struct stream_chunk *sc)
 	uint32_t stream_offset = sc->stream_offset;
 	uint32_t bistream_offset = sc->bistream_offset;
 	char buf[256];
-	int off=0;
-	// TODO: Replace all sprintf() calls in this function with snprintf() to prevent buffer overflow
-	// The buffer is 256 bytes but there's no bounds checking on the accumulated offset
+	size_t off = 0;
+	size_t remaining;
+	int ret;
+
 	for( c=0;c<sc->data->len; c+=16 )
 	{
-		off += sprintf(buf, "0x%04x | ", bistream_offset + c);
-		if( sc->direction == bistream_out )
-			off += sprintf(buf+off, "%49s", " ");
+		off = 0;
+		remaining = sizeof(buf);
 
-		int i;
-		for( i=0;i<16;i++ )
-		{
-			if( i+c < sc->data->len )
-				off += sprintf(buf+off, "%02x ", ((unsigned char *)sc->data->str)[c+i]);
-			else
-				off	+= sprintf(buf+off, "   ");
+		ret = snprintf(buf, remaining, "0x%04x | ", bistream_offset + c);
+		if (ret > 0 && (size_t)ret < remaining) { off += (size_t)ret; remaining -= (size_t)ret; }
+
+		if( sc->direction == bistream_out ) {
+			ret = snprintf(buf+off, remaining, "%49s", " ");
+			if (ret > 0 && (size_t)ret < remaining) { off += (size_t)ret; remaining -= (size_t)ret; }
 		}
 
-		if( sc->direction == bistream_in )
-			off += sprintf(buf+off,"%49s", " ");
+		int i;
+		for( i=0;i<16 && remaining > 4;i++ )
+		{
+			if( i+c < sc->data->len )
+				ret = snprintf(buf+off, remaining, "%02x ", ((unsigned char *)sc->data->str)[c+i]);
+			else
+				ret = snprintf(buf+off, remaining, "   ");
+			if (ret > 0 && (size_t)ret < remaining) { off += (size_t)ret; remaining -= (size_t)ret; }
+		}
 
-		off += sprintf(buf+off, "  | ");
+		if( sc->direction == bistream_in ) {
+			ret = snprintf(buf+off, remaining, "%49s", " ");
+			if (ret > 0 && (size_t)ret < remaining) { off += (size_t)ret; remaining -= (size_t)ret; }
+		}
 
-		for( i=0;i<16;i++ )
+		ret = snprintf(buf+off, remaining, "  | ");
+		if (ret > 0 && (size_t)ret < remaining) { off += (size_t)ret; remaining -= (size_t)ret; }
+
+		for( i=0;i<16 && remaining > 2;i++ )
 		{
 			if( i+c < sc->data->len )
 			{
 				if( isprint(((unsigned char *)sc->data->str)[c+i]) )
-					off += sprintf(buf+off, "%c", ((unsigned char *)sc->data->str)[c+i]);
+					ret = snprintf(buf+off, remaining, "%c", ((unsigned char *)sc->data->str)[c+i]);
 				else
-					off	+= sprintf(buf+off, ".");
+					ret = snprintf(buf+off, remaining, ".");
 			} else
 			{
-				off += sprintf(buf+off, " ");
+				ret = snprintf(buf+off, remaining, " ");
 			}
-
+			if (ret > 0 && (size_t)ret < remaining) { off += (size_t)ret; remaining -= (size_t)ret; }
 		}
-		sprintf(buf+off," | 0x%04x ", stream_offset + c );
+		(void)snprintf(buf+off, remaining, " | 0x%04x ", stream_offset + c );
 		g_debug("%s", buf);
-		off = 0;
 	}
 }
 
@@ -246,7 +257,7 @@ int32_t bistream_get_stream(struct bistream *bs, enum bistream_direction dir, ui
 
 
 	if( end == -1 )
-		end = lastsc->stream_offset + lastsc->data->len;
+		end = (int32_t)(lastsc->stream_offset + lastsc->data->len);
 /*
 	printf("end %i\n",  end);
 	printf("lastsc->... %i\n", lastsc->stream_offset);
@@ -296,8 +307,8 @@ int32_t bistream_get_stream(struct bistream *bs, enum bistream_direction dir, ui
 		if( itsc->stream_offset + itsc->data->len > end )
 			end_offset = end - itsc->stream_offset;
 
-		int32_t size = end_offset - start_offset;
-		g_debug("copy data %p stream_offset %i size %i copy_start %i copy_end %i size %i", itsc,  itsc->stream_offset, (int)itsc->data->len, start_offset, end_offset, size);
+		uint32_t size = end_offset - start_offset;
+		g_debug("copy data %p stream_offset %i size %u copy_start %u copy_end %u size %u", itsc,  itsc->stream_offset, (unsigned)itsc->data->len, start_offset, end_offset, size);
 
 		memcpy((char *)*data + offset, itsc->data->str + start_offset, size);
 
@@ -308,5 +319,5 @@ int32_t bistream_get_stream(struct bistream *bs, enum bistream_direction dir, ui
 			break;
 	}
 	g_mutex_unlock(&bs->streams[dir].mutex);
-	return end - start;
+	return (int32_t)(end - start);
 }

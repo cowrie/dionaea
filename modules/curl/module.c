@@ -373,7 +373,7 @@ static int curl_debugfunction_cb(CURL *easy, curl_infotype type, char *data, siz
 	case CURLINFO_TEXT:
 		{
 			char *text = g_strdup(data);
-			int len = strlen(text);
+			size_t len = strlen(text);
 			if( text[len-1] == '\n' )
 				text[len-1] = '\0';
 			g_debug("%s: %s", session->url, text);
@@ -462,19 +462,14 @@ void session_upload_new(struct incident *i)
 				curl_mime_filedata(part, d->opaque.string->str);
 			}else
 			{ /* all other values */
-				// TODO: Check snprintf() return value - could be truncated if >= 1024
-				snprintf(name_and_param, 1024, "%s_ct", name);
-				if ( incident_value_string_get(i, name_and_param, &gstemp) == true)
+				curl_mimepart *part = curl_mime_addpart(session->action.upload.mime);
+				curl_mime_name(part, name);
+				curl_mime_data(part, d->opaque.string->str, CURL_ZERO_TERMINATED);
+				int ret = snprintf(name_and_param, sizeof(name_and_param), "%s_ct", name);
+				if (ret > 0 && (size_t)ret < sizeof(name_and_param) &&
+				    incident_value_string_get(i, name_and_param, &gstemp) == true)
 				{ /* with content type */
-					curl_mimepart *part = curl_mime_addpart(session->action.upload.mime);
-					curl_mime_name(part, name);
-					curl_mime_data(part, d->opaque.string->str, CURL_ZERO_TERMINATED);
 					curl_mime_type(part, gstemp->str);
-				} else
-				{ /* without content type */
-					curl_mimepart *part = curl_mime_addpart(session->action.upload.mime);
-					curl_mime_name(part, name);
-					curl_mime_data(part, d->opaque.string->str, CURL_ZERO_TERMINATED);
 				}
 			}
 		}

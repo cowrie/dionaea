@@ -194,7 +194,7 @@ void connection_tls_io_out_cb(EV_P_ struct ev_io *w, int revents)
 			(int)con->transport.tls.io_out_again->len + (int)con->transport.tls.io_out->len);
 
 
-	int err = SSL_write(con->transport.tls.ssl, con->transport.tls.io_out_again->str, con->transport.tls.io_out_again_size);
+	int err = SSL_write(con->transport.tls.ssl, con->transport.tls.io_out_again->str, (int)con->transport.tls.io_out_again_size);
 	connection_tls_error(con);
 
 	if( err <= 0 )
@@ -559,7 +559,7 @@ void connection_tls_io_in_cb(EV_P_ struct ev_io *w, int revents)
 
 		if( con->processor_data != NULL && con->transport.tls.io_in->len > 0 )
                 {
-                    processors_io_in(con, con->transport.tls.io_in->str, con->transport.tls.io_in->len);
+                    processors_io_in(con, con->transport.tls.io_in->str, (int)con->transport.tls.io_in->len);
                 }
 
 		con->protocol.io_in(con, con->protocol.ctx, (unsigned char *)con->transport.tls.io_in->str, con->transport.tls.io_in->len);
