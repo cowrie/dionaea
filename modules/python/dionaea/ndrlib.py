@@ -14,9 +14,11 @@
     NDR64: 6cb71c2c-9812-4540-0300-000000000000
 """
 
+from __future__ import annotations
 
 import struct
 from io import BytesIO
+from typing import Literal
 
 __all__ = ["Error", "Packer", "Unpacker"]
 
@@ -35,39 +37,46 @@ class Error(Exception):
             msg -- contains the message
 
     """
-    def __init__(self, msg):
+    def __init__(self, msg: str) -> None:
         self.msg = msg
-    def __repr__(self):
+    def __repr__(self) -> str:
         return repr(self.msg)
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self.msg)
 
 
 class Unpacker:
     """Unpacks basic data representations from the given buffer."""
 
-    def __init__(self, data, integer='le', char='ascii', floating='IEEE', pointer_size=32):
+    def __init__(
+        self,
+        data: bytes,
+        integer: Literal['le', 'be'] = 'le',
+        char: str = 'ascii',
+        floating: str = 'IEEE',
+        pointer_size: Literal[32, 64] = 32
+    ) -> None:
         self.pointer_size = pointer_size
         self.reset(data)
 
-    def reset(self, data):
+    def reset(self, data: bytes) -> None:
         self.__buf = data
         self.__pos = 0
 
-    def get_position(self):
+    def get_position(self) -> int:
         return self.__pos
 
-    def set_position(self, position):
+    def set_position(self, position: int) -> None:
         self.__pos = position
 
-    def get_buffer(self):
+    def get_buffer(self) -> bytes:
         return self.__buf
 
-    def done(self):
+    def done(self) -> None:
         if self.__pos < len(self.__buf):
             raise Error('unextracted data remains')
 
-    def unpack_small(self):
+    def unpack_small(self) -> int:
         i = self.__pos
         self.__pos = j = i+1
         data = self.__buf[i:j]
@@ -79,7 +88,7 @@ class Unpacker:
         except OverflowError:
             return x
 
-    def unpack_short(self):
+    def unpack_short(self) -> int:
         self.__pos += self.__pos % 2
         i = self.__pos
         self.__pos = j = i+2
@@ -88,7 +97,7 @@ class Unpacker:
             raise EOFError
         return struct.unpack('<H', data)[0]
 
-    def unpack_long(self):
+    def unpack_long(self) -> int:
         self.__pos += self.__pos % 4
         i = self.__pos
         self.__pos = j = i+4
@@ -97,7 +106,7 @@ class Unpacker:
             raise EOFError
         return struct.unpack('<L', data)[0]
 
-    def unpack_hyper(self):
+    def unpack_hyper(self) -> int:
         align = self.__pos % 8
         if align > 0:
             self.__pos += 8 - align
@@ -108,15 +117,15 @@ class Unpacker:
             raise EOFError
         return struct.unpack('<Q', data)[0]
 
-    def unpack_bool(self):
+    def unpack_bool(self) -> bool:
         return bool(self.unpack_long())
 
-    def unpack_pointer(self):
+    def unpack_pointer(self) -> int:
         if self.pointer_size == 64:
             return self.unpack_hyper()
         return self.unpack_long()
 
-    def unpack_string(self, width=16):
+    def unpack_string(self, width: int = 16) -> bytes:
         self.unpack_long()
         self.unpack_long()
         ac = self.unpack_long()
@@ -128,41 +137,46 @@ class Unpacker:
             raise EOFError
         return data
 
-    def unpack_raw(self, l):
-        data = self.__buf[self.__pos:self.__pos+l]
-        self.__pos = self.__pos + l
+    def unpack_raw(self, length: int) -> bytes:
+        data = self.__buf[self.__pos:self.__pos+length]
+        self.__pos = self.__pos + length
         return data
 
 
 class Packer:
     """Pack various data representations into a buffer."""
 
-    def __init__(self, integer='le', char='ascii', floating='IEEE', pointer_size=32):
+    def __init__(
+        self,
+        integer: Literal['le', 'be'] = 'le',
+        char: str = 'ascii',
+        floating: str = 'IEEE',
+        pointer_size: Literal[32, 64] = 32
+    ) -> None:
         self.reset()
         self.integer = integer
         self.pointer_size = pointer_size
 
-    def reset(self):
+    def reset(self) -> None:
         self.__buf = BytesIO()
 
-    def get_buffer(self):
+    def get_buffer(self) -> bytes:
         return self.__buf.getvalue()
 
-
-    def pack_small(self, x):
+    def pack_small(self, x: int) -> None:
         """8-bit integer"""
         self.__buf.write(struct.pack('<B', x))
 
-    def pack_short(self, x):
+    def pack_short(self, x: int) -> None:
         """16-bit integer"""
         if self.__buf.tell() % 2 > 0:
-            self.__buf.write('\0')
+            self.__buf.write(b'\0')
         if self.integer == 'le':
             self.__buf.write(struct.pack('<H', x))
         else:
             self.__buf.write(struct.pack('>H', x))
 
-    def pack_long(self, x):
+    def pack_long(self, x: int) -> None:
         """32-bit integer"""
         align = self.__buf.tell() % 4
         if align > 0:
@@ -172,7 +186,7 @@ class Packer:
         else:
             self.__buf.write(struct.pack('>L', x))
 
-    def pack_long_signed(self, x):
+    def pack_long_signed(self, x: int) -> None:
         """32-bit signed integer"""
         align = self.__buf.tell() % 4
         if align > 0:
@@ -182,7 +196,7 @@ class Packer:
         else:
             self.__buf.write(struct.pack('>l', x))
 
-    def pack_hyper(self, x):
+    def pack_hyper(self, x: int) -> None:
         """64-bit integer"""
         align = self.__buf.tell() % 8
         if align > 0:
@@ -192,45 +206,45 @@ class Packer:
         else:
             self.__buf.write(struct.pack('>Q', x))
 
-    def pack_pointer(self, x):
+    def pack_pointer(self, x: int) -> None:
         if self.pointer_size == 64:
             self.pack_hyper(x)
         else:
             self.pack_long(x)
 
-    def pack_bool(self, x):
+    def pack_bool(self, x: bool) -> None:
         if x:
             self.__buf.write(b'\0\0\0\1')
         else:
             self.__buf.write(b'\0\0\0\0')
 
-    """to obtain different maxcount and actualcount of the string"""
-    def pack_string(self, s, offset=0, width=16):
+    def pack_string(self, s: bytes, offset: int = 0, width: int = 16) -> None:
+        """Pack string with different maxcount and actualcount."""
         x = int(len(s)/(width/8))
         if (x % 8 == 0):
             maxcount = x
-        else :
+        else:
             maxcount = (int(x/8) + 1)*8
         self.pack_long(maxcount)
         self.pack_long(offset)
         self.pack_long(x)
         self.__buf.write(s)
 
-    """to obtain the same maxcount and actualcount of the string"""
-    def pack_string_fix(self, s, offset=0, width=16):
+    def pack_string_fix(self, s: bytes, offset: int = 0, width: int = 16) -> None:
+        """Pack string with same maxcount and actualcount."""
         x = int(len(s)/(width/8))
         self.pack_long(x)
         self.pack_long(offset)
         self.pack_long(x)
         self.__buf.write(s)
 
-    def pack_raw(self, s):
+    def pack_raw(self, s: bytes) -> None:
         self.__buf.write(s)
 
-    """to obtain only the maxcount and actualcount of rpc unicode string"""
-    def pack_rpc_unicode_string(self,s):
+    def pack_rpc_unicode_string(self, s: bytes) -> None:
+        """Pack only the maxcount and actualcount of rpc unicode string."""
         Length = MaximumLength = len(s)
-        if Length%8:
+        if Length % 8:
             MaximumLength = (int(Length/8) + 1)*8
 
         self.pack_short(Length*2)

@@ -5,6 +5,10 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+from __future__ import annotations
+
+from typing import Any
+
 from dionaea import ServiceLoader
 from .mqtt import mqttd
 
@@ -13,7 +17,7 @@ class MQTTService(ServiceLoader):
     name = "mqtt"
 
     @classmethod
-    def start(cls, addr,  iface=None, config=None):
+    def start(cls, addr: str, iface: str | None = None, config: dict[str, Any] | None = None) -> mqttd:
         daemon = mqttd()
         daemon.bind(addr, 1883, iface=iface)
         daemon.apply_config(config)

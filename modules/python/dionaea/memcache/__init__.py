@@ -4,7 +4,10 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+from __future__ import annotations
+
 import logging
+from typing import Any
 
 from dionaea import ServiceLoader
 from dionaea.core import connection
@@ -21,7 +24,7 @@ class MemcacheService(ServiceLoader):
     name = "memcache"
 
     @classmethod
-    def start(cls, addr, iface=None, config=None):
+    def start(cls, addr: str, iface: str | None = None, config: dict[str, Any] | None = None) -> list[Memcache] | None:
         if config is None:
             config = {}
 
@@ -41,12 +44,12 @@ class MemcacheService(ServiceLoader):
 class Memcache(connection):
     stat_vars = VarHandler()
 
-    def __init__(self, proto="tcp"):
+    def __init__(self, proto: str = "tcp") -> None:
         logger.debug("start memcache")
         connection.__init__(self, proto)
-        self.command = None
+        self.command: Command | None = None
 
-    def _handle_add(self, data):
+    def _handle_add(self, data: bytes) -> int:
         read_len = self._handle_storage_command(data)
         if read_len == 0:
             return 0
@@ -54,7 +57,7 @@ class Memcache(connection):
         self._send_line("STORED")
         return read_len
 
-    def _handle_append(self, data):
+    def _handle_append(self, data: bytes) -> int:
         read_len = self._handle_storage_command(data)
         if read_len == 0:
             return 0
@@ -62,27 +65,27 @@ class Memcache(connection):
         self._send_line("STORED")
         return read_len
 
-    def _handle_decr(self, data):
+    def _handle_decr(self, data: bytes) -> int:
         self.command = None
         self._send_line("NOT_FOUND")
         return 0
 
-    def _handle_delete(self, data):
+    def _handle_delete(self, data: bytes) -> int:
         self.command = None
         self._send_line("DELETED")
         return 0
 
-    def _handle_get(self, data):
+    def _handle_get(self, data: bytes) -> int:
         self.command = None
         self._send_line("END")
         return 0
 
-    def _handle_incr(self, data):
+    def _handle_incr(self, data: bytes) -> int:
         self.command = None
         self._send_line("NOT_FOUND")
         return 0
 
-    def _handle_prepend(self, data):
+    def _handle_prepend(self, data: bytes) -> int:
         read_len = self._handle_storage_command(data)
         if read_len == 0:
             return 0
@@ -90,7 +93,7 @@ class Memcache(connection):
         self._send_line("STORED")
         return read_len
 
-    def _handle_replace(self, data):
+    def _handle_replace(self, data: bytes) -> int:
         read_len = self._handle_storage_command(data)
         if read_len == 0:
             return 0
@@ -98,7 +101,7 @@ class Memcache(connection):
         self._send_line("STORED")
         return read_len
 
-    def _handle_set(self, data):
+    def _handle_set(self, data: bytes) -> int:
         read_len = self._handle_storage_command(data)
         if read_len == 0:
             return 0
@@ -106,12 +109,14 @@ class Memcache(connection):
         self._send_line("STORED")
         return read_len
 
-    def _handle_storage_command(self, data):
+    def _handle_storage_command(self, data: bytes) -> int:
+        assert self.command is not None
         if len(data) < self.command.byte_count + 2:
             return 0
         return self.command.byte_count + 2
 
-    def _handle_stats(self, data):
+    def _handle_stats(self, data: bytes) -> int:
+        assert self.command is not None
         if self.command.sub_command is None:
             for name, var in self.stat_vars.values.items():
                 self._send_line(f"STAT {name} {str(var)}")
@@ -129,23 +134,23 @@ class Memcache(connection):
         self.command = None
         return 0
 
-    def _handle_touch(self, data):
+    def _handle_touch(self, data: bytes) -> int:
         self.command = None
         self._send_line("TOUCHED")
         return 0
 
-    def _send_line(self, line):
+    def _send_line(self, line: str) -> None:
         self.send(line + "\r\n")
 
-    def apply_config(self, config):
+    def apply_config(self, config: dict[str, Any] | None) -> None:
         from .var import CFG_STAT_VARS
         self.stat_vars.load(CFG_STAT_VARS)
 
-    def handle_established(self):
+    def handle_established(self) -> None:
         self.timeouts.idle = 10
         self.processors()
 
-    def handle_io_in(self, data):
+    def handle_io_in(self, data: bytes) -> int:
         processed_bytes = 0
         if self.command is None:
             # End Of Command

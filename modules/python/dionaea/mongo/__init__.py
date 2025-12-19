@@ -4,6 +4,10 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+from __future__ import annotations
+
+from typing import Any
+
 from dionaea import ServiceLoader
 from .mongo import mongod
 
@@ -12,7 +16,7 @@ class MongoService(ServiceLoader):
     name = "mongo"
 
     @classmethod
-    def start(cls, addr,  iface=None, config=None):
+    def start(cls, addr: str, iface: str | None = None, config: dict[str, Any] | None = None) -> mongod:
         daemon = mongod()
         daemon.apply_config(config)
         daemon.bind(addr, 27017, iface=iface)
