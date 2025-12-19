@@ -42,6 +42,9 @@ class EmulateScriptsHandler(ihandler):
         for h in (PowerShell, RawURL,VBScript):
             tmp_handlers[h.name] = h
 
+        if config is None:
+            config = {}
+
         tmp = config.get("max_subdownloads")
         if isinstance(tmp, int):
             self.max_subdownloads = tmp
