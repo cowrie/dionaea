@@ -62,6 +62,7 @@
 
 RSA *ssl_callback_TmpRSA(SSL *ssl, int export, int keylen)
 {
+	(void)export;
 	struct connection *c = (struct connection *)SSL_get_app_data(ssl);
 	int idx;
 
@@ -93,6 +94,7 @@ RSA *ssl_callback_TmpRSA(SSL *ssl, int export, int keylen)
  */
 DH *ssl_callback_TmpDH(SSL *ssl, int export, int keylen)
 {
+	(void)export;
 	struct connection *c = (struct connection *)SSL_get_app_data(ssl);
 	int idx;
 
@@ -161,6 +163,7 @@ bool connection_tls_mkcert(struct connection *con)
 
 void connection_tls_io_out_cb(EV_P_ struct ev_io *w, int revents)
 {
+	(void)revents;
 	struct connection *con = NULL;
 	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 
@@ -322,6 +325,7 @@ void connection_tls_io_out_cb(EV_P_ struct ev_io *w, int revents)
 
 void connection_tls_shutdown_cb(EV_P_ struct ev_io *w, int revents)
 {
+	(void)revents;
 	struct connection *con = NULL;
 	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 
@@ -434,6 +438,7 @@ void connection_tls_shutdown_cb(EV_P_ struct ev_io *w, int revents)
 
 void connection_tls_io_in_cb(EV_P_ struct ev_io *w, int revents)
 {
+	(void)revents;
 	struct connection *con = NULL;
 
 	if( w->events == EV_READ )
@@ -568,6 +573,7 @@ void connection_tls_io_in_cb(EV_P_ struct ev_io *w, int revents)
 
 void connection_tls_accept_cb (EV_P_ struct ev_io *w, int revents)
 {
+	(void)revents;
 	struct connection *con = CONOFF_IO_IN(w);
 	struct incident *i;
 	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
@@ -748,6 +754,7 @@ void connection_tls_handshake_again_cb(EV_P_ struct ev_io *w, int revents)
 
 void connection_tls_handshake_again_timeout_cb(EV_P_ struct ev_timer *w, int revents)
 {
+	(void)revents;
 	struct connection *con = CONOFF_HANDSHAKE_TIMEOUT(w);
 	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 
@@ -803,6 +810,7 @@ void connection_tls_disconnect(struct connection *con)
 
 void connection_tls_connecting_cb(EV_P_ struct ev_io *w, int revents)
 {
+	(void)revents;
 	struct connection *con = CONOFF_IO_OUT(w);
 	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 
