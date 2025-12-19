@@ -215,7 +215,7 @@ bool options_validate(struct options *opt)
 
 		if( isdigit(*opt->user.name) != 0 )
 		{
-			opt->user.id = atoi(opt->user.name);
+			opt->user.id = (int)strtol(opt->user.name, NULL, 10);
 			g_debug("User %s has uid %i",opt->user.name,opt->user.id);
 		} else
 			if( (pass = getpwnam(opt->user.name)) == NULL )
@@ -234,7 +234,7 @@ bool options_validate(struct options *opt)
 		struct group *grp;
 		if( isdigit(*opt->group.name) != 0 )
 		{
-			opt->group.id = atoi(opt->group.name);
+			opt->group.id = (int)strtol(opt->group.name, NULL, 10);
 			g_debug("Group %s has gid %i", opt->group.name, opt->group.id);
 		} else
 			if( (grp = getgrnam(opt->group.name)) == NULL )
