@@ -516,6 +516,18 @@ class logsqlhandler(ihandler):
 #            ON httpheaders (httpheader_%s)""" % (idx, idx))
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
+            http_requests (
+                http_request INTEGER PRIMARY KEY,
+                connection INTEGER,
+                http_request_method TEXT,
+                http_request_path TEXT,
+                http_request_version TEXT,
+                http_request_headers TEXT,
+                http_request_body TEXT
+                -- CONSTRAINT http_requests_connection_fkey FOREIGN KEY (connection) REFERENCES connections (connection)
+            )""")
+
+        self.cursor.execute("""CREATE TABLE IF NOT EXISTS
             mqtt_fingerprints (
                 mqtt_fingerprint INTEGER PRIMARY KEY,
                 connection INTEGER,
@@ -1045,4 +1057,13 @@ class logsqlhandler(ihandler):
             attackid = self.attacks[con][1]
             self.cursor.execute("INSERT INTO mqtt_subscribe_commands (connection, mqtt_subscribe_command_messageid, mqtt_subscribe_command_topic) VALUES (?,?,?)",
                 (attackid, icd.subscribemessageid, icd.subscribetopic))
+            self.dbh.commit()
+
+    def handle_incident_dionaea_modules_python_http_request(self, icd):
+        con = icd.con
+        if con in self.attacks:
+            attackid = self.attacks[con][1]
+            self.cursor.execute(
+                "INSERT INTO http_requests (connection, http_request_method, http_request_path, http_request_version, http_request_headers, http_request_body) VALUES (?,?,?,?,?,?)",
+                (attackid, icd.method, icd.path, icd.version, icd.headers, icd.body))
             self.dbh.commit()

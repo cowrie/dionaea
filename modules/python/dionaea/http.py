@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import sys
@@ -745,14 +746,39 @@ class httpd(connection):
 
         return len(data)
 
+    # 20MB limit for POST body logging
+    MAX_BODY_LOG_SIZE = 20 * 1024 * 1024
+
+    def _log_request(self, body: bytes = b"") -> None:
+        """Log HTTP request to incident system."""
+        try:
+            headers_dict = {
+                k.decode('utf-8', errors='replace'): v.decode('utf-8', errors='replace')
+                for k, v in self.header.headers.items()
+            }
+            i = incident("dionaea.modules.python.http.request")
+            i.con = self
+            i.method = self.header.type.decode('utf-8', errors='replace')
+            i.path = self.header.path
+            i.version = self.header.version.decode('utf-8', errors='replace')
+            i.headers = json.dumps(headers_dict)
+            if len(body) > self.MAX_BODY_LOG_SIZE:
+                body = body[:self.MAX_BODY_LOG_SIZE]
+            i.body = body.decode('utf-8', errors='replace')
+            i.report()
+        except Exception:
+            logger.warning("Failed to log HTTP request incident", exc_info=True)
+
     def handle_GET(self) -> None:
         """Handle the GET method. Send the header and the file."""
+        self._log_request()
         x = self.send_head()
         if x:
             self.copyfile(x)
 
     def handle_HEAD(self) -> None:
         """Handle the HEAD method. Send only the header but not the file."""
+        self._log_request()
         x = self.send_head()
         if x:
             x.close()
@@ -762,6 +788,7 @@ class httpd(connection):
         """
         Handle the OPTIONS method. Returns the HTTP methods that the server supports.
         """
+        self._log_request()
         self.send_response(200)
         headers = self._get_headers(code=200, method="options")
         headers.send(
@@ -780,6 +807,14 @@ class httpd(connection):
         Handle the POST method. Send the head and the file. But ignore the POST params.
         Use the bistreams for a better analysis.
         """
+        # Log the request with body
+        body = b""
+        if self.fp_tmp is not None:
+            self.fp_tmp.seek(0)
+            body = self.fp_tmp.read(self.MAX_BODY_LOG_SIZE)
+            self.fp_tmp.seek(0)
+        self._log_request(body)
+
         if self.fp_tmp is not None and self.content_type is not None:
             self.fp_tmp.seek(0)
             # Parse multipart form data using our MultipartParser
@@ -837,6 +872,10 @@ class httpd(connection):
 
         if len(data) < content_length:
             return 0
+
+        # Log SOAP request
+        body = data[:min(content_length, self.MAX_BODY_LOG_SIZE)]
+        self._log_request(body)
 
         # Limit SOAP message size to prevent ReDoS attacks
         max_soap_size = 128 * 1024  # 128 KB
