@@ -43,7 +43,7 @@ class virustotalhandler(ihandler):
         self.cookies = {}
 
         p = config.get("file")
-        self.dbh = sqlite3.connect(p)
+        self.dbh = sqlite3.connect(p, check_same_thread=False)
         self.cursor = self.dbh.cursor()
         self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS backlogfiles (
