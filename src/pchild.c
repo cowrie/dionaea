@@ -44,7 +44,7 @@ void pchild_run(int fd)
 		cmd = (pchild_cmd)x;
 		cmd(fd);
 	}
-	close(fd);
+	(void)close(fd);
 	exit(0);
 }
 
@@ -68,7 +68,7 @@ bool pchild_init(void)
 	if( pid != 0 )
 	{
 		g_dionaea->pchild->fd = pair[0];
-		close(pair[1]);
+		(void)close(pair[1]);
 		return true;
 	}
 
@@ -77,7 +77,7 @@ bool pchild_init(void)
 	setsid();
 
 	/* We're the backend */
-	close(pair[0]);
+	(void)close(pair[0]);
 	fd = pair[1];
 
 	pchild_run(fd);
@@ -115,7 +115,7 @@ int pchild_recv_bind(int fd)
 				int bind_fd = *(int *) CMSG_DATA(cmsg);
 				int ret = bind(bind_fd, (struct sockaddr *)&sa, sizeof_sa);
 				int err = errno;
-				close(bind_fd);
+				(void)close(bind_fd);
 				if( write(fd, &ret, sizeof(int)) < 0 )
 				{
 					perror("write");

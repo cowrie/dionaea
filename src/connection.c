@@ -141,7 +141,7 @@ bool connection_node_set_remote(struct connection *con)
 bool connection_socket(struct connection *con, int family, int type, int protocol)
 {
 	if( con->socket != -1 )
-		close(con->socket);
+		(void)close(con->socket);
 
 	if ((con->socket = socket(family, type, protocol)) == -1 )
 	{
@@ -187,12 +187,12 @@ bool bind_local(struct connection *con)
 	{
 	case connection_transport_tls:
 	case connection_transport_tcp:
-		setsockopt(con->socket, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
+		(void)setsockopt(con->socket, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
 //		setsockopt(con->socket, SOL_SOCKET, SO_REUSEPORT, &val, sizeof(val));
 		if( pchild_sent_bind(con->socket, (struct sockaddr *)&sa, sizeof_sa) != 0 )
 		{
 			g_warning("Could not bind %s:%i (%s)", con->local.hostname, ntohs(con->local.port), strerror(errno));
-			close(con->socket);
+			(void)close(con->socket);
 			con->socket = -1;
 			return false;
 		}
@@ -212,7 +212,7 @@ bool bind_local(struct connection *con)
 		if( pchild_sent_bind(con->socket, (struct sockaddr *)&sa, sizeof_sa) != 0 )
 		{
 			g_warning("Could not bind %s:%i (%s)", con->local.hostname, ntohs(con->local.port), strerror(errno));
-			close(con->socket);
+			(void)close(con->socket);
 			con->socket = -1;
 			return false;
 		}
@@ -372,7 +372,7 @@ bool connection_listen(struct connection *con, int len)
 
 		if( listen(con->socket, len) != 0 )
 		{
-			close(con->socket);
+			(void)close(con->socket);
 			g_warning("Could not listen %s:%i (%s)", con->local.hostname, ntohs(con->local.port), strerror(errno));
 			return false;
 		}
@@ -398,7 +398,7 @@ bool connection_listen(struct connection *con, int len)
 
 		if( listen(con->socket, len) != 0 )
 		{
-			close(con->socket);
+			(void)close(con->socket);
 			g_warning("Could not listen %s:%i (%s)", con->local.hostname, ntohs(con->local.port), strerror(errno));
 			return false;
 		}
@@ -839,7 +839,7 @@ void connection_connect_next_addr(struct connection *con)
 				} else
 				{
 					g_warning("Could not connect %s:%i (%s)", con->remote.hostname, ntohs(con->remote.port), strerror(errno));
-					close(con->socket);
+					(void)close(con->socket);
 					con->socket = -1;
 					continue;
 				}
@@ -888,7 +888,7 @@ void connection_connect_next_addr(struct connection *con)
 				} else
 				{
 					g_warning("Could not connect %s:%i (%s)", con->remote.hostname, ntohs(con->remote.port), strerror(errno));
-					close(con->socket);
+					(void)close(con->socket);
 					con->socket = -1;
 					continue;
 				}
@@ -1077,7 +1077,7 @@ void connection_reconnect(struct connection *con)
 
 	if( con->socket > 0 )
 	{
-		close(con->socket);
+		(void)close(con->socket);
 		con->socket = -1;
 	}
 
@@ -1190,7 +1190,7 @@ void connection_disconnect(struct connection *con)
 	connection_stop(con);
 
 	if( con->socket != -1 )
-		close(con->socket);
+		(void)close(con->socket);
 	con->socket = -1;
 }
 
@@ -1586,7 +1586,7 @@ void connection_connecting_timeout_cb(EV_P_ struct ev_timer *w, int revents)
 	case connection_transport_tls:
 		ev_io_stop(EV_A_ &con->events.io_out);
 		ev_timer_stop(EV_A_ &con->events.connecting_timeout);
-		close(con->socket);
+		(void)close(con->socket);
 		con->socket = -1;
 		connection_connect_next_addr(con);
 		break;

@@ -590,7 +590,7 @@ opt->stdOUT.filter);
 		{
 			g_error("Could not write pid file to %s", opt->pidfile);
 		}
-		fflush(p);
+		(void)fflush(p);
 //		fclose(p);
 	}
 	g_message("glib version %i.%i.%i", glib_major_version, glib_minor_version, glib_micro_version);
@@ -856,7 +856,7 @@ opt->stdOUT.filter);
 
 	// kill privileged child
 	g_debug("Closing child");
-	close(d->pchild->fd);
+	(void)close(d->pchild->fd);
 
 	// close logs
 	g_debug("Closing logs");

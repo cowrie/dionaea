@@ -85,7 +85,7 @@ void connection_tcp_accept_cb (EV_P_ struct ev_io *w, int revents)
 					  accepted_socket,
 					  g_dionaea->limits.fds,
 					  g_dionaea->limits.fds * 70/100);
-			close(accepted_socket);
+			(void)close(accepted_socket);
 			continue;
 		}
 
@@ -96,7 +96,7 @@ void connection_tcp_accept_cb (EV_P_ struct ev_io *w, int revents)
 		if( connection_node_set_local(accepted) == false || connection_node_set_remote(accepted) == false )
 		{
 			g_debug("accepting connection failed, closing connection");
-			close(accepted->socket);
+			(void)close(accepted->socket);
 			accepted->socket = -1;
 			// Free connection information but don't report
 			// incident.
@@ -171,7 +171,7 @@ void connection_tcp_connecting_cb(EV_P_ struct ev_io *w, int revents)
 //    	connection_tcp_disconnect(EV_A_ con);
 
 		ev_io_stop(EV_A_ &con->events.io_out);
-		close(con->socket);
+		(void)close(con->socket);
 		con->socket = -1;
 		connection_connect_next_addr(con);
 		return;

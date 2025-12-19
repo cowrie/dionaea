@@ -598,7 +598,7 @@ void connection_tls_accept_cb (EV_P_ struct ev_io *w, int revents)
 					  accepted_socket,
 					  g_dionaea->limits.fds,
 					  g_dionaea->limits.fds * 70/100);
-			close(accepted_socket);
+			(void)close(accepted_socket);
 			continue;
 		}
 
@@ -763,7 +763,7 @@ void connection_tls_handshake_again_timeout_cb(EV_P_ struct ev_timer *w, int rev
 	case connection_type_connect:
 		ev_timer_stop(EV_A_ &con->events.handshake_timeout);
 		ev_io_stop(EV_A_ &con->events.io_out);
-		close(con->socket);
+		(void)close(con->socket);
 		con->socket = -1;
 		connection_connect_next_addr(con);
 		break;
@@ -826,7 +826,7 @@ void connection_tls_connecting_cb(EV_P_ struct ev_io *w, int revents)
 	{
 		errno = socket_error;
 		ev_io_stop(EV_A_ &con->events.io_out);
-		close(con->socket);
+		(void)close(con->socket);
 		connection_connect_next_addr(con);
 		return;
 	}
