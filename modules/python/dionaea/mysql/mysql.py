@@ -101,7 +101,7 @@ class mysqld(connection):
             self.cursor = self.dbh.cursor()
             self.database = Database
             return True
-        except:
+        except Exception:
             return False
 
     def _handle_COM_INIT_DB(self, p):

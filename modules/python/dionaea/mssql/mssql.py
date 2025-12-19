@@ -86,7 +86,7 @@ class mssqld(connection):
                     # Command spans multiple packets TDS_ things
                     # this is not the last packet
                     continue
-            except:
+            except Exception:
                 t = traceback.format_exc()
                 logger.error(t)
                 return l
