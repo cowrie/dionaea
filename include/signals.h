@@ -23,7 +23,4 @@ struct signals
 void sigint_cb(struct ev_loop *loop, struct ev_signal *w, int revents);
 void sigterm_cb(struct ev_loop *loop, struct ev_signal *w, int revents);
 void sighup_cb(struct ev_loop *loop, struct ev_signal *w, int revents);
-void sigsegv_cb(struct ev_loop *loop, struct ev_signal *w, int revents);
-
-int segv_handler(int sig);
 void sigsegv_backtrace_cb(int sig);

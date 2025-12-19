@@ -74,23 +74,6 @@ void sighup_cb(struct ev_loop *loop, struct ev_signal *w, int revents)
 }
 
 
-
-void sigsegv_cb(struct ev_loop *loop, struct ev_signal *w, int revents)
-//int segv_handler(int sig)
-{
-	g_warning("%s loop %p w %p revents %i",__PRETTY_FUNCTION__, loop, w, revents);
-//	g_warning("%s sig %i",__PRETTY_FUNCTION__, sig);
-	char cmd[100];
-
-	snprintf(cmd, sizeof(cmd), "%s/bin/dionaea-backtrace %d > /tmp/segv_dionaea.%d.out 2>&1",
-			 PREFIX, (int)getpid(), (int)getpid());
-	if( system(cmd) )
-		return;
-	signal(SIGSEGV, SIG_DFL);
-//	return 0;
-}
-
-
 void sigsegv_backtrace_cb(int sig)
 {
 	(void)sig;
@@ -126,5 +109,5 @@ void sigsegv_backtrace_cb(int sig)
 	}
 //	g_mutex_unlock(&g_dionaea->logging->lock);
 #endif
-	exit(-1);
+	_exit(-1);
 }
