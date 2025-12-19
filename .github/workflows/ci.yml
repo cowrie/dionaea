@@ -139,7 +139,7 @@ jobs:
 
       - name: Start dionaea daemon
         run: |
-          /opt/dionaea/bin/dionaea -w /opt/dionaea -p /tmp/dionaea.pid -D &
+          /opt/dionaea/bin/dionaea -c /opt/dionaea/etc/dionaea/dionaea.cfg -w /opt/dionaea -p /tmp/dionaea.pid -D &
           echo $! > /tmp/dionaea_bg.pid
           sleep 5
 
