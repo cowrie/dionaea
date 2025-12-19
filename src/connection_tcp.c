@@ -227,7 +227,7 @@ void connection_tcp_io_in_cb(EV_P_ struct ev_io *w, int revents)
 	while( (size = recv(con->socket, buf, recv_size, 0)) > 0 )
 	{
 		g_string_append_len(new_in, (gchar *)buf, size);
-		recv_size -= size;
+		recv_size -= (int)size;
 		if( recv_size <= 0 )
 			break;
 	}

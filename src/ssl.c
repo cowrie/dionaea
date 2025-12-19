@@ -300,7 +300,7 @@ static void callback(int p, int n, void *arg)
 bool mkcert(SSL_CTX *ctx)
 {
 	int bits = 512*4;
-	int serial = time(NULL);
+	long serial = time(NULL);
 	int days = 365;
 	gchar *value = NULL;
 	GError *error = NULL;

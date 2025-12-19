@@ -244,9 +244,9 @@ void connection_udp_io_in_cb(EV_P_ struct ev_io *w, int revents)
 		}
 
 		if( peer->type == connection_type_accept && peer->processor_data != NULL )
-			processors_io_in(peer, buf, ret);
+			processors_io_in(peer, buf, (int)ret);
 
-		peer->protocol.io_in(peer, peer->protocol.ctx, buf, ret);
+		peer->protocol.io_in(peer, peer->protocol.ctx, buf, (int)ret);
 	}
 
 	if( ret == -1 && errno != EAGAIN && errno != EWOULDBLOCK )
@@ -266,7 +266,7 @@ void _connection_send_packets(struct connection *con, int fd, GList **packets)
 						 ((struct sockaddr *)&packet->to)->sa_family == PF_INET6 ? sizeof(struct sockaddr_in6) :
 						 ((struct sockaddr *)&packet->to)->sa_family == AF_UNIX ? sizeof(struct sockaddr_un) : -1;
 
-		int ret;
+		ssize_t ret;
 		/*
 		 * for whatever reason
 		 * * send
@@ -279,7 +279,7 @@ void _connection_send_packets(struct connection *con, int fd, GList **packets)
 		 * udp does not work for openbsd
 		 */
 		if( con->type == connection_type_accept && con->processor_data != NULL )
-			processors_io_out(con, packet->data->str, packet->data->len);
+			processors_io_out(con, packet->data->str, (int)packet->data->len);
 
 		ret = sendtofrom(fd, packet->data->str, packet->data->len, 0, (struct sockaddr *)&packet->to, size, (struct sockaddr *)&packet->from, size);
 

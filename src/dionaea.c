@@ -599,7 +599,7 @@ opt->stdOUT.filter);
 	d->loop = ev_default_loop(0);
 	g_message("libev api version is %i.%i", ev_version_major(), ev_version_minor());
 	{
-		int b = ev_backend(d->loop);
+		unsigned int b = ev_backend(d->loop);
 
 		const char *backend[] =
 		{
@@ -751,7 +751,7 @@ opt->stdOUT.filter);
 		g_dionaea->limits.fds = 1024;
 	}else
 	{
-		g_dionaea->limits.fds = rlim.rlim_cur;
+		g_dionaea->limits.fds = (int)rlim.rlim_cur;
 	}
 
 	g_info("Using %i as limit for fds", g_dionaea->limits.fds);
@@ -820,11 +820,11 @@ opt->stdOUT.filter);
 //	signal(SIGBUS, (sighandler_t) segv_handler);
 
 	// thread pool
-	int threads = sysconf(_SC_NPROCESSORS_ONLN);
+	long threads = sysconf(_SC_NPROCESSORS_ONLN);
 	threads = (threads <= 1?2:threads);
 	GError *thread_error = NULL;
-	g_message("Creating %i threads in pool", threads);
-	d->threads->pool = g_thread_pool_new(threadpool_wrapper, NULL, threads, TRUE, &thread_error);
+	g_message("Creating %ld threads in pool", threads);
+	d->threads->pool = g_thread_pool_new(threadpool_wrapper, NULL, (gint)threads, TRUE, &thread_error);
 
 	if( thread_error != NULL )
 	{

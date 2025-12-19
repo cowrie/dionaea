@@ -286,7 +286,7 @@ int32_t bistream_get_stream(struct bistream *bs, enum bistream_direction dir, ui
 
 	g_debug("found stream begin %p stream_offset %i size %i", itsc,  itsc->stream_offset, (int)itsc->data->len);
 
-	int32_t offset = 0;
+	uint32_t offset = 0;
 	while( itsc->stream_offset < end )
 	{
 		itsc = it->data;

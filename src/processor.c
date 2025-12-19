@@ -418,7 +418,7 @@ void proc_streamdumper_on_io(struct connection *con, struct processor_data *pd, 
 	{
 		time_t stamp;
 		if( g_dionaea != NULL && g_dionaea->loop != NULL )
-			stamp = ev_now(g_dionaea->loop);
+			stamp = (time_t)ev_now(g_dionaea->loop);
 		else
 			stamp = time(NULL);
 		struct tm t;

@@ -204,7 +204,7 @@ void logger_stdout_log(const gchar *log_domain,
 
 	time_t stamp;
 	if( g_dionaea != NULL && g_dionaea->loop != NULL )
-		stamp = ev_now(g_dionaea->loop);
+		stamp = (time_t)ev_now(g_dionaea->loop);
 	else
 		stamp = time(NULL);
 
@@ -312,7 +312,7 @@ void logger_file_log(const gchar *log_domain,
 
 	time_t stamp;
 	if( g_dionaea != NULL && g_dionaea->loop != NULL )
-		stamp = ev_now(g_dionaea->loop);
+		stamp = (time_t)ev_now(g_dionaea->loop);
 	else
 		stamp = time(NULL);
 
