@@ -498,8 +498,8 @@ void proc_streamdumper_on_io(struct connection *con, struct processor_data *pd, 
 	}
 
 	char *cdata = data;
-	char xdata[size*4];
-	memset(xdata, 0, size*4);
+	char xdata[(size_t)size * 4];
+	memset(xdata, 0, (size_t)size * 4);
 	char conv[] = "0123456789abcdef";
 	int writesize = 0;
 	for( int i=0; i<size;i++ )

@@ -163,7 +163,7 @@ void opaque_data_dump(struct opaque_data *d, int indent)
 			int preview_len = (data_len < 16) ? data_len : 16;
 			char hex_preview[49] = {0};  // 16 bytes * 2 hex chars + 1 null
 			for (int i = 0; i < preview_len; i++) {
-				g_snprintf(hex_preview + i*2, 3, "%02x",
+				g_snprintf(hex_preview + (size_t)i * 2, 3, "%02x",
 				          (unsigned char)d->opaque.string->str[i]);
 			}
 			g_snprintf(x+indent, 1023, "%s: (bytes) %d bytes [%s%s]",
