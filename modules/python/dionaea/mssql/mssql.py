@@ -91,6 +91,7 @@ class mssqld(connection):
                 logger.error(t)
                 return l
 
+            x: TDS_Prelogin_Request | TDS_Login7_Request | TDS_SQLBatchData | TDS_PreTDS7_Login_Request | TDS_TDS5_Query_Request
             if self.pendingPacketType == TDS_TYPES_PRE_LOGIN:
                 x = TDS_Prelogin_Request(self.buf)
             elif self.pendingPacketType == TDS_TYPES_TDS7_LOGIN:

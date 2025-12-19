@@ -110,11 +110,11 @@ class Packet(BasePacket, metaclass=Packet_metaclass):
         if self.name is None:
             self.name = self.__class__.__name__
         self.aliastypes = [ self.__class__ ] + self.aliastypes
-        self.default_fields = {}
-        self.overloaded_fields = {}
-        self.fields={}
-        self.fieldtype={}
-        self.packetfields=[]
+        self.default_fields: dict = {}
+        self.overloaded_fields: dict = {}
+        self.fields: dict = {}
+        self.fieldtype: dict = {}
+        self.packetfields: list = []
         self.__dict__["payload"] = NoPayload()
         self.init_fields()
         self.underlayer = _underlayer
