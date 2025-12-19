@@ -5,10 +5,8 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 if (Python3_Interpreter_FOUND)
-    #set(SETUP_PY_IN "${CMAKE_CURRENT_SOURCE_DIR}/setup.py")
     set(SETUP_PY_IN "${CMAKE_CURRENT_SOURCE_DIR}/setup.py.in2")
     set(SETUP_PY    "${CMAKE_CURRENT_BINARY_DIR}/setup.py")
-    #set(DEPS        "${CMAKE_CURRENT_SOURCE_DIR}/module/__init__.py")
     set(OUTPUT      "${CMAKE_CURRENT_BINARY_DIR}/build/timestamp")
     set(
         DEPS
@@ -16,13 +14,18 @@ if (Python3_Interpreter_FOUND)
     )
 
     configure_file(${SETUP_PY_IN} ${SETUP_PY})
+    # Copy pyproject.toml to build directory for pip install
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/pyproject.toml
+        ${CMAKE_CURRENT_BINARY_DIR}/pyproject.toml
+        COPYONLY
+    )
 
     add_custom_command(
         OUTPUT ${OUTPUT}
         COMMAND ${Python3_EXECUTABLE} ${SETUP_PY} build
         COMMAND ${CMAKE_COMMAND} -E touch ${OUTPUT}
         DEPENDS ${DEPS}
-        #WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     )
 
     add_custom_target(
@@ -30,8 +33,8 @@ if (Python3_Interpreter_FOUND)
         ALL DEPENDS ${OUTPUT}
     )
 
-    #install(CODE "execute_process(COMMAND ${Python3_EXECUTABLE} ${SETUP_PY} install --prefix=${CMAKE_INSTALL_PREFIX})")
-    install(CODE "execute_process(COMMAND ${Python3_EXECUTABLE} ${SETUP_PY} install --single-version-externally-managed --root=/ --install-lib=\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${DIONAEA_PYTHON_SITELIBDIR})")
+    # Use pip install instead of deprecated setup.py install
+    install(CODE "execute_process(COMMAND ${Python3_EXECUTABLE} -m pip install --no-build-isolation --no-deps --target=\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${DIONAEA_PYTHON_SITELIBDIR} ${CMAKE_CURRENT_BINARY_DIR})")
 endif()
 
 add_library(

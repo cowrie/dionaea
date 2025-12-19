@@ -1,0 +1,6 @@
+# ABOUTME: Build system configuration for dionaea Python extension
+# ABOUTME: Used by pip install to build the Cython binding
+
+[build-system]
+requires = ["setuptools>=45", "cython>=0.29"]
+build-backend = "setuptools.build_meta"
