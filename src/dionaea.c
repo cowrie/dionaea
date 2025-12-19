@@ -727,16 +727,16 @@ opt->stdOUT.filter);
 	mode_t oldu = umask(newu);
 
 #define print_umask(str, x)\
-	g_debug("%s -%s%s%s%s%s%s%s%s%s", str, \
-				   x & S_IRUSR ? "r" : "-",\
-				   x & S_IWUSR ? "w" : "-",\
-				   x & S_IXUSR ? "x" : "-",\
-				   x & S_IRGRP ? "r" : "-",\
-				   x & S_IWGRP ? "w" : "-",\
-				   x & S_IXGRP ? "x" : "-",\
-				   x & S_IROTH ? "r" : "-",\
-				   x & S_IWOTH ? "w" : "-",\
-				   x & S_IXOTH ? "x" : "-")
+	g_debug("%s -%s%s%s%s%s%s%s%s%s", (str), \
+				   (x) & S_IRUSR ? "r" : "-",\
+				   (x) & S_IWUSR ? "w" : "-",\
+				   (x) & S_IXUSR ? "x" : "-",\
+				   (x) & S_IRGRP ? "r" : "-",\
+				   (x) & S_IWGRP ? "w" : "-",\
+				   (x) & S_IXGRP ? "x" : "-",\
+				   (x) & S_IROTH ? "r" : "-",\
+				   (x) & S_IWOTH ? "w" : "-",\
+				   (x) & S_IXOTH ? "x" : "-")
 
 	print_umask("old umask", oldu);
 	print_umask("new umask", newu);

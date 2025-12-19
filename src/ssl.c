@@ -211,14 +211,14 @@ EVP_PKEY *ssl_dh_GetParamFromFile(char *file)
 }
 
 #define MYSSL_TMP_KEY_FREE(con, type, idx) \
-	if (con->transport.tls.pTmpKeys[idx]) { \
-		type##_free((type *)con->transport.tls.pTmpKeys[idx]); \
-		con->transport.tls.pTmpKeys[idx] = NULL; \
+	if ((con)->transport.tls.pTmpKeys[(idx)]) { \
+		type##_free((type *)(con)->transport.tls.pTmpKeys[(idx)]); \
+		(con)->transport.tls.pTmpKeys[(idx)] = NULL; \
 	}
 
 #define MYSSL_TMP_KEYS_FREE(con, type) \
-	MYSSL_TMP_KEY_FREE(con, type, SSL_TMP_KEY_##type##_512); \
-	MYSSL_TMP_KEY_FREE(con, type, SSL_TMP_KEY_##type##_1024)
+	MYSSL_TMP_KEY_FREE((con), type, SSL_TMP_KEY_##type##_512); \
+	MYSSL_TMP_KEY_FREE((con), type, SSL_TMP_KEY_##type##_1024)
 
 
 void ssl_tmp_keys_free(struct connection *con)
@@ -240,10 +240,10 @@ int ssl_tmp_key_init_rsa(struct connection *con, int bits, int idx)
 }
 
 #define MYSSL_TMP_KEY_INIT_RSA(s, bits) \
-	ssl_tmp_key_init_rsa(s, bits, SSL_TMP_KEY_RSA_##bits)
+	ssl_tmp_key_init_rsa((s), (bits), SSL_TMP_KEY_RSA_##bits)
 
 #define MYSSL_TMP_KEY_INIT_DH(s, bits) \
-	ssl_tmp_key_init_dh(s, bits, SSL_TMP_KEY_DH_##bits)
+	ssl_tmp_key_init_dh((s), (bits), SSL_TMP_KEY_DH_##bits)
 
 int ssl_tmp_keys_init(struct connection *con)
 {

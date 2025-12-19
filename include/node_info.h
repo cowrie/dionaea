@@ -14,7 +14,7 @@
 #define IFNAM_STRLEN 16
 #define INET_STRLEN INET6_ADDRSTRLEN
 
-#define NODE_STRLEN 1 + INET_STRLEN + 1 + 1 + IFNAM_STRLEN + 1  + 1 + PORT_STRLEN
+#define NODE_STRLEN (1 + INET_STRLEN + 1 + 1 + IFNAM_STRLEN + 1  + 1 + PORT_STRLEN)
 
 struct node_info
 {
