@@ -19,7 +19,7 @@ class MSSQLService(ServiceLoader):
     @classmethod
     def start(cls, addr: str, iface: str | None = None, config: dict[str, Any] | None = None) -> mssqld:
         daemon = mssqld()
-        daemon.apply_config(config)
+        daemon.apply_config(config or {})
         daemon.bind(addr, 1433, iface=iface)
         daemon.listen()
         return daemon

@@ -25,12 +25,9 @@ class MemcacheService(ServiceLoader):
 
     @classmethod
     def start(cls, addr: str, iface: str | None = None, config: dict[str, Any] | None = None) -> list[Memcache] | None:
-        if config is None:
-            config = {}
-
         daemon = Memcache(proto="tcp")
         try:
-            daemon.apply_config(config)
+            daemon.apply_config(config or {})
         except ServiceConfigError as e:
             logger.error(e.msg, *e.args)
             return

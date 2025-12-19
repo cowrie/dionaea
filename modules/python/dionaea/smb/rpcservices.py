@@ -3237,7 +3237,7 @@ class SRVSVC(RPCService):
                     self.__packer.pack_pointer(self.Security_descriptor)
 
                 for j in self.Data:
-                    data = self.Data[i]
+                    data = self.Data[j]
                     self.__packer.pack_string_fix(
                         str(j+'\0').encode('utf16')[2:])
                     self.__packer.pack_string_fix(
@@ -3453,6 +3453,8 @@ class SRVSVC(RPCService):
             s = SRVSVC.SHARE_INFO_1_CONTAINER(r)
         elif infostruct_share == 502:
             s = SRVSVC.SHARE_INFO_502_CONTAINER(r)
+        else:
+            raise NotImplementedError(f"Unsupported infostruct_share: {infostruct_share}")
 
         s.Data = __shares__
         s.pack()

@@ -482,6 +482,7 @@ class smbd(connection):
                 # get pretty filename
                 f,v = h.getfield_and_val('Filename')
                 filename = f.i2repr(h,v)
+                j = 0
                 for j in range(len(filename)):
                     if filename[j] != '\\' and filename[j] != '/':
                         break
@@ -518,6 +519,7 @@ class smbd(connection):
             # get pretty filename
             f,v = h.getfield_and_val('FileName')
             filename = f.i2repr(h,v)
+            j = 0
             for j in range(len(filename)):
                 if filename[j] != '\\' and filename[j] != '/':
                     break
@@ -620,6 +622,7 @@ class smbd(connection):
                 rap.show()
                 rout = RAP_Response()
                 coff = 0
+                comments = []
                 if rap.Opcode == RAP_OP_NETSHAREENUM:
                     (InfoLevel,ReceiveBufferSize) = struct.unpack(
                         "<HH",rap.Params)

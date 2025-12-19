@@ -20,6 +20,6 @@ class MQTTService(ServiceLoader):
     def start(cls, addr: str, iface: str | None = None, config: dict[str, Any] | None = None) -> mqttd:
         daemon = mqttd()
         daemon.bind(addr, 1883, iface=iface)
-        daemon.apply_config(config)
+        daemon.apply_config(config or {})
         daemon.listen()
         return daemon

@@ -136,12 +136,9 @@ class FTPService(ServiceLoader):
 
     @classmethod
     def start(cls, addr,  iface=None, config=None):
-        if config is None:
-            config = {}
-
         daemon = FTPd()
         try:
-            daemon.apply_config(config)
+            daemon.apply_config(config or {})
         except ServiceConfigError as e:
             logger.error(e.msg, *e.args)
             return

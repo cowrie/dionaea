@@ -19,7 +19,7 @@ class MYSQLService(ServiceLoader):
     @classmethod
     def start(cls, addr: str, iface: str | None = None, config: dict[str, Any] | None = None) -> mysqld:
         daemon = mysqld()
-        daemon.apply_config(config)
+        daemon.apply_config(config or {})
         daemon.bind(addr, 3306, iface=iface)
         daemon.listen()
         return daemon

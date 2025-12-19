@@ -73,6 +73,7 @@ class BER_BadTag_Decoding_Error(BER_Decoding_Error, ASN1_BadTag_Decoding_Error):
 def BER_identifier_enc(l, pr=0, num=0):
     ident = l
     #print ("ident %s" % ident)
+    cls = 0
     if ident is not None :
         cls = int(ident) & 0x03
         cls <<=6
@@ -181,6 +182,8 @@ def BER_num_enc(l, size=1):
     return b"".join([struct.pack("B",k) for k in x])
 def BER_num_dec(s):
     x = 0
+    c = 0
+    i = 0
     for i in range(len(s)):
         #            c = ord(s[i])
         c = s[i]

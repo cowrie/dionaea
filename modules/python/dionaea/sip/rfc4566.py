@@ -200,15 +200,13 @@ class ConnectionData:
         connection_address = con_values[0]
 
         # ToDo: IP6?
+        ttl = None
+        number_of_addresses = None
         if addrtype == b"IP4":
             if len(con_values) > 1:
                 ttl = int(con_values[1])
-            else:
-                ttl = None
             if len(con_values) > 2:
                 number_of_addresses = int(con_values[2])
-            else:
-                number_of_addresses = None
         return (
             len(data),
             {

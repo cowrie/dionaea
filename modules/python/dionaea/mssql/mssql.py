@@ -101,6 +101,10 @@ class mssqld(connection):
                 x = TDS_PreTDS7_Login_Request(self.buf)
             elif self.pendingPacketType == TDS_TYPES_TDS5_QUERY:
                 x = TDS_TDS5_Query_Request(self.buf)
+            else:
+                logger.warning("Unknown TDS packet type: %s", self.pendingPacketType)
+                self.buf = b''
+                continue
 
             self.buf = b''
             x.show()
@@ -271,6 +275,11 @@ class mssqld(connection):
                     x = TDS_PreTDS7_Login_Request(self.buf)
                 elif self.pendingPacketType == TDS_TYPES_TDS5_QUERY:
                     x = TDS_TDS5_Query_Request(self.buf)
+                else:
+                    logger.warning("Unknown TDS packet type: %s", self.pendingPacketType)
+                    self.buf = b''
+                    self.session.close()
+                    return False
 
                 self.buf = b''
                 x.show()

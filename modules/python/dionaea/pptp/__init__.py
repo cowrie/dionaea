@@ -24,7 +24,7 @@ class PPTPService(ServiceLoader):
     def start(cls, addr: str, iface: str | None = None, config: dict[str, Any] | None = None) -> pptpd | None:
         daemon = pptpd()
         try:
-            daemon.apply_config(config)
+            daemon.apply_config(config or {})
         except ServiceConfigError as e:
             logger.error(e.msg, *e.args)
             return None

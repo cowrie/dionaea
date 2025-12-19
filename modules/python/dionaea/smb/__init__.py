@@ -29,7 +29,7 @@ class SMBService(ServiceLoader):
     def start(cls, addr: str, iface: str | None = None, config: dict[str, Any] | None = None) -> 'smbd | None':
         daemon = smbd()
         try:
-            daemon.apply_config(config=config)
+            daemon.apply_config(config=config or {})
         except ServiceConfigError as e:
             smblog.error(e.msg, *e.args)
             return None

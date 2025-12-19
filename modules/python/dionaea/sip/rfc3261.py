@@ -595,6 +595,8 @@ class Message:
 
         response_code = None
         status_message = None
+        method = None
+        uri = None
         try:
             response_code, protocol, status_message = int(h2), h1, h3
         except Exception:

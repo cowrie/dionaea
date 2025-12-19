@@ -57,13 +57,14 @@ class cmdexe:
             if redir is not None:
                 redir = redir.decode()
                 redir = redir.strip()
+                target = None
                 if redir.startswith('>>'):
                     target = redir[2:]
                 elif redir.startswith('>'):
                     target = redir[1:]
                     if target in self.files:
                         del self.files[target]
-                if target:
+                if target is not None and target:
                     target = target.strip()
                     target = target.rstrip()
                     if target not in self.files:
@@ -316,6 +317,7 @@ class cmdexe:
             data = data.encode()
 
         escape = False
+        i = 0
         for i in range(len(data)):
             if int(data[i]) == ord('^'):
                 if not escape:

@@ -658,8 +658,8 @@ class TftpPacketFactory:
             packet = TftpPacketERR()
         elif opcode == 6:
             packet = TftpPacketOACK()
-
-#        packet = self.classes[opcode]()
+        else:
+            raise TftpException("Unsupported opcode: %d" % opcode)
 
         logger.debug("packet is %s" % packet)
         return packet

@@ -20,7 +20,7 @@ class UPNPService(ServiceLoader):
     @classmethod
     def start(cls, addr: str, iface: str | None = None, config: dict[str, Any] | None = None) -> upnpd:
         daemon = upnpd()
-        daemon.apply_config(config)
+        daemon.apply_config(config or {})
         daemon.bind(addr, 1900, iface=iface)
         daemon.listen()
         return daemon

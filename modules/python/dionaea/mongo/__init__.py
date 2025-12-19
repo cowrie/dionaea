@@ -18,7 +18,7 @@ class MongoService(ServiceLoader):
     @classmethod
     def start(cls, addr: str, iface: str | None = None, config: dict[str, Any] | None = None) -> mongod:
         daemon = mongod()
-        daemon.apply_config(config)
+        daemon.apply_config(config or {})
         daemon.bind(addr, 27017, iface=iface)
         daemon.listen()
         return daemon

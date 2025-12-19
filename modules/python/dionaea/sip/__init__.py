@@ -660,6 +660,11 @@ class SipSession(connection):
             msg = rfc3261.Message(**data_load)
             logger.debug(f"Got {len(data)} bytes, Used {len_used} bytes")
 
+        else:
+            logger.error(f"Unknown transport type: {self.transport}")
+            self.close()
+            return len(data)
+
         msg.set_personality(self.personality)
 
         handler_name = msg.method.decode("utf-8").upper()
