@@ -322,7 +322,7 @@ class TftpPacket:
     directly."""
     def __init__(self) -> None:
         self.opcode: int = 0
-        self.buffer: bytes | None = None
+        self.buffer: bytes = b""
 
     def encode(self) -> 'TftpPacket':
         """The encode method of a TftpPacket takes keyword arguments specific
@@ -679,7 +679,7 @@ class TftpServerHandler(TftpSession):
         self.original_filename: str | None = None  # Store client's requested filename
         self.options: dict[str, Any] = {'blksize': DEF_BLKSIZE}
         self.blocknumber: int = 0
-        self.buffer: bytes | None = None
+        self.buffer: bytes = b""
         self.fileobj: Any = None
         self.timeouts.idle = 3
         self.timeouts.sustain = 120
