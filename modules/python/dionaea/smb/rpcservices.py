@@ -10,16 +10,14 @@
 
 import logging
 import tempfile
-
 from uuid import UUID
-
-logger = logging.getLogger('smb.rpcservices')
 from time import time, localtime, altzone
 
 from dionaea import ndrlib
 from dionaea.core import g_dionaea, incident
 from .include.smbfields import DCERPC_Header, DCERPC_Response
 
+logger = logging.getLogger('smb.rpcservices')
 rpclog = logging.getLogger('rpcservices')
 
 # Set the operating system of Dionaea by changing the value
@@ -40,6 +38,21 @@ class DCERPCValueError(Exception):
         self.value = value
     def __str__(self):
         return f"{self.varname} is {self.reason} ({self.value})"
+
+
+def _get_pointer_size(con):
+    """Get negotiated pointer size from connection state."""
+    return con.state.get('pointer_size', 32)
+
+
+def make_unpacker(con, data):
+    """Create an Unpacker with the correct pointer size for this connection."""
+    return ndrlib.Unpacker(data, pointer_size=_get_pointer_size(con))
+
+
+def make_packer(con):
+    """Create a Packer with the correct pointer size for this connection."""
+    return ndrlib.Packer(pointer_size=_get_pointer_size(con))
 
 
 class RPCService:
@@ -135,7 +148,7 @@ class ATSVC(RPCService):
         #  [in, out, unique] LPDWORD pResumeHandle
         #);
 
-        x = ndrlib.Unpacker(p.StubData)
+        x = make_unpacker(con, p.StubData)
         ATSVC.ATSVC_HANDLE(x)
 
         x.unpack_short()
@@ -148,7 +161,7 @@ class ATSVC(RPCService):
         x.unpack_pointer()
         x.unpack_long()
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
         # pEnumContainer
         r.pack_long(0)		# EntriesRead
         r.pack_pointer(0)	# pEntries
@@ -424,7 +437,7 @@ class IOXIDResolver(RPCService):
         #	  [out, ref] DUALSTRINGARRAY** ppdsaOrBindings,
         #	  [out, ref] DWORD* pReserved
         #	);
-        p = ndrlib.Packer()
+        p = make_packer(con)
 
         # prepare values
 
@@ -793,7 +806,7 @@ class lsarpc(RPCService):
         #  [out] LSAPR_HANDLE* PolicyHandle
         #);
 
-        x = ndrlib.Unpacker(p.StubData)
+        x = make_unpacker(con, p.StubData)
         x.unpack_pointer()
         SystemName = x.unpack_string()
         rpclog.debug("ServerName %s" % SystemName)
@@ -801,7 +814,7 @@ class lsarpc(RPCService):
         lsarpc.LSAPR_OBJECT_ATTRIBUTES(x)
         x.unpack_long()
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
         PolicyHandle = lsarpc.LSAPR_HANDLE(r)
         PolicyHandle.Handle = b'01234567890123456789'
         PolicyHandle.pack()
@@ -829,7 +842,7 @@ class lsarpc(RPCService):
         #  [in] unsigned long ClientRevision
         #);
 
-        x = ndrlib.Unpacker(p.StubData)
+        x = make_unpacker(con, p.StubData)
         lsarpc.LSAPR_HANDLE(x)
         Count = x.unpack_long()
 
@@ -843,7 +856,7 @@ class lsarpc(RPCService):
         x.unpack_long()
         x.unpack_long()
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
         r.pack_pointer(0x23456)
 
         ReferenceDomains = lsarpc.LSAPR_REFERENCED_DOMAIN_LIST(r)
@@ -879,7 +892,7 @@ class lsarpc(RPCService):
         #  [in] unsigned long ClientRevision
         #);
 
-        x = ndrlib.Unpacker(p.StubData)
+        x = make_unpacker(con, p.StubData)
         lsarpc.LSAPR_HANDLE(x)
         SidEnumBuffer = lsarpc.LSAPR_SID_ENUM_BUFFER(x)
         rpclog.debug("EntriesRead = %i" % SidEnumBuffer.Entries)
@@ -892,7 +905,7 @@ class lsarpc(RPCService):
         rpclog.debug ("LookupLevel %i MappedCount %i LookupOptions %i ClientRevision %i" %(
             LookupLevel,MappedCount,LookupOptions,ClientRevision))
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
         r.pack_pointer(0x23456)
 
         ReferenceDomains = lsarpc.LSAPR_REFERENCED_DOMAIN_LIST(r)
@@ -921,11 +934,11 @@ class lsarpc(RPCService):
         #NTSTATUS LsarClose(
         #  [in, out] LSAPR_HANDLE* ObjectHandle
         #);
-        x = ndrlib.Unpacker(p.StubData)
+        x = make_unpacker(con, p.StubData)
         ObjectHandle = lsarpc.LSAPR_HANDLE(x)
         rpclog.debug("ObjectHandle %s" % ObjectHandle)
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
         s = lsarpc.LSAPR_HANDLE(r)
         s.Handle =  b'\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0'
         s.pack()
@@ -1154,7 +1167,7 @@ class MGMT(RPCService):
         # 	[out]       rpc_if_id_vector_p_t    *if_id_vector,
         # 	[out]       error_status_t          *status
         # );
-        r = ndrlib.Packer()
+        r = make_packer(con)
         r.pack_pointer(0x4747)
         v = MGMT.rpc_if_id_vector_t(r)
         v.if_id.append(MGMT.rpc_if_id_t(r))
@@ -1186,12 +1199,12 @@ class MGMT(RPCService):
         #                 char                    princ_name[],
         #     [out]       error_status_t          *status
         # );
-        x = ndrlib.Unpacker(p.StubData)
+        x = make_unpacker(con, p.StubData)
         MGMT.handle_t(x)
 #		authn_proto = x.unpack_long()
 #		princ_name_size = x.unpack_long()
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
         r.pack_string(b"oemcomputer")
 #		r.pack_long(0)
 #		r.pack_long(0)
@@ -1844,7 +1857,7 @@ class samr(RPCService):
         #   [in] unsigned long ClientRevision,
         #   [in] unsigned long DesiredAccess
         # );
-        x = ndrlib.Unpacker(p.StubData)
+        x = make_unpacker(con, p.StubData)
         x.unpack_pointer()
         ServerName = x.unpack_string()
         rpclog.debug("ServerName %s" % ServerName)
@@ -1853,7 +1866,7 @@ class samr(RPCService):
         ClientRevision = x.unpack_long()
         rpclog.debug("InVersion %i" % ClientRevision)
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
 
         # ServerHandle
         ServerHandle = samr.SAMPR_HANDLE(r)
@@ -1880,7 +1893,7 @@ class samr(RPCService):
         #   [out, switch_is(*OutVersion)] SAMPR_REVISION_INFO* OutRevisionInfo,
         #   [out] SAMPR_HANDLE* ServerHandle
         # );
-        x = ndrlib.Unpacker(p.StubData)
+        x = make_unpacker(con, p.StubData)
         x.unpack_pointer()
         ServerName = x.unpack_string()
 
@@ -1901,7 +1914,7 @@ class samr(RPCService):
         rpclog.debug("Revision %i SupportedFeatures %i" %
                      (Revision, SupportedFeatures))
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
 
         r.pack_pointer(0x1)
         r.pack_long(InVersion)
@@ -1930,14 +1943,14 @@ class samr(RPCService):
         #  [in] SECURITY_INFORMATION SecurityInformation,
         #  [out] PSAMPR_SR_SECURITY_DESCRIPTOR* SecurityDescriptor
         #);
-        x = ndrlib.Unpacker(p.StubData)
+        x = make_unpacker(con, p.StubData)
         ObjectHandle = samr.SAMPR_HANDLE(x)
         rpclog.debug("ObjectHandle %s" % ObjectHandle)
 
         SecurityInformation = x.unpack_long()
         rpclog.debug("SecurityInformation %i" % SecurityInformation)
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
 
         # Pointer to struct _SAMPR_SR_SECURITY_DESCRIPTOR
         r.pack_pointer(0xbbe58)
@@ -1967,7 +1980,7 @@ class samr(RPCService):
         #   [in] unsigned long PreferedMaximumLength,
         #   [out] unsigned long* CountReturned
         #);
-        x = ndrlib.Unpacker(p.StubData)
+        x = make_unpacker(con, p.StubData)
         ServerHandle = samr.SAMPR_HANDLE(x)
         rpclog.debug("ServerHandle %s" % ServerHandle)
 
@@ -1977,7 +1990,7 @@ class samr(RPCService):
         PreferedMaximumLength = x.unpack_long()
         rpclog.debug("PreferedMaximumLength %i" % PreferedMaximumLength)
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
         # unsigned long* EnumerationContext,
         r.pack_pointer(EnumerationContext)
 
@@ -2007,10 +2020,10 @@ class samr(RPCService):
         #[in] PRPC_UNICODE_STRING Name,
         #[out] PRPC_SID* DomainId
         #);
-        x = ndrlib.Unpacker(p.StubData)
+        x = make_unpacker(con, p.StubData)
         samr.SAMPR_HANDLE(x)
         samr.RPC_UNICODE_STRING(x)
-        r = ndrlib.Packer()
+        r = make_packer(con)
         r.pack_pointer(0x0da260)   #same as EnumDomain
 
         # http://technet.microsoft.com/en-us/library/cc778824%28WS.10%29.aspx
@@ -2040,7 +2053,7 @@ class samr(RPCService):
         #   [in] PRPC_SID DomainId,
         #   [out] SAMPR_HANDLE* DomainHandle
         # );
-        x = ndrlib.Unpacker(p.StubData)
+        x = make_unpacker(con, p.StubData)
         ServerHandle = samr.SAMPR_HANDLE(x)
         rpclog.debug("ServerHandle %s" % ServerHandle)
 
@@ -2049,7 +2062,7 @@ class samr(RPCService):
 
         samr.RPC_SID(x)
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
 
         DomainHandle = samr.SAMPR_HANDLE(r)
         DomainHandle.Handle = b'11223344556677889900'
@@ -2073,7 +2086,7 @@ class samr(RPCService):
         #[in] unsigned long PreferedMaximumLength,
         #[out] unsigned long* CountReturned
         #)
-        x = ndrlib.Unpacker(p.StubData)
+        x = make_unpacker(con, p.StubData)
         DomainHandle = samr.SAMPR_HANDLE(x)
         rpclog.debug("DomainHandle %s" % DomainHandle)
 
@@ -2086,7 +2099,7 @@ class samr(RPCService):
         PreferedMaximumLength = x.unpack_long()
         rpclog.debug("PreferedMaximumLength %i" % PreferedMaximumLength)
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
         r.pack_pointer(EnumerationContext)
 
         # PSAMPR_ENUMERATION_BUFFER* Buffer
@@ -2115,7 +2128,7 @@ class samr(RPCService):
         #  [in] PSAMPR_PSID_ARRAY SidArray,
         #  [out] PSAMPR_ULONG_ARRAY Membership
         #);
-        x = ndrlib.Unpacker(p.StubData)
+        x = make_unpacker(con, p.StubData)
         DomainHandle = samr.SAMPR_HANDLE(x)
         rpclog.debug("DomainHandle %s" % DomainHandle)
 
@@ -2124,7 +2137,7 @@ class samr(RPCService):
         x.unpack_pointer()
         samr.SAMPR_PSID_ARRAY(x)
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
         r.pack_long(1)
 
         # PSAMPR_ULONG_ARRAY Membership
@@ -2150,7 +2163,7 @@ class samr(RPCService):
         #  [out] PSAMPR_ULONG_ARRAY RelativeIds,
         #  [out] PSAMPR_ULONG_ARRAY Use
         #)
-        x = ndrlib.Unpacker(p.StubData)
+        x = make_unpacker(con, p.StubData)
         DomainHandle = samr.SAMPR_HANDLE(x)
         rpclog.debug("DomainHandle %s" % DomainHandle)
 
@@ -2171,7 +2184,7 @@ class samr(RPCService):
         LookupName = Names.Buffer.decode('UTF-16')
         rpclog.debug("LookupName %s" % LookupName)
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
 
         if LookupName in __userinfo__:
             # PSAMPR_ULONG_ARRAY RelativeIds
@@ -2221,7 +2234,7 @@ class samr(RPCService):
         #  [in] unsigned long UserId,
         #  [out] SAMPR_HANDLE* UserHandle
         #);
-        x = ndrlib.Unpacker(p.StubData)
+        x = make_unpacker(con, p.StubData)
         DomainHandle = samr.SAMPR_HANDLE(x)
         rpclog.debug("DomainHandle %s" % DomainHandle)
 
@@ -2231,7 +2244,7 @@ class samr(RPCService):
         UserId = x.unpack_long()
         rpclog.debug("UserId %i" % UserId)
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
         # UserHandle
         UserHandle = samr.SAMPR_HANDLE(r)
         UserHandle.Handle = b'01234567890123456789'
@@ -2254,14 +2267,14 @@ class samr(RPCService):
         #  [out, switch_is(UserInformationClass)]
         #    PSAMPR_USER_INFO_BUFFER* Buffer
         #);
-        x = ndrlib.Unpacker(p.StubData)
+        x = make_unpacker(con, p.StubData)
         UserHandle = samr.SAMPR_HANDLE(x)
         rpclog.debug("UserHandle %s" % UserHandle)
 
         UserInformationClass = x.unpack_short()
         rpclog.debug("UserInformationClass %i" % UserInformationClass)
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
         #typedef  enum _USER_INFORMATION_CLASS
         #{
         #  UserGeneralInformation = 1,
@@ -2325,7 +2338,7 @@ class samr(RPCService):
         #  [in] SAMPR_HANDLE UserHandle,
         #  [out] PSAMPR_GET_GROUPS_BUFFER* Groups
         #);
-        x = ndrlib.Unpacker(p.StubData)
+        x = make_unpacker(con, p.StubData)
         UserHandle = samr.SAMPR_HANDLE(x)
         rpclog.debug("UserHandle %s" % UserHandle)
 
@@ -2341,7 +2354,7 @@ class samr(RPCService):
         # The following response is made by refering to Microsoft Network
         # Monitor
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
         r.pack_pointer(0xc6298)
 
         # MembershipCount;
@@ -2374,7 +2387,7 @@ class samr(RPCService):
         #  [out, switch_is(DisplayInformationClass)]
         #    PSAMPR_DISPLAY_INFO_BUFFER Buffer
         #);
-        x = ndrlib.Unpacker(p.StubData)
+        x = make_unpacker(con, p.StubData)
         DomainHandle = samr.SAMPR_HANDLE(x)
         rpclog.debug("DomainHandle %s" % DomainHandle)
 
@@ -2390,7 +2403,7 @@ class samr(RPCService):
         PreferredMaximumLength = x.unpack_long()
         rpclog.debug("PreferredMaximumLength %i" % PreferredMaximumLength)
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
         # unsigned long* TotalAvailable
         r.pack_long(30)
         # unsigned long* TotalReturned
@@ -2421,14 +2434,14 @@ class samr(RPCService):
         #  [out, switch_is(DomainInformationClass)]
         #    PSAMPR_DOMAIN_INFO_BUFFER* Buffer
         #)
-        x = ndrlib.Unpacker(p.StubData)
+        x = make_unpacker(con, p.StubData)
         DomainHandle = samr.SAMPR_HANDLE(x)
         rpclog.debug("DomainHandle %s" % DomainHandle)
 
         DisplayInformationClass = x.unpack_long()
         rpclog.debug("DisplayInformationClass %i" % DisplayInformationClass)
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
         #typedef
         #[switch_type(DOMAIN_INFORMATION_CLASS)]
         #  union _SAMPR_DOMAIN_INFO_BUFFER {
@@ -2525,7 +2538,7 @@ class samr(RPCService):
         #  [in] unsigned long PreferedMaximumLength,
         #  [out] unsigned long* CountReturned
         #)
-        x = ndrlib.Unpacker(p.StubData)
+        x = make_unpacker(con, p.StubData)
         DomainHandle = samr.SAMPR_HANDLE(x)
         rpclog.debug("DomainHandle %s" % DomainHandle)
 
@@ -2535,7 +2548,7 @@ class samr(RPCService):
         PreferedMaximumLength = x.unpack_long()
         rpclog.debug("PreferedMaximumLength %i" % PreferedMaximumLength)
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
         r.pack_long(EnumerationContext)
 
         # PSAMPR_ENUMERATION_BUFFER* Buffer
@@ -2562,11 +2575,11 @@ class samr(RPCService):
         #long SamrCloseHandle(
         #[in, out] SAMPR_HANDLE* SamHandle
         #);
-        x = ndrlib.Unpacker(p.StubData)
+        x = make_unpacker(con, p.StubData)
         SamHandle = samr.SAMPR_HANDLE(x)
         rpclog.debug("SamHandle %s" % SamHandle)
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
         s = samr.SAMPR_HANDLE(r)
         s.Handle =  b'\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0'
         s.pack()
@@ -2686,7 +2699,7 @@ class spoolss(RPCService):
         #  __out  LPDWORD pcReturned
         #);
 
-        p = ndrlib.Unpacker(p.StubData)
+        p = make_unpacker(con, p.StubData)
         Flags = p.unpack_long()
         Name = p.unpack_pointer()
         Level = p.unpack_long()
@@ -2696,7 +2709,7 @@ class spoolss(RPCService):
         rpclog.debug("Flags %s Name %s Level %i cbBuf %i " %
                      (Flags, Name, Level, cbBuf))
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
         # Pointer to PRINTER_INFO_X buffer
         r.pack_pointer(0x6b254)
 
@@ -2739,7 +2752,7 @@ class spoolss(RPCService):
         #  __in   LPPRINTER_DEFAULTS pDefault
         #);
 
-        x = ndrlib.Unpacker(p.StubData)
+        x = make_unpacker(con, p.StubData)
         x.unpack_pointer()
         PrinterName = x.unpack_string()
         logger.debug(f"PrinterName {PrinterName}")
@@ -2764,7 +2777,7 @@ class spoolss(RPCService):
 
         logger.debug(f"Size {Size} Buff {Buff}")
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
         # Returned Handle
         r.pack_raw(b'\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0')
         # Success
@@ -2774,7 +2787,7 @@ class spoolss(RPCService):
 
     @classmethod
     def handle_ClosePrinter(cls, con, p):
-        r = ndrlib.Packer()
+        r = make_packer(con)
         r.pack_long(0)
         return r.get_buffer()
 
@@ -2791,7 +2804,7 @@ class spoolss(RPCService):
         #  __in  LPBYTE pDocInfo
         #);
 
-        x = ndrlib.Unpacker(p.StubData)
+        x = make_unpacker(con, p.StubData)
         hPrinter = x.unpack_raw(20)
         rpclog.debug("hPrinter %s" % hPrinter)
 
@@ -2814,7 +2827,7 @@ class spoolss(RPCService):
             i.report()
 
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
         # Job ID
         r.pack_long(3)
         # Success
@@ -2824,7 +2837,7 @@ class spoolss(RPCService):
 
     @classmethod
     def handle_EndDocPrinter(cls, con, p):
-        r=ndrlib.Packer()
+        r = make_packer(con)
         r.pack_long(0)
         return r.get_buffer()
 
@@ -2863,7 +2876,7 @@ class spoolss(RPCService):
             return None
         elif p.PacketFlags == 2:
             con.printer += p.StubData
-            x = ndrlib.Unpacker(con.printer)
+            x = make_unpacker(con, con.printer)
             x.unpack_raw(20)
             cbBuf = x.unpack_long()
             Buf = x.unpack_raw(cbBuf)
@@ -2886,17 +2899,17 @@ class spoolss(RPCService):
             i.con = con
             i.report()
 
-            r = ndrlib.Packer()
+            r = make_packer(con)
             r.pack_long(len(Buf))
             r.pack_long(0)
             return r.get_buffer()
 
         elif p.PacketFlags == 3:
-            x = ndrlib.Unpacker(p.StubData)
+            x = make_unpacker(con, p.StubData)
             x.unpack_raw(20)
             cbBuf = x.unpack_long()
 
-            r = ndrlib.Packer()
+            r = make_packer(con)
             r.pack_long(cbBuf)
             r.pack_long(0)
             return r.get_buffer()
@@ -3362,7 +3375,7 @@ class SRVSVC(RPCService):
     @classmethod
     def handle_NetShareEnum(cls, con, p):
 
-        x = ndrlib.Unpacker(p.StubData)
+        x = make_unpacker(con, p.StubData)
 
         # 3.1.4.8 NetrShareEnum (Opnum 15)
         #
@@ -3427,7 +3440,7 @@ class SRVSVC(RPCService):
             infostruct_share,preferdmaxlen,resumehandleptr,resumehandle) )
 
         # compile reply
-        r = ndrlib.Packer()
+        r = make_packer(con)
         r.pack_long(infostruct_level)
         r.pack_long(infostruct_share)
 
@@ -3466,7 +3479,7 @@ class SRVSVC(RPCService):
         #		[in,out,ref] uint32 *pathtype,
         #		[in]    uint32 pathflags
         #		);
-        x = ndrlib.Unpacker(p.StubData)
+        x = make_unpacker(con, p.StubData)
         ref        = x.unpack_pointer()
         server_unc = x.unpack_string()
         path       = x.unpack_string()
@@ -3485,7 +3498,7 @@ class SRVSVC(RPCService):
         if len(path) > 128:
             raise DCERPCValueError("path","too long", path)
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
         r.pack_long(pathtype)
         r.pack_long(0)
         r.pack_string(path)
@@ -3503,7 +3516,7 @@ class SRVSVC(RPCService):
         #		[in]    uint32 pathtype,
         #		[in]    uint32 pathflags
         #		);
-        p = ndrlib.Unpacker(p.StubData)
+        p = make_unpacker(con, p.StubData)
         ref        = p.unpack_pointer()
         server_unc = p.unpack_string()
         path1       = p.unpack_string()
@@ -3512,7 +3525,7 @@ class SRVSVC(RPCService):
         pathflags  = p.unpack_long()
         rpclog.debug("ref 0x%x server_unc %s path1 %s path2 %s pathtype %i pathflags %i" % (
             ref, server_unc, path1, path2, pathtype, pathflags))
-        r = ndrlib.Packer()
+        r = make_packer(con)
         x = (path1 > path2) - (path1 < path2)
         if x < 0:
             r.pack_long( 0 )
@@ -3533,7 +3546,7 @@ class SRVSVC(RPCService):
         #  [in, switch_is(Level)] LPSHARE_INFO InfoStruct,
         #  [in, out, unique] DWORD* ParmErr
         #);
-        p = ndrlib.Unpacker(p.StubData)
+        p = make_unpacker(con, p.StubData)
         SRVSVC.SRVSVC_HANDLE(p)
         p.unpack_long()
         infostruct_share = p.unpack_long()
@@ -3547,7 +3560,7 @@ class SRVSVC(RPCService):
         rpclog.debug("infostruct_share %i ptr_parm %x ParmErr %i" %
                      (infostruct_share,ptr_parm,error) )
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
         r.pack_pointer(0x324567)
         r.pack_long(0)
         r.pack_long(0)
@@ -3565,13 +3578,13 @@ class SRVSVC(RPCService):
         #  [in] DWORD Level,
         #  [out, switch_is(Level)] LPSHARE_INFO InfoStruct
         #);
-        p = ndrlib.Unpacker(p.StubData)
+        p = make_unpacker(con, p.StubData)
         SRVSVC.SRVSVC_HANDLE(p)
         NetName = p.unpack_string()
         Level = p.unpack_long()
         rpclog.debug("NetName %s Level %i" % (NetName,Level))
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
         r.pack_long(Level)
 
         # pointer to the SHARE_INFO_X_CONTAINER
@@ -3609,7 +3622,7 @@ class SRVSVC(RPCService):
         #  [in] DWORD Flags
         #);
 
-        p = ndrlib.Unpacker(p.StubData)
+        p = make_unpacker(con, p.StubData)
         ServerName = SRVSVC.SRVSVC_HANDLE(p)
         Name = p.unpack_string()
         Outbuflen = p.unpack_long()
@@ -3618,7 +3631,7 @@ class SRVSVC(RPCService):
         rpclog.debug("ServerName %s Name %s Outbuflen %i Nametype %i Flags %i" % (
             ServerName, Name, Outbuflen , NameType, Flags))
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
 
         # Metasploit smb fingerprinting for OS type
         # https://www.metasploit.com/redmine/projects/framework/repository/revisions/8941/entry/lib/msf/core/exploit/smb.rb#L324
@@ -3646,10 +3659,10 @@ class SRVSVC(RPCService):
         #  [in, string, unique] SRVSVC_HANDLE ServerName,
         #  [out] LPTIME_OF_DAY_INFO* BufferPtr
         #);
-        p = ndrlib.Unpacker(p.StubData)
+        p = make_unpacker(con, p.StubData)
         SRVSVC.SRVSVC_HANDLE(p)
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
 
         # pointer to the LPTIME_OF_DAY_INFO* BufferPtr
         # Metasploit smb fingerprinting for OS type
@@ -3707,13 +3720,13 @@ class SRVSVC(RPCService):
         #  [out, switch_is(Level)] LPSERVER_INFO InfoStruct
         #);
 
-        p = ndrlib.Unpacker(p.StubData)
+        p = make_unpacker(con, p.StubData)
         p.unpack_pointer()
         ServerName = p.unpack_string()
         Level = p.unpack_long()
         logger.debug(f"ServerName {ServerName} Level {Level}")
 
-        r = ndrlib.Packer()
+        r = make_packer(con)
         r.pack_long(Level)
 
         if Level == 101:

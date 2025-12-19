@@ -9,6 +9,9 @@
 
     http://www.opengroup.org/onlinepubs/9629399/chap14.htm
 
+    Supports both NDR (32-bit) and NDR64 (64-bit) transfer syntaxes.
+    NDR:   8a885d04-1ceb-11c9-9fe8-08002b104860
+    NDR64: 6cb71c2c-9812-4540-0300-000000000000
 """
 
 
@@ -16,6 +19,10 @@ import struct
 from io import BytesIO
 
 __all__ = ["Error", "Packer", "Unpacker"]
+
+# Transfer syntax UUIDs
+NDR32_UUID = '8a885d04-1ceb-11c9-9fe8-08002b104860'
+NDR64_UUID = '6cb71c2c-9812-4540-0300-000000000000'
 
 # exceptions
 class Error(Exception):
@@ -39,7 +46,8 @@ class Error(Exception):
 class Unpacker:
     """Unpacks basic data representations from the given buffer."""
 
-    def __init__(self, data, integer='le', char='ascii', floating='IEEE'):
+    def __init__(self, data, integer='le', char='ascii', floating='IEEE', pointer_size=32):
+        self.pointer_size = pointer_size
         self.reset(data)
 
     def reset(self, data):
@@ -89,10 +97,23 @@ class Unpacker:
             raise EOFError
         return struct.unpack('<L', data)[0]
 
+    def unpack_hyper(self):
+        align = self.__pos % 8
+        if align > 0:
+            self.__pos += 8 - align
+        i = self.__pos
+        self.__pos = j = i+8
+        data = self.__buf[i:j]
+        if len(data) < 8:
+            raise EOFError
+        return struct.unpack('<Q', data)[0]
+
     def unpack_bool(self):
         return bool(self.unpack_long())
 
     def unpack_pointer(self):
+        if self.pointer_size == 64:
+            return self.unpack_hyper()
         return self.unpack_long()
 
     def unpack_string(self, width=16):
@@ -116,9 +137,10 @@ class Unpacker:
 class Packer:
     """Pack various data representations into a buffer."""
 
-    def __init__(self, integer='le', char='ascii', floating='IEEE'):
+    def __init__(self, integer='le', char='ascii', floating='IEEE', pointer_size=32):
         self.reset()
         self.integer = integer
+        self.pointer_size = pointer_size
 
     def reset(self):
         self.__buf = BytesIO()
@@ -171,7 +193,10 @@ class Packer:
             self.__buf.write(struct.pack('>Q', x))
 
     def pack_pointer(self, x):
-        self.pack_long(x)
+        if self.pointer_size == 64:
+            self.pack_hyper(x)
+        else:
+            self.pack_long(x)
 
     def pack_bool(self, x):
         if x:

@@ -10,6 +10,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 from dionaea.core import incident, connection, g_dionaea
+from dionaea.ndrlib import NDR32_UUID, NDR64_UUID
 
 import inspect
 import socket
@@ -180,8 +181,11 @@ class smbd(connection):
             return len(data)
 
         if p.haslayer(SMB_Header) and p[SMB_Header].Start != b'\xffSMB':
-            # not really SMB Header -> bail out
-            smblog.error('=== not really SMB')
+            start = p[SMB_Header].Start
+            if start == b'\xfeSMB':
+                smblog.error('SMB2/SMB3 not supported (client sent SMB2 header)')
+            else:
+                smblog.error('Unknown SMB header: %r', start)
             self.close()
             return len(data)
 
@@ -835,12 +839,22 @@ class smbd(connection):
                 transfersyntax_uuid = UUID(bytes_le=tmp.TransferSyntax)
                 ctxitem.TransferSyntax = tmp.TransferSyntax #[:16]
                 ctxitem.TransferSyntaxVersion = tmp.TransferSyntaxVersion
-                if str(transfersyntax_uuid) == '8a885d04-1ceb-11c9-9fe8-08002b104860':
+                # Check for supported transfer syntaxes (NDR32 or NDR64)
+                syntax_str = str(transfersyntax_uuid)
+                if syntax_str == NDR32_UUID:
+                    pointer_size = 32
+                elif syntax_str == NDR64_UUID:
+                    pointer_size = 64
+                else:
+                    pointer_size = None
+
+                if pointer_size is not None:
                     if service_uuid.hex in registered_services:
                         service = registered_services[service_uuid.hex]
-                        smblog.info("Found a registered UUID (%s). Accepting Bind for %s" %
-                                    (service_uuid , service.__class__.__name__))
+                        smblog.info("Found a registered UUID (%s). Accepting Bind for %s (NDR%d)" %
+                                    (service_uuid, service.__class__.__name__, pointer_size))
                         self.state['uuid'] = service_uuid.hex
+                        self.state['pointer_size'] = pointer_size
                         # Copy Transfer Syntax to CtxItem
                         ctxitem.AckResult = 0
                         ctxitem.AckReason = 0
