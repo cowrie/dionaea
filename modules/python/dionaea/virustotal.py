@@ -42,13 +42,6 @@ class virustotalhandler(ihandler):
         self.comment = comment
         self.cookies = {}
 
-        self.backlog_timer = Timer(
-            interval=20,
-            delay=0,
-            function=self.__handle_backlog_timeout,
-            repeat=True,
-        )
-        self.backlog_timer.start()
         p = config.get("file")
         self.dbh = sqlite3.connect(p)
         self.cursor = self.dbh.cursor()
@@ -63,6 +56,14 @@ class virustotalhandler(ihandler):
                 lastcheck_time INTEGER,
                 submit_time INTEGER
             );""")
+
+        self.backlog_timer = Timer(
+            interval=20,
+            delay=0,
+            function=self.__handle_backlog_timeout,
+            repeat=True,
+        )
+        self.backlog_timer.start()
 
     def __handle_backlog_timeout(self):
         logger.debug("backlog_timeout")
