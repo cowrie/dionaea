@@ -703,7 +703,7 @@ class SipSession(connection):
         required_headers = [b"call-id", b"from", b"to", b"cseq", b"via"]
         for header in required_headers:
             if not msg.header_exist(header):
-                logger.info(f"Non-SIP traffic detected (missing {header.decode('ascii')} header), closing con")
+                logger.debug(f"Non-SIP traffic detected (missing {header.decode('ascii')} header), closing connection")
                 self.close()
                 return
 
