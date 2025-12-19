@@ -738,7 +738,7 @@ class Via:
                 port = int(port)
             except Exception:
                 # error parsing port, set default value
-                self.port = 5060
+                port = 5060
 
         param_data = m.group("params")
 
