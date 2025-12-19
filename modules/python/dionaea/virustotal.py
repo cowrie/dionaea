@@ -25,9 +25,10 @@ class VirusTotalHandlerLoader(IHandlerLoader):
 
 
 class vtreport:
-    def __init__(self, backlogfile, md5hash, file, status):
+    def __init__(self, backlogfile, md5hash, sha256hash, file, status):
         self.backlogfile = backlogfile
         self.md5hash = md5hash
+        self.sha256hash = sha256hash
         self.file = file
         self.status = status
 
@@ -50,6 +51,7 @@ class virustotalhandler(ihandler):
                 backlogfile INTEGER PRIMARY KEY,
                 status TEXT NOT NULL, -- new, submit, query, comment
                 md5_hash TEXT NOT NULL,
+                sha256_hash TEXT NOT NULL,
                 path TEXT NOT NULL,
                 timestamp INTEGER NOT NULL,
                 scan_id TEXT,
@@ -71,42 +73,42 @@ class virustotalhandler(ihandler):
         # try to comment on files
         # comment on files which were submitted at least 60 seconds ago
         sfs = self.cursor.execute(
-            """SELECT backlogfile, md5_hash, path FROM backlogfiles WHERE status = 'comment' AND submit_time < strftime("%s",'now')-1*60 LIMIT 1""")
+            """SELECT backlogfile, md5_hash, sha256_hash, path FROM backlogfiles WHERE status = 'comment' AND submit_time < strftime("%s",'now')-1*60 LIMIT 1""")
         for sf in sfs:
             self.cursor.execute(
                 """UPDATE backlogfiles SET status = 'comment-' WHERE backlogfile = ?""", (sf[0],))
             self.dbh.commit()
-            self.make_comment(sf[0], sf[1], sf[2], 'comment')
+            self.make_comment(sf[0], sf[1], sf[2], sf[3], 'comment')
             return
 
         # try to receive reports for files we submitted
         sfs = self.cursor.execute(
-            """SELECT backlogfile, md5_hash, path FROM backlogfiles WHERE status = 'query' AND submit_time < strftime("%s",'now')-15*60 AND lastcheck_time < strftime("%s",'now')-15*60 LIMIT 1""")
+            """SELECT backlogfile, md5_hash, sha256_hash, path FROM backlogfiles WHERE status = 'query' AND submit_time < strftime("%s",'now')-15*60 AND lastcheck_time < strftime("%s",'now')-15*60 LIMIT 1""")
         for sf in sfs:
             self.cursor.execute(
                 """UPDATE backlogfiles SET status = 'query-' WHERE backlogfile = ?""", (sf[0],))
             self.dbh.commit()
-            self.get_file_report(sf[0], sf[1], sf[2], 'query')
+            self.get_file_report(sf[0], sf[1], sf[2], sf[3], 'query')
             return
 
         # submit files not known to virustotal
         sfs = self.cursor.execute(
-            """SELECT backlogfile, md5_hash, path FROM backlogfiles WHERE status = 'submit' LIMIT 1""")
+            """SELECT backlogfile, md5_hash, sha256_hash, path FROM backlogfiles WHERE status = 'submit' LIMIT 1""")
         for sf in sfs:
             self.cursor.execute(
                 """UPDATE backlogfiles SET status = 'submit-' WHERE backlogfile = ?""", (sf[0],))
             self.dbh.commit()
-            self.scan_file(sf[0], sf[1], sf[2], 'submit')
+            self.scan_file(sf[0], sf[1], sf[2], sf[3], 'submit')
             return
 
         # query new files
         sfs = self.cursor.execute(
-            """SELECT backlogfile, md5_hash, path FROM backlogfiles WHERE status = 'new' ORDER BY timestamp DESC LIMIT 1""")
+            """SELECT backlogfile, md5_hash, sha256_hash, path FROM backlogfiles WHERE status = 'new' ORDER BY timestamp DESC LIMIT 1""")
         for sf in sfs:
             self.cursor.execute(
                 """UPDATE backlogfiles SET status = 'new-' WHERE backlogfile = ?""", (sf[0],))
             self.dbh.commit()
-            self.get_file_report(sf[0], sf[1], sf[2], 'new')
+            self.get_file_report(sf[0], sf[1], sf[2], sf[3], 'new')
             return
 
     def stop(self):
@@ -118,15 +120,15 @@ class virustotalhandler(ihandler):
 
     def handle_incident_dionaea_download_complete_unique(self, icd):
         self.cursor.execute(
-            """INSERT INTO backlogfiles (md5_hash, path, status, timestamp) VALUES (?,?,?,strftime("%s",'now')) """, (icd.md5hash, icd.file, 'new'))
+            """INSERT INTO backlogfiles (md5_hash, sha256_hash, path, status, timestamp) VALUES (?,?,?,?,strftime("%s",'now')) """, (icd.md5hash, icd.sha256hash, icd.file, 'new'))
 
-    def get_file_report(self, backlogfile, md5_hash, path, status):
+    def get_file_report(self, backlogfile, md5_hash, sha256_hash, path, status):
         cookie = str(uuid.uuid4())
-        self.cookies[cookie] = vtreport(backlogfile, md5_hash, path, status)
+        self.cookies[cookie] = vtreport(backlogfile, md5_hash, sha256_hash, path, status)
 
         i = incident("dionaea.upload.request")
         i._url = "https://www.virustotal.com/vtapi/v2/file/report"
-        i.resource = md5_hash
+        i.resource = sha256_hash
         i.apikey = self.apikey
         i._callback = "dionaea.modules.python.virustotal.get_file_report"
         i._userdata = cookie
@@ -171,9 +173,9 @@ class virustotalhandler(ihandler):
             logger.warn(f"virustotal reported {j}")
         del self.cookies[cookie]
 
-    def scan_file(self, backlogfile, md5_hash, path, status):
+    def scan_file(self, backlogfile, md5_hash, sha256_hash, path, status):
         cookie = str(uuid.uuid4())
-        self.cookies[cookie] = vtreport(backlogfile, md5_hash, path, status)
+        self.cookies[cookie] = vtreport(backlogfile, md5_hash, sha256_hash, path, status)
 
         i = incident("dionaea.upload.request")
         i._url = "https://www.virustotal.com/vtapi/v2/file/scan"
@@ -206,15 +208,15 @@ class virustotalhandler(ihandler):
             self.dbh.commit()
         del self.cookies[cookie]
 
-    def make_comment(self, backlogfile, md5_hash, path, status):
+    def make_comment(self, backlogfile, md5_hash, sha256_hash, path, status):
         cookie = str(uuid.uuid4())
-        self.cookies[cookie] = vtreport(backlogfile, md5_hash, path, status)
+        self.cookies[cookie] = vtreport(backlogfile, md5_hash, sha256_hash, path, status)
 
         i = incident("dionaea.upload.request")
         i._url = "https://www.virustotal.com/vtapi/v2/comments/put"
         i.apikey = self.apikey
         i.comment = self.comment
-        i.resource = md5_hash
+        i.resource = sha256_hash
         i._callback = "dionaea.modules.python.virustotal_make_comment"
         i._userdata = cookie
         i.report()

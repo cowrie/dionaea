@@ -149,6 +149,7 @@ class incident:
     con: connection
     url: str | bytes
     md5hash: str
+    sha256hash: str
     path: str
     username: str
     password: str
