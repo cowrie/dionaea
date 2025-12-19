@@ -243,7 +243,7 @@ class cmdexe:
     def cmd_TFTP(self, args):
         logger.debug("TFTP %s" % (args) )
         if len(args) != 4:
-            logger.debug("invalid number of args")
+            logger.warning("TFTP command invalid number of args: expected 4, got %d", len(args))
             return "foo","error, invalid number of args"
         if args[0] == '-i' and args[2].lower() == 'get':
             host = args[1]

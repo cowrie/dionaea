@@ -67,7 +67,7 @@ class pptpd(connection):
             try:
                 p = packets.PPTP_StartControlConnection_Request(data)
             except Exception as e:
-                logger.debug("Failed to parse PPTP packet: %s", e)
+                logger.warning("Failed to parse PPTP connection request: %s", e)
                 return len(data)
             p.show()
             if p.Length == 0:
@@ -95,7 +95,7 @@ class pptpd(connection):
             try:
                 p = packets.BaseControlMessage(data)
             except Exception as e:
-                logger.debug("Failed to parse PPTP packet: %s", e)
+                logger.warning("Failed to parse PPTP control message: %s", e)
                 return len(data)
             if p.MessageType == 0x01:
                 return self._handle_control_message(p.ControlMessageType, data)

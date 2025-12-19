@@ -75,9 +75,9 @@ class TFTPOptionsAdapter(Adapter):
                     value = obj[i + 1]
                     result[key] = value
                 else:
-                    logger.debug(f"Odd number of option items, ignoring last: {obj[i]}")
+                    logger.warning(f"Malformed TFTP options: odd number of items, ignoring last: {obj[i]}")
         except Exception as e:
-            logger.debug(f"Error parsing TFTP options: {e}")
+            logger.warning(f"Failed to parse TFTP options: {e}")
             return {}
         return result
 
@@ -158,7 +158,7 @@ def parse_tftp_packet(data: bytes) -> dict | None:
         packet = TFTPPacketStruct.parse(data)
         return packet
     except ConstructError as e:
-        logger.debug(f"Failed to parse TFTP packet: {e}")
+        logger.warning(f"Failed to parse TFTP packet: {e}")
         return None
     except Exception as e:
         logger.warning(f"Unexpected error parsing TFTP packet: {e}")
@@ -1200,7 +1200,7 @@ class TftpServer(TftpSession):
         try:
             recvpkt = self.packet.parse(buffer)
         except TftpException as e:
-            logger.debug(f"TFTP packet parse error: {e}")
+            logger.warning(f"TFTP packet parse error: {e}")
             return len(data)
 
         if isinstance(recvpkt, TftpPacketRRQ):
