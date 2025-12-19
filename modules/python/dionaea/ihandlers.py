@@ -16,8 +16,8 @@ logger.setLevel(logging.DEBUG)
 # global handler list
 # keeps a ref on our handlers
 # allows restarting
-g_handlers = None
-g_handler_configs = []
+g_handlers: dict | None = None
+g_handler_configs: list = []
 
 
 def new() -> None:

@@ -60,7 +60,7 @@ repos:
     rev: v0.782
     hooks:
       - id: mypy
-        args: [--no-strict-optional, --ignore-missing-imports, --allow-untyped-global]
+        args: [--no-strict-optional, --ignore-missing-imports, --allow-untyped-globals, --disable-error-code=import-untyped]
         exclude: ^(doc/|tests/|modules/python/dionaea/((submit_http|hpfeeds|virustotal|s3)\.py|(log_db_sql|mqtt|pptp|sip)/)|modules/python/util/(csv2sqlite.py|xmpp/pg_backend.py))
 
   # C/C++ static analysis with clang-tidy
