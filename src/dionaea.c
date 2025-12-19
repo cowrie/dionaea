@@ -547,7 +547,7 @@ int main (int argc, char *argv[])
 	g_dionaea->config = g_key_file_new();
 	g_key_file_set_list_separator(g_dionaea->config, ',');
 	if (!g_key_file_load_from_file(g_dionaea->config, opt->config, G_KEY_FILE_NONE, NULL)){
-		g_error("Could not read config file");
+		g_error("Could not read config file: %s", opt->config);
 		return EXIT_FAILURE;
 	}
 
