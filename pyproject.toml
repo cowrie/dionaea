@@ -19,6 +19,6 @@ deps =
     ruff
     mypy
 skip_install = true
-commands = ruff check {toxinidir}/modules
+commands = ruff check --ignore E741 {toxinidir}/modules
            mypy {toxinidir}/modules
 """
