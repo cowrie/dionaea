@@ -51,7 +51,7 @@ endif()
 string( TOLOWER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE_TOLOWER )
 if(CMAKE_BUILD_TYPE_TOLOWER MATCHES debug)
     set(DEBUG_BUILD_TYPE ON)
-    add_definitions(-Wall)
+    add_definitions(-Wall -DDEBUG)
     #    add_definitions(-Wall -Wextra)
 endif()
 

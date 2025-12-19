@@ -222,6 +222,7 @@ void logger_stdout_log(const gchar *log_domain,
 		   t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec,
 		   level, domain, fileinfo, message);
 	g_free(domain);
+	fflush(stdout);
 #else
 	printf("[%04d-%02d-%02dT%02d:%02d:%02dZ] %s%s\033[0m: %s\n",
 		   t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec,
@@ -319,7 +320,9 @@ void logger_file_log(const gchar *log_domain,
 	fprintf(data->f, "[%04d-%02d-%02dT%02d:%02d:%02dZ] %s-%s: %s\n",
 			t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec,
 			log_domain, level, message);
-//	fflush(data->f);
+#ifdef DEBUG
+	fflush(data->f);
+#endif
 }
 
 bool logger_stdout_open(struct logger *l, void *data)
