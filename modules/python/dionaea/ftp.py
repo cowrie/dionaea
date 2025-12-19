@@ -214,12 +214,13 @@ class FTPd(connection):
         lastsep += 1  # add last \n
         logger.debug("input size %i, can do %i", len(data), lastsep)
         data = data[:lastsep]
-        lines = data.splitlines(0)
+        lines = data.splitlines(False)
         for line in lines:
-            logger.debug("processing line '%s'" % line)
+            logger.debug("processing line %r", line)
             if len(line) == 0:
                 continue
             space = line.find(b' ')
+            args: tuple[bytes, ...]
             if space != -1:
                 cmd = line[:space]
                 args = (line[space + 1:],)
@@ -656,7 +657,7 @@ class FTPDataCon(connection):
     def handle_io_in(self, data: bytes) -> int:
         if self.mode == "recv_file":
             self.file.write(data)
-            return len(data)
+        return len(data)
 
     def handle_io_out(self):
         logger.debug("io_out")

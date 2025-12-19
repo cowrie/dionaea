@@ -37,17 +37,17 @@ class cmdexe:
 #        self.send(data)
         c = True
         dlen = len(data)
-        logger.debug("DATA: %s" % (data))
+        logger.debug("DATA: %r", data)
         while c:
             data,line,c = self.line(data)
-            logger.debug("LINE: %s" % (line))
+            logger.debug("LINE: %r", line)
             cmd,args,redir = self.parse(line)
             logger.debug(f"CMD: {cmd} {args} {redir}")
             if not cmd:
                 continue
 
             out,err = self.execute(cmd,args)
-            logger.debug("DATA: %s" % (data))
+            logger.debug("DATA: %r", data)
             self.redir(out, err, redir)
         self.send(self.cwd + '>')
         return dlen-len(data)

@@ -63,7 +63,7 @@ class Blackhole(connection):
         logger.debug("start blackhole")
         connection.__init__(self, proto)
 
-    def apply_config(self, config: dict[str, Any]) -> None:
+    def apply_config(self, config: dict[str, Any] | None) -> None:
         pass
 
     def handle_established(self) -> None:
