@@ -70,6 +70,12 @@ struct processor proc_python_bistream =
 	.io_out = python_processor_bistream_io_out,
 };
 
+// Static empty tuple for use in PY_NEW/PY_CLONE/PY_INIT macros.
+// Initialized once during module startup, lives for process lifetime.
+// This replaces the Cython-internal __pyx_empty_tuple which is not
+// guaranteed to be exported in Cython 3.1+.
+PyObject *dionaea_empty_tuple = NULL;
+
 static struct python_runtime
 {
 	struct ev_io python_cli_io_in;
@@ -359,6 +365,12 @@ static bool new(struct dionaea *dionaea)
 	}
 
 	g_message("Python %s", Py_GetVersion());
+
+	// Initialize the empty tuple used by PY_NEW/PY_CLONE/PY_INIT macros
+	dionaea_empty_tuple = PyTuple_New(0);
+	if (dionaea_empty_tuple == NULL) {
+		g_error("Failed to create empty tuple");
+	}
 
 	PyGILState_STATE gil_state = PyGILState_Ensure();
 

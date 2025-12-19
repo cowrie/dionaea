@@ -9,9 +9,13 @@
 #include <stdbool.h>
 #include "connection.h"
 
-#define PY_CLONE(T)  (T)->ob_type->tp_new((T)->ob_type, __pyx_empty_tuple, NULL)
-#define PY_NEW(T) (((PyTypeObject*)(T))->tp_new( (PyTypeObject*)(T), __pyx_empty_tuple, NULL))
-#define PY_INIT(P, O) (P)->ob_type->tp_init((O), __pyx_empty_tuple, NULL)
+// Static empty tuple initialized in module.c, used instead of Cython's
+// internal __pyx_empty_tuple which may not be exported in Cython 3.1+
+extern PyObject *dionaea_empty_tuple;
+
+#define PY_CLONE(T)  (T)->ob_type->tp_new((T)->ob_type, dionaea_empty_tuple, NULL)
+#define PY_NEW(T) (((PyTypeObject*)(T))->tp_new( (PyTypeObject*)(T), dionaea_empty_tuple, NULL))
+#define PY_INIT(P, O) (P)->ob_type->tp_init((O), dionaea_empty_tuple, NULL)
 #define REFCOUNT(T) printf("obj refcount %i\n", (int)(T)->ob_refcnt)
 
 #define REMOTE(C) (C)->remote
