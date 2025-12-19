@@ -166,7 +166,7 @@ class smbd(connection):
         try:
             p = NBTSession(data, _ctx=self)
         except Exception as e:
-            smblog.warning("NBTSession packet parsing failed: %s", str(e))
+            smblog.debug("NBTSession packet parsing failed: %s", str(e))
             return len(data)
 
         if len(data) < (p.LENGTH+4):
