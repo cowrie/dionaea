@@ -654,20 +654,20 @@ class logsqlhandler(ihandler):
     def handle_incident_dionaea_connection_tcp_connect(self, icd):
         attackid = self.connection_insert( icd, 'connect')
         con=icd.con
-        logger.info("connect connection to %s/%s:%i from %s:%i (id=%i)" %
-                    (con.remote.host, con.remote.hostname, con.remote.port, con.local.host, con.local.port, attackid))
+        logger.info("connect connection to %s:%i from %s:%i (id=%i)" %
+                    (con.remote.host, con.remote.port, con.local.host, con.local.port, attackid))
 
     def handle_incident_dionaea_connection_tls_connect(self, icd):
         attackid = self.connection_insert( icd, 'connect')
         con=icd.con
-        logger.info("connect connection to %s/%s:%i from %s:%i (id=%i)" %
-                    (con.remote.host, con.remote.hostname, con.remote.port, con.local.host, con.local.port, attackid))
+        logger.info("connect connection to %s:%i from %s:%i (id=%i)" %
+                    (con.remote.host, con.remote.port, con.local.host, con.local.port, attackid))
 
     def handle_incident_dionaea_connection_udp_connect(self, icd):
         attackid = self.connection_insert( icd, 'connect')
         con=icd.con
-        logger.info("connect connection to %s/%s:%i from %s:%i (id=%i)" %
-                    (con.remote.host, con.remote.hostname, con.remote.port, con.local.host, con.local.port, attackid))
+        logger.info("connect connection to %s:%i from %s:%i (id=%i)" %
+                    (con.remote.host, con.remote.port, con.local.host, con.local.port, attackid))
 
     def handle_incident_dionaea_connection_tcp_accept(self, icd):
         attackid = self.connection_insert( icd, 'accept')

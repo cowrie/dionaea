@@ -170,7 +170,6 @@ class smbd(connection):
 
         if len(data) < (p.LENGTH+4):
             #we probably do not have the whole packet yet -> return 0
-            smblog.info('=== SMB did not get enough data')
             return 0
 
         if p.TYPE == 0x81:
