@@ -730,7 +730,8 @@ class SipSession(connection):
 
         # Find SipSession and delete it
         if call_id not in g_call_ids or g_call_ids[call_id] is None:
-            logger.warn(f"{handler_name!s} request does not match any existing SIP session")
+            # Expected for scanner traffic - orphan ACK/BYE/CANCEL without prior INVITE
+            logger.debug(f"{handler_name!s} request does not match any existing SIP session")
             icd = incident("dionaea.modules.python.sip.command")
             icd.con = self
             msg_to_icd(msg,d=icd)
@@ -741,7 +742,7 @@ class SipSession(connection):
         try:
             g_call_ids[call_id].handle_msg_in(msg)
         except AuthenticationError:
-            logger.warn(f"Authentication failed for {handler_name!s} request")
+            logger.info(f"Authentication failed for {handler_name!s} request")
 
 
     def handle_INVITE(self, msg):
@@ -758,8 +759,8 @@ class SipSession(connection):
         call_id = msg.headers.get(b"call-id").value
 
         if call_id in g_call_ids and g_call_ids[call_id] is None:
-            logger.warn(f"SIP session with Call-ID {call_id[:128]} already exists")
-            # ToDo: error
+            # Duplicate INVITE - common with scanners retrying or flooding
+            logger.debug(f"SIP session with Call-ID {call_id[:128]} already exists")
             return
 
         # Establish a new SIP Call
@@ -781,7 +782,7 @@ class SipSession(connection):
         try:
             new_call.handle_msg_in(msg)
         except AuthenticationError:
-            logger.warn("Authentication failed, not creating SIP session")
+            logger.info("SIP INVITE authentication failed")
             new_call.close()
             del new_call
 
