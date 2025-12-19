@@ -372,6 +372,7 @@ class Printerd(connection):
             return self.process_pjl_program(data)
         elif self.state == self.STATE_PCL:
             return self.process_pcl(data)
+        return len(data)
 
     def process_pjl_program(self, program):
         """Parses a PJL program, taking delimiters and chunk-split programs into account.
