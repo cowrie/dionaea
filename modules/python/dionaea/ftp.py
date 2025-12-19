@@ -226,7 +226,6 @@ class FTPd(connection):
             else:
                 cmd = line
                 args = ()
-            logger.warn("cmd '%s'" % cmd)
             self.processcmd(cmd, args)
         return lastsep
 

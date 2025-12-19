@@ -56,6 +56,7 @@ jobs:
             libssl-dev \
             libtool \
             libudns-dev \
+            libunicorn-dev \
             python3 \
             python3-dev \
             python3-pip \
@@ -113,6 +114,7 @@ jobs:
             libssl-dev \
             libtool \
             libudns-dev \
+            libunicorn-dev \
             python3 \
             python3-dev \
             python3-pip \
@@ -120,10 +122,14 @@ jobs:
             python3-setuptools \
             python3-yaml \
             python3-boto3 \
-            fonts-liberation
-          # Install speakeasy-emulator (try with --break-system-packages for newer pip, fallback without)
-          pip install --break-system-packages speakeasy-emulator 2>/dev/null || pip install speakeasy-emulator \
-            wget
+            python3-construct \
+            fonts-liberation \
+            wget \
+            curl \
+            procps
+          # Install speakeasy-emulator and test dependencies
+          pip install --break-system-packages speakeasy-emulator 2>/dev/null || pip install speakeasy-emulator
+          pip install --break-system-packages -r tests/requirements.txt 2>/dev/null || pip install -r tests/requirements.txt
 
       - name: Build and install
         run: |
@@ -136,30 +142,34 @@ jobs:
 
       - name: Start dionaea daemon
         run: |
-          /opt/dionaea/bin/dionaea -w /opt/dionaea -p /tmp/dionaea.pid -D &
+          /opt/dionaea/bin/dionaea -c /opt/dionaea/etc/dionaea/dionaea.cfg -w /opt/dionaea -p /tmp/dionaea.pid -D &
           echo $! > /tmp/dionaea_bg.pid
+          sleep 5
 
       - name: Wait for dionaea to be ready
         run: |
-          timeout 600 bash -c '
-            while true; do
-              sleep 1
-              wget -O /dev/null http://localhost/ 2> /dev/null && exit 0 || true
-            done
-          '
+          # Check if dionaea is running
+          if ! pgrep -f dionaea; then
+            echo "Dionaea process not found!"
+            cat /opt/dionaea/var/log/dionaea/dionaea.log || true
+            exit 1
+          fi
+          # Try to connect to HTTP service (same pattern as docker.yml)
+          if ! timeout 30 bash -c "until curl -sf http://localhost/ > /dev/null 2>&1; do sleep 1; done"; then
+            echo "Could not connect to dionaea HTTP service!"
+            cat /opt/dionaea/var/log/dionaea/dionaea.log || true
+            exit 1
+          fi
+          echo "Dionaea is running successfully!"
 
-      - name: Test HTTP
+      - name: Run protocol smoke tests
         run: |
-          wget -O /dev/null -q --server-response http://localhost/
-
-      - name: Test HTTPS
-        run: |
-          wget -O /dev/null -q --server-response --no-check-certificate https://localhost/
+          cd tests && pytest tftp/ ftp/ smb/ http/tests/test_http_smoke.py -v --timeout=30
 
       - name: Show logs on failure
         if: failure()
         run: |
-          tail -n 100 /opt/dionaea/var/log/dionaea/dionaea.log || true
+          tail -n 200 /opt/dionaea/var/log/dionaea/dionaea.log || true
 
   docs-sphinx:
     name: Documentation - Sphinx
