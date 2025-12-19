@@ -469,7 +469,7 @@ class smbd(connection):
             if h.FileAttributes & (SMB_FA_HIDDEN|SMB_FA_SYSTEM|SMB_FA_ARCHIVE|SMB_FA_NORMAL):
                 # if a normal file is requested, provide a file
 
-                dionaea_config = g_dionaea.config().get("dionaea")
+                dionaea_config = g_dionaea.config().get("dionaea", {})
                 download_dir = dionaea_config.get("download.dir")
                 download_suffix = dionaea_config.get("download.suffix", ".tmp")
                 self.fids[r.FID] = tempfile.NamedTemporaryFile(
@@ -504,7 +504,7 @@ class smbd(connection):
             while r.FID in self.fids:
                 r.FID += 0x200
 
-            dionaea_config = g_dionaea.config().get("dionaea")
+            dionaea_config = g_dionaea.config().get("dionaea", {})
             download_dir = dionaea_config.get("download.dir")
             download_suffix = dionaea_config.get("download.suffix", ".tmp")
 
@@ -739,7 +739,7 @@ class smbd(connection):
                     # save the captured payload/gift/evil/buddy to disk
                     smblog.info('DoublePulsar payload - Save to disk')
 
-                    dionaea_config = g_dionaea.config().get("dionaea")
+                    dionaea_config = g_dionaea.config().get("dionaea", {})
                     download_dir = dionaea_config.get("download.dir")
                     download_suffix = dionaea_config.get("download.suffix", ".tmp")
 

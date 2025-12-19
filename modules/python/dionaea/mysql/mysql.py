@@ -64,7 +64,7 @@ class mysqld(connection):
     def apply_config(self, config):
         self.config = config.get("databases")
 
-        dionaea_config = g_dionaea.config().get("dionaea")
+        dionaea_config = g_dionaea.config().get("dionaea", {})
         self.download_dir = dionaea_config.get("download.dir")
         self.download_suffix = dionaea_config.get("download.suffix", ".tmp")
 

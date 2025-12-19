@@ -318,7 +318,7 @@ class Printerd(connection):
     def apply_config(self, config):
         """Applies the given configuration to this daemon
         """
-        dionaea_config = g_dionaea.config().get("dionaea")
+        dionaea_config = g_dionaea.config().get("dionaea", {})
         self.download_dir = dionaea_config.get("download.dir")
 
         if self.download_dir is None:

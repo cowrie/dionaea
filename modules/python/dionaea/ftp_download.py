@@ -284,7 +284,7 @@ class FTPDownloadHandler(ihandler):
 
         self.host = config.get("active_host")
 
-        dionaea_config = g_dionaea.config().get("dionaea")
+        dionaea_config = g_dionaea.config().get("dionaea", {})
         self.download_dir = dionaea_config.get("download.dir")
         self.download_suffix = dionaea_config.get("download.suffix")
 

@@ -2881,7 +2881,7 @@ class spoolss(RPCService):
             cbBuf = x.unpack_long()
             Buf = x.unpack_raw(cbBuf)
 
-            dionaea_config = g_dionaea.config().get("dionaea")
+            dionaea_config = g_dionaea.config().get("dionaea", {})
             download_dir = dionaea_config.get("download.dir")
             download_suffix = dionaea_config.get("download.suffix", ".tmp")
             x = tempfile.NamedTemporaryFile(

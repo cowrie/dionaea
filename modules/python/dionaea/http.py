@@ -516,7 +516,7 @@ class httpd(connection):
         return None
 
     def apply_config(self, config):
-        dionaea_config = g_dionaea.config().get("dionaea")
+        dionaea_config = g_dionaea.config().get("dionaea", {})
         self.download_dir = dionaea_config.get("download.dir")
         self.download_suffix = dionaea_config.get("download.suffix", ".tmp")
         self.default_content_type = config.get(
