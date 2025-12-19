@@ -39,6 +39,9 @@ void sigterm_cb(struct ev_loop *loop, struct ev_signal *w, int revents)
 
 void sighup_cb(struct ev_loop *loop, struct ev_signal *w, int revents)
 {
+	(void)loop;
+	(void)w;
+	(void)revents;
   /* ToDo
 	g_warning("%s loop %p w %p revents %i",__PRETTY_FUNCTION__, loop, w, revents);
 
@@ -90,6 +93,7 @@ void sigsegv_cb(struct ev_loop *loop, struct ev_signal *w, int revents)
 
 void sigsegv_backtrace_cb(int sig)
 {
+	(void)sig;
 #ifdef HAVE_EXECINFO_H
 #define BACKTRACE_SIZE 32
 	void *back[BACKTRACE_SIZE];

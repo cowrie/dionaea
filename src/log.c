@@ -152,6 +152,7 @@ void log_multiplexer(const gchar *log_domain,
 					 const gchar *message,
 					 gpointer user_data)
 {
+	(void)user_data;
 	g_mutex_lock(&g_dionaea->logging->lock);
 	for( GList *it = g_dionaea->logging->loggers; it != NULL; it = it->next )
 	{
@@ -327,6 +328,7 @@ void logger_file_log(const gchar *log_domain,
 
 bool logger_stdout_open(struct logger *l, void *data)
 {
+	(void)data;
 	l->fd = fileno(stdin);
 	return true;
 }

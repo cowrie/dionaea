@@ -61,6 +61,8 @@ ssize_t recvfromto(int sockfd, void *buf, size_t len, int flags,
 				 const struct sockaddr *fromaddr, socklen_t *fromlen,
 				 const struct sockaddr *toaddr, socklen_t *tolen)
 {
+	(void)flags;
+	(void)tolen;
 	struct iovec iov[1];
 #if defined(IPV6_PKTINFO)
 	char cmsg[CMSG_SPACE(sizeof(struct in6_pktinfo))];
@@ -122,6 +124,7 @@ ssize_t recvfromto(int sockfd, void *buf, size_t len, int flags,
 
 ssize_t sendtofrom(int fd, void *buf, size_t len, int flags, struct sockaddr *to, socklen_t tolen, struct sockaddr *from, socklen_t fromlen)
 {
+	(void)fromlen;
 	struct iovec iov[1];
 	struct msghdr msg;
 
@@ -183,6 +186,8 @@ ssize_t sendtofrom(int fd, void *buf, size_t len, int flags, struct sockaddr *to
 
 void connection_udp_io_in_cb(EV_P_ struct ev_io *w, int revents)
 {
+	(void)loop;
+	(void)revents;
 	struct connection *con = CONOFF_IO_IN(w);
 	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 
@@ -311,6 +316,7 @@ void _connection_send_packets(struct connection *con, int fd, GList **packets)
 
 void connection_udp_io_out_cb(EV_P_ struct ev_io *w, int revents)
 {
+	(void)revents;
 	struct connection *con = CONOFF_IO_OUT(w);
 	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 

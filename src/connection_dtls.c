@@ -154,6 +154,8 @@ void connection_dtls_error(struct connection *con)
 
 void connection_dtls_connect_again(struct ev_loop *loop, struct ev_io *w, int revents)
 {
+	(void)loop;
+	(void)revents;
 	struct connection *con = CONOFF_IO_IN(w);
 	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 	g_debug("CLIENT state %s", SSL_state_string_long(con->transport.dtls.ssl));
@@ -169,6 +171,7 @@ void connection_dtls_connect_again(struct ev_loop *loop, struct ev_io *w, int re
 
 void connection_dtls_accept_again(struct ev_loop *loop, struct ev_io *w, int revents)
 {
+	(void)revents;
 	struct connection *con = CONOFF_IO_IN(w);
 	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 	g_debug("CLIENT state %s", SSL_state_string_long(con->transport.dtls.ssl));
@@ -262,6 +265,8 @@ void connection_dtls_accept_again(struct ev_loop *loop, struct ev_io *w, int rev
 
 void connection_dtls_io_in(struct ev_loop *loop, struct ev_io *w, int revents)
 {
+	(void)loop;
+	(void)revents;
 	struct connection *con = CONOFF_IO_IN(w);
 	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 	unsigned char buf[64*1024];
@@ -332,6 +337,7 @@ void connection_dtls_drain_bio(struct connection *con)
 
 void connection_dtls_io_in_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 {
+	(void)revents;
 	struct connection *con = CONOFF_IO_IN(w);
 	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 
@@ -414,6 +420,7 @@ void connection_dtls_io_in_cb(struct ev_loop *loop, struct ev_io *w, int revents
 
 void connection_dtls_io_out_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 {
+	(void)revents;
 	struct connection *con = CONOFF_IO_OUT(w);
 	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 

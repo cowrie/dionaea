@@ -230,6 +230,9 @@ void ssl_tmp_keys_free(struct connection *con)
 
 int ssl_tmp_key_init_rsa(struct connection *con, int bits, int idx)
 {
+	(void)con;
+	(void)bits;
+	(void)idx;
 /*	if( !(con->transport.tls.pTmpKeys[idx] = RSA_generate_key(bits, RSA_F4, NULL, NULL)) )
 	{
 		g_error("Init: Failed to generate temporary %d bit RSA private key", bits);

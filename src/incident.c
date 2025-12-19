@@ -114,6 +114,7 @@ void opaque_data_none_set(struct opaque_data *d)
 }
 void opaque_data_none_get(struct opaque_data *d)
 {
+	(void)d;
 	return;
 }
 

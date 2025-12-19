@@ -20,6 +20,9 @@
 
 void udns_io_in_cb(EV_P_ struct ev_io *w, int revents)
 {
+	(void)loop;
+	(void)w;
+	(void)revents;
 //	puts(__PRETTY_FUNCTION__);
 	dns_ioevent(g_dionaea->dns->dns, 0);
 }
@@ -27,6 +30,8 @@ void udns_io_in_cb(EV_P_ struct ev_io *w, int revents)
 
 void udns_timeout_cb(EV_P_ struct ev_timer *w, int revents)
 {
+	(void)w;
+	(void)revents;
 //	puts(__PRETTY_FUNCTION__);
 //	int dns_timeouts(ctx, int maxwait, time_t now)
 	int ret = dns_timeouts(g_dionaea->dns->dns, 3, 0);

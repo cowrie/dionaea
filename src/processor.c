@@ -557,6 +557,7 @@ struct proc_unicode_ctx
 
 void *proc_unicode_ctx_new(void *cfg)
 {
+	(void)cfg;
 	struct proc_unicode_ctx *ctx = g_malloc0(sizeof(struct proc_unicode_ctx));
 	ctx->io_in_offset = 0;
 	return ctx;
@@ -585,7 +586,8 @@ void proc_unicode_on_io_in(struct connection *con, struct processor_data *pd)
 
 void proc_unicode_on_io_out(struct connection *con, struct processor_data *pd)
 {
-
+	(void)con;
+	(void)pd;
 }
 
 

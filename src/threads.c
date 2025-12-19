@@ -23,6 +23,7 @@
 
 void threadpool_wrapper(gpointer data, gpointer user_data)
 {
+	(void)user_data;
 	struct thread *t = data;
 #ifdef DEBUG
 	GTimer *timer = g_timer_new();
@@ -38,6 +39,9 @@ void threadpool_wrapper(gpointer data, gpointer user_data)
 
 void trigger_cb(struct ev_loop *loop, struct ev_async *w, int revents)
 {
+	(void)loop;
+	(void)w;
+	(void)revents;
 	GAsyncQueue *aq = g_async_queue_ref(g_dionaea->threads->cmds);
 	struct async_cmd *cmd;
 	while( (cmd = g_async_queue_try_pop(aq)) != NULL )
@@ -50,6 +54,9 @@ void trigger_cb(struct ev_loop *loop, struct ev_async *w, int revents)
 
 void surveillance_cb(struct ev_loop *loop, struct ev_periodic *w, int revents)
 {
+	(void)loop;
+	(void)w;
+	(void)revents;
 /*	g_debug("%s %i %i",
 			__PRETTY_FUNCTION__,
 			g_thread_pool_unprocessed(g_dionaea->threads->pool),
