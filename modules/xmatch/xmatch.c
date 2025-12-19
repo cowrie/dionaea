@@ -116,7 +116,7 @@ int xmatch_match_cb(void *pattern_p, int offset, void *input_p) {
 
 	if (!pattern_p || !input_p) return -1;
 
-	g_message("found a match at offset 0x%08x\n", (unsigned int) input->offset + offset);
+	g_message("found a match at offset 0x%08x", (unsigned int) input->offset + offset);
 
 	if ((key->data = malloc(pattern->len)) == NULL) {
 		g_warning("malloc failed: %s.", strerror(errno));

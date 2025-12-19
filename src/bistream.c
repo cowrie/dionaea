@@ -64,7 +64,7 @@ struct stream_chunk *stream_chunk_new(void *data, uint32_t size, enum bistream_d
 
 void bistream_data_add(struct bistream *bs, enum bistream_direction dir, void *data, uint32_t size)
 {
-	g_debug("%s bs %p dir %i data %p size %i\n",__PRETTY_FUNCTION__, bs, dir, data, size);
+	g_debug("%s bs %p dir %i data %p size %i",__PRETTY_FUNCTION__, bs, dir, data, size);
 	GList *lastbistream = g_list_last(bs->stream_sequence);
 	GList *laststream = g_list_last(bs->streams[dir].stream_chunks);
 

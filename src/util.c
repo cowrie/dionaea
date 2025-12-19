@@ -209,7 +209,7 @@ bool parse_addr(char const * const addr, char const * const iface, uint16_t cons
 		const char *p = addr + strlen(un_prefix);
 		if( strlen(p) > sizeof(struct sockaddr_storage) - sizeof(unsigned short) )
 		{
-			g_warning("unix path would not fit into buffer\n");
+			g_warning("unix path would not fit into buffer");
 			return false;
 		}
 		su->sun_family = PF_UNIX;

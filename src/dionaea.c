@@ -216,15 +216,15 @@ bool options_validate(struct options *opt)
 		if( isdigit(*opt->user.name) != 0 )
 		{
 			opt->user.id = atoi(opt->user.name);
-			g_debug("User %s has uid %i\n",opt->user.name,opt->user.id);
+			g_debug("User %s has uid %i",opt->user.name,opt->user.id);
 		} else
 			if( (pass = getpwnam(opt->user.name)) == NULL )
 		{
-			g_warning("Could not get id for user '%s'\n", opt->user.name);
+			g_warning("Could not get id for user '%s'", opt->user.name);
 			return false;
 		} else
 		{
-			g_debug("User %s has uid %i\n",opt->user.name,pass->pw_uid);
+			g_debug("User %s has uid %i",opt->user.name,pass->pw_uid);
 			opt->user.id = pass->pw_uid;
 		}
 	}
@@ -235,15 +235,15 @@ bool options_validate(struct options *opt)
 		if( isdigit(*opt->group.name) != 0 )
 		{
 			opt->group.id = atoi(opt->group.name);
-			g_debug("Group %s has gid %i\n", opt->group.name, opt->group.id);
+			g_debug("Group %s has gid %i", opt->group.name, opt->group.id);
 		} else
 			if( (grp = getgrnam(opt->group.name)) == NULL )
 		{
-			g_warning("Could not get id for group '%s'\n",opt->group.name);
+			g_warning("Could not get id for group '%s'",opt->group.name);
 			return false;
 		} else
 		{
-			g_debug("Group %s has gid %i\n",opt->group.name, grp->gr_gid);
+			g_debug("Group %s has gid %i",opt->group.name, grp->gr_gid);
 			opt->group.id = grp->gr_gid;
 		}
 	}
@@ -516,7 +516,7 @@ int main (int argc, char *argv[])
 
 	if( options_parse(opt, argc, argv) == false )
 	{
-		g_error("Could not parse options!\n");
+		g_error("Could not parse options!");
 	}
 
 	show_version(&v);
@@ -615,7 +615,7 @@ opt->stdOUT.filter);
 				g_message("libev backend is %s", backend[i]);
 	}
 	ev_set_syserr_cb(log_ev_fatal_error);
-	g_message("libev default loop %p\n", d->loop);
+	g_message("libev default loop %p", d->loop);
 
 	// ssl
 	SSL_load_error_strings();

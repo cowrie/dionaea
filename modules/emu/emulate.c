@@ -145,7 +145,7 @@ void emulate_ctx_free(void *data)
 	g_hash_table_iter_init (&iter, ctx->files);
 	while( g_hash_table_iter_next (&iter, &key, &value) )
 	{
-		g_debug("file key %p %i value %p \n", key, *(int *)key, value);
+		g_debug("file key %p %i value %p", key, *(int *)key, value);
 		struct tempfile *tf = value;
 		if( tf->fh == NULL )
 		{ /* file was closed by shellcode */
@@ -166,7 +166,7 @@ void emulate_ctx_free(void *data)
 	g_hash_table_iter_init (&iter, ctx->processes);
 	while( g_hash_table_iter_next (&iter, &key, &value) )
 	{
-		g_debug("process key %p %i value %p \n", key, *(int *)key, value);
+		g_debug("process key %p %i value %p", key, *(int *)key, value);
 	}
 	g_hash_table_destroy(ctx->processes);
 
@@ -174,7 +174,7 @@ void emulate_ctx_free(void *data)
 	while( g_hash_table_iter_next (&iter, &key, &value) )
 	{
 		struct connection *con = value;
-		g_debug("connection key %p %i value %p type %s state %s socket %i\n", key, *(int *)key, value,
+		g_debug("connection key %p %i value %p type %s state %s socket %i", key, *(int *)key, value,
 				connection_type_to_string(con->type),
 				connection_state_to_string(con->state),
 				con->socket);

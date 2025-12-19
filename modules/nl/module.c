@@ -246,7 +246,7 @@ static void nl_obj_input(struct nl_object *obj, void *arg)
 static int nl_event_input(struct nl_msg *msg, void *arg)
 {
 	if (nl_msg_parse(msg, &nl_obj_input, NULL) < 0)
-		g_critical("<<EVENT>> Unknown message type\n");
+		g_critical("<<EVENT>> Unknown message type");
 
 	/* Exit nl_recvmsgs_def() and return to the main select() */
 	return NL_STOP;

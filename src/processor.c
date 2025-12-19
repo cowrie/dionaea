@@ -130,7 +130,7 @@ void processor_data_deletion(struct processor_data *pd)
 
 void processors_init(struct connection *con)
 {
-	g_debug("%s con %p\n", __PRETTY_FUNCTION__, con);
+	g_debug("%s con %p", __PRETTY_FUNCTION__, con);
 	con->processor_data = processor_data_new();
 	for( GNode *it = g_node_first_sibling(g_dionaea->processors->tree->children);
 	   it != NULL;
