@@ -252,10 +252,12 @@ class SpeakeasyShellcodeHandler(ihandler):
             elif state == "LISTEN" and api_name == 'accept':
                 state = "ACCEPT"
             elif state == "ACCEPT" and api_name in ['CreateProcessA', 'CreateProcessW']:
-                logger.info("Detected bind shell on port %s", port)
+                logger.info("Detected bind shell on %s:%s", host, port)
                 i = incident("dionaea.service.shell.listen")
                 if port:
                     i.set("port", int(port))
+                if host:
+                    i.set("host", host)
                 if con:
                     i.set("con", con)
                 i.report()
