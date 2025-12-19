@@ -3293,9 +3293,6 @@ class SRVSVC(RPCService):
                 #				self.MaxCount = len(self.Data)
                 #				self.__packer.pack_long(self.MaxCount)
 
-                rpclog.warn("%s" % self.Data)
-#				raise Exception()
-
                 for i in self.Data:
                     data = self.Data[i]
                     self.__packer.pack_pointer(self.Netname_pointer) # netname
