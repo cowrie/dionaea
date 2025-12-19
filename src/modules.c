@@ -111,6 +111,7 @@ void modules_load(gchar **names)
 		if( (n = m->module_init(g_dionaea)) == NULL )
 		{
 			g_warning("error,  module returned no module api");
+			module_free(m);
 			continue;
 		}
 

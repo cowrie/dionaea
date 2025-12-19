@@ -158,7 +158,7 @@ void print_stream_chunk2(struct stream_chunk *sc)
 			}
 
 		}
-		off += sprintf(buf+off," | 0x%04x ", stream_offset + c );
+		sprintf(buf+off," | 0x%04x ", stream_offset + c );
 		g_debug("%s", buf);
 		off = 0;
 	}

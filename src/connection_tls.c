@@ -389,38 +389,7 @@ void connection_tls_shutdown_cb(EV_P_ struct ev_io *w, int revents)
 
 		case SSL_ERROR_SYSCALL:
 			g_debug("SSL_ERROR_SYSCALL %i %s %s:%i", errno, strerror(errno), __FILE__,  __LINE__);
-			if( errno == 0 )
-			{
-				/*
-				 * HACK actually a bug in openssl - a patch sent on
-				 * 2006-06-29 0:12:51
-				 * with subject
-				 * [PATCH2] Fix for SSL_shutdown() with non-blocking not returning -1
-				 * by Darryl L. Miles
-				 * actually fixes the issue
-				 *
-				 * patch was merged into openssl
-				 * 2009-Apr-07 18:28 http://cvs.openssl.org/chngview?cn=17995
-				 * and will (hopefully) ship with openssl 0.9.8l
-				 *
-				 * given the 3 years it took openssl to accept a patch,
-				 * it did not take me that long to figure out
-				 * why SSL_shutdown failed on nonblocking sockets
-				 *
-				 * at the time of this writing, 0.9.8k is current
-				 * 0.9.8g is shipped by all major vendors as stable
-				 *
-				 * so it may take some time to get this fix to the masses
-				 *
-				 * due to unclear&complex openssl version situation
-				 * I decided not to provide an workaround, just close the connection instead
-				 * and rant about openssl
-				 *
-				 */
-				connection_tls_disconnect(con);
-			}else
-				connection_tls_disconnect(con);
-
+			connection_tls_disconnect(con);
 			break;
 
 		case SSL_ERROR_SSL:

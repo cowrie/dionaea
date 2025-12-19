@@ -99,8 +99,6 @@ struct connection *connection_new(enum connection_transport type)
 		con->transport.tls.ctx = SSL_CTX_new((SSL_METHOD *)con->transport.tls.meth);
 		break;
 	case connection_transport_udp:
-		break;
-
 	case connection_transport_io:
 		break;
 	}
@@ -465,13 +463,16 @@ void connection_close(struct connection *con)
 	switch( con->trans )
 	{
 	case connection_transport_tcp:
-		if( con->type == connection_type_listen )
+		if( con->type == connection_type_listen ||
+			(con->type == connection_type_accept && con->state == connection_state_none) ||
+			(con->type == connection_type_connect &&
+			 (con->state == connection_state_none || con->state == connection_state_connecting)) )
 		{
 			connection_tcp_disconnect(con);
 		} else
-			if( con->type == connection_type_connect &&
-				(con->state == connection_state_none || con->state == connection_state_connecting) )
+			if( con->type == connection_type_connect && con->state == connection_state_resolve )
 		{
+			connection_dns_resolve_cancel(con);
 			connection_tcp_disconnect(con);
 		} else
 			if( (con->type == connection_type_connect || con->type == connection_type_accept) &&
@@ -488,27 +489,16 @@ void connection_close(struct connection *con)
 				shutdown(con->socket, SHUT_RD);
 				connection_set_state(con, connection_state_shutdown);
 			} else
-				if( con->transport.tcp.io_out->len != 0 )
 			{
 				connection_set_state(con, connection_state_close);
 			}
 
-		} else
-			if( con->type == connection_type_connect && con->state == connection_state_resolve )
-		{
-			connection_dns_resolve_cancel(con);
-			connection_tcp_disconnect(con);
-		} else
-			if( con->type == connection_type_accept && con->state == connection_state_none )
-		{
-			connection_tcp_disconnect(con);
 		} else
 		{
 			g_critical("Invalid close on connection %p type %s state %s",
 					   con,
 					   connection_type_to_string(con->type),
 					   connection_state_to_string(con->state));
-//			connection_tcp_disconnect(con);
 		}
 		break;
 
@@ -949,7 +939,7 @@ void connection_connect_next_addr(struct connection *con)
 				if( connection_socket(con, socket_domain, SOCK_DGRAM, 0) == false )
 					return;
 			connection_set_nonblocking(con);
-			ret = connect(con->socket, (struct sockaddr *)&sa, sizeof_sa);
+			(void)connect(con->socket, (struct sockaddr *)&sa, sizeof_sa);
 			connection_node_set_local(con);
 			memcpy(&con->remote.addr, &sa, sizeof_sa);
 

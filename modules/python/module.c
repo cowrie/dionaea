@@ -593,6 +593,12 @@ PyObject *pygetifaddrs(PyObject *self, PyObject *args)
 	for( iface=head; iface != NULL; iface=iface->ifa_next )
 		count++;
 
+	if( count == 0 )
+	{
+		freeifaddrs(head);
+		return result;
+	}
+
 	struct ifaddrs *ifaces[count];
 	memset(ifaces, 0, count*sizeof(struct ifaces *));
 
