@@ -769,25 +769,31 @@ cdef connection _factory(c_connection *con) with gil:
 	instance.apply_parent_config(parent)
 	return instance
 
-cdef void _garbage(void *context) with gil:
+cdef void _garbage(void *context) noexcept with gil:
 #	print "get out the garbage !"
 	cdef connection instance
 	instance = <connection>context;
 	instance.thisptr = NULL
 	DECREF(instance)
 
-cdef void handle_origin_cb(c_connection *con, c_connection *origin) except * with gil:
+cdef void handle_origin_cb(c_connection *con, c_connection *origin) noexcept with gil:
 #	print "origin_cb"
 	cdef connection instance
 	instance = <connection>c_connection_protocol_ctx_get(con)
 	parent = <connection>c_connection_protocol_ctx_get(origin)
-	instance.handle_origin(parent)
+	try:
+		instance.handle_origin(parent)
+	except BaseException:
+		logging.error("There was an error in the Python service", exc_info=True)
 
-cdef void handle_established_cb(c_connection *con) except * with gil:
+cdef void handle_established_cb(c_connection *con) noexcept with gil:
 #	print "established_cb"
 	cdef connection instance
 	instance = <connection>c_connection_protocol_ctx_get(con)
-	instance.handle_established()
+	try:
+		instance.handle_established()
+	except BaseException:
+		logging.error("There was an error in the Python service", exc_info=True)
 
 cdef int handle_io_in_cb(c_connection *con, void *context, void *data, int size) except * with gil:
 #	print "io_in_cb"
@@ -802,7 +808,7 @@ cdef int handle_io_in_cb(c_connection *con, void *context, void *data, int size)
 		return len(bdata)
 	return l
 
-cdef void handle_io_out_cb(c_connection *con, void *context) except * with gil:
+cdef void handle_io_out_cb(c_connection *con, void *context) noexcept with gil:
 #	print "io_out_cb"
 	cdef connection instance
 	instance = <connection>context
@@ -876,27 +882,33 @@ cdef c_bool handle_timeout_idle_cb(c_connection *con, void *ctx) except * with g
 	return <bint> instance.handle_timeout_idle()
 
 
-cdef void process_io_in(c_connection *con, c_processor_data *pd, void *data, int size) except * with gil:
-	bdata = bytesfrom(<char *>data, size)
+cdef void process_io_in(c_connection *con, c_processor_data *pd, void *data, int size) noexcept with gil:
 	cdef connection instance
-	instance = <connection>c_connection_protocol_ctx_get(con)
+	try:
+		bdata = bytesfrom(<char *>data, size)
+		instance = <connection>c_connection_protocol_ctx_get(con)
 
-	if instance.thisptr.processor_data != NULL:
-		if len(instance.bistream) > 0 and instance.bistream[-1][0] == u'in':
-			instance.bistream[-1] = (u'in', instance.bistream[-1][1] + bdata)
-		else:
-			instance.bistream.append((u'in',bdata))
+		if instance.thisptr.processor_data != NULL:
+			if len(instance.bistream) > 0 and instance.bistream[-1][0] == u'in':
+				instance.bistream[-1] = (u'in', instance.bistream[-1][1] + bdata)
+			else:
+				instance.bistream.append((u'in',bdata))
+	except BaseException:
+		logging.error("Error in process_io_in", exc_info=True)
 	return
 
-cdef void process_io_out(c_connection *con, c_processor_data *pd, void *data, int size) except * with gil:
+cdef void process_io_out(c_connection *con, c_processor_data *pd, void *data, int size) noexcept with gil:
 	cdef connection instance
-	instance = <connection>c_connection_protocol_ctx_get(con)
-	if instance.thisptr.processor_data != NULL:
-		bdata = bytesfrom(<char *>data, size)
-		if len(instance.bistream) > 0 and instance.bistream[-1][0] == u'out':
-			instance.bistream[-1] = (u'out', instance.bistream[-1][1] + bdata)
-		else:
-			instance.bistream.append((u'out',bdata))
+	try:
+		instance = <connection>c_connection_protocol_ctx_get(con)
+		if instance.thisptr.processor_data != NULL:
+			bdata = bytesfrom(<char *>data, size)
+			if len(instance.bistream) > 0 and instance.bistream[-1][0] == u'out':
+				instance.bistream[-1] = (u'out', instance.bistream[-1][1] + bdata)
+			else:
+				instance.bistream.append((u'out',bdata))
+	except BaseException:
+		logging.error("Error in process_io_out", exc_info=True)
 	return
 
 cdef c_bool process_process(c_connection *con, void *config) except * with gil:
@@ -1245,30 +1257,31 @@ cdef extern from "../../include/incident.h":
 cdef extern from "module.h":
 	void c_traceable_ihandler_cb "traceable_ihandler_cb" (c_incident *, void *)
 
-cdef void c_python_ihandler_cb (c_incident *i, void *ctx) except * with gil:
+cdef void c_python_ihandler_cb (c_incident *i, void *ctx) noexcept with gil:
 	cdef ihandler handler
 	cdef incident pi
-	handler = <ihandler>ctx
-	pi = NEW_C_INCIDENT_CLASS(incident)
-	pi.thisptr = i
-	if INIT_C_INCIDENT_CLASS(pi,pi) == -1:
-		# __init__ raised an exception, propagate it
-		return
-	origin = pi.origin
-	if isinstance(origin, bytes):
-		origin = origin.decode(u'ascii')
-	elif not isinstance(origin, str):
-		raise ValueError(u"requires text/bytes input, got %s" % type(origin))
-	origin = origin.replace(u".",u"_")
 	try:
-		method = getattr(handler, u"handle_incident_" + origin)
-	except:
-		handler.handle_incident(pi)
-		return
+		handler = <ihandler>ctx
+		pi = NEW_C_INCIDENT_CLASS(incident)
+		pi.thisptr = i
+		if INIT_C_INCIDENT_CLASS(pi,pi) == -1:
+			# __init__ raised an exception, propagate it
+			return
+		origin = pi.origin
+		if isinstance(origin, bytes):
+			origin = origin.decode(u'ascii')
+		elif not isinstance(origin, str):
+			logging.error("Origin requires text/bytes input, got %s", type(origin))
+			return
+		origin = origin.replace(u".",u"_")
+		try:
+			method = getattr(handler, u"handle_incident_" + origin)
+		except Exception:
+			handler.handle_incident(pi)
+			return
 
-	try:
 		method(pi)
-	except BaseException as e:
+	except BaseException:
 		logging.error("There was an error while handling the incident", exc_info=True)
 
 
