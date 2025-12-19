@@ -182,31 +182,33 @@ cdef class node_info:
 	def __init__(self):
 		pass
 
-	property host:
+	@property
+	def host(self):
 		"""the nodes address as string"""
-		def __get__(self):
-			return bytes.decode(self.thisptr.ip_string, u'UTF-8')
-		def __set__(self, addr):
-			if isinstance(addr, str):
-				addr = addr.encode(u'UTF-8')
-			c_node_info_set_addr(self.thisptr, addr)
+		return bytes.decode(self.thisptr.ip_string, 'UTF-8')
 
-	property hostname:
+	@host.setter
+	def host(self, addr):
+		if isinstance(addr, str):
+			addr = addr.encode('UTF-8')
+		c_node_info_set_addr(self.thisptr, addr)
+
+	@property
+	def hostname(self):
 		"""the nodes hostname as string"""
-		def __get__(self):
-			if self.thisptr.hostname != NULL:
-				return bytes.decode(self.thisptr.hostname, u'UTF-8')
-			else:
-				return u''
+		if self.thisptr.hostname != NULL:
+			return bytes.decode(self.thisptr.hostname, 'UTF-8')
+		else:
+			return ''
 
-
-
-	property port:
+	@property
+	def port(self):
 		"""the nodes port as integer in host byte order"""
-		def __get__(self):
-			return c_ntohs(self.thisptr.port)
-		def __set__(self, port):
-			c_node_info_set_port(self.thisptr, port)
+		return c_ntohs(self.thisptr.port)
+
+	@port.setter
+	def port(self, port):
+		c_node_info_set_port(self.thisptr, port)
 
 cdef class connection_speed:
 	"""throttle information"""
@@ -218,17 +220,19 @@ cdef class connection_speed:
 	def __init__(self):
 		pass
 
-	property limit:
+	@property
+	def limit(self):
 		"""the speed limit"""
-		def __get__(self):
-			return c_connection_stats_speed_limit_get(self.thisptr)
-		def __set__(self, limit):
-			c_connection_stats_speed_limit_set(self.thisptr, limit)
+		return c_connection_stats_speed_limit_get(self.thisptr)
 
-	property bps:
+	@limit.setter
+	def limit(self, limit):
+		c_connection_stats_speed_limit_set(self.thisptr, limit)
+
+	@property
+	def bps(self):
 		"""the current speed in bytes per second"""
-		def __get__(self):
-			return c_connection_stats_speed_get(self.thisptr)
+		return c_connection_stats_speed_get(self.thisptr)
 
 cdef connection_speed connection_speed_from(c_connection_stats *info) with gil:
 	cdef connection_speed instance
@@ -247,17 +251,19 @@ cdef class connection_accounting:
 	def __init__(self):
 		pass
 
-	property limit:
+	@property
+	def limit(self):
 		"""the maximum amount of bytes we want to transfer here"""
-		def __get__(self):
-			return c_connection_stats_accounting_limit_get(self.thisptr)
-		def __set__(self, limit):
-			c_connection_stats_accounting_limit_set(self.thisptr, limit)
+		return c_connection_stats_accounting_limit_get(self.thisptr)
 
-	property bytes:
+	@limit.setter
+	def limit(self, limit):
+		c_connection_stats_accounting_limit_set(self.thisptr, limit)
+
+	@property
+	def bytes(self):
 		"""the amount of bytes we already transferred"""
-		def __get__(self):
-			return c_connection_stats_accounting_get(self.thisptr)
+		return c_connection_stats_accounting_get(self.thisptr)
 
 cdef connection_accounting connection_accounting_from(c_connection_stats *info) with gil:
 	cdef connection_accounting instance
@@ -276,15 +282,15 @@ cdef class connection_stats:
 	def __init__(self):
 		pass
 
-	property speed:
+	@property
+	def speed(self):
 		"""access the connection_throttle informations for this connection"""
-		def __get__(self):
-			return connection_speed_from(self.thisptr)
+		return connection_speed_from(self.thisptr)
 
-	property accounting:
+	@property
+	def accounting(self):
 		"""access the connection_accounting informations for this connection"""
-		def __get__(self):
-			return connection_accounting_from(self.thisptr)
+		return connection_accounting_from(self.thisptr)
 
 cdef connection_stats connection_stats_from(c_connection_stats *info) with gil:
 	cdef connection_stats instance
@@ -314,71 +320,83 @@ cdef class connection_timeouts:
 	def __init__(self):
 		pass
 
-	property idle:
+	@property
+	def idle(self):
 		"""repeating timeout for established connections, io action on the connection will restart the timeout"""
-		def __get__(self):
-			if self.thisptr == NULL:
-				raise ReferenceError(u'the object requested does not exist')
-			return c_connection_idle_timeout_get(self.thisptr)
-		def __set__(self, to):
-			if self.thisptr == NULL:
-				raise ReferenceError(u'the object requested does not exist')
-			c_connection_idle_timeout_set(self.thisptr, to)
+		if self.thisptr == NULL:
+			raise ReferenceError('the object requested does not exist')
+		return c_connection_idle_timeout_get(self.thisptr)
 
-	property connecting:
+	@idle.setter
+	def idle(self, to):
+		if self.thisptr == NULL:
+			raise ReferenceError('the object requested does not exist')
+		c_connection_idle_timeout_set(self.thisptr, to)
+
+	@property
+	def connecting(self):
 		"""timeout for connections in progress"""
-		def __get__(self):
-			if self.thisptr == NULL:
-				raise ReferenceError(u'the object requested does not exist')
-			return c_connection_connecting_timeout_get(self.thisptr)
-		def __set__(self, to):
-			if self.thisptr == NULL:
-				raise ReferenceError(u'the object requested does not exist')
-			c_connection_connecting_timeout_set(self.thisptr, to)
+		if self.thisptr == NULL:
+			raise ReferenceError('the object requested does not exist')
+		return c_connection_connecting_timeout_get(self.thisptr)
 
-	property listen:
+	@connecting.setter
+	def connecting(self, to):
+		if self.thisptr == NULL:
+			raise ReferenceError('the object requested does not exist')
+		c_connection_connecting_timeout_set(self.thisptr, to)
+
+	@property
+	def listen(self):
 		"""timeout for listeners"""
-		def __get__(self):
-			if self.thisptr == NULL:
-				raise ReferenceError(u'the object requested does not exist')
-			return c_connection_listen_timeout_get(self.thisptr)
-		def __set__(self, to):
-			if self.thisptr == NULL:
-				raise ReferenceError(u'the object requested does not exist')
-			c_connection_listen_timeout_set(self.thisptr, to)
+		if self.thisptr == NULL:
+			raise ReferenceError('the object requested does not exist')
+		return c_connection_listen_timeout_get(self.thisptr)
 
-	property reconnect:
+	@listen.setter
+	def listen(self, to):
+		if self.thisptr == NULL:
+			raise ReferenceError('the object requested does not exist')
+		c_connection_listen_timeout_set(self.thisptr, to)
+
+	@property
+	def reconnect(self):
 		"""timeout before reconnecting the connection"""
-		def __get__(self):
-			if self.thisptr == NULL:
-				raise ReferenceError(u'the object requested does not exist')
-			return c_connection_reconnect_timeout_get(self.thisptr)
-		def __set__(self, to):
-			if self.thisptr == NULL:
-				raise ReferenceError(u'the object requested does not exist')
-			c_connection_reconnect_timeout_set(self.thisptr, to)
+		if self.thisptr == NULL:
+			raise ReferenceError('the object requested does not exist')
+		return c_connection_reconnect_timeout_get(self.thisptr)
 
-	property handshake:
+	@reconnect.setter
+	def reconnect(self, to):
+		if self.thisptr == NULL:
+			raise ReferenceError('the object requested does not exist')
+		c_connection_reconnect_timeout_set(self.thisptr, to)
+
+	@property
+	def handshake(self):
 		"""timeout for the ssl handshake"""
-		def __get__(self):
-			if self.thisptr == NULL:
-				raise ReferenceError(u'the object requested does not exist')
-			return c_connection_handshake_timeout_get(self.thisptr)
-		def __set__(self, to):
-			if self.thisptr == NULL:
-				raise ReferenceError(u'the object requested does not exist')
-			c_connection_handshake_timeout_set(self.thisptr, to)
+		if self.thisptr == NULL:
+			raise ReferenceError('the object requested does not exist')
+		return c_connection_handshake_timeout_get(self.thisptr)
 
-	property sustain:
+	@handshake.setter
+	def handshake(self, to):
+		if self.thisptr == NULL:
+			raise ReferenceError('the object requested does not exist')
+		c_connection_handshake_timeout_set(self.thisptr, to)
+
+	@property
+	def sustain(self):
 		"""timeout for the session"""
-		def __get__(self):
-			if self.thisptr == NULL:
-				raise ReferenceError(u'the object requested does not exist')
-			return c_connection_sustain_timeout_get(self.thisptr)
-		def __set__(self, to):
-			if self.thisptr == NULL:
-				raise ReferenceError(u'the object requested does not exist')
-			c_connection_sustain_timeout_set(self.thisptr, to)
+		if self.thisptr == NULL:
+			raise ReferenceError('the object requested does not exist')
+		return c_connection_sustain_timeout_get(self.thisptr)
+
+	@sustain.setter
+	def sustain(self, to):
+		if self.thisptr == NULL:
+			raise ReferenceError('the object requested does not exist')
+		c_connection_sustain_timeout_set(self.thisptr, to)
 
 
 cdef extern from "./module.h":
@@ -461,16 +479,16 @@ cdef class connection:
 		cdef c_connection_transport enum_type
 		if self.thisptr == NULL:
 			if isinstance(con_type, str):
-				con_type_utf8 = con_type.encode(u'UTF-8')
+				con_type_utf8 = con_type.encode('UTF-8')
 			else:
-				raise ValueError(u"requires text input, got %s" % type(con_type))
+				raise ValueError("requires text input, got %s" % type(con_type))
 
 			if not c_connection_transport_from_string(con_type_utf8, &enum_type):
-				raise ValueError(str(con_type) + u'is not a valid protocol')
+				raise ValueError(str(con_type) + 'is not a valid protocol')
 			self.thisptr = c_connection_new(enum_type)
-#			print(u"XXXXXXXXXXXXX" + self.__class__.__name__)
+#			print("XXXXXXXXXXXXX" + self.__class__.__name__)
 			protoname = getattr(self, "protocol_name", self.__class__.__name__)
-			protoname = protoname.encode(u'ascii')
+			protoname = protoname.encode('ascii')
 			self.thisptr.protocol.name = c_g_strdup(protoname)
 			self.thisptr.protocol.ctx_new = <protocol_handler_ctx_new>c_traceable_ctx_new_cb
 			self.thisptr.protocol.ctx_free = <protocol_handler_ctx_free>c_traceable_ctx_free_cb
@@ -596,73 +614,73 @@ cdef class connection:
 		"""callback for flushed out buffer"""
 		pass
 
-	def bind(self, addr, port, iface=u''):
+	def bind(self, addr, port, iface=''):
 		"""bind the connection to a given addr and  port, iface is optional (for ipv6 local scope)"""
 		if self.thisptr == NULL:
-			raise ReferenceError(u'the object requested does not exist')
+			raise ReferenceError('the object requested does not exist')
 
 		if isinstance(addr, str):
-			addr_utf8 = addr.encode(u'UTF-8')
+			addr_utf8 = addr.encode('UTF-8')
 		else:
-			raise ValueError(u"addr requires text input, got %s" % type(addr))
+			raise ValueError("addr requires text input, got %s" % type(addr))
 
 		if isinstance(iface, str):
-			iface_utf8 = iface.encode(u'UTF-8')
+			iface_utf8 = iface.encode('UTF-8')
 		elif not iface:
-			iface_utf8 = u''.encode(u'UTF-8')
+			iface_utf8 = ''.encode('UTF-8')
 		else:
-			raise ValueError(u"iface requires text input, got %s" % type(iface))
+			raise ValueError("iface requires text input, got %s" % type(iface))
 
 		return c_connection_bind(self.thisptr, addr_utf8, port, iface_utf8)
 
 	def listen(self, size=20):
 		"""listen on the bound connection, queuesize is optional (default is 20)"""
 		if self.thisptr == NULL:
-			raise ReferenceError(u'the object requested does not exist')
+			raise ReferenceError('the object requested does not exist')
 		return c_connection_listen(self.thisptr, size)
 
-	def connect(self, addr, port, iface=u''):
+	def connect(self, addr, port, iface=''):
 		"""connect a remote host by ipv4/6 or domain on a given port using a specified iface (for ipv6 local scope)"""
 		if self.thisptr == NULL:
-			raise ReferenceError(u'the object requested does not exist')
+			raise ReferenceError('the object requested does not exist')
 
 		if isinstance(addr, str):
-			addr_utf8 = addr.encode(u'UTF-8')
+			addr_utf8 = addr.encode('UTF-8')
 		else:
-			raise ValueError(u"addr requires text input, got %s" % type(addr))
+			raise ValueError("addr requires text input, got %s" % type(addr))
 
 		if isinstance(iface, str):
-			iface_utf8 = iface.encode(u'UTF-8')
+			iface_utf8 = iface.encode('UTF-8')
 		else:
-			raise ValueError(u"iface requires text input, got %s" % type(iface))
+			raise ValueError("iface requires text input, got %s" % type(iface))
 
 		c_connection_connect(self.thisptr,addr_utf8,port,iface_utf8)
 
 	def send(self, data, local=None, remote=None):
 		"""send something to the remote"""
 		if self.thisptr == NULL:
-			raise ReferenceError(u'the object requested does not exist')
-		if remote is not None and local is not None and self.transport == u'udp':
+			raise ReferenceError('the object requested does not exist')
+		if remote is not None and local is not None and self.transport == 'udp':
 			if type(remote) is tuple:
 				(host,port) = remote
-				host = host.encode(u'UTF-8')
+				host = host.encode('UTF-8')
 				c_node_info_set_addr(&self.thisptr.remote, host)
 				c_node_info_set_port(&self.thisptr.remote, port)
 			else:
-				raise ValueError(u"requires tuple input, got %s" % type(remote))
+				raise ValueError("requires tuple input, got %s" % type(remote))
 			if type(local) is tuple:
 				(host,port) = local
-				host = host.encode(u'UTF-8')
+				host = host.encode('UTF-8')
 				c_node_info_set_addr(&self.thisptr.local, host)
 				c_node_info_set_port(&self.thisptr.local, port)
 			else:
-				raise ValueError(u"requires tuple input, got %s" % type(local))
+				raise ValueError("requires tuple input, got %s" % type(local))
 		if isinstance(data, str):
-			data_bytes = data.encode(u'UTF-8')
+			data_bytes = data.encode('UTF-8')
 		elif isinstance(data, bytes):
 			data_bytes = data
 		else:
-			raise ValueError(u"requires text/bytes input, got %s" % type(data))
+			raise ValueError("requires text/bytes input, got %s" % type(data))
 		c_connection_send(self.thisptr, data_bytes, len(data_bytes))
 
 
@@ -670,73 +688,73 @@ cdef class connection:
 	def close(self):
 		"""close this connection"""
 		if self.thisptr == NULL:
-			raise ReferenceError(u'the object requested does not exist')
+			raise ReferenceError('the object requested does not exist')
 		c_connection_close(self.thisptr)
 
 	def processors(self):
 		"""process the data on this connection using the defined processors"""
 		if self.thisptr == NULL:
-			raise ReferenceError(u'the object requested does not exist')
+			raise ReferenceError('the object requested does not exist')
 		c_connection_process(self.thisptr)
 #		c_python_processor_bistream_create(self.thisptr)
 #		self.bistream = []
 
 
 
-	property remote:
+	@property
+	def remote(self):
 		"""access the node_info for the remote part of this connection"""
-		def __get__(self):
-			if self.thisptr == NULL:
-				raise ReferenceError(u'the object requested does not exist')
-			return node_info_from(&self.thisptr.remote)
+		if self.thisptr == NULL:
+			raise ReferenceError('the object requested does not exist')
+		return node_info_from(&self.thisptr.remote)
 
-	property local:
+	@property
+	def local(self):
 		"""access the node_info for the local part of this connection"""
-		def __get__(self):
-			if self.thisptr == NULL:
-				raise ReferenceError(u'the object requested does not exist')
-			return node_info_from(&self.thisptr.local)
+		if self.thisptr == NULL:
+			raise ReferenceError('the object requested does not exist')
+		return node_info_from(&self.thisptr.local)
 
-	property timeouts:
+	@property
+	def timeouts(self):
 		"""access the connection_timeouts for the connection"""
-		def __get__(self):
-			if self.thisptr == NULL:
-				raise ReferenceError(u'the object requested does not exist')
-			return connection_timeouts_from(self.thisptr)
+		if self.thisptr == NULL:
+			raise ReferenceError('the object requested does not exist')
+		return connection_timeouts_from(self.thisptr)
 
-	property transport:
+	@property
+	def transport(self):
 		"""connection transport as string, (tcp|udp|tls)"""
-		def __get__(self):
-			if self.thisptr == NULL:
-				raise ReferenceError(u'the object requested does not exist')
-			return c_connection_transport_to_string(self.thisptr.trans).decode(u'UTF-8')
+		if self.thisptr == NULL:
+			raise ReferenceError('the object requested does not exist')
+		return c_connection_transport_to_string(self.thisptr.trans).decode('UTF-8')
 
-	property protocol:
-		def __get__(self):
-			if self.thisptr == NULL:
-				raise ReferenceError(u'the object requested does not exist')
-			return self.thisptr.protocol.name.decode(u'UTF-8')
+	@property
+	def protocol(self):
+		if self.thisptr == NULL:
+			raise ReferenceError('the object requested does not exist')
+		return self.thisptr.protocol.name.decode('UTF-8')
 
-	property status:
+	@property
+	def status(self):
 		"""the connection status, resolving, connecting ...."""
-		def __get__(self):
-			if self.thisptr == NULL:
-				raise ReferenceError(u'the object requested does not exist')
-			return c_connection_state_to_string(self.thisptr.state).decode(u'UTF-8')
+		if self.thisptr == NULL:
+			raise ReferenceError('the object requested does not exist')
+		return c_connection_state_to_string(self.thisptr.state).decode('UTF-8')
 
-	property _in:
+	@property
+	def _in(self):
 		"""access the connection_stats for the ingress part of the connection"""
-		def __get__(self):
-			if self.thisptr == NULL:
-				raise ReferenceError(u'the object requested does not exist')
-			return connection_stats_from(&self.thisptr.stats.io_in)
+		if self.thisptr == NULL:
+			raise ReferenceError('the object requested does not exist')
+		return connection_stats_from(&self.thisptr.stats.io_in)
 
-	property _out:
+	@property
+	def _out(self):
 		"""access the connection_stats for the egress part of the connection"""
-		def __get__(self):
-			if self.thisptr == NULL:
-				raise ReferenceError(u'the object requested does not exist')
-			return connection_stats_from(&self.thisptr.stats.io_out)
+		if self.thisptr == NULL:
+			raise ReferenceError('the object requested does not exist')
+		return connection_stats_from(&self.thisptr.stats.io_out)
 
 # the static create method causes problems with cython 0.14
 # not used anyway, so comment for now (tm)
@@ -889,10 +907,10 @@ cdef void process_io_in(c_connection *con, c_processor_data *pd, void *data, int
 		instance = <connection>c_connection_protocol_ctx_get(con)
 
 		if instance.thisptr.processor_data != NULL:
-			if len(instance.bistream) > 0 and instance.bistream[-1][0] == u'in':
-				instance.bistream[-1] = (u'in', instance.bistream[-1][1] + bdata)
+			if len(instance.bistream) > 0 and instance.bistream[-1][0] == 'in':
+				instance.bistream[-1] = ('in', instance.bistream[-1][1] + bdata)
 			else:
-				instance.bistream.append((u'in',bdata))
+				instance.bistream.append(('in',bdata))
 	except BaseException:
 		logging.error("Error in process_io_in", exc_info=True)
 	return
@@ -903,10 +921,10 @@ cdef void process_io_out(c_connection *con, c_processor_data *pd, void *data, in
 		instance = <connection>c_connection_protocol_ctx_get(con)
 		if instance.thisptr.processor_data != NULL:
 			bdata = bytesfrom(<char *>data, size)
-			if len(instance.bistream) > 0 and instance.bistream[-1][0] == u'out':
-				instance.bistream[-1] = (u'out', instance.bistream[-1][1] + bdata)
+			if len(instance.bistream) > 0 and instance.bistream[-1][0] == 'out':
+				instance.bistream[-1] = ('out', instance.bistream[-1][1] + bdata)
 			else:
-				instance.bistream.append((u'out',bdata))
+				instance.bistream.append(('out',bdata))
 	except BaseException:
 		logging.error("Error in process_io_out", exc_info=True)
 	return
@@ -918,11 +936,11 @@ cdef c_bool process_process(c_connection *con, void *config) except * with gil:
 
 def dlhfn(name, number, path, line, msg):
 	if isinstance(name, str):
-		name = name.encode(u'UTF-8')
+		name = name.encode('UTF-8')
 	if isinstance(path, str):
-		path = path.encode(u'UTF-8')
+		path = path.encode('UTF-8')
 	if isinstance(msg, str):
-		msg = msg.encode(u'UTF-8')
+		msg = msg.encode('UTF-8')
 	c_log_wrap(name, number, path, line, msg)
 
 
@@ -1090,7 +1108,7 @@ cdef c_opaque_data *py_to_opaque(value) with gil:
 			x = str(value)
 			return py_to_opaque(x)
 	elif isinstance(value, str):
-		value = value.encode(u'UTF-8')
+		value = value.encode('UTF-8')
 		c_opaque_data_string_set(o, c_g_string_new(value))
 	elif isinstance(value, bytes):
 		c_opaque_data_string_set(o, c_g_string_new(value))
@@ -1142,7 +1160,7 @@ cdef class incident:
 
 	def __init__(self, origin=None):
 		if origin != None and self.thisptr == NULL:
-			origin = origin.encode(u'UTF-8')
+			origin = origin.encode('UTF-8')
 			self.thisptr = c_incident_new(origin)
 			self.free_on_dealloc = 1
 		else:
@@ -1178,7 +1196,7 @@ cdef class incident:
 	def __setattr__(self, key, value):
 		cdef connection con
 		if isinstance(key, str):
-			key = key.encode(u'UTF-8')
+			key = key.encode('UTF-8')
 
 		# TODO: Check return values from c_incident_value_*_set() calls
 		# All these functions return c_bool but we don't check if they succeed
@@ -1190,7 +1208,7 @@ cdef class incident:
 		elif isinstance(value, bytes):
 			c_incident_value_bytes_set(self.thisptr, key, c_g_string_new(value))
 		elif isinstance(value, str):
-			value = value.encode(u'UTF-8')
+			value = value.encode('UTF-8')
 			c_incident_value_string_set(self.thisptr, key, c_g_string_new(value))
 		elif isinstance(value, list):
 			c_incident_value_list_set(self.thisptr, key, py_to_glist(value))
@@ -1208,7 +1226,7 @@ cdef class incident:
 		cdef c_GList *l
 		cdef GHashTable *d
 		if isinstance(key, str):
-			key = key.encode(u'UTF-8')
+			key = key.encode('UTF-8')
 		if c_incident_value_con_get(self.thisptr, key, &cc) == True:
 			c = NEW_C_CONNECTION_CLASS(connection)
 			c.thisptr = <c_connection *>cc
@@ -1229,15 +1247,15 @@ cdef class incident:
 		elif c_incident_value_none_get(self.thisptr,key) == True:
 			return None
 		else:
-			raise AttributeError(u"%s does not exist" % key.decode(u'UTF-8'))
+			raise AttributeError("%s does not exist" % key.decode('UTF-8'))
 
 	def report(self):
 		c_incident_report(self.thisptr)
 
 
-	property origin:
-		def __get__(self):
-			return stringfrom(self.thisptr.origin, c_strlen(self.thisptr.origin));
+	@property
+	def origin(self):
+		return stringfrom(self.thisptr.origin, c_strlen(self.thisptr.origin));
 
 cdef extern from "module.h":
 	cdef incident NEW_C_INCIDENT_CLASS "PY_NEW"(object T)
@@ -1269,13 +1287,13 @@ cdef void c_python_ihandler_cb (c_incident *i, void *ctx) noexcept with gil:
 			return
 		origin = pi.origin
 		if isinstance(origin, bytes):
-			origin = origin.decode(u'ascii')
+			origin = origin.decode('ascii')
 		elif not isinstance(origin, str):
 			logging.error("Origin requires text/bytes input, got %s", type(origin))
 			return
-		origin = origin.replace(u".",u"_")
+		origin = origin.replace(".","_")
 		try:
-			method = getattr(handler, u"handle_incident_" + origin)
+			method = getattr(handler, "handle_incident_" + origin)
 		except Exception:
 			handler.handle_incident(pi)
 			return
@@ -1288,7 +1306,7 @@ cdef void c_python_ihandler_cb (c_incident *i, void *ctx) noexcept with gil:
 cdef class ihandler:
 	cdef c_ihandler *thisptr
 	def __init__(self, pattern):
-		pattern = pattern.encode(u'UTF-8')
+		pattern = pattern.encode('UTF-8')
 		self.thisptr = c_ihandler_new(pattern, <ihandler_cb> c_traceable_ihandler_cb, <void *>self)
 
 	def __dealloc__(self):
