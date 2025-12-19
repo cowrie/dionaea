@@ -1388,7 +1388,7 @@ class samr(RPCService):
                 self.Pointer = 0x11
             elif isinstance(self.__packer,ndrlib.Unpacker):
                 self.RelativeId = self.__packer.unpack_long()
-                self.Name = samr.RPC_UNICODE_STRING(self.__packer, Name)
+                self.Name = samr.RPC_UNICODE_STRING(self.__packer)
         def pack(self):
             if isinstance(self.__packer,ndrlib.Packer):
                 for i in range(len(self.Name)):
@@ -1460,7 +1460,7 @@ class samr(RPCService):
                 self.Pointer = 0x11
             elif isinstance(self.__packer,ndrlib.Unpacker):
                 self.RelativeId = self.__packer.unpack_long()
-                self.Name = samr.RPC_UNICODE_STRING(self.__packer, Name)
+                self.Name = samr.RPC_UNICODE_STRING(self.__packer)
         def pack(self):
             if isinstance(self.__packer,ndrlib.Packer):
                 for i in range(int(len(self.Name)/3)):
