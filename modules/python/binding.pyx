@@ -820,7 +820,7 @@ cdef int handle_io_in_cb(c_connection *con, void *context, void *data, int size)
 	bdata = bytesfrom(<char *>data, size)
 	try:
 		l = instance.handle_io_in(bdata)
-	except BaseException as e:
+	except BaseException:
 		logging.error("There was an error in the Python service", exc_info=True)
 		instance.close()
 		return len(bdata)
@@ -832,7 +832,7 @@ cdef void handle_io_out_cb(c_connection *con, void *context) noexcept with gil:
 	instance = <connection>context
 	try:
 		instance.handle_io_out()
-	except BaseException as e:
+	except BaseException:
 		logging.error("There was an error in the Python service", exc_info=True)
 		instance.close()
 
@@ -1071,7 +1071,6 @@ cdef py_from_glist(c_GList *l) with gil:
 
 cdef GHashTable *py_to_ghashtable(d) with gil:
 	cdef GHashTable *gd
-	cdef char *kn
 	cdef c_opaque_data *op
 	gd = g_hash_table_new_full(g_str_hash, g_str_equal, c_g_free, <GDestroyNotify>c_opaque_data_free)
 	for k,v in d.items():
@@ -1124,7 +1123,6 @@ cdef c_opaque_data *py_to_opaque(value) with gil:
 	return o
 
 cdef py_from_opaque(c_opaque_data *value) with gil:
-	cdef c_uintptr_t x
 	cdef connection c
 	cdef c_connection *cc
 	cdef c_GString *s
@@ -1218,7 +1216,6 @@ cdef class incident:
 			c_incident_value_none_set(self.thisptr, key)
 
 	def __getattr__(self, key):
-		cdef c_uintptr_t x
 		cdef connection c
 		cdef c_connection *cc
 		cdef c_GString *s
