@@ -299,7 +299,7 @@ int32_t bistream_get_stream(struct bistream *bs, enum bistream_direction dir, ui
 		int32_t size = end_offset - start_offset;
 		g_debug("copy data %p stream_offset %i size %i copy_start %i copy_end %i size %i", itsc,  itsc->stream_offset, (int)itsc->data->len, start_offset, end_offset, size);
 
-		memcpy(*data + offset, itsc->data->str + start_offset, size);
+		memcpy((char *)*data + offset, itsc->data->str + start_offset, size);
 
 		offset+=size;
 

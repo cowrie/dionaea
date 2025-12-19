@@ -651,7 +651,7 @@ void proc_filter_dump_rules(struct proc_filter_config *cfg)
 	g_debug("Dumping filter rules ...");
 	for( int i=0; cfg_iter_help[i].mode != NULL; i++ )
 	{
-		GList **list = (((void *)cfg) + cfg_iter_help[i].offset);
+		GList **list = (GList **)((char *)cfg + cfg_iter_help[i].offset);
 //		g_warning("mode %s offset %i list %p %p %p",  cfg_iter_help[i].mode, cfg_iter_help[i].offset, cfg, list, cfg->deny);
 
 		if( *list == NULL )
@@ -668,7 +668,7 @@ void proc_filter_dump_rules(struct proc_filter_config *cfg)
 
 				struct proc_filter_config_rule *rule = it->data;
 //				g_warning("################");
-				GList **rules = (((void *)rule) + rule_iter_help[j].offset);
+				GList **rules = (GList **)((char *)rule + rule_iter_help[j].offset);
 				for( GList *jt = g_list_first(*rules); jt != NULL; jt = g_list_next(jt) )
 				{
 					char *p = jt->data;
