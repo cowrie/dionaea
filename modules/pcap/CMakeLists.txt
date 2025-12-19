@@ -4,22 +4,21 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-set(
-  module_pcap_SRCS
-  pcap.c
-)
+add_library(module_pcap MODULE pcap.c)
 
-include_directories (..)
-include_directories (../../include)
-include_directories (../../)
-include_directories(
-  ${GMODULE2_INCLUDE_DIRS}
-)
-include_directories (${CMAKE_CURRENT_BINARY_DIR}/../..)
-
-add_library(
+target_include_directories(
   module_pcap
-  MODULE ${module_pcap_SRCS}
+  PRIVATE
+    ..
+    ../../include
+    ../../
+    ${CMAKE_CURRENT_BINARY_DIR}/../..
+)
+
+target_include_directories(
+  module_pcap
+  SYSTEM PRIVATE
+    ${GMODULE2_INCLUDE_DIRS}
 )
 
 set_target_properties(

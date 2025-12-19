@@ -59,11 +59,15 @@ target_include_directories(
         ..
         ../../include
         ../../
+        ${CMAKE_BINARY_DIR}
+)
+
+target_include_directories(
+    module_python
+    SYSTEM PRIVATE
         ${GLIB2_INCLUDE_DIRS}
         ${GMODULE2_INCLUDE_DIRS}
         ${Python3_INCLUDE_DIRS}
-        ${CMAKE_BINARY_DIR}
-        #${CMAKE_CURRENT_BINARY_DIR}/../..
 )
 
 target_link_libraries(

@@ -486,7 +486,7 @@ int logger_load(struct options *opt)
     if( opt->root != NULL && *file == '/') {
       g_error("log path has to be relative to '%s' for chroot", opt->root);
     }
-    strncpy(fd->file, file, PATH_MAX);
+    g_strlcpy(fd->file, file, sizeof(fd->file));
 
     fd->filter = lf;
 

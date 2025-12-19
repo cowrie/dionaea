@@ -213,7 +213,7 @@ bool parse_addr(char const * const addr, char const * const iface, uint16_t cons
 			return false;
 		}
 		su->sun_family = PF_UNIX;
-		strncpy(su->sun_path, p, 107);
+		g_strlcpy(su->sun_path, p, sizeof(su->sun_path));
 		*sizeof_sa = sizeof(su->sun_family) + strlen(su->sun_path);
 		*socket_domain = PF_UNIX;
 		return true;

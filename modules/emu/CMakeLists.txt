@@ -4,8 +4,7 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-set(
-  module_emu_SRCS
+add_library(module_emu MODULE
   module.c
   detect.c
   emulate.c
@@ -13,14 +12,21 @@ set(
   hooks.c
 )
 
-include_directories (..)
-include_directories (../../include)
-include_directories (../../)
-include_directories (${GLIB2_INCLUDE_DIRS})
-include_directories (${LIBEMU_INCLUDE_DIR})
-include_directories (${CMAKE_CURRENT_BINARY_DIR}/../..)
+target_include_directories(
+  module_emu
+  PRIVATE
+    ..
+    ../../include
+    ../../
+    ${CMAKE_CURRENT_BINARY_DIR}/../..
+)
 
-add_library(module_emu MODULE ${module_emu_SRCS})
+target_include_directories(
+  module_emu
+  SYSTEM PRIVATE
+    ${GLIB2_INCLUDE_DIRS}
+    ${LIBEMU_INCLUDE_DIR}
+)
 
 add_dependencies(
   module_emu

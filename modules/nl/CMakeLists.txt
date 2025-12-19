@@ -4,24 +4,23 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-set(
-  module_nl_SRCS
-  module.c
-)
+add_library(module_nl MODULE module.c)
 
-include_directories(..)
-include_directories(../../include)
-include_directories(../../)
-include_directories(
-  ${GMODULE2_INCLUDE_DIRS}
-  ${LIBNL3_INCLUDE_DIRS}
-  ${LIBNL3_ROUTE_INCLUDE_DIRS}
-)
-include_directories (${CMAKE_CURRENT_BINARY_DIR}/../..)
-
-add_library(
+target_include_directories(
   module_nl
-  MODULE ${module_nl_SRCS}
+  PRIVATE
+    ..
+    ../../include
+    ../../
+    ${CMAKE_CURRENT_BINARY_DIR}/../..
+)
+
+target_include_directories(
+  module_nl
+  SYSTEM PRIVATE
+    ${GMODULE2_INCLUDE_DIRS}
+    ${LIBNL3_INCLUDE_DIRS}
+    ${LIBNL3_ROUTE_INCLUDE_DIRS}
 )
 
 set_target_properties(

@@ -8,20 +8,26 @@
 # Minimal shellcode detector module for Speakeasy integration
 # Only includes detection code - analysis is done in Python
 
-set(
-  module_speakeasy_SRCS
+add_library(module_speakeasy MODULE
   module.c
   detect.c
 )
 
-include_directories (..)
-include_directories (../../include)
-include_directories (../../)
-include_directories (${GLIB2_INCLUDE_DIRS})
-include_directories (${CMAKE_CURRENT_BINARY_DIR}/../..)
-include_directories (${CMAKE_SOURCE_DIR}/vendor/unicorn-libemu-shim/include)
+target_include_directories(
+  module_speakeasy
+  PRIVATE
+    ..
+    ../../include
+    ../../
+    ${CMAKE_CURRENT_BINARY_DIR}/../..
+    ${CMAKE_SOURCE_DIR}/vendor/unicorn-libemu-shim/include
+)
 
-add_library(module_speakeasy MODULE ${module_speakeasy_SRCS})
+target_include_directories(
+  module_speakeasy
+  SYSTEM PRIVATE
+    ${GLIB2_INCLUDE_DIRS}
+)
 
 add_dependencies(
   module_speakeasy

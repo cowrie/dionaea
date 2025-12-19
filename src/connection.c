@@ -781,7 +781,7 @@ void connection_connect_next_addr(struct connection *con)
 			continue;
 		}
 		con->remote.domain = socket_domain;
-		strncpy(con->remote.ip_string, addr, INET_STRLEN);
+		g_strlcpy(con->remote.ip_string, addr, sizeof(con->remote.ip_string));
 
 		if( con->local.hostname != NULL )
 		{

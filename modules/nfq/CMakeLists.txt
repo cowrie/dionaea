@@ -4,20 +4,24 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-set(
-  module_nfq_SRCS
-  nfq.c
+add_library(module_nfq MODULE nfq.c)
+
+target_include_directories(
+  module_nfq
+  PRIVATE
+    ..
+    ../../include
+    ../../src
+    ../../
+    ${CMAKE_CURRENT_BINARY_DIR}/../..
 )
 
-include_directories (..)
-include_directories (../../include)
-include_directories (../../src)
-include_directories (../../)
-include_directories (${GMODULE2_INCLUDE_DIRS})
-include_directories (${NFQUEUE_INCLUDE_DIRS})
-include_directories (${CMAKE_CURRENT_BINARY_DIR}/../..)
-
-add_library(module_nfq MODULE ${module_nfq_SRCS})
+target_include_directories(
+  module_nfq
+  SYSTEM PRIVATE
+    ${GMODULE2_INCLUDE_DIRS}
+    ${NFQUEUE_INCLUDE_DIRS}
+)
 
 add_dependencies(
   module_nfq

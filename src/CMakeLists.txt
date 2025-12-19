@@ -35,10 +35,15 @@ target_include_directories(
     PRIVATE
         ..
         ../include
+        ${CMAKE_CURRENT_BINARY_DIR}/..
+)
+
+target_include_directories(
+    dionaea
+    SYSTEM PRIVATE
         ${GLIB2_INCLUDE_DIRS}
         ${GMODULE2_INCLUDE_DIRS}
         ${OPENSSL_INCLUDE_DIR}
-        ${CMAKE_CURRENT_BINARY_DIR}/..
 )
 
 set_target_properties(

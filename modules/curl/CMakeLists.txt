@@ -4,19 +4,24 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-set(
-  module_curl_SRCS
-  module.c
+add_library(module_curl MODULE module.c)
+
+target_include_directories(
+  module_curl
+  PRIVATE
+    ..
+    ../../include
+    ../../src
+    ../../
+    ${CMAKE_CURRENT_BINARY_DIR}/../..
 )
 
-include_directories (..)
-include_directories (../../include)
-include_directories (../../src)
-include_directories (../../)
-include_directories (${GMODULE2_INCLUDE_DIRS})
-include_directories (${CMAKE_CURRENT_BINARY_DIR}/../..)
-
-add_library(module_curl MODULE ${module_curl_SRCS})
+target_include_directories(
+  module_curl
+  SYSTEM PRIVATE
+    ${GMODULE2_INCLUDE_DIRS}
+    ${CURL_INCLUDE_DIRS}
+)
 
 add_dependencies(
   module_curl
