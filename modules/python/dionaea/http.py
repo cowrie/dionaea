@@ -220,6 +220,8 @@ class httpreq:
             hlines: list[bytes] = header.split(b'\n')
             req: bytes = hlines[0]
             reqparts: list[bytes] = req.split(b" ")
+            if len(reqparts) < 3:
+                raise ValueError(f"Malformed request line: {req!r}")
             self.type: bytes = reqparts[0]
             path_parsed = urllib.parse.urlsplit(reqparts[1].decode('utf-8'))
             self.path = urllib.parse.unquote_plus(path_parsed.path)
@@ -228,13 +230,13 @@ class httpreq:
                 path_parsed.query,
                 max_num_fields=connection.get_max_num_fields
             )
+            self.version = reqparts[2]
         except Exception:
-            logger.warning("Unable to parse query string", exc_info=True)
+            logger.warning("Unable to parse HTTP request", exc_info=True)
+            raise
 
         logger.debug("Extracted path %s", self.path)
         logger.debug("Found %d url value(s)", len(self.fields))
-
-        self.version = reqparts[2]
         r = self.version.find(b"\r")
         if r:
             self.version = self.version[:r]
@@ -615,7 +617,10 @@ class httpd(connection):
 
             header = data[0:end_of_head]
             data = data[start_of_content:]
-            self.header = httpreq(header, self)
+            try:
+                self.header = httpreq(header, self)
+            except Exception:
+                return len(data)
             self.header.log_req()
             for _n, v in self.header.headers.items():
                 detect_shellshock(self, v)
