@@ -94,7 +94,7 @@ void connection_tcp_accept_cb (EV_P_ struct ev_io *w, int revents)
 
 		if( connection_node_set_local(accepted) == false || connection_node_set_remote(accepted) == false )
 		{
-			g_warning("accepting connection failed, closing connection");
+			g_debug("accepting connection failed, closing connection");
 			close(accepted->socket);
 			accepted->socket = -1;
 			// Free connection information but don't report
@@ -270,7 +270,7 @@ void connection_tcp_io_in_cb(EV_P_ struct ev_io *w, int revents)
 
 	} else
 	{
-		g_warning("recv failed size %i recv_size %i (%s)", size, recv_size, strerror(lerrno));
+		g_debug("recv failed size %i recv_size %i (%s)", size, recv_size, strerror(lerrno));
 		connection_tcp_disconnect(con);
 	}
 	g_string_free(new_in, TRUE);

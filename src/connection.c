@@ -134,7 +134,7 @@ bool connection_node_set_remote(struct connection *con)
 	socklen_t sizeof_sa = sizeof(struct sockaddr_storage);
 	if( getpeername(con->socket, (struct sockaddr *)&con->remote.addr, &sizeof_sa) != 0 )
 	{
-		g_warning("getpeername failed (%s)", strerror(errno));
+		g_debug("getpeername failed (%s)", strerror(errno));
 		return false;
 	}
 	return node_info_set(&con->remote, &con->remote.addr);
