@@ -405,7 +405,6 @@ class PacketField(StrField):
     def m2i(self, pkt, m):
         return self.cls(m)
     def getfield(self, pkt, s):
-        from .packet import Raw  # Lazy import to avoid circular dependency
         p = self.m2i(pkt, s)
         if 'Raw' in p:
             remain = p.load
@@ -459,7 +458,6 @@ class PacketListField(PacketField):
     def do_copy(self, x):
         return [p.copy() for p in x]
     def getfield(self, pkt, s):
-        from .packet import Raw  # Lazy import to avoid circular dependency
         c = l = None
         if self.length_from is not None:
             l = self.length_from(pkt)
