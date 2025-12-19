@@ -890,11 +890,11 @@ class smbd(connection):
         return False
 
     def handle_disconnect(self):
-        for i in self.fids:
-            if self.fids[i] is not None:
-                self.fids[i].close()
-                os.unlink(self.fids[i].name)
-                del self.fids[i]
+        for fid in list(self.fids.values()):
+            if fid is not None:
+                fid.close()
+                os.unlink(fid.name)
+        self.fids.clear()
         return 0
 
 class epmapper(smbd):
