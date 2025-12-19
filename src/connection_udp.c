@@ -96,7 +96,7 @@ ssize_t recvfromto(int sockfd, void *buf, size_t len, int flags,
 				errno = EINVAL;
 				return -1;
 			}
-			void *addr = ADDROFFSET(toaddr);
+			void *addr = addr_offset(toaddr);
 			void *t = &((struct in_pktinfo *)(CMSG_DATA(cmsgptr)))->ipi_addr;
 			memcpy(addr, t, sizeof(struct in_addr));
 			break;
@@ -110,7 +110,7 @@ ssize_t recvfromto(int sockfd, void *buf, size_t len, int flags,
 				errno = EINVAL;
 				return -1;
 			}
-			void *addr = ADDROFFSET(toaddr);
+			void *addr = addr_offset(toaddr);
 			void *t = &((struct in6_pktinfo *)(CMSG_DATA(cmsgptr)))->ipi6_addr;
 			memcpy(addr, t, sizeof(struct in6_addr));
 			break;
@@ -152,7 +152,7 @@ ssize_t sendtofrom(int fd, void *buf, size_t len, int flags, struct sockaddr *to
 		cmsgptr->cmsg_level = SOL_IP;
 		cmsgptr->cmsg_type = IP_PKTINFO;
 		cmsgptr->cmsg_len = CMSG_LEN(sizeof(struct in_pktinfo));
-		memcpy(&((struct in_pktinfo *)(CMSG_DATA(cmsgptr)))->ipi_spec_dst.s_addr, ADDROFFSET(from),  sizeof(struct in_addr) );
+		memcpy(&((struct in_pktinfo *)(CMSG_DATA(cmsgptr)))->ipi_spec_dst.s_addr, addr_offset(from),  sizeof(struct in_addr) );
 		return sendmsg(fd, &msg, 0);
 #endif
 	}else
@@ -168,7 +168,7 @@ ssize_t sendtofrom(int fd, void *buf, size_t len, int flags, struct sockaddr *to
 		cmsgptr->cmsg_level = SOL_IPV6;
 		cmsgptr->cmsg_type = IPV6_PKTINFO;
 		cmsgptr->cmsg_len = CMSG_LEN(sizeof(struct in6_pktinfo));
-		memcpy(&((struct in6_pktinfo *)(CMSG_DATA(cmsgptr)))->ipi6_addr, ADDROFFSET(from),  sizeof(struct in6_addr) );
+		memcpy(&((struct in6_pktinfo *)(CMSG_DATA(cmsgptr)))->ipi6_addr, addr_offset(from),  sizeof(struct in6_addr) );
 		return sendmsg(fd, &msg, 0);
 #endif
 	}else

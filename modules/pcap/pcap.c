@@ -245,14 +245,14 @@ static bool pcap_prepare(void)
 				case PF_INET6:
 					g_debug("\t\t%s", (addr->addr->sa_family == PF_INET) ? "PF_INET" : "PF_INET6");
 					if( addr->addr )
-						g_debug("\t\t\taddr %s", inet_ntop(addr->addr->sa_family, ADDROFFSET(addr->addr), name, 128));
+						g_debug("\t\t\taddr %s", inet_ntop(addr->addr->sa_family, addr_offset(addr->addr), name, 128));
 					if( addr->netmask )
-						g_debug("\t\t\tnetmask %s", inet_ntop(addr->addr->sa_family, ADDROFFSET(addr->addr), name, 128));
+						g_debug("\t\t\tnetmask %s", inet_ntop(addr->addr->sa_family, addr_offset(addr->addr), name, 128));
 					if( addr->broadaddr )
-						g_debug("\t\t\tbcast %s", inet_ntop(addr->addr->sa_family, ADDROFFSET(addr->addr), name, 128));
+						g_debug("\t\t\tbcast %s", inet_ntop(addr->addr->sa_family, addr_offset(addr->addr), name, 128));
 					if( addr->dstaddr )
-						g_debug("\t\t\tdstaddr %s", inet_ntop(addr->addr->sa_family, ADDROFFSET(addr->addr), name, 128));
-					g_string_append_printf(bpf_filter_string_addition, "or src host %s ", inet_ntop(addr->addr->sa_family, ADDROFFSET(addr->addr), name, 128));
+						g_debug("\t\t\tdstaddr %s", inet_ntop(addr->addr->sa_family, addr_offset(addr->addr), name, 128));
+					g_string_append_printf(bpf_filter_string_addition, "or src host %s ", inet_ntop(addr->addr->sa_family, addr_offset(addr->addr), name, 128));
 					break;
 
 				default:
@@ -262,7 +262,6 @@ static bool pcap_prepare(void)
 				g_debug(" ");
 			}
 		}
-#undef ADDROFFSET
 
 #ifdef HAVE_PCAP_IPV6_TCP
 		g_string_append_printf(bpf_filter_string, "%s", bpf_filter_string_addition->str+3);

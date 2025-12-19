@@ -1957,8 +1957,8 @@ static int cmp_ip_address_stringp(const void *p1, const void *p2)
 
 	if( domain1 == domain2 )
 	{
-		void *a = ADDROFFSET(&sa1);
-		void *b = ADDROFFSET(&sa2);
+		void *a = addr_offset(&sa1);
+		void *b = addr_offset(&sa2);
 
 		if( domain1 == PF_INET6 )
 		{

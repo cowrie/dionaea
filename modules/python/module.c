@@ -644,7 +644,7 @@ PyObject *pygetifaddrs(PyObject *self, PyObject *args)
 
 		pyaddr = NULL;
 		char ip_string[INET6_ADDRSTRLEN+1] = "";
-		void *offset = ADDROFFSET(iface->ifa_addr);
+		void *offset = addr_offset(iface->ifa_addr);
 		if( offset )
 		{
 			inet_ntop(iface->ifa_addr->sa_family, offset, ip_string, INET6_ADDRSTRLEN);
@@ -681,7 +681,7 @@ PyObject *pygetifaddrs(PyObject *self, PyObject *args)
 		Py_DECREF(pyafdetails);
 
 
-		offset = ADDROFFSET(iface->ifa_netmask);
+		offset = addr_offset(iface->ifa_netmask);
 #ifdef AF_PACKET
 		if( offset && iface->ifa_addr->sa_family != AF_PACKET )
 		{
@@ -704,7 +704,7 @@ PyObject *pygetifaddrs(PyObject *self, PyObject *args)
 		}
 		if( iface->ifa_flags & IFF_BROADCAST )
 		{
-			offset = ADDROFFSET(iface->ifa_broadaddr);
+			offset = addr_offset(iface->ifa_broadaddr);
 			if( offset )
 			{
 				inet_ntop(iface->ifa_addr->sa_family, offset, ip_string, INET6_ADDRSTRLEN);
@@ -716,7 +716,7 @@ PyObject *pygetifaddrs(PyObject *self, PyObject *args)
 
 		if( iface->ifa_flags & IFF_POINTOPOINT )
 		{
-			offset = ADDROFFSET(iface->ifa_dstaddr);
+			offset = addr_offset(iface->ifa_dstaddr);
 			if( offset )
 			{
 				inet_ntop(iface->ifa_addr->sa_family, offset, ip_string, INET6_ADDRSTRLEN);

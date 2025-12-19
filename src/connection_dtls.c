@@ -87,10 +87,10 @@ void dtls_create_cookie(struct connection *con, unsigned char *hash, unsigned in
 {
 	/* Create buffer with peer's address and port */
 	g_debug("%s con %p %s:%s", __PRETTY_FUNCTION__, con, con->remote.ip_string, con->remote.port_string);
-	int length = sizeof(in_port_t) + ADDRSIZE(&con->remote.addr);
+	int length = sizeof(in_port_t) + addr_size(&con->remote.addr);
 	unsigned char buffer[length];
-	memcpy(buffer, PORTOFFSET(&con->remote.addr), sizeof(in_port_t));
-	memcpy(buffer + sizeof(in_port_t), ADDROFFSET(&con->remote.addr), ADDRSIZE(&con->remote.addr));
+	memcpy(buffer, port_offset(&con->remote.addr), sizeof(in_port_t));
+	memcpy(buffer + sizeof(in_port_t), addr_offset(&con->remote.addr), addr_size(&con->remote.addr));
 
 	/* Calculate HMAC of buffer using the secret */
 	HMAC(EVP_sha1(),

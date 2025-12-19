@@ -6,19 +6,22 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#ifndef HAVE_UTIL_H
-#define HAVE_UTIL_H
+#ifndef DIONAEA_UTIL_H
+#define DIONAEA_UTIL_H
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 
 #ifndef s6_addr32
 #define s6_addr32 __u6_addr.__u6_addr32
 #endif
 
-void *ADDROFFSET(const void *x);
-unsigned int ADDRSIZE(const void *x);
-void *PORTOFFSET(const void *x);
+void *addr_offset(const void *x);
+unsigned int addr_size(const void *x);
+void *port_offset(const void *x);
 
 bool sockaddr_storage_from(struct sockaddr_storage *ss, int family, void *host, uint16_t port);
 bool parse_addr(char const * const addr, char const * const iface, uint16_t const port, struct sockaddr_storage * const sa, int * const socket_domain, socklen_t * const sizeof_sa);
@@ -39,4 +42,4 @@ void tempfile_close(struct tempfile *tf);
 void tempfile_unlink(struct tempfile *tf);
 void tempfile_free(struct tempfile *tf);
 
-#endif
+#endif /* DIONAEA_UTIL_H */

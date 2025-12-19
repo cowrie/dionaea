@@ -30,7 +30,7 @@
 
 #define D_LOG_DOMAIN "util"
 
-void *ADDROFFSET(const void *x)
+void *addr_offset(const void *x)
 {
 	if( x == NULL )
 		return NULL;
@@ -47,7 +47,7 @@ void *ADDROFFSET(const void *x)
 	return NULL;
 }
 
-unsigned int ADDRSIZE(const void *x)
+unsigned int addr_size(const void *x)
 {
 	if( x == NULL )
 		return 0;
@@ -62,7 +62,7 @@ unsigned int ADDRSIZE(const void *x)
 	return 0;
 }
 
-void *PORTOFFSET(const void *x)
+void *port_offset(const void *x)
 {
 	if( x == NULL )
 		return NULL;

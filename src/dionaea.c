@@ -53,6 +53,12 @@
 void show_version(struct version *);
 void show_help(bool defaults);
 
+// macOS/BSD compatibility: setresgid/setresuid don't exist
+#ifdef __APPLE__
+#define setresgid(r, e, s) setregid((r), (e))
+#define setresuid(r, e, s) setreuid((r), (e))
+#endif
+
 #define D_LOG_DOMAIN "dionaea"
 
 
