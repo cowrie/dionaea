@@ -553,7 +553,7 @@ class Message:
 
         for header in headers:
             if self.headers.get(header) is None:
-                logger.warn("Header missing: %r", header)
+                logger.debug("Header missing: %r", header)
                 return False
 
         return True
