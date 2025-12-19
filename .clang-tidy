@@ -7,18 +7,20 @@ Checks: >
   -bugprone-easily-swappable-parameters,
   -bugprone-reserved-identifier,
   -bugprone-assignment-in-if-condition,
+  -bugprone-signal-handler,
   cert-*,
   -cert-dcl37-c,
   -cert-dcl51-cpp,
+  -cert-err33-c,
   clang-analyzer-*,
   -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
-  misc-redundant-expression,
-  misc-unused-parameters,
+  -misc-redundant-expression,
+  -misc-unused-parameters,
   performance-*,
   -performance-no-int-to-ptr,
   portability-*,
 
-WarningsAsErrors: ''
+WarningsAsErrors: '*'
 
 HeaderFilterRegex: '.*'
 

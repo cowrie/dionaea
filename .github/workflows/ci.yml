@@ -290,7 +290,7 @@ jobs:
             -not -path 'modules/nfq/*' \
             -not -path 'modules/nc/*' \
             -not -path 'modules/speakeasy/*' \
-            -print0 | xargs -0 clang-tidy -p build
+            -print0 | xargs -0 clang-tidy -p build --warnings-as-errors='*'
 
       - name: Run cppcheck
         run: |
