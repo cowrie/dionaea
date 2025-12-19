@@ -856,6 +856,19 @@ void connection_tls_error(struct connection *con)
 {
 	con->transport.tls.ssl_error = ERR_get_error();
 	ERR_error_string(con->transport.tls.ssl_error, con->transport.tls.ssl_error_string);
-	if( con->transport.tls.ssl_error != 0 )
-		g_debug("SSL ERROR %s\t%s", con->transport.tls.ssl_error_string, SSL_state_string_long(con->transport.tls.ssl));
+	if( con->transport.tls.ssl_error != 0 ) {
+		if( strstr(con->transport.tls.ssl_error_string, "no suitable signature algorithm") != NULL ) {
+			const char *cipher = SSL_get_cipher_name(con->transport.tls.ssl);
+			const char *version = SSL_get_version(con->transport.tls.ssl);
+			g_warning("SSL handshake failed: %s (client %s:%s, cipher: %s, version: %s, state: %s)",
+				con->transport.tls.ssl_error_string,
+				con->remote.ip_string,
+				con->remote.port_string,
+				cipher ? cipher : "none",
+				version ? version : "unknown",
+				SSL_state_string_long(con->transport.tls.ssl));
+		} else {
+			g_debug("SSL ERROR %s\t%s", con->transport.tls.ssl_error_string, SSL_state_string_long(con->transport.tls.ssl));
+		}
+	}
 }
