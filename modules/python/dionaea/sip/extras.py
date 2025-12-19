@@ -223,18 +223,6 @@ class SipConfig:
                     return pers_name
         return "default"
 
-    def get_rtp(self, msg_stack=None):
-        if msg_stack is None:
-            msg_stack = []
-
-        pcap_conf = self._rtp.get("pcap", {})
-        return RTP(
-            path=pcap_conf.get("path", "var/dionaea/rtp/{personality}/%Y-%m-%d/"),
-            filename=pcap_conf.get("filename", "%H:%M:%S_{remote_host}_{remote_port}_in.pcap"),
-            enable=self._rtp.get("enable", False),
-            mode=self._rtp.get("mode", ["pcap"])
-        )
-
     def get_pcap(self):
         pcap_conf = self._rtp.get("pcap", {})
         return PCAP(
