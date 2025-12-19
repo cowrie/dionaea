@@ -9,6 +9,7 @@
 
 import io
 import socket
+import tempfile
 
 import tftpy
 
@@ -40,12 +41,15 @@ def test_tftp_write_request(dionaea_host, dionaea_ports):
     port = dionaea_ports["tftp"]
     client = tftpy.TftpClient(dionaea_host, port)
 
-    # Upload a small test file
+    # Upload a small test file - use tempfile because tftpy needs flock()
     test_data = b"test data from smoke test\n"
-    input_file = io.BytesIO(test_data)
+    with tempfile.NamedTemporaryFile(delete=False) as tmp:
+        tmp.write(test_data)
+        tmp.flush()
+        tmp_path = tmp.name
 
     try:
-        client.upload("test_upload.txt", input_file)
+        client.upload("test_upload.txt", tmp_path)
         # Upload succeeded - server is working
     except tftpy.TftpException:
         # Some error during upload - that's ok, server still responded

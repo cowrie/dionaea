@@ -26,7 +26,6 @@ def test_smb_negotiate(dionaea_host, dionaea_ports):
     port = dionaea_ports["smb"]
 
     connection = Connection(
-        uuid=None,
         server_name=dionaea_host,
         port=port,
         require_signing=False,
@@ -52,7 +51,6 @@ def test_smb_session_guest(dionaea_host, dionaea_ports):
     port = dionaea_ports["smb"]
 
     connection = Connection(
-        uuid=None,
         server_name=dionaea_host,
         port=port,
         require_signing=False,
