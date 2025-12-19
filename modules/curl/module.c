@@ -134,6 +134,7 @@ static void timer_cb(struct ev_loop *loop,  struct ev_timer *w, int revents);
 /* Update the event timer after curl_multi library calls */
 static int multi_timer_cb(CURLM *multi, long timeout_ms)
 {
+	(void)multi;
 	g_debug("%s %li", __PRETTY_FUNCTION__,  timeout_ms);
 	ev_timer_stop(g_dionaea->loop, &curl_runtime.timer_event);
 	if( timeout_ms > 0 )
@@ -233,6 +234,7 @@ static void check_run_count(void)
 
 static void event_cb(struct ev_loop *loop,  struct ev_io *w, int revents)
 {
+	(void)loop;
 	g_debug("%s  w %p revents %i", __PRETTY_FUNCTION__, w, revents);
 	CURLMcode rc;
 
@@ -255,6 +257,7 @@ static void event_cb(struct ev_loop *loop,  struct ev_io *w, int revents)
 
 static void timer_cb(struct ev_loop *loop,  struct ev_timer *w, int revents)
 {
+	(void)loop; (void)revents;
 	g_debug("%s  w %p revents %i", __PRETTY_FUNCTION__, w, revents);
 	CURLMcode rc;
 	do
@@ -362,7 +365,7 @@ static int curl_progressfunction_cb (void *p, curl_off_t dltotal, curl_off_t dln
 /* CURLOPT_DEBUGFUNCTION */
 static int curl_debugfunction_cb(CURL *easy, curl_infotype type, char *data, size_t size, void *userp)
 {
-
+	(void)size; (void)userp;
 	struct session *session = NULL;
 	curl_easy_getinfo(easy, CURLINFO_PRIVATE, (char **)&session);
 	switch( type )
@@ -581,6 +584,7 @@ static bool curl_config(void)
 
 static bool curl_new(struct dionaea *d)
 {
+	(void)d;
 	if( curl_global_init(CURL_GLOBAL_ALL) != 0 )
 		return false;
 

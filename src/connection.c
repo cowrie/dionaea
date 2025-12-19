@@ -575,6 +575,7 @@ void connection_close(struct connection *con)
 
 void connection_close_timeout_cb(EV_P_ struct ev_timer *w, int revents)
 {
+	(void)revents;
 	struct connection *con = CONOFF_CLOSE_TIMEOUT(w);
 	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 
@@ -638,6 +639,7 @@ void connection_free(struct connection *con)
  */
 void connection_free_cb(EV_P_ struct ev_timer *w, int revents, bool report_incident)
 {
+	(void)revents;
 	struct connection *con = CONOFF_FREE(w);
 	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 
@@ -1096,6 +1098,7 @@ void connection_reconnect(struct connection *con)
 
 void connection_reconnect_timeout_cb(EV_P_ struct ev_timer *w, int revents)
 {
+	(void)revents;
 	struct connection *con = CONOFF_RECONNECT_TIMEOUT(w);
 	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 
@@ -1308,6 +1311,7 @@ double connection_idle_timeout_get(struct connection *con)
 
 void connection_idle_timeout_cb(struct ev_loop *loop, struct ev_timer *w, int revents)
 {
+	(void)loop; (void)revents;
 	struct connection *con = CONOFF_IDLE_TIMEOUT(w);
 	g_message("idle timeout con %p [%s->%s]", con, con->local.node_string, con->remote.node_string);
 
@@ -1387,6 +1391,7 @@ double connection_sustain_timeout_get(struct connection *con)
 
 void connection_sustain_timeout_cb(struct ev_loop *loop, struct ev_timer *w, int revents)
 {
+	(void)loop; (void)revents;
 	struct connection *con = CONOFF_SUSTAIN_TIMEOUT(w);
 	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 
@@ -1454,6 +1459,7 @@ void connection_listen_timeout_set(struct connection *con, double timeout_interv
 
 void connection_listen_timeout_cb(struct ev_loop *loop, struct ev_timer *w, int revents)
 {
+	(void)loop; (void)revents;
 	struct connection *con = CONOFF_LISTEN_TIMEOUT(w);
 	g_debug("%s con %p", __PRETTY_FUNCTION__, con);
 
@@ -1571,6 +1577,7 @@ void connection_connecting_timeout_set(struct connection *con, double timeout_in
 
 void connection_connecting_timeout_cb(EV_P_ struct ev_timer *w, int revents)
 {
+	(void)revents;
 	struct connection *con = CONOFF_CONNECTING_TIMEOUT(w);
 	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 	switch( con->trans )
@@ -1848,6 +1855,7 @@ void connection_throttle_update(struct connection *con, struct connection_thrott
 
 void connection_throttle_io_in_timeout_cb(EV_P_ struct ev_timer *w, int revents)
 {
+	(void)revents;
 	struct connection *con = CONOFF_THROTTLE_IO_IN_TIMEOUT(w);
 	g_debug("%s %p", __PRETTY_FUNCTION__, con);
 	ev_io_start(EV_A_ &con->events.io_in);
@@ -1855,6 +1863,7 @@ void connection_throttle_io_in_timeout_cb(EV_P_ struct ev_timer *w, int revents)
 
 void connection_throttle_io_out_timeout_cb(EV_P_ struct ev_timer *w, int revents)
 {
+	(void)revents;
 	struct connection *con = CONOFF_THROTTLE_IO_OUT_TIMEOUT(w);
 	g_debug("%s %p", __PRETTY_FUNCTION__, con);
 	ev_io_start(EV_A_ &con->events.io_out);
@@ -1895,6 +1904,7 @@ void connection_dns_resolve_cancel(struct connection *con)
 
 void connection_dns_resolve_timeout_cb(EV_P_ struct ev_timer *w, int revent)
 {
+	(void)revent;
 	struct connection *con = CONOFF_DNS_TIMEOUT(w);
 	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 	connection_dns_resolve_cancel(con);

@@ -119,6 +119,7 @@ static bool config(void)
 
 void python_io_in_cb(EV_P_ struct ev_io *w, int revents)
 {
+	(void)EV_A; (void)w; (void)revents;
 	PyCompilerFlags cf;
 	cf.cf_flags = 0;
 	cf.cf_feature_version = PY_MINOR_VERSION;
@@ -337,6 +338,7 @@ static bool start(void)
 
 static bool new(struct dionaea *dionaea)
 {
+	(void)dionaea;
 	g_debug("%s %s %p", __PRETTY_FUNCTION__, __FILE__, g_dionaea);
 //	int v = PyImport_AppendInittab("dionaea.core", &PyInit_core);
 //	g_warning("PyImport_AppendInittab %i", v);
@@ -536,6 +538,7 @@ static int cmp_ifaddrs_by_ifa_name(const void *p1, const void *p2)
 
 PyObject *pyversion(PyObject *self, PyObject *args)
 {
+	(void)self; (void)args;
 #define DICT_SET_ITEM(d, k, v) \
 	{\
 	PyObject *x = PyUnicode_FromString( (char *)g_dionaea->version->k.v); \
@@ -575,6 +578,7 @@ PyObject *pyversion(PyObject *self, PyObject *args)
 
 PyObject *pygetifaddrs(PyObject *self, PyObject *args)
 {
+	(void)self; (void)args;
 	struct ifaddrs *iface, *head;
 	PyObject *result;
 
@@ -808,6 +812,7 @@ PyObject *py_config_string_list(gchar *group, gchar *key)
 
 PyObject *py_config(PyObject *self, PyObject *args)
 {
+	(void)self; (void)args;
 	PyObject *obj, *obj2, *obj_value = NULL;
 
 	obj = PyDict_New();
@@ -989,11 +994,13 @@ bool python_processor_bistream_accept(struct connection *con, void *config)
 
 void python_processor_bistream_io_in(struct connection *con, struct processor_data *pd, void *data, int size)
 {
+	(void)pd;
 	runtime.traceables.processor.io_in(con, NULL, data, size);
 }
 
 void python_processor_bistream_io_out(struct connection *con, struct processor_data *pd, void *data, int size)
 {
+	(void)pd;
 	runtime.traceables.processor.io_out(con, NULL, data, size);
 }
 

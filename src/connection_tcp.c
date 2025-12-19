@@ -58,6 +58,7 @@
 
 void connection_tcp_accept_cb (EV_P_ struct ev_io *w, int revents)
 {
+	(void)revents;
 	struct connection *con = CONOFF_IO_IN(w);
 	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 
@@ -150,6 +151,7 @@ void connection_tcp_accept_cb (EV_P_ struct ev_io *w, int revents)
 
 void connection_tcp_connecting_cb(EV_P_ struct ev_io *w, int revents)
 {
+	(void)revents;
 	struct connection *con = CONOFF_IO_OUT(w);
 	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 
@@ -187,6 +189,7 @@ void connection_tcp_connecting_cb(EV_P_ struct ev_io *w, int revents)
 
 void connection_tcp_io_in_cb(EV_P_ struct ev_io *w, int revents)
 {
+	(void)revents;
 	struct connection *con = CONOFF_IO_IN(w);
 	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 
@@ -284,6 +287,7 @@ void connection_tcp_io_in_cb(EV_P_ struct ev_io *w, int revents)
 
 void connection_tcp_io_out_cb(EV_P_ struct ev_io *w, int revents)
 {
+	(void)revents;
 	struct connection *con = CONOFF_IO_OUT(w);
 	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 
