@@ -24,7 +24,9 @@ if(NOT UNICORN_FOUND)
     endif()
 
     if(NOT Python3_FOUND)
-        message(FATAL_ERROR "Python3 not found. Cannot locate Python-installed unicorn. Please install Python3 or use system unicorn package.")
+        message(WARNING "Python3 not found. Cannot locate Python-installed unicorn.")
+        set(UNICORN_FOUND FALSE PARENT_SCOPE)
+        return()
     endif()
 
     # Query Python for unicorn installation location
@@ -53,7 +55,9 @@ if(NOT UNICORN_FOUND)
                 set(UNICORN_INCLUDE_DIRS "${UNICORN_INCLUDE_DIR}")
                 message(STATUS "Found Unicorn headers in system path: ${UNICORN_INCLUDE_DIRS}")
             else()
-                message(FATAL_ERROR "Unicorn headers not found. Install libunicorn-dev or ensure headers are available.")
+                message(WARNING "Unicorn headers not found. Speakeasy module will be disabled.")
+                set(UNICORN_FOUND FALSE PARENT_SCOPE)
+                return()
             endif()
         endif()
 
@@ -76,12 +80,19 @@ if(NOT UNICORN_FOUND)
             set(UNICORN_LIBRARIES ${UNICORN_LIBRARY})
             set(UNICORN_FOUND TRUE)
         else()
-            message(FATAL_ERROR "Found Python unicorn package but could not locate library")
+            message(WARNING "Found Python unicorn package but could not locate library. Speakeasy module will be disabled.")
+            set(UNICORN_FOUND FALSE PARENT_SCOPE)
+            return()
         endif()
     else()
-        message(FATAL_ERROR "Unicorn not found via pkg-config or Python. Please install: pip install unicorn")
+        message(WARNING "Unicorn not found via pkg-config or Python. Speakeasy module will be disabled.")
+        set(UNICORN_FOUND FALSE PARENT_SCOPE)
+        return()
     endif()
 endif()
+
+# Propagate UNICORN_FOUND to parent scope
+set(UNICORN_FOUND ${UNICORN_FOUND} PARENT_SCOPE)
 
 # Source files for dionaea compatibility layer
 set(EMU_SOURCES
