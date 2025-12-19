@@ -120,10 +120,11 @@ jobs:
             python3-setuptools \
             python3-yaml \
             python3-boto3 \
-            fonts-liberation
-          # Install speakeasy-emulator (try with --break-system-packages for newer pip, fallback without)
-          pip install --break-system-packages speakeasy-emulator 2>/dev/null || pip install speakeasy-emulator \
+            fonts-liberation \
             wget
+          # Install speakeasy-emulator and test dependencies
+          pip install --break-system-packages speakeasy-emulator 2>/dev/null || pip install speakeasy-emulator
+          pip install --break-system-packages -r tests/requirements.txt 2>/dev/null || pip install -r tests/requirements.txt
 
       - name: Build and install
         run: |
@@ -148,18 +149,14 @@ jobs:
             done
           '
 
-      - name: Test HTTP
+      - name: Run protocol smoke tests
         run: |
-          wget -O /dev/null -q --server-response http://localhost/
-
-      - name: Test HTTPS
-        run: |
-          wget -O /dev/null -q --server-response --no-check-certificate https://localhost/
+          cd tests && pytest tftp/ ftp/ smb/ http/tests/test_http_smoke.py -v --timeout=30
 
       - name: Show logs on failure
         if: failure()
         run: |
-          tail -n 100 /opt/dionaea/var/log/dionaea/dionaea.log || true
+          tail -n 200 /opt/dionaea/var/log/dionaea/dionaea.log || true
 
   docs-sphinx:
     name: Documentation - Sphinx
