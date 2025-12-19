@@ -63,6 +63,17 @@ repos:
         args: [--no-strict-optional, --ignore-missing-imports, --allow-untyped-global]
         exclude: ^(doc/|tests/|modules/python/dionaea/((submit_http|hpfeeds|virustotal|s3)\.py|(log_db_sql|mqtt|pptp|sip)/)|modules/python/util/(csv2sqlite.py|xmpp/pg_backend.py))
 
+  # C/C++ static analysis with clang-tidy
+  - repo: https://github.com/pocc/pre-commit-hooks
+    rev: v1.3.5
+    hooks:
+      - id: clang-tidy
+        args: [--config-file=.clang-tidy]
+        types_or: [c, c++]
+      - id: cppcheck
+        args: [--error-exitcode=1, --inline-suppr, --suppress=missingIncludeSystem]
+        types_or: [c, c++]
+
   # Check for missing licensing and copyright information.
   # The REUSE helper tool assists with achieving and confirming REUSE compliance.
   # See: https://reuse.software/

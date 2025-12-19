@@ -224,7 +224,7 @@ jobs:
           doxygen Doxyfile
 
   style:
-    name: Lint
+    name: Lint - Python
     runs-on: ubuntu-latest
     container: buildpack-deps:bookworm-scm
 
@@ -242,3 +242,49 @@ jobs:
       - name: Run linters
         run: |
           tox -e lint
+
+  c-lint:
+    name: Lint - C
+    runs-on: ubuntu-latest
+    container: buildpack-deps:bookworm-scm
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            clang-tidy \
+            cppcheck \
+            cmake \
+            libcurl4-openssl-dev \
+            libev-dev \
+            libglib2.0-dev \
+            libloudmouth1-dev \
+            libnetfilter-queue-dev \
+            libnl-3-dev \
+            libpcap-dev \
+            libssl-dev \
+            libudns-dev \
+            python3-dev
+
+      - name: Generate compile_commands.json
+        run: |
+          mkdir -p build
+          cd build
+          cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ..
+
+      - name: Run clang-tidy
+        run: |
+          find src modules -name '*.c' -print0 | xargs -0 clang-tidy -p build
+
+      - name: Run cppcheck
+        run: |
+          cppcheck --error-exitcode=1 --inline-suppr \
+            --suppress=missingIncludeSystem \
+            --enable=warning,performance,portability \
+            src/ modules/
