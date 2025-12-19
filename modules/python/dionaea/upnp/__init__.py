@@ -10,7 +10,6 @@ from __future__ import annotations
 from typing import Any
 
 from dionaea import ServiceLoader
-from dionaea.core import g_dionaea
 from .upnp import upnpd
 
 
