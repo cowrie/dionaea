@@ -235,7 +235,7 @@ class FTPd(connection):
 
     def processcmd(self, cmd, args):
         logger.debug("cmd '%s'" % cmd)
-        arguments = [i.decode() for i in args]
+        arguments = [i.decode('latin-1') for i in args]
 
         i = incident("dionaea.modules.python.ftp.command")
         i.con = self
