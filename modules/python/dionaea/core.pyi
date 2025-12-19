@@ -168,6 +168,10 @@ class ihandler:
 
 def init_traceables() -> None: ...
 
+def dlhfn(name: str, number: int, path: str, line: int, msg: str) -> None:
+    """Log handler function for dionaea logging."""
+    ...
+
 # Connection error constants
 ECONDNSTIMEOUT: int
 ECONUNREACH: int
