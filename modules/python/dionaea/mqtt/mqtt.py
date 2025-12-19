@@ -44,7 +44,7 @@ class mqttd(connection):
 		self.timeouts.idle = 120
 		self.processors()
 
-	def handle_io_in(self, data):
+	def handle_io_in(self, data: bytes) -> int:
 		l=0
 
 		if len(data) > l:

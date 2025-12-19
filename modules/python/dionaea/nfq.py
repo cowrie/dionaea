@@ -60,7 +60,7 @@ class nfqmirrorc(connection):
     def handle_established(self):
         self.peer.peer = self
 
-    def handle_io_in(self, data):
+    def handle_io_in(self, data: bytes) -> int:
         if self.peer:
             self.peer.send(data)
         return len(data)
@@ -111,7 +111,7 @@ class nfqmirrord(connection):
             self.close()
 
 
-    def handle_io_in(self, data):
+    def handle_io_in(self, data: bytes) -> int:
         if self.peer:
             self.peer.send(data)
         return len(data)

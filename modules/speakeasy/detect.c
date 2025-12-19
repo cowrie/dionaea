@@ -90,7 +90,12 @@ static int detect_shellcode_x64(void *data, int size)
 	// 58 = pop rax, 5B = pop rbx, 59 = pop rcx, 5A = pop rdx
 	// 5E = pop rsi, 5F = pop rdi, 5D = pop rbp, 5C = pop rsp (rare)
 
-	for (int i = 0; i <= size - 6; i++) {
+	// Minimum shellcode size: pattern (6 bytes) + some code (20+ bytes)
+	if (size < 26) {
+		return -1;
+	}
+
+	for (int i = 0; i <= size - 26; i++) {
 		// Check for: call $+5 (E8 00 00 00 00)
 		if (bytes[i] == 0xE8 &&
 		    bytes[i+1] == 0x00 &&
@@ -101,6 +106,18 @@ static int detect_shellcode_x64(void *data, int size)
 			// Check for pop into common 64-bit register
 			unsigned char pop_reg = bytes[i+5];
 			if (pop_reg >= 0x58 && pop_reg <= 0x5F) {
+				// Reduce false positives: check that following bytes aren't all zeros
+				// Real shellcode will have instructions after GetPC
+				int zero_count = 0;
+				for (int j = i + 6; j < i + 26 && j < size; j++) {
+					if (bytes[j] == 0x00) zero_count++;
+				}
+
+				// If more than 80% zeros after GetPC, probably not shellcode
+				if (zero_count > 16) {
+					continue;
+				}
+
 				g_info("Found x86-64 GetPC pattern at offset %d (call+pop)", i);
 				return i;
 			}

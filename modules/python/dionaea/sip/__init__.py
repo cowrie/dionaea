@@ -208,7 +208,7 @@ class RtpUdpStream(connection):
         logger.debug(f"{self!s} handle_timeout_sustain")
         return False
 
-    def handle_io_in(self, data):
+    def handle_io_in(self, data: bytes) -> int:
         logger.debug(f"{self!s} handle_io_in")
         #logger.debug("Incoming RTP data (length {})".format(len(data)))
 
@@ -606,7 +606,7 @@ class SipSession(connection):
         self.close()
         return False
 
-    def handle_io_in(self, data):
+    def handle_io_in(self, data: bytes) -> int:
         if self._state == SipSession.CLOSED:
             # Don't process any data while the connection is closed.
             return len(data)

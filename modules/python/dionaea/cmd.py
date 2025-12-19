@@ -32,7 +32,7 @@ class cmdexe:
         self.cwd = r'C:\WINDOWS\System32'
 
 
-    def handle_io_in(self, data):
+    def handle_io_in(self, data: bytes) -> int:
         logger.debug(data)
 #        self.send(data)
         c = True

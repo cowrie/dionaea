@@ -162,7 +162,7 @@ class smbd(connection):
 #		self._out.accounting.limit = 2000*1024
         self.processors()
 
-    def handle_io_in(self,data):
+    def handle_io_in(self, data: bytes) -> int:
         try:
             p = NBTSession(data, _ctx=self)
         except Exception as e:

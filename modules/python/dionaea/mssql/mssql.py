@@ -54,7 +54,7 @@ class mssqld(connection):
         else:
             self.session = None
 
-    def handle_io_in(self, data):
+    def handle_io_in(self, data: bytes) -> int:
         l = 0
         chunk = b''
         while len(data) > l:

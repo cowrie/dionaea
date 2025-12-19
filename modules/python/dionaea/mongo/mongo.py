@@ -151,7 +151,7 @@ class mongod(connection):
     def handle_established(self):
         self.processors()
 
-    def handle_io_in(self, data):
+    def handle_io_in(self, data: bytes) -> int:
         offset = 0
         while len(data) - offset >= 16:
             h = packets.MsgHeader(data[offset:offset+16])

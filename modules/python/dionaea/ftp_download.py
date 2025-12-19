@@ -39,7 +39,7 @@ class FTPCtrl(connection):
     def handle_established(self):
         logger.debug("FTP CTRL connection established")
 
-    def handle_io_in(self, data):
+    def handle_io_in(self, data: bytes) -> int:
         dlen = len(data)
         lines = _linesep_regexp.split(data)  # .decode("UTF-8"))
 
@@ -128,7 +128,7 @@ class FTPData(connection):
         self.ftp.datalistener.close()
         self.ftp.datalistener = None
 
-    def handle_io_in(self, data):
+    def handle_io_in(self, data: bytes) -> int:
         self.fileobj.write(data)
         return len(data)
 

@@ -198,7 +198,7 @@ class FTPd(connection):
         self.processors()
         self.reply("welcome_msg")
 
-    def handle_io_in(self, data):
+    def handle_io_in(self, data: bytes) -> int:
         # try:
         #     data = data.decode()
         # except UnicodeDecodeError:
@@ -654,7 +654,7 @@ class FTPDataCon(connection):
         self.file = open(p, "rb")
         self.handle_io_out()
 
-    def handle_io_in(self, data):
+    def handle_io_in(self, data: bytes) -> int:
         if self.mode == "recv_file":
             self.file.write(data)
             return len(data)

@@ -96,7 +96,7 @@ class upnpd(connection):
 	def chroot(self, path):
 		self.root = path
 
-	def handle_io_in(self, data):
+	def handle_io_in(self, data: bytes) -> int:
 		if self.state == 'HEADER':
 			# End Of Head
 			eoh = data.find(b'\r\n\r\n')

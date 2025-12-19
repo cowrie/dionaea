@@ -112,9 +112,19 @@ class SpeakeasyShellcodeHandler(ihandler):
             logger.error("Shellcode data is empty or None!")
             return None
 
-        # Create Speakeasy emulator instance with custom logger
+        # Create a quiet logger for Speakeasy to reduce log noise
+        # Speakeasy logs many "invalid_read/invalid_write/invalid instruction" errors
+        # at CRITICAL level when emulating malformed or encoded shellcode.
+        # These are expected (false positives, partial shellcode, etc.) and not actual errors.
+        # We suppress them by setting the log level very high.
+        import logging
+        speakeasy_logger = logging.getLogger('speakeasy.quiet')
+        speakeasy_logger.setLevel(logging.CRITICAL + 10)  # Suppress everything including CRITICAL
+        speakeasy_logger.addHandler(logging.NullHandler())
+
+        # Create Speakeasy emulator instance with quiet logger
         # Pass config=None to use Speakeasy's built-in defaults (60s timeout, 256k max API calls)
-        se = speakeasy.Speakeasy(logger=logger, config=None)
+        se = speakeasy.Speakeasy(logger=speakeasy_logger, config=None)
 
         # Map architecture name to Speakeasy format
         # C code sends "x86" or "x86_64", Speakeasy expects "x86" or "x64"

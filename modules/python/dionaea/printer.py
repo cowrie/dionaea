@@ -357,7 +357,7 @@ class Printerd(connection):
         if self.pcl_file_handle is not None:
             self.pcl_file_handle.close()
 
-    def handle_io_in(self, data):
+    def handle_io_in(self, data: bytes) -> int:
         logger.debug("received %s", str(data))
 
         if self.state == self.STATE_INIT:
