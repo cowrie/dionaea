@@ -534,7 +534,7 @@ static void session_download_new(struct incident *i, char *url)
 	curl_easy_setopt(session->easy, CURLOPT_ERRORBUFFER, session->error);
 	curl_easy_setopt(session->easy, CURLOPT_PRIVATE, session);
 	curl_easy_setopt(session->easy, CURLOPT_NOPROGRESS, 0L);
-	curl_easy_setopt(session->easy, CURLOPT_FOLLOWLOCATION, 10);
+	curl_easy_setopt(session->easy, CURLOPT_FOLLOWLOCATION, 1L);
 	curl_easy_setopt(session->easy, CURLOPT_XFERINFOFUNCTION, curl_progressfunction_cb);
 	curl_easy_setopt(session->easy, CURLOPT_XFERINFODATA, session);
 	curl_easy_setopt(session->easy, CURLOPT_LOW_SPEED_TIME, 3L);
@@ -606,7 +606,6 @@ static bool curl_new(struct dionaea *d)
 #ifdef CURL_VERSION_CURLDEBUG
 			{"debugmemory", CURL_VERSION_CURLDEBUG},
 #endif
-			{"gss", CURL_VERSION_GSSNEGOTIATE},
 			{"idn", CURL_VERSION_IDN},
 			{"ipv6", CURL_VERSION_IPV6},
 			{"largefile", CURL_VERSION_LARGEFILE},
@@ -614,9 +613,13 @@ static bool curl_new(struct dionaea *d)
 			{"spnego", CURL_VERSION_SPNEGO},
 			{"ssl",  CURL_VERSION_SSL},
 			{"sspi",  CURL_VERSION_SSPI},
-			{"krb4", CURL_VERSION_KERBEROS4},
 			{"libz", CURL_VERSION_LIBZ},
-			{"charconv", CURL_VERSION_CONV}
+#ifdef CURL_VERSION_HTTP2
+			{"http2", CURL_VERSION_HTTP2},
+#endif
+#ifdef CURL_VERSION_HTTP3
+			{"http3", CURL_VERSION_HTTP3},
+#endif
 		};
 		for( unsigned int i=0; i<sizeof(feats)/sizeof(feats[0]); i++ )
 			if( curlinfo->features & feats[i].bitmask )
