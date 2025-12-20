@@ -364,6 +364,8 @@ static int curl_progressfunction_cb (void *p, curl_off_t dltotal, curl_off_t dln
 #ifdef DEBUG
 	struct session *session = (struct session *)p;
 	g_debug("Progress: %s (down:%lld/%lld up:%lld/%lld)", session->url, (long long)dlnow, (long long)dltotal, (long long)uln, (long long)ult);
+#else
+	(void)p; (void)dltotal; (void)dlnow; (void)ult; (void)uln;
 #endif
 	return 0;
 }
