@@ -1,3 +1,5 @@
+# ABOUTME: DCERPC/RPC service handlers for SMB protocol emulation.
+# ABOUTME: Implements Windows RPC services (SRVSVC, SAMR, etc.) and vulnerability detection.
 # This file is part of the dionaea honeypot
 #
 # SPDX-FileCopyrightText: 2009 Paul Baecher & Markus Koetter & Mark Schloesser
@@ -76,8 +78,8 @@ class RPCService:
             else:
                 if opnum in cls.vulns:
                     vulnname = cls.vulns[opnum]
-                    rpclog.info("Calling {} {} ({:x}) maybe {} exploit?".format(
-                        service.__class__.__name__,  opname, opnum, vulnname ) )
+                    rpclog.warning("Potential %s exploit: %s %s (0x%02x)",
+                        vulnname, service.__class__.__name__, opname, opnum)
                 else:
                     rpclog.info("Calling %s %s (%x)" %
                                 ( service.__class__.__name__,  opname, opnum ) )
@@ -87,7 +89,7 @@ class RPCService:
                 try:
                     data = method(con, p)
                 except DCERPCValueError as e:
-                    rpclog.debug("DCERPCValueError %s" % e)
+                    rpclog.warning("Exploit attempt detected: %s" % e)
                     return None
                 except EOFError:
                     rpclog.warn("EOFError data %s" % format(p.StubData))
@@ -2959,8 +2961,8 @@ class SRVSVC(RPCService):
         0x22: "NetNameCanonicalize"
     }
     vulns  = {
-        0x1f: "MS08-67",
-        0x20: "MS08-67",
+        0x1f: "MS08-067",
+        0x20: "MS08-067",
     }
 
     class SRVSVC_HANDLE:
