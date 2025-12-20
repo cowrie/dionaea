@@ -893,7 +893,6 @@ void connection_tls_error(struct connection *con)
 	ERR_error_string(con->transport.tls.ssl_error, con->transport.tls.ssl_error_string);
 	if( con->transport.tls.ssl_error != 0 ) {
 		if( strstr(con->transport.tls.ssl_error_string, "no suitable signature algorithm") != NULL ) {
-			const char *cipher = SSL_get_cipher_name(con->transport.tls.ssl);
 			const char *version = SSL_get_version(con->transport.tls.ssl);
 
 			/* Build list of client's signature algorithms */
@@ -911,11 +910,10 @@ void connection_tls_error(struct connection *con)
 					sigalgs_len += written;
 			}
 
-			g_warning("SSL handshake failed: %s (client %s:%s, cipher: %s, version: %s, client_sigalgs: %s)",
+			g_warning("SSL handshake failed: %s (client %s:%s, version: %s, client_sigalgs: %s)",
 				con->transport.tls.ssl_error_string,
 				con->remote.ip_string,
 				con->remote.port_string,
-				cipher ? cipher : "none",
 				version ? version : "unknown",
 				sigalgs_len > 0 ? sigalgs_buf : "none");
 		} else {
