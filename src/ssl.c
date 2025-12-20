@@ -380,7 +380,7 @@ bool mkcert(SSL_CTX *ctx)
 	add_ext(x, NID_netscape_cert_type, "server");
 	add_ext(x, NID_netscape_ssl_server_name, "localhost");
 
-	if( !X509_sign(x,pk,EVP_md5()) )
+	if( !X509_sign(x,pk,EVP_sha256()) )
 		goto free_all;
 
 
