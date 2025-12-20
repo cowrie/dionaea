@@ -457,7 +457,11 @@ class mysqld(connection):
 
             if self.state == 'greeting':
                 self.state = 'online'
-                p = MySQL_Client_Authentication(data[offset+4:offset+4+h.Length])
+                try:
+                    p = MySQL_Client_Authentication(data[offset+4:offset+4+h.Length])
+                except Exception as e:
+                    logger.warning("Failed to parse MySQL authentication packet: %s", e)
+                    return len(data)
                 if p.DatabaseName != b'\x00':
                     Database = p.DatabaseName[:-1]
                     if isinstance(Database, str):
@@ -476,8 +480,12 @@ class mysqld(connection):
                 i.report()
 
             elif self.state == 'online':
-                p = MySQL_Command_Header(data[offset+4:offset+4+h.Length])
-                cmd = MySQL_Commands[p.Command]
+                try:
+                    p = MySQL_Command_Header(data[offset+4:offset+4+h.Length])
+                    cmd = MySQL_Commands[p.Command]
+                except Exception as e:
+                    logger.warning("Failed to parse MySQL command packet: %s", e)
+                    return len(data)
                 m = getattr(self, "_handle_" + cmd, None)
                 args = None
                 if m is not None:
