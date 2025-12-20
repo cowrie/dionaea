@@ -135,20 +135,22 @@ class virustotalhandler(ihandler):
         i.report()
 
     def handle_incident_dionaea_modules_python_virustotal_get_file_report(self, icd):
-        f = open(icd.path)
-        j = json.load(f)
+        with open(icd.path) as f:
+            j = json.load(f)
 
         cookie = icd._userdata
         vtr = self.cookies[cookie]
+        response_code = j.get('response_code')
+        logger.debug("VirusTotal response_code=%s for %s", response_code, vtr.sha256hash[:16])
 
-        if j['response_code'] == -2:
+        if response_code == -2:
             logger.warning("VirusTotal API throttle for %s", vtr.sha256hash[:16])
             self.cursor.execute(
                 """UPDATE backlogfiles SET status = ? WHERE backlogfile = ?""", (vtr.status, vtr.backlogfile))
             self.dbh.commit()
-        elif j['response_code'] == -1:
+        elif response_code == -1:
             logger.warning("VirusTotal API key invalid or missing")
-        elif j['response_code'] == 0: # file unknown
+        elif response_code == 0:  # file unknown
             logger.info("VirusTotal: file %s not found, queuing for submission", vtr.sha256hash[:16])
             # mark for submit
             if vtr.status == 'new':
@@ -158,7 +160,7 @@ class virustotalhandler(ihandler):
                 self.cursor.execute(
                     """UPDATE backlogfiles SET lastcheck_time = strftime("%s",'now') WHERE backlogfile = ?""", (vtr.backlogfile,))
             self.dbh.commit()
-        elif j['response_code'] == 1: # file known
+        elif response_code == 1:  # file known
             positives = j.get('positives', 0)
             total = j.get('total', 0)
             logger.info("VirusTotal: file %s known, detection %d/%d", vtr.sha256hash[:16], positives, total)
@@ -191,20 +193,22 @@ class virustotalhandler(ihandler):
 
 
     def handle_incident_dionaea_modules_python_virustotal_scan_file(self, icd):
-        f = open(icd.path)
-        j = json.load(f)
-        logger.debug(f"scan_file {j}")
+        with open(icd.path) as f:
+            j = json.load(f)
+
         cookie = icd._userdata
         vtr = self.cookies[cookie]
+        response_code = j.get('response_code')
+        logger.debug("VirusTotal scan_file response_code=%s for %s", response_code, vtr.sha256hash[:16])
 
-        if j['response_code'] == -2:
+        if response_code == -2:
             logger.warning("VirusTotal API throttle during file submission for %s", vtr.sha256hash[:16])
             self.cursor.execute(
                 """UPDATE backlogfiles SET status = ? WHERE backlogfile = ?""", (vtr.status, vtr.backlogfile))
             self.dbh.commit()
-        elif j['response_code'] == -1:
+        elif response_code == -1:
             logger.warning("VirusTotal API key invalid or missing")
-        elif j['response_code'] == 1:
+        elif response_code == 1:
             scan_id = j['scan_id']
             logger.info("VirusTotal: file %s submitted successfully, scan_id: %s", vtr.sha256hash[:16], scan_id[:16])
             # recycle this entry for the query
@@ -231,17 +235,20 @@ class virustotalhandler(ihandler):
     def handle_incident_dionaea_modules_python_virustotal_make_comment(self, icd):
         cookie = icd._userdata
         vtr = self.cookies[cookie]
-        f = open(icd.path)
         try:
-            j = json.load(f)
-            if j['response_code'] == -2:
+            with open(icd.path) as f:
+                j = json.load(f)
+            response_code = j.get('response_code')
+            logger.debug("VirusTotal make_comment response_code=%s for %s", response_code, vtr.sha256hash[:16])
+
+            if response_code == -2:
                 logger.warning("VirusTotal API throttle during comment for %s", vtr.sha256hash[:16])
                 self.cursor.execute(
                     """UPDATE backlogfiles SET status = ? WHERE backlogfile = ?""", (vtr.status, vtr.backlogfile))
                 self.dbh.commit()
-            elif j['response_code'] == -1:
+            elif response_code == -1:
                 logger.warning("VirusTotal API key invalid or missing")
-            elif j['response_code'] == 1:
+            elif response_code == 1:
                 logger.info("VirusTotal: comment posted for %s", vtr.sha256hash[:16])
                 self.cursor.execute(
                     """UPDATE backlogfiles SET status = 'query' WHERE backlogfile = ? """, (vtr.backlogfile, ))

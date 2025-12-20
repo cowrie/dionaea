@@ -174,13 +174,15 @@ static void check_run_count(void)
 				easy=msg->easy_handle;
 				curl_easy_getinfo(easy, CURLINFO_PRIVATE, (char **)&session );
 				curl_easy_getinfo(easy, CURLINFO_EFFECTIVE_URL, &eff_url);
+				long http_code = 0;
+				curl_easy_getinfo(easy, CURLINFO_RESPONSE_CODE, &http_code);
 
 				switch( session->type )
 				{
 				case session_type_download:
 					if( msg->data.result == CURLE_OK )
 					{
-						g_info("DOWNLOAD DONE: %s => (%d) %s", eff_url, msg->data.result, session->error);
+						g_info("DOWNLOAD DONE: %s => HTTP %ld (%d) %s", eff_url, http_code, msg->data.result, session->error);
 						tempfile_close(session->action.download.file);
 
 						struct incident *i = incident_new("dionaea.download.complete");
@@ -193,7 +195,7 @@ static void check_run_count(void)
 						incident_free(i);
 					} else
 					{
-						g_warning("DOWNLOAD FAIL: %s => (%d) %s", eff_url, msg->data.result, session->error);
+						g_warning("DOWNLOAD FAIL: %s => HTTP %ld (%d) %s", eff_url, http_code, msg->data.result, session->error);
 						tempfile_close(session->action.download.file);
 					}
 					break;
@@ -201,7 +203,7 @@ static void check_run_count(void)
 				case session_type_upload:
 					if( msg->data.result == CURLE_OK )
 					{
-						g_info("UPLOAD DONE: %s => (%d) %s", eff_url, msg->data.result, session->error);
+						g_info("UPLOAD DONE: %s => HTTP %ld (%d) %s", eff_url, http_code, msg->data.result, session->error);
 
 						if( session->action.upload.callback == NULL )
 							break;
@@ -217,7 +219,7 @@ static void check_run_count(void)
 						tempfile_unlink(session->action.upload.file);
 					} else
 					{
-						g_warning("UPLOAD FAIL: %s => (%d) %s", eff_url, msg->data.result, session->error);
+						g_warning("UPLOAD FAIL: %s => HTTP %ld (%d) %s", eff_url, http_code, msg->data.result, session->error);
 
 						if( session->action.upload.callback == NULL )
 							break;
