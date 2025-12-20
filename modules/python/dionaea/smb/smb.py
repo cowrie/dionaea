@@ -933,7 +933,7 @@ class epmapper(smbd):
             return len(data)
 
         if len(data) < p.FragLen:
-            smblog.warning("epmapper - not enough data")
+            smblog.debug("epmapper waiting for more data (%d/%d bytes)", len(data), p.FragLen)
             return 0
 
         smblog.debug("packet: %s" % p.summary())
