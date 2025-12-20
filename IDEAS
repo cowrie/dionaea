@@ -1,7 +1,22 @@
 # Ideas for Future Work
 
-## SMB Version Strings
+Ideas collected from nepenthes-devel mailing list archives and code review.
 
+## Anti-Fingerprinting (HIGH PRIORITY)
+
+Attackers can detect dionaea is a honeypot. Fixing these would increase capture rates.
+
+### Nmap Detection
+- NSE scripts can identify dionaea via banner fingerprinting
+- Need to investigate which scripts detect it and how
+
+### Configurable Service Banners
+- FTP welcome message
+- HTTP server header
+- SMB version strings (see below)
+- Make banners configurable per deployment
+
+### SMB Version Strings
 The SMB version strings have defaults that are very old:
 - native_os = "Windows 5.1" (Windows XP)
 - native_lan_manager = "Windows 2000 LAN Manager"
@@ -11,3 +26,138 @@ Options to consider:
 1. Update defaults to something more modern (e.g., Windows 10)
 2. Randomize them per connection
 3. Make them easier to configure per deployment
+
+### Certificate Randomization
+- Randomize certificate fields (country code, organization, OU)
+- Currently uses static defaults that could fingerprint the honeypot
+
+## Protocol Additions
+
+### Telnet Emulation
+- IoT botnets (Mirai variants) target telnet
+- Would capture significant additional malware
+
+### DNS Honeypot/Logging
+- Log DNS queries for C2 detection
+- Interactive DNS proxy capability requested
+
+### IRC Logging
+- Requested but never implemented
+- Would help track botnet C2 channels
+
+## Operational Improvements
+
+### IP Whitelist/Filter
+- Exclude management IPs from logs
+- Multiple requests for this feature
+- Reduce noise from internal scanning
+
+### Conficker/Noisy Attack Filtering
+- Option to exclude known noisy attack types from reports
+- Reduce log volume from legacy worms
+
+### Dynamic IP Adoption
+- Handle PPPoE/DHCP reconnects without restart
+- Use INADDR_ANY or netlink for dynamic interface detection
+
+### Database Size Management
+- SQLite files grow to 10GB+
+- Need rotation/archival strategy
+- Log rotation via SIGHUP
+
+### Periodic Email Reports
+- Daily/weekly summary emails
+- Multiple requests for this feature
+
+### Listen on Custom Ports
+- HTTP on 8080, etc.
+- Expand capture surface
+
+### Configurable wwwroot
+- Serve fake content to reduce 404s
+- Make honeypot appear more realistic
+
+## Logging Improvements
+
+### Better Logging Format
+- "Too debug-like" - need more operational focus
+- Reduce noise, increase signal
+
+### Failed Attack Detection
+- Log when exploitation attempts fail
+- Identify unsuccessful attacks
+
+### Geolocation Integration
+- Map attack sources geographically
+- Multiple requests for this feature
+
+### Monthly Statistics Queries
+- Time-based reporting helpers
+- SQL query examples for common reports
+
+## Submission/Integration
+
+### HTTP Submit Handler
+- Alternative to XMPP for sample submission
+- Simpler deployment
+
+### SCP Binary Transfer
+- Transfer samples to analysis server via SCP
+
+### Sandbox API Integration
+- Malwr.com / Cuckoo API submission
+- Auto-submit samples for analysis
+
+### SIEM Integration
+- ArcSight, Splunk, etc.
+- Standard log format export
+
+### Syslog Forwarding
+- Send events to syslog server
+- Requested for central logging
+
+## Data Processing
+
+### Bistream to PCAP Conversion
+- Convert bistream files to Wireshark-compatible format
+- Analysis tool request
+
+### Log Parsing Tools
+- grep-style log filtering
+- Statistics generation utilities
+
+## Architecture
+
+### Centralized Multi-Sensor Repository
+- Collect samples from distributed sensors
+- Central analysis and deduplication
+
+### PostgreSQL/MySQL Support
+- Alternative to SQLite for large deployments
+- Better concurrent access
+
+## Known Bugs (from mailing list, may still exist)
+
+### HTTP Directory Listing Bug
+- Shows directory listing even when index.html exists
+- Patch was submitted but may not be merged
+
+### 92-byte Truncated Binary Captures
+- Some downloads truncated to 92 bytes
+- Reported multiple times
+
+## Exploit Detection Gaps
+
+### SMBGhost (CVE-2020-0796)
+- SMB 3.1.1 compression vulnerability
+- Requires SMB2/SMB3 support
+
+### SMBleed (CVE-2020-1206)
+- Related to SMBGhost
+- Requires SMB2/SMB3 support
+
+### PrintNightmare (CVE-2021-34527)
+- Print Spooler vulnerability
+- Could potentially add to existing SPOOLSS handler
+
+Note: SMB2/SMB3 exploits require protocol support dionaea doesn't have.
