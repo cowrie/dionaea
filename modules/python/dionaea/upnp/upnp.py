@@ -32,7 +32,7 @@ class upnpreq:
 			try:
 				self.headers[hset[0].lower()] = hset[1].strip()
 			except Exception:
-				logger.info("potential upnp exploit: %s", hset[0])
+				logger.warning("Malformed UPnP header (potential exploit): %s", hset[0])
 
 	def print(self):
 		logger.debug("Type: %s Path: %s HTTP-Version: %s", self.type, self.path, httpversion)
@@ -122,7 +122,9 @@ class upnpd(connection):
 
 			# header not found
 			else:
-				logger.info('unknown upnp ssdp header: %s', self.header.type)
+				logger.warning("Unsupported UPnP method: %s from %s:%s",
+					self.header.type.decode('utf-8', errors='replace'),
+					self.remote.host, self.remote.port)
 				self.handle_unknown()
 			return len(data)
 
@@ -133,6 +135,10 @@ class upnpd(connection):
 
 	def handle_MSEARCH(self):
 		"""Handle the M-SEARCH method"""
+		st = self.header.headers.get(b'st', b'unknown').decode('utf-8', errors='replace')
+		man = self.header.headers.get(b'man', b'unknown').decode('utf-8', errors='replace')
+		logger.info("UPnP M-SEARCH from %s:%s ST=%s MAN=%s",
+			self.remote.host, self.remote.port, st, man)
 		r = self.personalities
 		self.send_response_upnp(200, r)
 		self.close()
