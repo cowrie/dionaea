@@ -49,6 +49,13 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 string( TOLOWER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE_TOLOWER )
+
+option(ENABLE_ASAN "Enable AddressSanitizer (ON by default for Debug builds)" OFF)
+if(ENABLE_ASAN OR (CMAKE_BUILD_TYPE_TOLOWER MATCHES debug AND NOT DEFINED ENABLE_ASAN))
+    message(STATUS "AddressSanitizer enabled")
+    add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=address)
+endif()
 if(CMAKE_BUILD_TYPE_TOLOWER MATCHES debug)
     set(DEBUG_BUILD_TYPE ON)
     set(DEBUG 1)
