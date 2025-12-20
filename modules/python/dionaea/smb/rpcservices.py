@@ -69,7 +69,11 @@ class RPCService:
             opname = cls.ops[opnum]
 
             method = getattr(cls, "handle_" + opname, None)
-            if method is not None:
+            if method is None:
+                rpclog.warning("Unsupported DCERPC operation: %s %s (0x%02x) - no handler",
+                               service.__class__.__name__, opname, opnum)
+                return None
+            else:
                 if opnum in cls.vulns:
                     vulnname = cls.vulns[opnum]
                     rpclog.info("Calling {} {} ({:x}) maybe {} exploit?".format(
@@ -105,8 +109,8 @@ class RPCService:
 #				print(r.show())
                 return r
         else:
-            rpclog.info("Unknown RPC Call to %s %i" %
-                        ( service.__class__.__name__,  opnum) )
+            rpclog.warning("Unknown DCERPC operation: %s opnum 0x%02x",
+                           service.__class__.__name__, opnum)
 
 class ATSVC(RPCService):
     uuid = UUID('1ff70682-0a51-30e8-076d-740be8cee98b').hex

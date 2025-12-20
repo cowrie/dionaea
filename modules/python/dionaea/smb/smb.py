@@ -78,6 +78,7 @@ from .include.smbfields import (
     SMB_Sessionsetup_AndX_Response2,
     SMB_Sessionsetup_ESEC_AndX_Request,
     SMB_Sessionsetup_ESEC_AndX_Response,
+    SMB_Trans2_Commands,
     SMB_TRANS2_FIND_FIRST2,
     SMB_TRANS2_SESSION_SETUP,
     SMB_Trans2_FIND_FIRST2_Response,
@@ -770,6 +771,9 @@ class smbd(connection):
             elif h.Setup[0] == SMB_TRANS2_FIND_FIRST2:
                 r = SMB_Trans2_FIND_FIRST2_Response()
             else:
+                subcmd = h.Setup[0]
+                subcmd_name = SMB_Trans2_Commands.get(subcmd, "UNKNOWN")
+                smblog.warning("Unsupported Transaction2 subcommand: %s (0x%02x)", subcmd_name, subcmd)
                 r = SMB_Trans2_Response()
 
         elif Command == SMB_COM_DELETE:
@@ -784,8 +788,8 @@ class smbd(connection):
             r = SMB_NT_Trans_Response()
             rstatus = 0x00000000  # STATUS_SUCCESS
         else:
-            smblog.error('...unknown SMB Command. bailing out.')
-            p.show()
+            cmd_name = SMB_Commands.get(Command, "UNKNOWN")
+            smblog.warning("Unsupported SMB command: %s (0x%02x)", cmd_name, Command)
 
         if r:
             smbh = SMB_Header(Status=rstatus)
