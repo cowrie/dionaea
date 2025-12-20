@@ -177,6 +177,7 @@ class virustotalhandler(ihandler):
         del self.cookies[cookie]
 
     def scan_file(self, backlogfile, md5_hash, sha256_hash, path, status):
+        logger.warning("VirusTotal: submitting file %s (md5: %s)", sha256_hash, md5_hash)
         cookie = str(uuid.uuid4())
         self.cookies[cookie] = vtreport(backlogfile, md5_hash, sha256_hash, path, status)
 
