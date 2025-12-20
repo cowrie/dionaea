@@ -61,29 +61,6 @@ int ssl_tmp_keys_init(struct connection *con);
  *
  */
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-/* OpenSSL Pre-1.1.0 compatibility */
-/* Taken from OpenSSL 1.1.0 snapshot 20160410 */
-static int DH_set0_pqg(DH *dh, BIGNUM *p, BIGNUM *q, BIGNUM *g)
-{
-	/* q is optional */
-	if (p == NULL || g == NULL)
-		return 0;
-	BN_free(dh->p);
-	BN_free(dh->q);
-	BN_free(dh->g);
-	dh->p = p;
-	dh->q = q;
-	dh->g = g;
-
-	if (q != NULL) {
-		dh->length = BN_num_bits(q);
-	}
-
-	return 1;
-}
-#endif
-
 /*
  * Grab well-defined DH parameters from OpenSSL, see the BN_get_rfc*
  * functions in <openssl/bn.h> for all available primes.
@@ -146,21 +123,12 @@ static struct dhparam {
 	EVP_PKEY *pkey;						   /* ...this, used for keys.... */
 	const unsigned int min;		   /* ...of length >= this. */
 } dhparams[] = {
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-	{ get_rfc3526_prime_8192, NULL, 6145 },
-	{ get_rfc3526_prime_6144, NULL, 4097 },
-	{ get_rfc3526_prime_4096, NULL, 3073 },
-	{ get_rfc3526_prime_3072, NULL, 2049 },
-	{ get_rfc3526_prime_2048, NULL, 1025 },
-	{ get_rfc2409_prime_1024, NULL, 0 }
-#else
 	{ BN_get_rfc3526_prime_8192, NULL, 6145 },
 	{ BN_get_rfc3526_prime_6144, NULL, 4097 },
 	{ BN_get_rfc3526_prime_4096, NULL, 3073 },
 	{ BN_get_rfc3526_prime_3072, NULL, 2049 },
 	{ BN_get_rfc3526_prime_2048, NULL, 1025 },
 	{ BN_get_rfc2409_prime_1024, NULL, 0 }
-#endif
 };
 
 

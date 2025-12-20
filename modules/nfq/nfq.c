@@ -57,7 +57,6 @@ static struct
 {
 	struct nfq_handle *h;
 	struct nfq_q_handle *qh;
-	struct nfnl_handle *nh;
 	int fd,rv;
 	int queuenum;
 	struct ev_io io;
@@ -119,8 +118,7 @@ bool nfq_prepare(void)
 		return false;
 	}
 
-	nfq_runtime.nh = nfq_nfnlh(nfq_runtime.h);
-	nfq_runtime.fd = nfnl_fd(nfq_runtime.nh);
+	nfq_runtime.fd = nfq_fd(nfq_runtime.h);
 	return true;
 }
 
@@ -181,11 +179,7 @@ static int nfqueue_cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct nf
 	int nf=0;
 
 	struct nfqnl_msg_packet_hdr *ph;
-	#ifdef NF_QUEUE_PRE_1_0_0
-	char *payload;
-	#else
 	unsigned char *payload;
-	#endif
 	int len;
 
 	if( (ph = nfq_get_msg_packet_hdr(nfa)) == NULL)

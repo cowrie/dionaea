@@ -617,12 +617,9 @@ opt->stdOUT.filter);
 	ev_set_syserr_cb(log_ev_fatal_error);
 	g_message("libev default loop %p", d->loop);
 
-	// ssl
-	SSL_load_error_strings();
-	SSL_library_init();
+	// ssl - OpenSSL 1.1.0+ handles initialization automatically
 	_SSL_connection_index = SSL_get_ex_new_index(0, "connection", NULL, NULL, NULL);
-	SSL_COMP_add_compression_method(0xe0, COMP_zlib());
-	g_message("%s", SSLeay_version(SSLEAY_VERSION));
+	g_message("%s", OpenSSL_version(OPENSSL_VERSION));
 	init_dh_params();
 
 

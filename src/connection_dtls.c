@@ -125,11 +125,7 @@ int dtls_generate_cookie_cb(SSL *ssl, unsigned char *cookie, unsigned int *len)
  *
  * @return int 0 on error
  */
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-int dtls_verify_cookie_cb(SSL *ssl, unsigned char *cookie, unsigned int len)
-#else
 int dtls_verify_cookie_cb(SSL *ssl, const unsigned char *cookie, unsigned int len)
-#endif
 {
 	struct connection *con = SSL_get_ex_data(ssl, _SSL_connection_index);
 	g_debug("%s con %p cookie %p len %i", __PRETTY_FUNCTION__, con, cookie, len);
@@ -395,9 +391,6 @@ void connection_dtls_io_in_cb(struct ev_loop *loop, struct ev_io *w, int revents
 				peer->transport.dtls.type.client.parent = con;
 				peer->transport.dtls.ctx = con->transport.dtls.ctx;
 				peer->transport.dtls.ssl = SSL_new(peer->transport.dtls.ctx);
-#if OPENSSL_VERSION_NUMBER < 0x10100000L // OpenSSL 1.1.0
-				peer->transport.dtls.ssl->d1->listen = 1;
-#endif
 				SSL_CTX_set_session_cache_mode(peer->transport.dtls.ctx, SSL_SESS_CACHE_OFF);
 				peer->transport.dtls.reading = BIO_new(BIO_s_mem());
 				peer->transport.dtls.writing = BIO_new(BIO_s_mem());
@@ -405,9 +398,7 @@ void connection_dtls_io_in_cb(struct ev_loop *loop, struct ev_io *w, int revents
 				BIO_set_mem_eof_return(peer->transport.dtls.writing, -1);
 				SSL_set_bio(peer->transport.dtls.ssl, peer->transport.dtls.reading, peer->transport.dtls.writing);
 				SSL_set_accept_state(peer->transport.dtls.ssl);
-#if OPENSSL_VERSION_NUMBER > 0x1000004fL // OpenSSL 1.0.0d 8 Feb 2011
 				SSL_set_options(peer->transport.dtls.ssl, SSL_OP_COOKIE_EXCHANGE);
-#endif
 				SSL_set_ex_data(peer->transport.dtls.ssl, _SSL_connection_index, peer);
 				g_hash_table_insert(con->transport.dtls.type.server.peers, peer, peer);
 			}
