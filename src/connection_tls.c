@@ -736,12 +736,20 @@ void connection_tls_handshake_again_cb(EV_P_ struct ev_io *w, int revents)
 			break;
 
 		case SSL_ERROR_SYSCALL:
-			g_warning("TLS handshake failed: SYSCALL error (client %s:%s, errno: %d %s, version: %s, state: %s)",
-				con->remote.ip_string,
-				con->remote.port_string,
-				errno, strerror(errno),
-				SSL_get_version(con->transport.tls.ssl),
-				SSL_state_string_long(con->transport.tls.ssl));
+			if( errno == 0 )
+				/* errno 0 means peer disconnected (EOF) without close_notify - common for scanners */
+				g_info("TLS handshake: peer %s:%s disconnected (version: %s, state: %s)",
+					con->remote.ip_string,
+					con->remote.port_string,
+					SSL_get_version(con->transport.tls.ssl),
+					SSL_state_string_long(con->transport.tls.ssl));
+			else
+				g_warning("TLS handshake failed: SYSCALL error (client %s:%s, errno: %d %s, version: %s, state: %s)",
+					con->remote.ip_string,
+					con->remote.port_string,
+					errno, strerror(errno),
+					SSL_get_version(con->transport.tls.ssl),
+					SSL_state_string_long(con->transport.tls.ssl));
 			connection_tls_disconnect(con);
 			break;
 
