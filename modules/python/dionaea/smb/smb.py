@@ -830,6 +830,13 @@ class smbd(connection):
             dcep.show()
 
         if dcep.PacketType == 11: #bind
+            try:
+                ctx_items = dcep.CtxItems
+                if ctx_items is None:
+                    raise AttributeError("CtxItems is None")
+            except AttributeError:
+                smblog.warning("Malformed DCERPC bind packet: missing CtxItems")
+                return None
             outbuf = DCERPC_Header()/DCERPC_Bind_Ack()
             outbuf.CallID = dcep.CallID
             c = 0
