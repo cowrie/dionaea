@@ -1,0 +1,13 @@
+# Ideas for Future Work
+
+## SMB Version Strings
+
+The SMB version strings have defaults that are very old:
+- native_os = "Windows 5.1" (Windows XP)
+- native_lan_manager = "Windows 2000 LAN Manager"
+- server_name = "HOMEUSER-3AF6FE"
+
+Options to consider:
+1. Update defaults to something more modern (e.g., Windows 10)
+2. Randomize them per connection
+3. Make them easier to configure per deployment
