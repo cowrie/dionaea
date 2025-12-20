@@ -485,7 +485,7 @@ void session_upload_new(struct incident *i)
 	curl_easy_setopt(session->easy, CURLOPT_WRITEFUNCTION, curl_writefunction_cb);
 	curl_easy_setopt(session->easy, CURLOPT_WRITEDATA, session);
 	curl_easy_setopt(session->easy, CURLOPT_DEBUGFUNCTION, curl_debugfunction_cb);
-//	curl_easy_setopt(session->easy, CURLOPT_VERBOSE, 1L);
+	curl_easy_setopt(session->easy, CURLOPT_VERBOSE, 1L);
 	curl_easy_setopt(session->easy, CURLOPT_ERRORBUFFER, session->error);
 	curl_easy_setopt(session->easy, CURLOPT_PRIVATE, session);
 	curl_easy_setopt(session->easy, CURLOPT_NOPROGRESS, 0L);
