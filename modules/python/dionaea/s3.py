@@ -9,17 +9,26 @@ from dionaea.core import ihandler, incident
 from dionaea import IHandlerLoader
 
 import logging
-import boto3  # type: ignore[import-not-found]
 
 logger = logging.getLogger('s3')
 logger.setLevel(logging.DEBUG)
+
+try:
+    import boto3  # type: ignore[import-not-found]
+    BOTO3_AVAILABLE = True
+except ImportError:
+    BOTO3_AVAILABLE = False
+    logger.debug("boto3 not available, S3 handler will be disabled")
 
 
 class S3HandlerLoader(IHandlerLoader):
     name = "s3"
 
     @classmethod
-    def start(cls, config: dict[str, Any] | None = None) -> 's3handler':
+    def start(cls, config: dict[str, Any] | None = None) -> 's3handler | None':
+        if not BOTO3_AVAILABLE:
+            logger.warning("S3 handler not started: boto3 library not installed")
+            return None
         return s3handler("*", config=config)
 
 
