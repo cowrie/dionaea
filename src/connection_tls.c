@@ -895,13 +895,29 @@ void connection_tls_error(struct connection *con)
 		if( strstr(con->transport.tls.ssl_error_string, "no suitable signature algorithm") != NULL ) {
 			const char *cipher = SSL_get_cipher_name(con->transport.tls.ssl);
 			const char *version = SSL_get_version(con->transport.tls.ssl);
-			g_warning("SSL handshake failed: %s (client %s:%s, cipher: %s, version: %s, state: %s)",
+
+			/* Build list of client's signature algorithms */
+			char sigalgs_buf[512] = "";
+			int sigalgs_len = 0;
+			int nsig = SSL_get_sigalgs(con->transport.tls.ssl, -1, NULL, NULL, NULL, NULL, NULL);
+			for( int i = 0; i < nsig && sigalgs_len < 480; i++ ) {
+				int sign_nid, hash_nid;
+				SSL_get_sigalgs(con->transport.tls.ssl, i, &sign_nid, &hash_nid, NULL, NULL, NULL);
+				const char *sign_name = OBJ_nid2sn(sign_nid);
+				const char *hash_name = OBJ_nid2sn(hash_nid);
+				int written = snprintf(sigalgs_buf + sigalgs_len, sizeof(sigalgs_buf) - (size_t)sigalgs_len,
+					"%s%s+%s", sigalgs_len > 0 ? "," : "", hash_name ? hash_name : "?", sign_name ? sign_name : "?");
+				if( written > 0 )
+					sigalgs_len += written;
+			}
+
+			g_warning("SSL handshake failed: %s (client %s:%s, cipher: %s, version: %s, client_sigalgs: %s)",
 				con->transport.tls.ssl_error_string,
 				con->remote.ip_string,
 				con->remote.port_string,
 				cipher ? cipher : "none",
 				version ? version : "unknown",
-				SSL_state_string_long(con->transport.tls.ssl));
+				sigalgs_len > 0 ? sigalgs_buf : "none");
 		} else {
 			g_debug("SSL ERROR %s\t%s", con->transport.tls.ssl_error_string, SSL_state_string_long(con->transport.tls.ssl));
 		}
