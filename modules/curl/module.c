@@ -137,13 +137,17 @@ static int multi_timer_cb(CURLM *multi, long timeout_ms)
 	(void)multi;
 	g_debug("%s %li", __PRETTY_FUNCTION__,  timeout_ms);
 	ev_timer_stop(g_dionaea->loop, &curl_runtime.timer_event);
-	if( timeout_ms > 0 )
+	if( timeout_ms >= 0 )
 	{
-		double  t = (double) timeout_ms / 1000.0;
+		/* For timeout_ms == 0, use a minimal positive value to ensure
+		 * the timer fires on the next event loop iteration rather than
+		 * calling timer_cb synchronously (which can cause issues when
+		 * called from within curl_multi_add_handle) */
+		double t = timeout_ms > 0 ? (double) timeout_ms / 1000.0 : 0.001;
 		ev_timer_init(&curl_runtime.timer_event, timer_cb, t, 0.);
 		ev_timer_start(g_dionaea->loop, &curl_runtime.timer_event);
-	} else
-		timer_cb(g_dionaea->loop, &curl_runtime.timer_event, 0);
+	}
+	/* timeout_ms == -1 means delete the timer, which we already did above */
 	return 0;
 }
 
@@ -298,7 +302,7 @@ static int curl_socketfunction_cb(CURL *easy, curl_socket_t s, int action, void 
 
 	struct session_socket *info = (struct session_socket*) sockp;
 	struct session *session;
-	curl_easy_getinfo(easy, CURLOPT_PRIVATE, &session);
+	curl_easy_getinfo(easy, CURLINFO_PRIVATE, (char **)&session);
 
 #ifdef DEBUG
 	const char *action_str[]={ "none", "IN", "OUT", "INOUT", "REMOVE"};
