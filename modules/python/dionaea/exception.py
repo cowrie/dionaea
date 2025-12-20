@@ -4,6 +4,9 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+# ABOUTME: Custom exception classes for dionaea.
+# ABOUTME: Includes loader, service config, and connection error types.
+
 from typing import Any
 
 class DionaeaError(Exception):
@@ -23,20 +26,21 @@ class ServiceConfigError(DionaeaError):
     pass
 
 
-class ConnectionError(DionaeaError):
+class DionaeaConnectionError(DionaeaError):
+    """Base class for connection-related errors. Named to avoid shadowing builtin ConnectionError."""
     def __init__(self, connection: Any = None, error_id: int | None = None) -> None:
         self.connection: Any = connection
         self.error_id: int | None = error_id
 
 
-class ConnectionDNSTimeout(ConnectionError):
+class ConnectionDNSTimeout(DionaeaConnectionError):
     def __str__(self) -> str:
         return "Timeout resolving the hostname/domain: %s" % (
             self.connection.remote.hostname
         )
 
 
-class ConnectionUnreachable(ConnectionError):
+class ConnectionUnreachable(DionaeaConnectionError):
     def __str__(self) -> str:
         hostname = self.connection.remote.hostname
         if hostname is None or hostname == "":
@@ -48,21 +52,21 @@ class ConnectionUnreachable(ConnectionError):
         )
 
 
-class ConnectionNoSuchDomain(ConnectionError):
+class ConnectionNoSuchDomain(DionaeaConnectionError):
     def __str__(self) -> str:
         return "Could not resolve the domain: %s" % (
             self.connection.remote.hostname
         )
 
 
-class ConnectionTooMany(ConnectionError):
+class ConnectionTooMany(DionaeaConnectionError):
     def __str__(self) -> str:
         return "Too many connections"
 
 
-class ConnectionUnknownError(ConnectionError):
+class ConnectionUnknownError(DionaeaConnectionError):
     def __str__(self) -> str:
         assert self.error_id is not None  # For mypy
-        return "Unknown error occured: error_id=%d" % (
+        return "Unknown error occurred: error_id=%d" % (
             self.error_id
         )
