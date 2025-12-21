@@ -35,6 +35,9 @@ class FileHandler:
         self.fp.write("\n")
         self.fp.flush()
 
+    def close(self):
+        self.fp.close()
+
 
 class HTTPHandler:
     handle_schemes = ["http", "https"]
@@ -273,3 +276,8 @@ class LogJsonHandler(ihandler):
                 "tos": icd.tos,
                 "uptime": icd.uptime
             }
+
+    def stop(self):
+        for handler in self.handlers:
+            if hasattr(handler, 'close'):
+                handler.close()

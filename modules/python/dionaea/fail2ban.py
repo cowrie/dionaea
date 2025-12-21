@@ -56,3 +56,7 @@ class fail2banhandler(ihandler):
         ), icd.con.local.host, icd.con.remote.host, icd.url, icd.md5hash)  # type: ignore[union-attr,str-bytes-safe]
         self.downloads.write(data)
         self.downloads.flush()
+
+    def stop(self) -> None:
+        self.offers.close()
+        self.downloads.close()
