@@ -92,10 +92,9 @@ class EmulateScriptsHandler(ihandler):
             # ToDo: use config value
             return
 
-        fp = open(icd.path, "rb")
         # ToDo: check size
-        data = fp.read()
-        fp.close()
+        with open(icd.path, "rb") as fp:
+            data = fp.read()
         urls = None
         # use the url list of the first handler that matches
         for handler in self.handlers:

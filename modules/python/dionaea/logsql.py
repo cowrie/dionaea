@@ -860,8 +860,8 @@ class logsqlhandler(ihandler):
 
     def handle_incident_dionaea_modules_python_virustotal_report(self, icd):
         md5 = icd.md5hash
-        f = open(icd.path)
-        j = json.load(f)
+        with open(icd.path) as f:
+            j = json.load(f)
 
         if j['response_code'] == 1: # file was known to virustotal
             permalink = j['permalink']

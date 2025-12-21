@@ -136,8 +136,8 @@ class handler(ihandler):
 
     def handle_incident_dionaea_modules_python_submithttp_result(self, icd: incident) -> None:
         assert icd.path is not None  # For mypy
-        fh = open(icd.path, mode="rb")
-        c = fh.read()
+        with open(icd.path, mode="rb") as fh:
+            c = fh.read()
         logger.info(f"submithttp result: {c!r}")
 
         assert icd._userdata is not None  # For mypy
@@ -176,8 +176,8 @@ class handler(ihandler):
 
     def handle_incident_dionaea_modules_python_submithttp_uploadresult(self, icd: incident) -> None:
         assert icd.path is not None  # For mypy
-        fh = open(icd.path, mode="rb")
-        c = fh.read()
+        with open(icd.path, mode="rb") as fh:
+            c = fh.read()
         logger.info(f"submithttp uploadresult: {c!r}")
 
         assert icd._userdata is not None  # For mypy

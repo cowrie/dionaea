@@ -48,20 +48,19 @@ def sha256file(filename: str) -> str:
 
 def hashfile(filename: str, digest: Any) -> str:
     """
-    Computer checksum of file.
+    Compute checksum of file.
 
     :param str filename: File to read
     :param _hashlib.Hash digest: Hash object
     :return: Checksum as hex string
     :rtype: str
     """
-    fh = open(filename, mode="rb")
-    while 1:
-        buf = fh.read(4096)
-        if len(buf) == 0:
-            break
-        digest.update(buf)
-    fh.close()
+    with open(filename, mode="rb") as fh:
+        while True:
+            buf = fh.read(4096)
+            if len(buf) == 0:
+                break
+            digest.update(buf)
     return digest.hexdigest()
 
 

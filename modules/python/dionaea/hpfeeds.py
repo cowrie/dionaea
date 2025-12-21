@@ -223,9 +223,11 @@ class hpclient(connection):
         tmp = self.filehandle.read(BUFSIZ)
         if not tmp:
             if self.sendfiles:
+                self.filehandle.close()
                 fp = self.sendfiles.pop(0)
                 self.sendfileheader(fp)
             else:
+                self.filehandle.close()
                 self.filehandle = None
                 self.handle_io_in(b'')
         else:
@@ -237,7 +239,9 @@ class hpclient(connection):
     def _reset_connection_state(self):
         self.connected = False
         self.authenticated = False
-        self.filehandle = None
+        if self.filehandle is not None:
+            self.filehandle.close()
+            self.filehandle = None
         self.unpacker.reset()
 
     def handle_disconnect(self):
@@ -452,7 +456,6 @@ class hpfeedihandler(ihandler):
         i.report()
 
     def handle_incident_dionaea_modules_python_hpfeeds_dynipresult(self, icd):
-        fh = open(icd.path, mode="rb")
-        self.ownip = fh.read().strip().decode('latin1')
+        with open(icd.path, mode="rb") as fh:
+            self.ownip = fh.read().strip().decode('latin1')
         logger.debug(f'resolved own IP to: {self.ownip}')
-        fh.close()

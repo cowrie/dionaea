@@ -156,9 +156,9 @@ def load_config_from_files(filename_patterns: list[str]) -> list[dict[str, Any]]
     configs: list[dict[str, Any]] = []
     for filename_pattern in filename_patterns:
         for filename in glob.glob(filename_pattern):
-            fp = open(filename)
             try:
-                file_configs = yaml.safe_load(fp)
+                with open(filename) as fp:
+                    file_configs = yaml.safe_load(fp)
             except yaml.YAMLError as e:
                 if hasattr(e, 'problem_mark'):
                     mark = e.problem_mark  # type: ignore[attr-defined]
