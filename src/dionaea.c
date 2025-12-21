@@ -593,6 +593,25 @@ opt->stdOUT.filter);
 		(void)fflush(p);
 //		fclose(p);
 	}
+	// Log version and startup info
+	g_info("Dionaea version %s", d->version->dionaea.version);
+	g_info("Compiled on %s/%s at %s with %s %s",
+		   d->version->compiler.os,
+		   d->version->compiler.arch,
+		   d->version->compiler.datetime,
+		   d->version->compiler.name,
+		   d->version->compiler.version);
+	{
+		struct utsname sysinfo;
+		if (uname(&sysinfo) == 0) {
+			g_info("Running on %s %s/%s release %s",
+				   sysinfo.nodename,
+				   sysinfo.sysname,
+				   sysinfo.machine,
+				   sysinfo.release);
+		}
+	}
+
 	g_message("glib version %i.%i.%i", glib_major_version, glib_minor_version, glib_micro_version);
 
 	// libev
