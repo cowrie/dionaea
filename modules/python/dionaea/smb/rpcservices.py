@@ -234,6 +234,16 @@ class DSSETUP(RPCService):
 class epmp(RPCService):
     uuid = UUID('e1af8308-5d1f-11c9-91a4-08002b14a0fa').hex
 
+    ops = {
+        0x00: "ept_insert",
+        0x01: "ept_delete",
+        0x02: "ept_lookup",
+        0x03: "ept_map",
+        0x04: "ept_lookup_handle_free",
+        0x05: "ept_inq_object",
+        0x06: "ept_mgmt_delete",
+    }
+
 
 class eventlog(RPCService):
     uuid = UUID('82273fdc-e32a-18c3-3f78-827929dc23ea').hex
