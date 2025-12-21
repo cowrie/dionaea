@@ -204,7 +204,7 @@ void connection_tls_io_out_cb(EV_P_ struct ev_io *w, int revents)
 		switch( action )
 		{
 		case SSL_ERROR_ZERO_RETURN:
-			g_debug("%s:%i", __FILE__,  __LINE__);
+			g_debug("SSL_ERROR_ZERO_RETURN");
 			if( revents != 0 )
 				connection_tls_disconnect(con);
 			else
@@ -212,7 +212,7 @@ void connection_tls_io_out_cb(EV_P_ struct ev_io *w, int revents)
 			break;
 
 		case SSL_ERROR_WANT_READ:
-			g_debug("SSL_WANT_READ %s:%i", __FILE__,  __LINE__);
+			g_debug("SSL_ERROR_WANT_READ");
 
 			if( ev_is_active(&con->events.io_in) && revents != EV_READ )
 			{
@@ -226,7 +226,7 @@ void connection_tls_io_out_cb(EV_P_ struct ev_io *w, int revents)
 			break;
 
 		case SSL_ERROR_WANT_WRITE:
-			g_debug("SSL_WANT_WRITE %s:%i", __FILE__,  __LINE__);
+			g_debug("SSL_ERROR_WANT_WRITE");
 			if( !ev_is_active(&con->events.io_out) )
 				ev_io_start(CL, &con->events.io_out);
 
@@ -235,25 +235,25 @@ void connection_tls_io_out_cb(EV_P_ struct ev_io *w, int revents)
 			break;
 
 		case SSL_ERROR_WANT_ACCEPT:
-			g_debug("SSL_ERROR_WANT_ACCEPT%s:%i", __FILE__,  __LINE__);
+			g_debug("SSL_ERROR_WANT_ACCEPT");
 			break;
 
 		case SSL_ERROR_WANT_X509_LOOKUP:
-			g_debug("SSL_ERROR_WANT_X509_LOOKUP %s:%i", __FILE__,  __LINE__);
+			g_debug("SSL_ERROR_WANT_X509_LOOKUP");
 			break;
 
 		case SSL_ERROR_SYSCALL:
-			g_debug("SSL_ERROR_SYSCALL %s:%i", __FILE__,  __LINE__);
+			g_debug("SSL_ERROR_SYSCALL");
 			connection_tls_disconnect(con);
 			break;
 
 		case SSL_ERROR_SSL:
-			g_debug("SSL_ERROR_SSL %s:%i", __FILE__,  __LINE__);
+			g_debug("SSL_ERROR_SSL");
 			connection_tls_disconnect(con);
 			break;
 
 		case SSL_ERROR_NONE:
-			g_debug("%s:%i", __FILE__,  __LINE__);
+			g_debug("SSL_ERROR_NONE");
 			break;
 
 		}
@@ -316,7 +316,7 @@ void connection_tls_io_out_cb(EV_P_ struct ev_io *w, int revents)
 
 		} else
 		{
-			g_debug("unexpected %s:%i...", __FILE__,  __LINE__);
+			g_debug("unexpected state");
 		}
 
 	}
@@ -372,32 +372,32 @@ void connection_tls_shutdown_cb(EV_P_ struct ev_io *w, int revents)
 		switch( action )
 		{
 		case SSL_ERROR_WANT_READ:
-			g_debug("SSL_WANT_READ %s:%i", __FILE__,  __LINE__);
+			g_debug("SSL_ERROR_WANT_READ");
 			ev_io_init(&con->events.io_in, connection_tls_shutdown_cb, con->socket, EV_READ);
 			ev_io_start(EV_A_ &con->events.io_in);
 			break;
 
 		case SSL_ERROR_WANT_WRITE:
-			g_debug("SSL_WANT_WRITE %s:%i", __FILE__,  __LINE__);
+			g_debug("SSL_ERROR_WANT_WRITE");
 			ev_io_init(&con->events.io_out, connection_tls_shutdown_cb, con->socket, EV_WRITE);
 			ev_io_start(EV_A_ &con->events.io_out);
 			break;
 
 		case SSL_ERROR_WANT_ACCEPT:
-			g_debug("SSL_ERROR_WANT_ACCEPT%s:%i", __FILE__,  __LINE__);
+			g_debug("SSL_ERROR_WANT_ACCEPT");
 			break;
 
 		case SSL_ERROR_WANT_X509_LOOKUP:
-			g_debug("SSL_ERROR_WANT_X509_LOOKUP %s:%i", __FILE__,  __LINE__);
+			g_debug("SSL_ERROR_WANT_X509_LOOKUP");
 			break;
 
 		case SSL_ERROR_SYSCALL:
-			g_debug("SSL_ERROR_SYSCALL %i %s %s:%i", errno, strerror(errno), __FILE__,  __LINE__);
+			g_debug("SSL_ERROR_SYSCALL errno=%i (%s)", errno, strerror(errno));
 			connection_tls_disconnect(con);
 			break;
 
 		case SSL_ERROR_SSL:
-			g_debug("SSL_ERROR_SSL %s:%i", __FILE__,  __LINE__);
+			g_debug("SSL_ERROR_SSL");
 			connection_tls_disconnect(con);
 			break;
 		}
@@ -405,33 +405,33 @@ void connection_tls_shutdown_cb(EV_P_ struct ev_io *w, int revents)
 		break;
 
 	case -1:
-		g_debug("SSL_shutdown -1 %s:%i", __FILE__,  __LINE__);
+		g_debug("SSL_shutdown returned -1");
 		action = SSL_get_error(con->transport.tls.ssl, err);
 		connection_tls_error(con);
 
 		switch( action )
 		{
 		case SSL_ERROR_WANT_READ:
-			g_debug("SSL_WANT_READ %s:%i", __FILE__,  __LINE__);
+			g_debug("SSL_ERROR_WANT_READ");
 			ev_io_init(&con->events.io_in, connection_tls_shutdown_cb, con->socket, EV_READ);
 			ev_io_start(EV_A_ &con->events.io_in);
 			break;
 
 		case SSL_ERROR_WANT_WRITE:
-			g_debug("SSL_WANT_WRITE %s:%i", __FILE__,  __LINE__);
+			g_debug("SSL_ERROR_WANT_WRITE");
 			ev_io_init(&con->events.io_out, connection_tls_shutdown_cb, con->socket, EV_WRITE);
 			ev_io_start(EV_A_ &con->events.io_out);
 			break;
 
 		default:
-			g_debug("SSL_ERROR_ %i %s:%i", action, __FILE__,  __LINE__);
+			g_debug("SSL_ERROR %i", action);
 			connection_tls_disconnect(con);
 			break;
 		}
 		break;
 
 	default:
-		g_debug("SSL_shutdown %i %s:%i", err, __FILE__,  __LINE__);
+		g_debug("SSL_shutdown returned %i", err);
 		break;
 	}
 }
@@ -476,16 +476,16 @@ void connection_tls_io_in_cb(EV_P_ struct ev_io *w, int revents)
 		switch( action )
 		{
 		case SSL_ERROR_NONE:
-			g_debug("%s:%i", __FILE__,  __LINE__);
+			g_debug("SSL_ERROR_NONE");
 			break;
 
 		case SSL_ERROR_ZERO_RETURN:
-			g_debug("%s:%i", __FILE__,  __LINE__);
+			g_debug("SSL_ERROR_ZERO_RETURN");
 			connection_tls_shutdown_cb(EV_A_ w, revents);
 			break;
 
 		case SSL_ERROR_WANT_READ:
-			g_debug("SSL_WANT_READ %s:%i", __FILE__,  __LINE__);
+			g_debug("SSL_ERROR_WANT_READ");
 			if( ev_is_active(&con->events.io_out) )
 				ev_io_stop(CL, &con->events.io_out);
 
@@ -494,7 +494,7 @@ void connection_tls_io_in_cb(EV_P_ struct ev_io *w, int revents)
 			break;
 
 		case SSL_ERROR_WANT_WRITE:
-			g_debug("SSL_WANT_WRITE %s:%i", __FILE__,  __LINE__);
+			g_debug("SSL_ERROR_WANT_WRITE");
 			if( ev_is_active(&con->events.io_in) )
 				ev_io_stop(CL, &con->events.io_in);
 
@@ -507,11 +507,11 @@ void connection_tls_io_in_cb(EV_P_ struct ev_io *w, int revents)
 			break;
 
 		case SSL_ERROR_WANT_ACCEPT:
-			g_debug("SSL_ERROR_WANT_ACCEPT%s:%i", __FILE__,  __LINE__);
+			g_debug("SSL_ERROR_WANT_ACCEPT");
 			break;
 
 		case SSL_ERROR_WANT_X509_LOOKUP:
-			g_debug("SSL_ERROR_WANT_X509_LOOKUP %s:%i", __FILE__,  __LINE__);
+			g_debug("SSL_ERROR_WANT_X509_LOOKUP");
 			break;
 
 		case SSL_ERROR_SYSCALL:
@@ -703,36 +703,40 @@ void connection_tls_handshake_again_cb(EV_P_ struct ev_io *w, int revents)
 		ev_timer_again(EV_A_ &con->events.handshake_timeout);
 
 		int action = SSL_get_error(con->transport.tls.ssl, err);
-		g_debug("SSL_do_handshake failed %i %i read:%i write:%i", err, action, SSL_ERROR_WANT_READ, SSL_ERROR_WANT_WRITE);
+		g_debug("SSL_do_handshake: %s",
+			action == SSL_ERROR_WANT_READ ? "WANT_READ" :
+			action == SSL_ERROR_WANT_WRITE ? "WANT_WRITE" :
+			action == SSL_ERROR_SYSCALL ? "SYSCALL" :
+			action == SSL_ERROR_SSL ? "SSL_ERROR" : "OTHER");
 
 		connection_tls_error(con);
 		switch( action )
 		{
 		case SSL_ERROR_NONE:
-			g_debug("SSL_ERROR_NONE %s:%i", __FILE__,  __LINE__);
+			g_debug("SSL_ERROR_NONE");
 			break;
 		case SSL_ERROR_ZERO_RETURN:
-			g_debug("SSL_ERROR_ZERO_RETURN %s:%i", __FILE__,  __LINE__);
+			g_debug("SSL_ERROR_ZERO_RETURN");
 			break;
 
 		case SSL_ERROR_WANT_READ:
-			g_debug("SSL_WANT_READ %s:%i", __FILE__,  __LINE__);
+			g_debug("SSL_ERROR_WANT_READ");
 			ev_io_init(&con->events.io_in, connection_tls_handshake_again_cb, con->socket, EV_READ);
 			ev_io_start(EV_A_ &con->events.io_in);
 			break;
 
 		case SSL_ERROR_WANT_WRITE:
-			g_debug("SSL_WANT_WRITE %s:%i", __FILE__,  __LINE__);
+			g_debug("SSL_ERROR_WANT_WRITE");
 			ev_io_init(&con->events.io_out, connection_tls_handshake_again_cb, con->socket, EV_WRITE);
 			ev_io_start(EV_A_ &con->events.io_out);
 			break;
 
 		case SSL_ERROR_WANT_ACCEPT:
-			g_debug("SSL_ERROR_WANT_ACCEPT%s:%i", __FILE__,  __LINE__);
+			g_debug("SSL_ERROR_WANT_ACCEPT");
 			break;
 
 		case SSL_ERROR_WANT_X509_LOOKUP:
-			g_debug("SSL_ERROR_WANT_X509_LOOKUP %s:%i", __FILE__,  __LINE__);
+			g_debug("SSL_ERROR_WANT_X509_LOOKUP");
 			break;
 
 		case SSL_ERROR_SYSCALL:
