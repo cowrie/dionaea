@@ -725,10 +725,10 @@ class smbd(connection):
                     self.buf2 = self.buf2 + h.Data
                     key = bytearray([0x52, 0x73, 0x36, 0x5E])
                     xor_output = xor(self.buf2, key)
-                    hash_buf2 = hashlib.md5(self.buf2)
-                    smblog.info('DoublePulsar payload - MD5 (before XOR decryption): %s' % (hash_buf2.hexdigest()))
-                    hash_xor_output = hashlib.md5(xor_output)
-                    smblog.info('DoublePulsar payload - MD5 (after XOR decryption ): %s' % (hash_xor_output.hexdigest()))
+                    hash_buf2 = hashlib.sha256(self.buf2)
+                    smblog.info('DoublePulsar payload - SHA256 (before XOR): %s', hash_buf2.hexdigest())
+                    hash_xor_output = hashlib.sha256(xor_output)
+                    smblog.info('DoublePulsar payload - SHA256 (after XOR): %s', hash_xor_output.hexdigest())
 
                     # payload = some data(shellcode or code to load the executable) + executable itself
                     # try to locate the executable and remove the prepended data
