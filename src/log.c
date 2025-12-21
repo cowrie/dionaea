@@ -202,11 +202,14 @@ void logger_stdout_log(const gchar *log_domain,
 		}
 	}
 
-	time_t stamp;
+	double now;
 	if( g_dionaea != NULL && g_dionaea->loop != NULL )
-		stamp = (time_t)ev_now(g_dionaea->loop);
+		now = ev_now(g_dionaea->loop);
 	else
-		stamp = time(NULL);
+		now = (double)time(NULL);
+
+	time_t stamp = (time_t)now;
+	int millis = (int)((now - stamp) * 1000);
 
 	struct tm t;
 	gmtime_r(&stamp, &t);
@@ -219,14 +222,14 @@ void logger_stdout_log(const gchar *log_domain,
 	if( (fileinfo = strstr(domain, " ")) != NULL )
 		*fileinfo++ = '\0';
 
-	printf("[%04d-%02d-%02dT%02d:%02d:%02dZ] %s%s\033[0m %s: %s\n",
-		   t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec,
+	printf("[%04d-%02d-%02dT%02d:%02d:%02d.%03dZ] %s%s\033[0m %s: %s\n",
+		   t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec, millis,
 		   level, domain, fileinfo, message);
 	g_free(domain);
 	fflush(stdout);
 #else
-	printf("[%04d-%02d-%02dT%02d:%02d:%02dZ] %s%s\033[0m: %s\n",
-		   t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec,
+	printf("[%04d-%02d-%02dT%02d:%02d:%02d.%03dZ] %s%s\033[0m: %s\n",
+		   t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec, millis,
 		   level, log_domain, message);
 #endif
 }
@@ -310,16 +313,19 @@ void logger_file_log(const gchar *log_domain,
 		}
 	}
 
-	time_t stamp;
+	double now;
 	if( g_dionaea != NULL && g_dionaea->loop != NULL )
-		stamp = (time_t)ev_now(g_dionaea->loop);
+		now = ev_now(g_dionaea->loop);
 	else
-		stamp = time(NULL);
+		now = (double)time(NULL);
+
+	time_t stamp = (time_t)now;
+	int millis = (int)((now - stamp) * 1000);
 
 	struct tm t;
 	gmtime_r(&stamp, &t);
-	fprintf(data->f, "[%04d-%02d-%02dT%02d:%02d:%02dZ] %s-%s: %s\n",
-			t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec,
+	fprintf(data->f, "[%04d-%02d-%02dT%02d:%02d:%02d.%03dZ] %s-%s: %s\n",
+			t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec, millis,
 			log_domain, level, message);
 #ifdef DEBUG
 	fflush(data->f);
