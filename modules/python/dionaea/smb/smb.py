@@ -18,6 +18,7 @@ import struct
 import hashlib
 import logging
 import os
+import secrets
 import tempfile
 from uuid import UUID
 
@@ -131,21 +132,30 @@ class smbd(connection):
         "config"
     ]
 
-    # DoublePulsar XOR key for payload encryption/decryption
-    # This key is communicated to attackers via the Signature field in PING response
-    # The signature 0x9cf9c567 encodes this key per the DoublePulsar protocol
-    doublepulsar_xor_key = 0x5273365E
-    doublepulsar_signature = 0x9cf9c567
+    # DoublePulsar signature and XOR key for payload encryption/decryption
+    # Generated randomly at startup to avoid fingerprinting
+    # Signature is sent in PING response, attackers calculate XOR key from it
+    doublepulsar_signature = secrets.randbits(32)
+
+    @staticmethod
+    def _calculate_xor_key_from_signature(sig):
+        """Calculate XOR key from signature per DoublePulsar protocol."""
+        x = (2 * sig) ^ ((((sig & 0xff00) | (sig << 16)) << 8) |
+                         ((((sig >> 16) | (sig & 0xff0000)) >> 8)))
+        return x & 0xffffffff
+
+    # XOR key derived from signature (little-endian result)
+    doublepulsar_xor_key = _calculate_xor_key_from_signature(doublepulsar_signature)
 
     @classmethod
     def get_doublepulsar_xor_key_bytes(cls):
-        """Convert the XOR key integer to a bytearray for XOR operations."""
+        """Convert the XOR key to a bytearray for XOR operations (little-endian)."""
         key = cls.doublepulsar_xor_key
         return bytearray([
-            (key >> 24) & 0xff,
-            (key >> 16) & 0xff,
+            key & 0xff,
             (key >> 8) & 0xff,
-            key & 0xff
+            (key >> 16) & 0xff,
+            (key >> 24) & 0xff
         ])
 
     def __init__ (self, proto="tcp", config=None):
@@ -995,3 +1005,7 @@ services = inspect.getmembers(rpcservices, inspect.isclass)
 for name, servicecls in services:
     if not name == 'RPCService' and issubclass(servicecls, rpcservices.RPCService):
         register_rpc_service(servicecls())
+
+# Log the generated DoublePulsar key at startup
+smblog.info('DoublePulsar signature: 0x%08x, XOR key: 0x%08x',
+            smbd.doublepulsar_signature, smbd.doublepulsar_xor_key)
