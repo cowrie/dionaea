@@ -131,6 +131,23 @@ class smbd(connection):
         "config"
     ]
 
+    # DoublePulsar XOR key for payload encryption/decryption
+    # This key is communicated to attackers via the Signature field in PING response
+    # The signature 0x9cf9c567 encodes this key per the DoublePulsar protocol
+    doublepulsar_xor_key = 0x5273365E
+    doublepulsar_signature = 0x9cf9c567
+
+    @classmethod
+    def get_doublepulsar_xor_key_bytes(cls):
+        """Convert the XOR key integer to a bytearray for XOR operations."""
+        key = cls.doublepulsar_xor_key
+        return bytearray([
+            (key >> 24) & 0xff,
+            (key >> 16) & 0xff,
+            (key >> 8) & 0xff,
+            key & 0xff
+        ])
+
     def __init__ (self, proto="tcp", config=None):
         connection.__init__(self,"tcp")
         self.state = {
@@ -734,7 +751,7 @@ class smbd(connection):
                 elif len(self.buf2) != 0 and h.DataCount < 4096:
                     smblog.info('DoublePulsar payload receiving..')
                     self.buf2 = self.buf2 + h.Data
-                    key = bytearray([0x52, 0x73, 0x36, 0x5E])
+                    key = smbd.get_doublepulsar_xor_key_bytes()
                     xor_output = xor(self.buf2, key)
                     hash_buf2 = hashlib.sha256(self.buf2)
                     smblog.info('DoublePulsar payload - SHA256 (before XOR): %s', hash_buf2.hexdigest())
@@ -809,13 +826,13 @@ class smbd(connection):
 #			smbh.Flags2 = p.getlayer(SMB_Header).Flags2 & ~SMB_FLAGS2_EXT_SEC
             smbh.MID = p.getlayer(SMB_Header).MID
             smbh.PID = p.getlayer(SMB_Header).PID
-            # Deception for DoublePulsar, we fix the XOR key first as 0x5273365E
-            # WannaCry will use the XOR key to encrypt and deliver next payload, so we can decode easily later
+            # DoublePulsar PING response: MID+16 signals success, Signature encodes XOR key
+            # Upper 32 bits of Signature = 0 means x86 architecture
             if Command == SMB_COM_TRANSACTION2:
                 h = p.getlayer(SMB_Trans2_Request)
                 if h.Setup[0] == SMB_TRANS2_SESSION_SETUP:
                     smbh.MID = p.getlayer(SMB_Header).MID + 16
-                    smbh.Signature = 0x000000009cf9c567
+                    smbh.Signature = smbd.doublepulsar_signature
             rp = NBTSession()/smbh/r
 
         if Command in SMB_Commands:
