@@ -1078,7 +1078,11 @@ class TftpServerHandler(TftpSession):
 
         Dispatches to packet-specific handlers for cleaner code organization.
         """
-        recvpkt = self.packet.parse(data)
+        try:
+            recvpkt = self.packet.parse(data)
+        except TftpException as e:
+            logger.warning(f"TFTP packet parse error: {e}")
+            return len(data)
 
         # Dispatch to appropriate handler based on packet type
         if isinstance(recvpkt, TftpPacketRRQ):
@@ -1200,7 +1204,11 @@ class TftpServer(TftpSession):
         try:
             recvpkt = self.packet.parse(buffer)
         except TftpException as e:
-            logger.warning(f"TFTP packet parse error: {e}")
+            logger.warning("TFTP packet parse error from %s:%i: %s",
+                          self.remote.host, self.remote.port, e)
+            errpkt = TftpPacketERR()
+            errpkt.errorcode = TftpErrors.IllegalTftpOp
+            self.send(errpkt.encode().buffer)
             return len(data)
 
         if isinstance(recvpkt, TftpPacketRRQ):
@@ -1309,7 +1317,12 @@ class TftpClient(TftpSession):
                 i.report()
 
 
-        recvpkt = self.packet.parse(data)
+        try:
+            recvpkt = self.packet.parse(data)
+        except TftpException as e:
+            logger.warning(f"TFTP packet parse error: {e}")
+            return len(data)
+
         if isinstance(recvpkt, TftpPacketDAT):
             assert recvpkt.data is not None  # DAT packets always have data
             logger.debug("recvpkt.blocknumber = %d" % recvpkt.blocknumber)
