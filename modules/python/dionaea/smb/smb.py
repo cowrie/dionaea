@@ -698,20 +698,31 @@ class smbd(connection):
             h = p.getlayer(SMB_Trans2_Request)
             if h.Setup[0] == SMB_TRANS2_SESSION_SETUP:
                 smblog.info('Possible DoublePulsar connection attempts..')
-                # determine DoublePulsar opcode and command
+                # DoublePulsar v1 (WannaCry): opcodes encoded via calculate_doublepulsar_opcode()
                 # https://zerosum0x0.blogspot.sg/2017/04/doublepulsar-initial-smb-backdoor-ring.html
-                # The opcode list is as follows:
-                # 0x23 = ping
-                # 0xc8 = exec
-                # 0x77 = kil
-                op = calculate_doublepulsar_opcode(h.Timeout)
-                op2 = hex(op)[-2:]
-                oplist = [('23','ping'), ('c8','exec'), ('77','kill')]
-                for fid,command in oplist:
-                    if op2 == fid:
-                        smblog.info(f"DoublePulsar request opcode: {op2} command: {command}")
-                if op2 != '23' and op2 != 'c8' and op2 != '77':
-                    smblog.info("unknown opcode: %s" % op2)
+                #   0x23 = ping, 0xc8 = exec, 0x77 = kill
+                # DoublePulsar v2.0 (Petya/NotPetya): raw opcodes in Timeout field
+                # https://blog.checkpoint.com/research/brokers-shadows-part-2-analyzing-petyas-doublepulsarv2-0-backdoor/
+                #   0xf0 = check installed, 0xf1 = uninstall, 0xf2 = exec
+
+                # Check for v2.0 first (raw opcode in low byte of Timeout)
+                raw_op = h.Timeout & 0xff
+                v2_oplist = {0xf0: 'check', 0xf1: 'uninstall', 0xf2: 'exec'}
+                if raw_op in v2_oplist:
+                    smblog.info(f"DoublePulsar v2.0 opcode: 0x{raw_op:02x} command: {v2_oplist[raw_op]}")
+                else:
+                    # Fall back to v1 opcode calculation
+                    op = calculate_doublepulsar_opcode(h.Timeout)
+                    op2 = hex(op)[-2:]
+                    v1_oplist = [('23', 'ping'), ('c8', 'exec'), ('77', 'kill')]
+                    matched = False
+                    for fid, command in v1_oplist:
+                        if op2 == fid:
+                            smblog.info(f"DoublePulsar v1 opcode: {op2} command: {command}")
+                            matched = True
+                            break
+                    if not matched:
+                        smblog.info("DoublePulsar unknown opcode: 0x%02x (raw) / 0x%s (v1 calc)", raw_op, op2)
 
                 # make sure the payload size not larger than 10MB
                 if len(self.buf2) > 10485760:
