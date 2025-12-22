@@ -232,8 +232,8 @@ class httpreq:
                 max_num_fields=connection.get_max_num_fields
             )
             self.version = reqparts[2]
-        except Exception:
-            logger.warning("Unable to parse HTTP request", exc_info=True)
+        except Exception as e:
+            logger.warning("Unable to parse HTTP request: %s", e)
             raise
 
         logger.debug("Extracted path %s", self.path)
