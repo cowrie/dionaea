@@ -224,7 +224,7 @@ class httpreq:
             if len(reqparts) < 3:
                 raise ValueError(f"Malformed request line: {req!r}")
             self.type: bytes = reqparts[0]
-            path_parsed = urllib.parse.urlsplit(reqparts[1].decode('utf-8'))
+            path_parsed = urllib.parse.urlsplit(reqparts[1].decode('utf-8', errors='replace'))
             self.path = urllib.parse.unquote_plus(path_parsed.path)
             self.fields = {}
             self.fields = urllib.parse.parse_qs(
