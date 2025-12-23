@@ -981,6 +981,16 @@ class epmapper(smbd):
             smblog.warning("DCERPC packet parsing failed: %s", str(e))
             return len(data)
 
+        # Validate DCERPC version - must be 5.x
+        if p.Version != 5:
+            smblog.warning("Invalid DCERPC version: %d.%d", p.Version, p.VersionMinor)
+            return len(data)
+
+        # Validate FragLen - minimum is 16 (header size), max sanity check
+        if p.FragLen < 16 or p.FragLen > 65535:
+            smblog.warning("Invalid DCERPC FragLen: %d", p.FragLen)
+            return len(data)
+
         if len(data) < p.FragLen:
             smblog.debug("epmapper waiting for more data (%d/%d bytes)", len(data), p.FragLen)
             return 0
