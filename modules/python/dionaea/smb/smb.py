@@ -1004,7 +1004,6 @@ class epmapper(smbd):
             return len(data)
 
         if not r or r is None:
-            smblog.error('dcerpc processing failed. bailing out.')
             return len(data)
 
         smblog.debug("response: %s" % r.summary())
