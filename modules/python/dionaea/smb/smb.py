@@ -971,6 +971,10 @@ class epmapper(smbd):
         smbd.__init__(self)
 
     def handle_io_in(self,data):
+        # DCERPC header is 16 bytes minimum
+        if len(data) < 16:
+            return 0  # Wait for more data
+
         try:
             p = DCERPC_Header(data)
         except Exception as e:
