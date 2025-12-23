@@ -247,6 +247,41 @@ class epmp(RPCService):
         0x06: "ept_mgmt_delete",
     }
 
+    # ept_lookup status codes
+    EPT_S_NOT_REGISTERED = 0x16C9A0D6  # No entries match the search criteria
+
+    @classmethod
+    def handle_ept_lookup(cls, con, p):
+        # void ept_lookup(
+        #   [in] handle_t hEpMapper,
+        #   [in] unsigned long inquiry_type,
+        #   [in, ptr] UUID* object,
+        #   [in, ptr] RPC_IF_ID* Ifid,
+        #   [in] unsigned long vers_option,
+        #   [in, out] ept_lookup_handle_t* entry_handle,
+        #   [in, range(0,500)] unsigned long max_ents,
+        #   [out] unsigned long* num_ents,
+        #   [out, length_is(*num_ents), size_is(max_ents)] ept_entry_t entries[],
+        #   [out] error_status* status
+        # );
+        #
+        # Returns "no matching entries" - a valid response that logs the query
+        r = make_packer(con)
+
+        # entry_handle (context handle) - return NULL to indicate end of enumeration
+        r.pack_long(0)  # context handle attributes
+        r.pack_raw(b'\x00' * 20)  # 20-byte NULL context handle
+
+        # num_ents - no entries returned
+        r.pack_long(0)
+
+        # entries[] - empty array (no entries to pack)
+
+        # status - EPT_S_NOT_REGISTERED (no matching entries)
+        r.pack_long(cls.EPT_S_NOT_REGISTERED)
+
+        return r.get_buffer()
+
 
 class eventlog(RPCService):
     uuid = UUID('82273fdc-e32a-18c3-3f78-827929dc23ea').hex
