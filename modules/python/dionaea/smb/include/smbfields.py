@@ -110,7 +110,7 @@ SMB_FLAGS_LOCK_AND_READ         = (1<<0)
 SMB_FLAGS_RECEIVE_BUFFER_POSTED = (1<<1) #
 # When on, all pathnames in this SMB must be treated as case-less. When
 # off, the pathnames are case sensitive. LANMAN1.0
-SMB_FLAGS_CASES_ENSITIVITY      = (1<<3)
+SMB_FLAGS_CASE_INSENSITIVITY    = (1<<3)
 # Obsolescent \u2013 client case maps (canonicalizes) file and directory
 # names; servers must ignore this flag. 5 Reserved for obsolescent
 # requests \u2013 oplocks supported for SMB_COM_OPEN, SMB_COM_CREATE and
@@ -129,7 +129,7 @@ SMB_FLAGS_REQUEST_RESPONSE      = (1<<7)
 SMB_Header_Flags = {
     SMB_FLAGS_LOCK_AND_READ         :"LOCK_AND_READ",
     SMB_FLAGS_RECEIVE_BUFFER_POSTED :"RECEIVE_BUFFER_POSTED",
-    SMB_FLAGS_CASES_ENSITIVITY      :"CASES_ENSITIVITY",
+    SMB_FLAGS_CASE_INSENSITIVITY    :"CASE_INSENSITIVITY",
     SMB_FLAGS_CANONICAL_PATHNAMES   :"CANONICAL_PATHNAMES",
     SMB_FLAGS_OPLOCKS               :"OPLOCKS",
     SMB_FLAGS_NOTIFY                :"NOTIFY",
