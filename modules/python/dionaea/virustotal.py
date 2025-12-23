@@ -68,8 +68,6 @@ class virustotalhandler(ihandler):
         self.backlog_timer.start()
 
     def __handle_backlog_timeout(self):
-        logger.debug("backlog_timeout")
-
         # try to comment on files
         # comment on files which were submitted at least 60 seconds ago
         sfs = self.cursor.execute(
