@@ -958,7 +958,7 @@ class smbd(connection):
                 service_uuid = UUID(bytes=bytes.fromhex(self.state['uuid']))
                 i.uuid = f"{service_uuid} ({service.__class__.__name__})"
                 i.opnum = dcep.OpNum
-                i.stub_data = bytes(dcep)
+                i.stub_data = dcep.build()
                 i.report()
             else:
                 smblog.info("DCERPC Request without pending action")
