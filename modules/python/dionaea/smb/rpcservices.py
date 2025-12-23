@@ -31,6 +31,9 @@ rpclog = logging.getLogger('rpcservices')
 # 5:"Linux Samba 4.3.11"
 OS_TYPE = 2
 
+# Server name for RPC responses (set from SMB config)
+__server_name__ = "HOMEUSER-3AF6FE"
+
 class DCERPCValueError(Exception):
     """Raised when an a value is passed to a dcerpc operation which is invalid"""
 
@@ -462,17 +465,16 @@ class IOXIDResolver(RPCService):
         # the DUALSTRINGARRAY
         dsa = IOXIDResolver.DUALSTRINGARRAY(p)
 
-        s = IOXIDResolver.STRINGBINDING(p)
-        s.NetworkAddr = '127.0.0.1'
-        dsa.StringArray.append(s)
+        # Use the actual local IP address from the connection
+        local_ip = con.local.host if hasattr(con, 'local') else '127.0.0.1'
 
         s = IOXIDResolver.STRINGBINDING(p)
-        s.NetworkAddr = '127.0.0.2'
+        s.NetworkAddr = local_ip
         dsa.StringArray.append(s)
 
         s = IOXIDResolver.SECURITYBINDING(p)
         s.AuthnSvc = RPC_C_AUTHN.GSS_NEGOTIATE
-        s.PrincName = "OEMCOMPUTER"	# fixme: config value?
+        s.PrincName = __server_name__
         dsa.StringArray.append(s)
 
         # we are done, pack it

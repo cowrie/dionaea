@@ -182,6 +182,7 @@ class smbd(connection):
         from . import rpcservices
         rpcservices.__shares__ = self.config.shares
         rpcservices.OS_TYPE = self.config.os_type
+        rpcservices.__server_name__ = self.config.server_name
 
     def handle_established(self):
         #		self.timeouts.sustain = 120
