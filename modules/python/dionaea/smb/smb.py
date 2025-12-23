@@ -12,6 +12,11 @@
 from dionaea.core import incident, connection, g_dionaea
 from dionaea.ndrlib import NDR32_UUID, NDR64_UUID
 
+TRANSFER_SYNTAX_NAMES = {
+    NDR32_UUID: 'NDR32',
+    NDR64_UUID: 'NDR64',
+}
+
 import inspect
 import socket
 import struct
@@ -925,8 +930,18 @@ class smbd(connection):
                     )
                 i = incident("dionaea.modules.python.smb.dcerpc.bind")
                 i.con = self
-                i.uuid = str(service_uuid)
-                i.transfersyntax = str(transfersyntax_uuid)
+                # Include service name if known
+                if service_uuid.hex in registered_services:
+                    service_name = registered_services[service_uuid.hex].__class__.__name__
+                    i.uuid = f"{service_uuid} ({service_name})"
+                else:
+                    i.uuid = str(service_uuid)
+                # Include transfer syntax name if known
+                syntax_name = TRANSFER_SYNTAX_NAMES.get(syntax_str)
+                if syntax_name:
+                    i.transfersyntax = f"{transfersyntax_uuid} ({syntax_name})"
+                else:
+                    i.transfersyntax = str(transfersyntax_uuid)
                 i.report()
                 c += 1
             outbuf.NumCtxItems = c
@@ -940,7 +955,8 @@ class smbd(connection):
                 resp = service.processrequest(service, self, dcep.OpNum, dcep)
                 i = incident("dionaea.modules.python.smb.dcerpc.request")
                 i.con = self
-                i.uuid = str(UUID(bytes=bytes.fromhex(self.state['uuid'])))
+                service_uuid = UUID(bytes=bytes.fromhex(self.state['uuid']))
+                i.uuid = f"{service_uuid} ({service.__class__.__name__})"
                 i.opnum = dcep.OpNum
                 i.stub_data = bytes(dcep)
                 i.report()
