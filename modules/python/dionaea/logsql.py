@@ -110,7 +110,8 @@ class logsqlhandler(ihandler):
                 dcerpcrequest INTEGER PRIMARY KEY,
                 connection INTEGER,
                 dcerpcrequest_uuid TEXT,
-                dcerpcrequest_opnum INTEGER
+                dcerpcrequest_opnum INTEGER,
+                dcerpcrequest_stub_data BLOB
                 -- CONSTRAINT dcerpcs_connection_fkey FOREIGN KEY (connection) REFERENCES connections (connection)
             )""")
 
@@ -600,6 +601,14 @@ class logsqlhandler(ihandler):
             #            print(e)
             logger.debug("... not required")
 
+        try:
+            logger.debug("Adding stub_data column to dcerpcrequests")
+            self.cursor.execute("""ALTER TABLE dcerpcrequests ADD COLUMN dcerpcrequest_stub_data BLOB""")
+            self.dbh.commit()
+            logger.debug("... done")
+        except Exception:
+            logger.debug("... not required")
+
     def __del__(self):
         logger.info("Closing sqlite handle")
         self.cursor.close()
@@ -828,8 +837,9 @@ class logsqlhandler(ihandler):
         con=icd.con
         if con in self.attacks:
             attackid = self.attacks[con][1]
-            self.cursor.execute("INSERT INTO dcerpcrequests (connection, dcerpcrequest_uuid, dcerpcrequest_opnum) VALUES (?,?,?)",
-                                (attackid, icd.uuid, icd.opnum))
+            stub_data = getattr(icd, 'stub_data', None)
+            self.cursor.execute("INSERT INTO dcerpcrequests (connection, dcerpcrequest_uuid, dcerpcrequest_opnum, dcerpcrequest_stub_data) VALUES (?,?,?,?)",
+                                (attackid, icd.uuid, icd.opnum, stub_data))
             self.dbh.commit()
 
     def handle_incident_dionaea_modules_python_smb_dcerpc_bind(self, icd):
