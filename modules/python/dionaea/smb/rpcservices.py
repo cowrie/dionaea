@@ -11,6 +11,8 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 import logging
+import socket
+import struct
 import tempfile
 from uuid import UUID
 from time import time, localtime, altzone
@@ -250,6 +252,66 @@ class epmp(RPCService):
     # ept_lookup status codes
     EPT_S_NOT_REGISTERED = 0x16C9A0D6  # No entries match the search criteria
 
+    # Protocol identifiers for tower encoding
+    PROTO_ID_UUID = 0x0d
+    PROTO_ID_RPC_CO = 0x0b  # Connection-oriented RPC
+    PROTO_ID_TCP = 0x07
+    PROTO_ID_IP = 0x09
+
+    # NDR transfer syntax UUID
+    NDR_UUID = UUID('8a885d04-1ceb-11c9-9fe8-08002b104860')
+
+    # Services to advertise (subset of commonly targeted ones)
+    ADVERTISED_SERVICES = [
+        ('e1af8308-5d1f-11c9-91a4-08002b14a0fa', 3, 0, 'epmp'),  # Endpoint mapper
+        ('12345778-1234-abcd-ef00-0123456789ab', 0, 0, 'lsarpc'),  # LSA
+        ('12345678-1234-abcd-ef00-0123456789ab', 1, 0, 'srvsvc'),  # Server service
+        ('4b324fc8-1670-01d3-1278-5a47bf6ee188', 3, 0, 'srvsvc'),  # SRVSVC
+        ('12345678-1234-abcd-ef00-0123456789ac', 1, 0, 'samr'),  # SAM
+    ]
+
+    @classmethod
+    def _build_tower(cls, interface_uuid, major_ver, minor_ver, local_ip, port):
+        """Build a DCE/RPC protocol tower for TCP/IP transport."""
+        tower = b''
+
+        # Floor count: 5 floors (interface, NDR, RPC, TCP, IP)
+        tower += struct.pack('<H', 5)
+
+        # Floor 1: Interface UUID
+        # LHS: protocol id (1) + UUID (16) + version (2) = 19 bytes
+        uuid_bytes = UUID(interface_uuid).bytes_le
+        lhs1 = bytes([cls.PROTO_ID_UUID]) + uuid_bytes + struct.pack('<H', major_ver)
+        tower += struct.pack('<H', len(lhs1)) + lhs1
+        # RHS: minor version (2 bytes)
+        tower += struct.pack('<H', 2) + struct.pack('<H', minor_ver)
+
+        # Floor 2: NDR Transfer Syntax
+        lhs2 = bytes([cls.PROTO_ID_UUID]) + cls.NDR_UUID.bytes_le + struct.pack('<H', 2)
+        tower += struct.pack('<H', len(lhs2)) + lhs2
+        tower += struct.pack('<H', 2) + struct.pack('<H', 0)  # minor version 0
+
+        # Floor 3: RPC Connection-oriented protocol
+        lhs3 = bytes([cls.PROTO_ID_RPC_CO])
+        tower += struct.pack('<H', len(lhs3)) + lhs3
+        tower += struct.pack('<H', 2) + struct.pack('>H', 0)  # minor version
+
+        # Floor 4: TCP port (big endian)
+        lhs4 = bytes([cls.PROTO_ID_TCP])
+        tower += struct.pack('<H', len(lhs4)) + lhs4
+        tower += struct.pack('<H', 2) + struct.pack('>H', port)
+
+        # Floor 5: IP address (big endian)
+        lhs5 = bytes([cls.PROTO_ID_IP])
+        tower += struct.pack('<H', len(lhs5)) + lhs5
+        try:
+            ip_bytes = socket.inet_aton(local_ip)
+        except (socket.error, OSError):
+            ip_bytes = b'\x7f\x00\x00\x01'  # fallback to 127.0.0.1
+        tower += struct.pack('<H', 4) + ip_bytes
+
+        return tower
+
     @classmethod
     def handle_ept_lookup(cls, con, p):
         # void ept_lookup(
@@ -264,21 +326,61 @@ class epmp(RPCService):
         #   [out, length_is(*num_ents), size_is(max_ents)] ept_entry_t entries[],
         #   [out] error_status* status
         # );
-        #
-        # Returns "no matching entries" - a valid response that logs the query
         r = make_packer(con)
 
-        # entry_handle (context handle) - return NULL to indicate end of enumeration
-        r.pack_long(0)  # context handle attributes
+        # Get local IP for tower encoding
+        local_ip = con.local.host if hasattr(con, 'local') else '127.0.0.1'
+        local_port = con.local.port if hasattr(con, 'local') else 135
+
+        # Build entries for advertised services
+        entries = []
+        for svc_uuid, major, minor, annotation in cls.ADVERTISED_SERVICES:
+            tower = cls._build_tower(svc_uuid, major, minor, local_ip, local_port)
+            entries.append((svc_uuid, tower, annotation))
+
+        num_ents = len(entries)
+
+        # entry_handle (context handle) - NULL indicates end of enumeration
+        r.pack_long(0)  # attributes
         r.pack_raw(b'\x00' * 20)  # 20-byte NULL context handle
 
-        # num_ents - no entries returned
+        # num_ents
+        r.pack_long(num_ents)
+
+        # NDR array: max_count, offset, actual_count
+        r.pack_long(num_ents)  # max_count
+        r.pack_long(0)  # offset
+        r.pack_long(num_ents)  # actual_count
+
+        # Pack each ept_entry_t
+        for i, (svc_uuid, tower, annotation) in enumerate(entries):
+            # object UUID (16 bytes)
+            r.pack_raw(UUID(svc_uuid).bytes_le)
+
+            # tower pointer (non-null)
+            r.pack_pointer(0x20000 + i * 0x100)
+
+            # annotation: conformant string
+            ann_bytes = (annotation + '\x00').encode('utf-8')
+            # Pad to 4-byte boundary
+            padded_len = (len(ann_bytes) + 3) & ~3
+            r.pack_long(padded_len)  # max_count
+            r.pack_long(0)  # offset
+            r.pack_long(len(ann_bytes))  # actual_count
+            r.pack_raw(ann_bytes + b'\x00' * (padded_len - len(ann_bytes)))
+
+        # Pack tower data (pointed to by tower pointers)
+        for svc_uuid, tower, annotation in entries:
+            # twr_t structure: tower_length + tower_octet_string
+            r.pack_long(len(tower))  # tower_length (conformant size)
+            r.pack_long(len(tower))  # actual length
+            r.pack_raw(tower)
+            # Pad to 4-byte boundary
+            if len(tower) % 4:
+                r.pack_raw(b'\x00' * (4 - len(tower) % 4))
+
+        # status - success
         r.pack_long(0)
-
-        # entries[] - empty array (no entries to pack)
-
-        # status - EPT_S_NOT_REGISTERED (no matching entries)
-        r.pack_long(cls.EPT_S_NOT_REGISTERED)
 
         return r.get_buffer()
 
