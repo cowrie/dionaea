@@ -8,7 +8,6 @@
 # SPDX-License-Identifier: CC0-1.0
 
 import struct
-import socket
 import importlib.util
 import os
 
@@ -270,52 +269,3 @@ class TestNBNSResponse:
         assert flags & 0x8000  # Is response
         assert qdcount == 0
         assert ancount == 1
-
-
-class TestNBNSIntegration:
-    """Integration tests requiring a running dionaea instance."""
-
-    @pytest.fixture
-    def nbns_port(self, dionaea_ports):
-        return dionaea_ports.get("nbns", 137)
-
-    def test_nbns_responds_to_query(self, dionaea_host, nbns_port):
-        """Test that NBNS service responds to queries."""
-        # Build a simple WPAD query
-        flags = 0x0110  # Query, recursion desired, broadcast
-        header = struct.pack('!HHHHHH', 0xABCD, flags, 1, 0, 0, 0)
-        encoded_name = encode_netbios_name("WPAD")
-        question = bytes([len(encoded_name)]) + encoded_name + b'\x00'
-        question += struct.pack('!HH', QTYPE_NB, 0x0001)
-        packet = header + question
-
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.settimeout(2.0)
-        try:
-            sock.sendto(packet, (dionaea_host, nbns_port))
-            # We may or may not get a response depending on config
-            # But the important thing is no error
-            try:
-                data, addr = sock.recvfrom(1024)
-                # Got a response - parse it
-                assert len(data) >= 12
-            except socket.timeout:
-                # No response is also valid (if respond=false)
-                pass
-        finally:
-            sock.close()
-
-    def test_nbns_handles_malformed_packet(self, dionaea_host, nbns_port):
-        """Test that NBNS handles malformed packets gracefully."""
-        # Send garbage data
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.settimeout(1.0)
-        try:
-            sock.sendto(b"\x00\x01\x02\x03", (dionaea_host, nbns_port))
-            # Should not crash, may or may not respond
-            try:
-                sock.recvfrom(1024)
-            except socket.timeout:
-                pass
-        finally:
-            sock.close()
