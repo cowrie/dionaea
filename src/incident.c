@@ -11,6 +11,7 @@
 #include <string.h>
 #include "incident.h"
 #include "dionaea.h"
+#include "connection.h"
 #include "log.h"
 
 #define D_LOG_DOMAIN "incident"
@@ -175,7 +176,19 @@ void opaque_data_dump(struct opaque_data *d, int indent)
 		g_snprintf(x+indent, 1023, "%s: (string) %.*s", d->name, (int)d->opaque.string->len, d->opaque.string->str);
 		break;
 	case opaque_type_ptr:
-		g_snprintf(x+indent, 1023, "%s: (ptr) %p", d->name, (void *)d->opaque.ptr);
+		if( g_strcmp0(d->name, "con") == 0 && d->opaque.ptr != NULL )
+		{
+			struct connection *con = (struct connection *)d->opaque.ptr;
+			g_snprintf(x+indent, 1023, "%s: %s %s -> %s",
+			          d->name,
+			          connection_transport_to_string(con->trans),
+			          con->local.node_string ? con->local.node_string : "?",
+			          con->remote.node_string ? con->remote.node_string : "?");
+		}
+		else
+		{
+			g_snprintf(x+indent, 1023, "%s: (ptr) %p", d->name, (void *)d->opaque.ptr);
+		}
 		break;
 	case opaque_type_list:
 		g_snprintf(x+indent, 1023, "%s: (list) %p", d->name, (void *)d->opaque.list);
