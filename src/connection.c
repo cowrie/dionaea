@@ -237,7 +237,7 @@ bool bind_local(struct connection *con)
  */
 bool connection_bind(struct connection *con, const char *addr, uint16_t port, const char *iface_scope)
 {
-	g_debug("%s con %p addr %s port %i iface %s", __PRETTY_FUNCTION__, con, addr, port, iface_scope);
+	g_debug("%s con %p %s addr %s port %i iface %s", __PRETTY_FUNCTION__, con, connection_transport_to_string(con->trans), addr, port, iface_scope);
 	struct sockaddr_storage sa;
 	memset(&sa, 0,  sizeof(struct sockaddr_storage));
 
