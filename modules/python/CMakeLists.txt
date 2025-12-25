@@ -102,6 +102,7 @@ install_available_python_config(
         mqtt.yaml
         mssql.yaml
         mysql.yaml
+        nbns.yaml.in
         pptp.yaml
         printer.yaml.in
         sip.yaml.in
@@ -124,6 +125,7 @@ install_enabled_python_config(
         mqtt.yaml
         mssql.yaml
         mysql.yaml
+        nbns.yaml
         pptp.yaml
         printer.yaml
         sip.yaml
