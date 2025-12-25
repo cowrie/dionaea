@@ -7,7 +7,7 @@
   config:
     # Respond to name queries to appear as a valid target
     # This makes the honeypot appear vulnerable to Hot Potato attacks
-    respond: false
+    respond: true
     # List of names to respond to (case insensitive)
     # Use '*' to respond to all queries
     respond_names:
@@ -16,6 +16,9 @@
 
 # NetBIOS Datagram Service - UDP port 138
 # Captures NetBIOS datagram traffic
-#- name: nbns-dgm
-#  config:
-#    respond: false
+- name: nbns-dgm
+  config:
+    respond: true
+    respond_names:
+      - WPAD
+      - "*"
