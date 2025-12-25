@@ -327,9 +327,9 @@ class nbnsHandler(connection):
 
     def __init__(self, config: dict[str, Any] | None = None):
         connection.__init__(self, 'udp')
-        self.config = config or {}
-        self.respond_to_queries = self.config.get('respond', False)
-        self.respond_to_names = self.config.get('respond_names', ['WPAD', '*'])
+        config = config or {}
+        self.respond = config.get('respond', False)
+        self.respond_names = config.get('respond_names', ['WPAD', '*'])
 
     def handle_established(self):
         self.timeouts.idle = 30
@@ -383,9 +383,9 @@ class nbnsHandler(connection):
             i.report()
 
             # Optionally respond to make us look vulnerable
-            if self.respond_to_queries:
+            if self.respond:
                 should_respond = False
-                for pattern in self.respond_to_names:
+                for pattern in self.respond_names:
                     if pattern == '*' or name.upper() == pattern.upper():
                         should_respond = True
                         break
@@ -424,10 +424,12 @@ class nbnsd(connection):
 
     def __init__(self, proto: str = 'udp'):
         connection.__init__(self, proto)
-        self.config: dict[str, Any] = {}
+        self.respond = False
+        self.respond_names = ['WPAD', '*']
 
     def apply_config(self, config: dict[str, Any]) -> None:
-        self.config = config
+        self.respond = config.get('respond', False)
+        self.respond_names = config.get('respond_names', ['WPAD', '*'])
 
     def handle_established(self):
         self.timeouts.idle = 30
@@ -466,8 +468,6 @@ class nbnsd(connection):
             return len(data)
 
         opcode_name = packet.get_opcode_name()
-        respond_to_queries = self.config.get('respond', False)
-        respond_to_names = self.config.get('respond_names', ['WPAD', '*'])
 
         for name, suffix, qtype, qclass in packet.questions:
             suffix_name = get_suffix_name(suffix)
@@ -507,9 +507,9 @@ class nbnsd(connection):
             i.report()
 
             # Optionally respond to make us look vulnerable
-            if respond_to_queries:
+            if self.respond:
                 should_respond = False
-                for pattern in respond_to_names:
+                for pattern in self.respond_names:
                     if pattern == '*' or name.upper() == pattern.upper():
                         should_respond = True
                         break
