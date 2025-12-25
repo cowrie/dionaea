@@ -288,9 +288,6 @@ bool connection_bind(struct connection *con, const char *addr, uint16_t port, co
 		// fill src node
 		connection_node_set_local(con);
 
-		g_debug("ip '%s' node '%s'", con->local.ip_string, con->local.node_string);
-
-
 		{
 			int sockopt;
 			sockopt = 1;
