@@ -784,7 +784,10 @@ cdef connection _factory(c_connection *con) with gil:
 		# __init__ raised an exception, propagate it
 		return None
 	c_connection_protocol_ctx_set(con, <void *>instance)
-	instance.apply_parent_config(parent)
+	try:
+		instance.apply_parent_config(parent)
+	except BaseException:
+		logging.error("Error in apply_parent_config", exc_info=True)
 	return instance
 
 cdef void _garbage(void *context) noexcept with gil:
