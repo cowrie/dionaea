@@ -174,22 +174,12 @@ void logger_stdout_log(const gchar *log_domain,
 
 	static struct log_level_map log_level_mapping[] =
 	{
-		/* Terminal Colors
-		 * Attribute codes:
-		 * 00=none 01=bold 04=underscore 05=blink 07=reverse 08=concealed
-		 * Text color codes:
-		 * 30=black 31=red 32=green 33=yellow 34=blue 35=magenta 36=cyan 37=white
-		 * Background color codes:
-		 * 40=black 41=red 42=green 43=yellow 44=blue 45=magenta 46=cyan 47=white
-		 *
-		 *
-		 */
-		{"\033[31;1m",  G_LOG_LEVEL_ERROR},
-		{"\033[31;1m",  G_LOG_LEVEL_CRITICAL},
-		{"\033[35;1m",  G_LOG_LEVEL_WARNING},
-		{"\033[33;1m",  G_LOG_LEVEL_MESSAGE},
-		{"\033[32;1m",  G_LOG_LEVEL_INFO},
-		{"\033[36;1m",  G_LOG_LEVEL_DEBUG},
+		{"error",       G_LOG_LEVEL_ERROR},
+		{"critical",    G_LOG_LEVEL_CRITICAL},
+		{"warning",     G_LOG_LEVEL_WARNING},
+		{"message",     G_LOG_LEVEL_MESSAGE},
+		{"info",        G_LOG_LEVEL_INFO},
+		{"debug",       G_LOG_LEVEL_DEBUG},
 		{ NULL, 0}
 	};
 
@@ -222,15 +212,15 @@ void logger_stdout_log(const gchar *log_domain,
 	if( (fileinfo = strstr(domain, " ")) != NULL )
 		*fileinfo++ = '\0';
 
-	printf("[%04d-%02d-%02dT%02d:%02d:%02d.%03dZ] %s%s\033[0m %s: %s\n",
+	printf("[%04d-%02d-%02dT%02d:%02d:%02d.%03dZ] %s %s-%s: %s\n",
 		   t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec, millis,
-		   level, domain, fileinfo, message);
+		   domain, fileinfo, level, message);
 	g_free(domain);
 	fflush(stdout);
 #else
-	printf("[%04d-%02d-%02dT%02d:%02d:%02d.%03dZ] %s%s\033[0m: %s\n",
+	printf("[%04d-%02d-%02dT%02d:%02d:%02d.%03dZ] %s-%s: %s\n",
 		   t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec, millis,
-		   level, log_domain, message);
+		   log_domain, level, message);
 #endif
 }
 
