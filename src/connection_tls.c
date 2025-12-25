@@ -516,12 +516,12 @@ void connection_tls_io_in_cb(EV_P_ struct ev_io *w, int revents)
 
 		case SSL_ERROR_SYSCALL:
 			if( err == 0 )
-				g_warning("TLS protocol violation: remote %s:%s closed without proper shutdown (version: %s)",
+				g_debug("TLS protocol violation: remote %s:%s closed without proper shutdown (version: %s)",
 					con->remote.ip_string,
 					con->remote.port_string,
 					SSL_get_version(con->transport.tls.ssl));
 			else if( err == -1 )
-				g_warning("TLS read failed: SYSCALL error (client %s:%s, errno: %d %s)",
+				g_debug("TLS read failed: SYSCALL error (client %s:%s, errno: %d %s)",
 					con->remote.ip_string,
 					con->remote.port_string,
 					errno, strerror(errno));
@@ -530,7 +530,7 @@ void connection_tls_io_in_cb(EV_P_ struct ev_io *w, int revents)
 			break;
 
 		case SSL_ERROR_SSL:
-			g_warning("TLS read failed: SSL error (client %s:%s, error: %s)",
+			g_debug("TLS read failed: SSL error (client %s:%s, error: %s)",
 				con->remote.ip_string,
 				con->remote.port_string,
 				con->transport.tls.ssl_error_string);
