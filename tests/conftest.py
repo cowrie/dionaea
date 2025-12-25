@@ -40,4 +40,5 @@ def dionaea_ports():
         "http": int(os.environ.get("DIONAEA_HTTP_PORT", 80)),
         "mysql": int(os.environ.get("DIONAEA_MYSQL_PORT", 3306)),
         "epmap": int(os.environ.get("DIONAEA_EPMAP_PORT", 135)),
+        "nbns": int(os.environ.get("DIONAEA_NBNS_PORT", 137)),
     }

@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: none
+# SPDX-License-Identifier: CC0-1.0
+
+# NetBIOS Name Service (NBNS) - UDP port 137
+# Captures name queries to detect WPAD attacks and NetBIOS reconnaissance
+- name: nbns
+  config:
+    # Respond to name queries to appear as a valid target
+    # This makes the honeypot appear vulnerable to Hot Potato attacks
+    respond: false
+    # List of names to respond to (case insensitive)
+    # Use '*' to respond to all queries
+    respond_names:
+      - WPAD
+      - "*"
+
+# NetBIOS Datagram Service - UDP port 138
+# Captures NetBIOS datagram traffic
+#- name: nbns-dgm
+#  config:
+#    respond: false

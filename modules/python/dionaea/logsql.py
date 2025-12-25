@@ -570,8 +570,26 @@ class logsqlhandler(ihandler):
             self.cursor.execute("""CREATE INDEX IF NOT EXISTS mqtt_subscribe_commands_{}_idx
             ON mqtt_subscribe_commands (mqtt_subscribe_command_{})""".format(idx, idx))
 
+        self.cursor.execute("""CREATE TABLE IF NOT EXISTS
+            nbns_queries (
+                nbns_query INTEGER PRIMARY KEY,
+                connection INTEGER,
+                nbns_query_name TEXT,
+                nbns_query_suffix INTEGER,
+                nbns_query_suffix_name TEXT,
+                nbns_query_opcode INTEGER,
+                nbns_query_opcode_name TEXT,
+                nbns_query_qtype INTEGER,
+                nbns_query_is_wpad INTEGER
+                -- CONSTRAINT nbns_queries_connection_fkey FOREIGN KEY (connection) REFERENCES connections (connection)
+            )""")
+
+        for idx in ["name", "is_wpad"]:
+            self.cursor.execute("""CREATE INDEX IF NOT EXISTS nbns_queries_{}_idx
+            ON nbns_queries (nbns_query_{})""".format(idx, idx))
+
         # connection index for all
-        for idx in ["dcerpcbinds", "dcerpcrequests", "emu_profiles", "emu_services", "offers", "downloads", "p0fs", "logins", "mssql_fingerprints", "mssql_commands","mysql_commands","sip_commands", "mqtt_fingerprints", "mqtt_publish_commands", "mqtt_subscribe_commands"]:
+        for idx in ["dcerpcbinds", "dcerpcrequests", "emu_profiles", "emu_services", "offers", "downloads", "p0fs", "logins", "mssql_fingerprints", "mssql_commands","mysql_commands","sip_commands", "mqtt_fingerprints", "mqtt_publish_commands", "mqtt_subscribe_commands", "nbns_queries"]:
             self.cursor.execute(
                 f"""CREATE INDEX IF NOT EXISTS {idx}_connection_idx    ON {idx} (connection)"""
             )
@@ -1076,4 +1094,13 @@ class logsqlhandler(ihandler):
             self.cursor.execute(
                 "INSERT INTO http_requests (connection, http_request_method, http_request_path, http_request_version, http_request_headers, http_request_body) VALUES (?,?,?,?,?,?)",
                 (attackid, icd.method, icd.path, icd.version, icd.headers, icd.body))
+            self.dbh.commit()
+
+    def handle_incident_dionaea_modules_python_nbns_query(self, icd):
+        con = icd.con
+        if con in self.attacks:
+            attackid = self.attacks[con][1]
+            self.cursor.execute(
+                "INSERT INTO nbns_queries (connection, nbns_query_name, nbns_query_suffix, nbns_query_suffix_name, nbns_query_opcode, nbns_query_opcode_name, nbns_query_qtype, nbns_query_is_wpad) VALUES (?,?,?,?,?,?,?,?)",
+                (attackid, icd.name, icd.suffix, icd.suffix_name, icd.opcode, icd.opcode_name, icd.qtype, 1 if icd.is_wpad else 0))
             self.dbh.commit()
