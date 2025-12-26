@@ -186,22 +186,28 @@ int pchild_sent_bind(int sx, struct sockaddr *s, socklen_t size)
 	}
 
 	int ret=0;
-	// TODO: Check recv() return value - could fail or return short read
-	recv(g_dionaea->pchild->fd, &ret, sizeof(int), 0);
+	ssize_t n;
+	do {
+		n = recv(g_dionaea->pchild->fd, &ret, sizeof(int), MSG_WAITALL);
+	} while( n < 0 && errno == EINTR );
+	if( n < 0 )
+		g_error("pchild recv failed: %s", strerror(errno));
+	if( n == 0 )
+		g_error("pchild connection closed");
 	g_mutex_unlock(&g_dionaea->pchild->mutex);
 	if( ret != 0 )
 	{
-		// TODO: Check recv() return value - could fail or return short read
-		recv(g_dionaea->pchild->fd, &ret, sizeof(int), 0);
+		do {
+			n = recv(g_dionaea->pchild->fd, &ret, sizeof(int), MSG_WAITALL);
+		} while( n < 0 && errno == EINTR );
+		if( n <= 0 )
+			g_error("pchild recv failed");
 		g_critical("bind failed (%s)", strerror(ret));
 		errno = ret;
 		return -1;
-	} else
-	{
-		// g_debug("child could bind the socket!");
-		errno = 0;
-		return ret;
 	}
+	errno = 0;
+	return ret;
 #else
 	return bind(sx,s,size);
 #endif
