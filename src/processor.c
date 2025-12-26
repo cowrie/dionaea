@@ -343,8 +343,8 @@ void *proc_streamdumper_cfg_new(gchar *group_name)
 	struct tm *timeinfo;
 	time(&rawtime);
 	timeinfo = localtime(&rawtime);
-	// TODO: Check strftime() return value - returns 0 if buffer too small
-	strftime(test, 255, path, timeinfo);
+	if( strftime(test, sizeof(test), path, timeinfo) == 0 )
+		g_warning("streamdumper path format too long, may be truncated");
 	if( strcmp(test, path) == 0 ) {
 		g_error("streamdumper path does not have time based modifiers, all files end up in a single directory, which is not accepted.");
 	}
@@ -424,19 +424,21 @@ void proc_streamdumper_on_io(struct connection *con, struct processor_data *pd, 
 		struct tm t;
 		gmtime_r(&stamp, &t);
 		char path[128];
-		// TODO: Check strftime() return value - returns 0 if buffer too small
-		strftime(path, sizeof(path), ((struct streamdumper_config *)pd->processor->config)->path, &t);
+		if( strftime(path, sizeof(path), ((struct streamdumper_config *)pd->processor->config)->path, &t) == 0 )
+			g_warning("streamdumper path too long, may be truncated");
 		char prefix[512];
 		char timebuf[28];
 		format_timeval(&con->stats.start, timebuf, sizeof(timebuf));
-		// TODO: Check snprintf() return value - could be truncated if >= sizeof(prefix)
-		snprintf(prefix, sizeof(prefix), "%s-%s-%i-%s-%i-%s-",
+		int prefix_len = snprintf(prefix, sizeof(prefix), "%s-%s-%i-%s-%i-%s-",
 				 con->protocol.name,
 				 con->local.ip_string,
 				 ntohs(con->local.port),
 				 con->remote.ip_string,
 				 ntohs(con->remote.port),
 				 timebuf);
+		if( prefix_len >= (int)sizeof(prefix) )
+			g_warning("streamdumper prefix truncated");
+		(void)prefix_len;
 
 		struct stat s;
 		if( stat(path, &s) != 0 &&
