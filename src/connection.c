@@ -560,7 +560,7 @@ void connection_close(struct connection *con)
 		connection_udp_disconnect(con);
 		break;
 	case connection_transport_dtls:
-		g_warning("FIXME");
+		g_warning("DTLS disconnect not implemented");
 		break;
 	case connection_transport_io:
 		break;
@@ -1564,7 +1564,7 @@ void connection_connecting_timeout_set(struct connection *con, double timeout_in
 		break;
 
 	case connection_transport_dtls:
-		g_warning("FIXME");
+		g_warning("DTLS connecting timeout not implemented");
 		break;
 	case connection_transport_udp:
 	case connection_transport_io:
