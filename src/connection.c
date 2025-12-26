@@ -740,7 +740,7 @@ void connection_set_blocking(struct connection *con)
 {
 	g_debug(__PRETTY_FUNCTION__);
 	int flags = fcntl(con->socket, F_GETFL, 0);
-	flags |= ~O_NONBLOCK;
+	flags &= ~O_NONBLOCK;
 	fcntl(con->socket, F_SETFL, flags);
 }
 
