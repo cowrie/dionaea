@@ -158,10 +158,10 @@ def parse_tftp_packet(data: bytes) -> dict | None:
         packet = TFTPPacketStruct.parse(data)
         return packet
     except ConstructError as e:
-        logger.warning(f"Failed to parse TFTP packet: {e}")
+        logger.warning(f"Failed to parse TFTP packet: {str(e).replace(chr(10), ' | ')}")
         return None
     except Exception as e:
-        logger.warning(f"Unexpected error parsing TFTP packet: {e}")
+        logger.warning(f"Unexpected error parsing TFTP packet: {str(e).replace(chr(10), ' | ')}")
         return None
 
 
