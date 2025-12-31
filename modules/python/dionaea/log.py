@@ -4,16 +4,25 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-from dionaea.core import dlhfn
+from dionaea.core import dlhfn, g_dionaea
 import logging
 
 handler: 'DionaeaLogHandler | None' = None
 logger: logging.Logger | None = None
 
+# Map string level names to logging constants
+LEVEL_MAP = {
+    'debug': logging.DEBUG,
+    'info': logging.INFO,
+    'warning': logging.WARNING,
+    'error': logging.ERROR,
+    'critical': logging.CRITICAL,
+}
+
 
 class DionaeaLogHandler(logging.Handler):
-    def __init__(self) -> None:
-        logging.Handler.__init__(self, logging.DEBUG)
+    def __init__(self, level: int = logging.INFO) -> None:
+        logging.Handler.__init__(self, level)
 
     def emit(self, record: logging.LogRecord) -> None:
         msg = self.format(record)
@@ -23,9 +32,15 @@ class DionaeaLogHandler(logging.Handler):
 def new() -> None:
     global logger
     global handler
+
+    # Read log level from config, default to INFO
+    module_config = g_dionaea.config().get("module", {}).get("python", {})
+    level_name = module_config.get("loglevel", "info").lower()
+    level = LEVEL_MAP.get(level_name, logging.INFO)
+
     logger = logging.getLogger('')
-    logger.setLevel(logging.DEBUG)
-    handler = DionaeaLogHandler()
+    logger.setLevel(level)
+    handler = DionaeaLogHandler(level)
     logger.addHandler(handler)
 
 
