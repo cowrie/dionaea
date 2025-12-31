@@ -635,7 +635,7 @@ class httpd(connection):
                 return len(data)
 
             elif self.header.type == b'POST':
-                if b'content-type' not in self.header.headers and b'content-length' not in self.header.headers:
+                if b'content-length' not in self.header.headers:
                     self.handle_POST()
                     return len(data)
 
@@ -645,9 +645,8 @@ class httpd(connection):
                 try:
                     self.content_length = int(self.header.headers[b'content-length'].decode("utf-8"))
                     self.content_type = self.header.headers.get(b'content-type', b'application/octet-stream').decode("utf-8")
-                except Exception:
-                    # ignore decode() errors
-                    logger.warning("Ignoring decode errors", exc_info=True)
+                except (ValueError, UnicodeDecodeError):
+                    logger.warning("Failed to parse content-length or content-type header", exc_info=True)
                     self.handle_POST()
                     return len(data)
 

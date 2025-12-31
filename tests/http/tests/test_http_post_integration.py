@@ -157,6 +157,42 @@ class TestHTTPPostIntegration:
         finally:
             sock.close()
 
+    def test_post_with_content_type_but_no_content_length(self):
+        """Test POST with content-type header but no content-length header.
+
+        This triggers the bug where http.py line 638 checks for BOTH headers
+        missing, but line 646 assumes content-length exists. If only content-type
+        is present, we get a KeyError.
+        """
+        request = (
+            "POST /upload HTTP/1.1\r\n"
+            "Host: localhost\r\n"
+            "Content-Type: application/json\r\n"
+            "\r\n"
+        ).encode('utf-8')
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            sock.connect(('127.0.0.1', 8080))
+            sock.sendall(request)
+
+            response = b''
+            sock.settimeout(2.0)
+            try:
+                while True:
+                    chunk = sock.recv(4096)
+                    if not chunk:
+                        break
+                    response += chunk
+            except socket.timeout:
+                pass
+
+            # Server should handle this gracefully without KeyError
+            assert b'HTTP/' in response
+
+        finally:
+            sock.close()
+
     def test_malformed_multipart_handling(self):
         """Test that server handles malformed multipart data gracefully"""
         # Send malformed multipart data
