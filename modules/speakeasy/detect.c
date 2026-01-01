@@ -1,5 +1,5 @@
-// ABOUTME: x86 shellcode detection using GetPC pattern matching
-// ABOUTME: Emits incidents with raw shellcode data for Python Speakeasy handler
+// ABOUTME: Multi-architecture shellcode detection using GetPC pattern matching
+// ABOUTME: Supports x86, x86-64, ARM32, ARM64, MIPS - emits incidents for analysis
 
 /**
  * This file is part of the dionaea honeypot
@@ -9,6 +9,8 @@
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
+
+#include <stdint.h>
 
 #include <ev.h>
 #include <glib.h>
@@ -73,10 +75,31 @@ void proc_speakeasy_ctx_free(void *ctx)
 }
 
 /**
+ * Check if bytes following a GetPC pattern look like real shellcode
+ * Returns true if likely shellcode, false if likely false positive
+ */
+static int check_following_bytes(unsigned char *bytes, int start, int size)
+{
+	// Real shellcode will have instructions after GetPC
+	// Count zeros in the next 20 bytes
+	int zero_count = 0;
+	int end = (start + 20 < size) ? start + 20 : size;
+	for (int j = start; j < end; j++) {
+		if (bytes[j] == 0x00) zero_count++;
+	}
+
+	// If more than 80% zeros, probably not shellcode
+	return zero_count <= 16;
+}
+
+/**
  * Detect x86-64 shellcode using GetPC pattern matching
  *
  * Scans for common x86-64 GetPC sequences:
- * - call $+5; pop rax/rbx/rcx/rdx/rsi/rdi
+ * - call $+5; pop reg (E8 00 00 00 00 5x)
+ * - call $+N; pop reg where N is small (for decoder stubs)
+ * - FPU GetPC: fldz; fnstenv [esp-0xC]; pop reg
+ * - jmp/call + pop combinations
  *
  * Returns offset of shellcode start, or -1 if not found
  */
@@ -84,44 +107,338 @@ static int detect_shellcode_x64(void *data, int size)
 {
 	unsigned char *bytes = (unsigned char *)data;
 
-	// Common x86-64 GetPC patterns: E8 00 00 00 00 <pop reg>
-	// call $+5 is always E8 00 00 00 00
-	// Followed by pop into 64-bit register:
-	// 58 = pop rax, 5B = pop rbx, 59 = pop rcx, 5A = pop rdx
-	// 5E = pop rsi, 5F = pop rdi, 5D = pop rbp, 5C = pop rsp (rare)
-
 	// Minimum shellcode size: pattern (6 bytes) + some code (20+ bytes)
 	if (size < 26) {
 		return -1;
 	}
 
 	for (int i = 0; i <= size - 26; i++) {
-		// Check for: call $+5 (E8 00 00 00 00)
+		// Pattern 1: call $+5 (E8 00 00 00 00) followed by pop reg
 		if (bytes[i] == 0xE8 &&
 		    bytes[i+1] == 0x00 &&
 		    bytes[i+2] == 0x00 &&
 		    bytes[i+3] == 0x00 &&
 		    bytes[i+4] == 0x00) {
 
-			// Check for pop into common 64-bit register
 			unsigned char pop_reg = bytes[i+5];
+			// 58-5F = pop rax/rcx/rdx/rbx/rsp/rbp/rsi/rdi
 			if (pop_reg >= 0x58 && pop_reg <= 0x5F) {
-				// Reduce false positives: check that following bytes aren't all zeros
-				// Real shellcode will have instructions after GetPC
-				int zero_count = 0;
-				for (int j = i + 6; j < i + 26 && j < size; j++) {
-					if (bytes[j] == 0x00) zero_count++;
+				if (check_following_bytes(bytes, i + 6, size)) {
+					g_info("Found x86-64 GetPC at offset %d (call $+5; pop)", i);
+					return i;
 				}
-
-				// If more than 80% zeros after GetPC, probably not shellcode
-				if (zero_count > 16) {
-					continue;
-				}
-
-				g_info("Found x86-64 GetPC pattern at offset %d (call+pop)", i);
-				return i;
 			}
 		}
+
+		// Pattern 2: call with small positive displacement (decoder stub)
+		// E8 xx 00 00 00 where xx <= 0x20 (32 bytes max displacement)
+		if (bytes[i] == 0xE8 &&
+		    bytes[i+1] <= 0x20 &&
+		    bytes[i+2] == 0x00 &&
+		    bytes[i+3] == 0x00 &&
+		    bytes[i+4] == 0x00) {
+
+			int disp = bytes[i+1];
+			int pop_offset = i + 5 + disp;
+
+			// Check if there's a pop after the call target
+			if (pop_offset < size - 20) {
+				unsigned char pop_reg = bytes[pop_offset];
+				if (pop_reg >= 0x58 && pop_reg <= 0x5F) {
+					if (check_following_bytes(bytes, pop_offset + 1, size)) {
+						g_info("Found x86-64 GetPC at offset %d (call $+%d; pop)", i, disp + 5);
+						return i;
+					}
+				}
+			}
+		}
+
+		// Pattern 3: FPU GetPC - D9 EE D9 74 24 F4 5x
+		// fldz (D9 EE); fnstenv [esp-0xC] (D9 74 24 F4); pop reg (5x)
+		if (i <= size - 7 &&
+		    bytes[i] == 0xD9 &&
+		    bytes[i+1] == 0xEE &&
+		    bytes[i+2] == 0xD9 &&
+		    bytes[i+3] == 0x74 &&
+		    bytes[i+4] == 0x24 &&
+		    bytes[i+5] == 0xF4) {
+
+			unsigned char pop_reg = bytes[i+6];
+			if (pop_reg >= 0x58 && pop_reg <= 0x5F) {
+				if (check_following_bytes(bytes, i + 7, size)) {
+					g_info("Found x86-64 GetPC at offset %d (fpu fnstenv)", i);
+					return i;
+				}
+			}
+		}
+
+		// Pattern 4: jmp short + call back pattern
+		// EB xx E8 yy yy yy yy (jmp over call, call back, pop)
+		if (i <= size - 10 &&
+		    bytes[i] == 0xEB &&
+		    bytes[i+1] >= 0x02 && bytes[i+1] <= 0x10) {
+
+			int jmp_target = i + 2 + bytes[i+1];
+			if (jmp_target < size - 6) {
+				// Check for pop at jump target
+				unsigned char pop_reg = bytes[jmp_target];
+				if (pop_reg >= 0x58 && pop_reg <= 0x5F) {
+					// Check for call before it
+					if (bytes[i+2] == 0xE8) {
+						if (check_following_bytes(bytes, jmp_target + 1, size)) {
+							g_info("Found x86-64 GetPC at offset %d (jmp+call)", i);
+							return i;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return -1;
+}
+
+/**
+ * Detect ARM32 shellcode using GetPC pattern matching
+ *
+ * ARM32 GetPC patterns (little-endian):
+ * - BL + MOV: bl .+4; mov rN, lr (branch-link then copy link register)
+ * - ADR: adr rN, . (PC-relative address load)
+ * - SUB PC: sub rN, pc, #imm
+ *
+ * Returns offset of shellcode start, or -1 if not found
+ */
+static int detect_shellcode_arm32(void *data, int size)
+{
+	unsigned char *bytes = (unsigned char *)data;
+
+	// ARM instructions are 4 bytes, need at least pattern + more code
+	if (size < 24) {
+		return -1;
+	}
+
+	// Scan on 4-byte boundaries (ARM mode) and 2-byte (Thumb mode)
+	for (int i = 0; i <= size - 24; i += 2) {
+		// Pattern 1: ADR instruction (ARM mode, 4-byte aligned)
+		// ADR Rd, label encodes as: 0x028F0000 | (Rd << 12) | imm
+		// Or SUB PC form: 0xE24F_0xxx (sub rN, pc, #imm)
+		if ((i % 4) == 0 && i <= size - 8) {
+			uint32_t insn = bytes[i] | (bytes[i+1] << 8) |
+			                (bytes[i+2] << 16) | (bytes[i+3] << 24);
+
+			// SUB Rn, PC, #imm (common GetPC)
+			// Encoding: cond 0010 0100 1111 Rd imm12
+			// E24FXxxx where X is dest register
+			if ((insn & 0xFFFF0000) == 0xE24F0000) {
+				if (check_following_bytes(bytes, i + 4, size)) {
+					g_info("Found ARM32 GetPC at offset %d (sub pc)", i);
+					return i;
+				}
+			}
+
+			// ADD Rn, PC, #imm (another GetPC variant)
+			// Encoding: cond 0010 1000 1111 Rd imm12
+			// E28FXxxx
+			if ((insn & 0xFFFF0000) == 0xE28F0000) {
+				if (check_following_bytes(bytes, i + 4, size)) {
+					g_info("Found ARM32 GetPC at offset %d (add pc)", i);
+					return i;
+				}
+			}
+		}
+
+		// Pattern 2: Thumb-2 ADR (2 or 4 bytes)
+		// ADR Rd, label: F2AF 0x00 | (Rd << 8) for ADR.W
+		// Or simple Thumb: 0xA0xx (adr r0-r7, label)
+		if (i <= size - 4) {
+			uint16_t thumb = bytes[i] | (bytes[i+1] << 8);
+
+			// Thumb ADR: 1010 0ddd iiii iiii (A0-A7 xx)
+			if ((thumb & 0xF800) == 0xA000) {
+				if (check_following_bytes(bytes, i + 2, size)) {
+					g_info("Found ARM32 GetPC at offset %d (thumb adr)", i);
+					return i;
+				}
+			}
+		}
+
+		// Pattern 3: BL followed by MOV from LR
+		// BL encodes as: 0xEB xxxxxx (ARM) or F000 F8xx / F7FF Fxxx (Thumb)
+		if ((i % 4) == 0 && i <= size - 8) {
+			uint32_t insn = bytes[i] | (bytes[i+1] << 8) |
+			                (bytes[i+2] << 16) | (bytes[i+3] << 24);
+
+			// ARM BL: cond 1011 xxxx xxxx xxxx xxxx xxxx xxxx
+			// 0xEB______
+			if ((insn & 0x0F000000) == 0x0B000000) {
+				// Check next instruction for MOV Rn, LR
+				uint32_t next = bytes[i+4] | (bytes[i+5] << 8) |
+				                (bytes[i+6] << 16) | (bytes[i+7] << 24);
+				// MOV Rd, LR: E1A0X00E (mov rX, lr)
+				if ((next & 0xFFF0FFFF) == 0xE1A0000E) {
+					if (check_following_bytes(bytes, i + 8, size)) {
+						g_info("Found ARM32 GetPC at offset %d (bl+mov lr)", i);
+						return i;
+					}
+				}
+			}
+		}
+	}
+
+	return -1;
+}
+
+/**
+ * Detect ARM64/AArch64 shellcode using GetPC pattern matching
+ *
+ * ARM64 GetPC patterns:
+ * - ADR Xn, . (PC-relative address into register)
+ * - ADRP Xn, . (Page-relative address)
+ *
+ * Returns offset of shellcode start, or -1 if not found
+ */
+static int detect_shellcode_arm64(void *data, int size)
+{
+	unsigned char *bytes = (unsigned char *)data;
+
+	// ARM64 instructions are 4 bytes
+	if (size < 24) {
+		return -1;
+	}
+
+	// Scan on 4-byte boundaries
+	for (int i = 0; i <= size - 24; i += 4) {
+		uint32_t insn = bytes[i] | (bytes[i+1] << 8) |
+		                (bytes[i+2] << 16) | (bytes[i+3] << 24);
+
+		// Pattern 1: ADR Xd, label
+		// Encoding: 0 immlo(2) 1 0000 immhi(19) Rd(5)
+		// Bits: 0xx1 0000 xxxx xxxx xxxx xxxx xxxR RRRR
+		// Mask: 0x9F000000 == 0x10000000
+		if ((insn & 0x9F000000) == 0x10000000) {
+			// Extract immediate to check if it's a small/zero offset (GetPC)
+			int immlo = (insn >> 29) & 0x3;
+			int immhi = (insn >> 5) & 0x7FFFF;
+			int imm = (immhi << 2) | immlo;
+
+			// Sign extend 21-bit immediate
+			if (imm & 0x100000) {
+				imm |= 0xFFE00000;
+			}
+
+			// GetPC typically has small offset (0 or small positive)
+			if (imm >= 0 && imm <= 32) {
+				if (check_following_bytes(bytes, i + 4, size)) {
+					g_info("Found ARM64 GetPC at offset %d (adr)", i);
+					return i;
+				}
+			}
+		}
+
+		// Pattern 2: BL followed by MOV from X30 (link register)
+		// BL: 1001 01xx xxxx xxxx xxxx xxxx xxxx xxxx (94-97 xx xx xx)
+		if ((insn & 0xFC000000) == 0x94000000) {
+			if (i + 4 < size - 20) {
+				uint32_t next = bytes[i+4] | (bytes[i+5] << 8) |
+				                (bytes[i+6] << 16) | (bytes[i+7] << 24);
+				// MOV Xd, X30: AA1E03Ex (orr xd, xzr, x30)
+				if ((next & 0xFFFFFFE0) == 0xAA1E03E0) {
+					if (check_following_bytes(bytes, i + 8, size)) {
+						g_info("Found ARM64 GetPC at offset %d (bl+mov x30)", i);
+						return i;
+					}
+				}
+			}
+		}
+	}
+
+	return -1;
+}
+
+/**
+ * Detect MIPS shellcode using GetPC pattern matching
+ *
+ * MIPS GetPC patterns (little-endian):
+ * - BAL (Branch and Link to self or +4)
+ * - BGEZAL $zero, label (always branches, stores PC+8 in $ra)
+ * - BLTZAL $zero, label (never branches but still sets $ra on some MIPS)
+ *
+ * Returns offset of shellcode start, or -1 if not found
+ */
+static int detect_shellcode_mips(void *data, int size)
+{
+	unsigned char *bytes = (unsigned char *)data;
+
+	// MIPS instructions are 4 bytes
+	if (size < 24) {
+		return -1;
+	}
+
+	// Check both little-endian and big-endian patterns
+	for (int i = 0; i <= size - 24; i += 4) {
+		// Little-endian MIPS
+		uint32_t insn_le = bytes[i] | (bytes[i+1] << 8) |
+		                   (bytes[i+2] << 16) | (bytes[i+3] << 24);
+
+		// Big-endian MIPS
+		uint32_t insn_be = (bytes[i] << 24) | (bytes[i+1] << 16) |
+		                   (bytes[i+2] << 8) | bytes[i+3];
+
+		// Pattern 1: BGEZAL $zero, offset (little-endian)
+		// Encoding: 0000 01ss sss1 0001 iiii iiii iiii iiii
+		// With rs=0: 0000 0100 0001 0001 = 0x04110000 + offset
+		// Mask: 0xFFFF0000 == 0x04110000
+		if ((insn_le & 0xFFFF0000) == 0x04110000) {
+			int16_t offset = insn_le & 0xFFFF;
+			// Small positive offset typical for GetPC
+			if (offset >= 0 && offset <= 8) {
+				if (check_following_bytes(bytes, i + 4, size)) {
+					g_info("Found MIPS GetPC at offset %d (bgezal, LE)", i);
+					return i;
+				}
+			}
+		}
+
+		// Same pattern, big-endian
+		if ((insn_be & 0xFFFF0000) == 0x04110000) {
+			int16_t offset = insn_be & 0xFFFF;
+			if (offset >= 0 && offset <= 8) {
+				if (check_following_bytes(bytes, i + 4, size)) {
+					g_info("Found MIPS GetPC at offset %d (bgezal, BE)", i);
+					return i;
+				}
+			}
+		}
+
+		// Pattern 2: BAL (Branch and Link)
+		// BAL is actually BGEZAL with rs=0, same encoding
+		// Some assemblers use: 0x04100001 for bal .+4
+
+		// Pattern 3: BLTZAL $zero (sets $ra but doesn't branch)
+		// Encoding: 0000 0100 0001 0000 = 0x04100000 + offset
+		if ((insn_le & 0xFFFF0000) == 0x04100000) {
+			int16_t offset = insn_le & 0xFFFF;
+			if (offset >= 0 && offset <= 8) {
+				if (check_following_bytes(bytes, i + 4, size)) {
+					g_info("Found MIPS GetPC at offset %d (bltzal, LE)", i);
+					return i;
+				}
+			}
+		}
+
+		if ((insn_be & 0xFFFF0000) == 0x04100000) {
+			int16_t offset = insn_be & 0xFFFF;
+			if (offset >= 0 && offset <= 8) {
+				if (check_following_bytes(bytes, i + 4, size)) {
+					g_info("Found MIPS GetPC at offset %d (bltzal, BE)", i);
+					return i;
+				}
+			}
+		}
+
+		// Pattern 4: JAL with computed address (less common for GetPC)
+		// JAL target: 0000 11ii iiii iiii iiii iiii iiii iiii
+		// 0x0C000000 - not typically GetPC but can be part of shellcode
 	}
 
 	return -1;
@@ -177,15 +494,20 @@ void proc_speakeasy_on_io_in(struct connection *con, struct processor_data *pd)
 		}
 	}
 
-	// Try detecting shellcode for both architectures
-	// Check x86-32 first (most common), then x86-64
+	// Try detecting shellcode for all supported architectures
+	// x86-32 uses libemu for emulation-based detection
 	struct emu *e = emu_new();
 	int ret_x86 = emu_shellcode_test_x86(e, streamdata, size);
 	emu_free(e);
 
+	// Pattern-based detection for other architectures
 	int ret_x64 = detect_shellcode_x64(streamdata, size);
+	int ret_arm32 = detect_shellcode_arm32(streamdata, size);
+	int ret_arm64 = detect_shellcode_arm64(streamdata, size);
+	int ret_mips = detect_shellcode_mips(streamdata, size);
 
-	g_debug("Detection results: x86=%d x64=%d", ret_x86, ret_x64);
+	g_debug("Detection results: x86=%d x64=%d arm32=%d arm64=%d mips=%d",
+	        ret_x86, ret_x64, ret_arm32, ret_arm64, ret_mips);
 
 	// Update offset to end of scanned data (accounting for lookback)
 	ctx->offset = offset + size;
@@ -194,12 +516,25 @@ void proc_speakeasy_on_io_in(struct connection *con, struct processor_data *pd)
 	int ret = -1;
 	const char *arch = NULL;
 
-	if (ret_x86 >= 0 && (ret_x64 < 0 || ret_x86 <= ret_x64)) {
-		ret = ret_x86;
-		arch = "x86";
-	} else if (ret_x64 >= 0) {
-		ret = ret_x64;
-		arch = "x86_64";
+	// Build array of results to find earliest match
+	struct {
+		int offset;
+		const char *name;
+	} results[] = {
+		{ret_x86, "x86"},
+		{ret_x64, "x86_64"},
+		{ret_arm32, "arm32"},
+		{ret_arm64, "arm64"},
+		{ret_mips, "mips"},
+	};
+
+	for (size_t i = 0; i < sizeof(results) / sizeof(results[0]); i++) {
+		if (results[i].offset >= 0) {
+			if (ret < 0 || results[i].offset < ret) {
+				ret = results[i].offset;
+				arch = results[i].name;
+			}
+		}
 	}
 
 	if (ret >= 0) {
