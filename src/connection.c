@@ -2137,7 +2137,7 @@ void connection_set_type(struct connection *con, enum connection_type type)
 	enum connection_type old_type;
 	old_type = con->type;
 	con->type = type;
-	g_message("connection %p %s/%s type: %s->%s",
+	g_debug("connection %p %s/%s type: %s->%s",
 			  con,
 			  connection_type_to_string(old_type),
 			  connection_transport_to_string(con->trans),
