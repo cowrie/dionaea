@@ -1,0 +1,107 @@
+# Dionaea Improvement Plan
+
+## High Priority (12-Factor App Compliance)
+
+### Phase 1: Quick Wins
+
+1. **Stdout logging for Docker** - Support `DIONAEA_LOG_STDOUT=1` environment variable or `filename=stdout` in config to send all logs to stdout instead of files. The `logger_stdout_log()` function already exists in `log.c`.
+
+2. **Config-less Docker image** - Remove baked-in config from Docker image. Mount config at runtime via volume or inject via environment variables.
+
+### Phase 2: Core 12-Factor
+
+3. **Environment variable config overrides** - Add support for environment variables to override config file values. Convention: `DIONAEA__<SECTION>__<KEY>` (double underscore separator). Implementation in `dionaea.c` after `g_key_file_load_from_file()`. For Python modules, check `os.environ` before falling back to `g_dionaea.config()`.
+
+4. **Backing services via environment** - Make key paths configurable via environment:
+   - `DIONAEA_DATABASE_URL` - SQLite/PostgreSQL connection
+   - `DIONAEA_DOWNLOADS_DIR` - Captured binaries directory
+   - `DIONAEA_BISTREAMS_DIR` - Bistream dumps directory
+
+### Phase 3: Polish
+
+5. **Pin Python dependencies** - Create `requirements.txt` with pinned versions for reproducible builds.
+
+6. **Graceful shutdown improvements** - Add connection drain timeout on SIGTERM. Currently `ev_break()` stops immediately without draining active connections.
+
+7. **Health check endpoint** - Add simple HTTP endpoint for container orchestrator health checks.
+
+## High Priority (Let's Encrypt Support)
+
+Built-in ACME HTTP-01 integration for automatic TLS certificates.
+
+### Certificate Priority Order
+1. Explicit cert (`ssl.default.cert` + `ssl.default.key`) → use immediately
+2. Let's Encrypt (requires HTTP on port 80) → attempt ACME
+3. Self-signed fallback → generate on the fly
+
+### Configuration Options
+```ini
+[dionaea]
+ssl.letsencrypt.enabled=false
+ssl.letsencrypt.domain=honeypot.example.com
+ssl.letsencrypt.email=admin@example.com
+ssl.letsencrypt.staging=true
+ssl.letsencrypt.cert_dir=@DIONAEA_STATEDIR@/letsencrypt
+```
+
+### Implementation Steps
+
+1. **Add config options** - Parse new `ssl.letsencrypt.*` options in `connection.c`
+
+2. **HTTP challenge route** - Add `/.well-known/acme-challenge/<token>` handler to `http.py`. Must respond before normal routing. Store pending challenges in module-level dict.
+
+3. **Minimal ACME client** - New `modules/python/dionaea/letsencrypt.py`:
+   - Implement ACME protocol using `cryptography` + `requests` (no certbot dependency)
+   - Account registration/loading
+   - HTTP-01 challenge flow
+   - Certificate download and storage
+   - ~200 lines, minimal dependencies
+
+4. **Certificate storage** - Directory structure:
+   ```
+   $DIONAEA_STATEDIR/letsencrypt/
+   ├── account.json
+   ├── account_key.pem
+   └── domain.example.com/
+       ├── cert.pem
+       ├── key.pem
+       └── fullchain.pem
+   ```
+
+5. **C certificate reload** - Add `connection_tls_reload_certificate()` in `connection_tls.c`. Expose to Python via `binding.pyx` so ACME client can trigger reload after obtaining cert.
+
+6. **Startup orchestration** - In `services.py` or new ihandler:
+   - After HTTP module starts, trigger Let's Encrypt check
+   - If HTTP not running: WARN and use self-signed
+   - Load cached cert if valid (>30 days remaining)
+   - Else run ACME flow
+
+7. **Renewal timer** - Daily check, renew if <30 days remaining. Use dionaea event loop.
+
+8. **Tests** - Mock ACME server for testing, test challenge handler, test failure modes.
+
+### Error Handling
+- HTTP not running → WARN, self-signed
+- Domain not resolvable → WARN, self-signed
+- ACME unreachable → WARN, use cached or self-signed
+- Challenge failed → WARN with details, self-signed
+- Rate limited → WARN, retry later, use cached or self-signed
+
+### Notes
+- Port 80 required for HTTP-01 validation (Let's Encrypt requirement)
+- No external certbot/acme library needed
+- Staging server for testing before production
+
+## Medium Priority (Code Quality)
+
+1. **Fix bare exception handlers in Python modules** - 26+ occurrences across logsql.py, hpfeeds.py, ftp.py, etc. silently swallow errors. Add logging.
+
+2. **Add missing test coverage** - No tests for upnp, mqtt, pptp, memcache, mssql, mongo modules.
+
+## Lower Priority (Maintenance)
+
+3. **Fix Python type stub (binding.pyi)** - 100+ type errors prevent static analysis tools from working. Either fix or remove the stub.
+
+4. **Resolve FIXMEs in TFTP module** - Lines 510, 1146, 1293 in tftp.py have incomplete implementations and hardcoded values.
+
+5. **Add ABOUTME headers to source files** - Many C files lack the standardized file description header.

@@ -1,0 +1,6 @@
+# SPDX-FileCopyrightText: none
+# SPDX-License-Identifier: CC0-1.0
+
+# SNMP honeypot - UDP port 161
+# Captures community string brute-force attempts and SNMP reconnaissance
+- name: snmp
