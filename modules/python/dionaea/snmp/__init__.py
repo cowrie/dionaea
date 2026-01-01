@@ -8,7 +8,6 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 import logging
-import struct
 from typing import Any
 
 from dionaea import ServiceLoader

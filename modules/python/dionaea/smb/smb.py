@@ -9,14 +9,6 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-from dionaea.core import incident, connection, g_dionaea
-from dionaea.ndrlib import NDR32_UUID, NDR64_UUID
-
-TRANSFER_SYNTAX_NAMES = {
-    NDR32_UUID: 'NDR32',
-    NDR64_UUID: 'NDR64',
-}
-
 import inspect
 import socket
 import struct
@@ -114,7 +106,13 @@ from .include.asn1.ber import BER_len_dec, BER_len_enc, BER_identifier_dec
 from .include.asn1.ber import BER_CLASS_APP, BER_CLASS_CON,BER_identifier_enc
 from .include.asn1.ber import BER_Exception
 from dionaea.util import calculate_doublepulsar_opcode, xor
+from dionaea.core import incident, connection, g_dionaea
+from dionaea.ndrlib import NDR32_UUID, NDR64_UUID
 
+TRANSFER_SYNTAX_NAMES = {
+    NDR32_UUID: 'NDR32',
+    NDR64_UUID: 'NDR64',
+}
 
 smblog = logging.getLogger('SMB')
 
