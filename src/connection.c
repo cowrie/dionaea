@@ -56,9 +56,6 @@
 #include "processor.h"
 
 
-int ssl_tmp_keys_init(struct connection *con);
-
-
 /**
  * create a new connection of a given type
  *
@@ -413,8 +410,6 @@ bool connection_listen(struct connection *con, int len)
 		} else {
 			connection_tls_mkcert(con);
 		}
-//		SSL_CTX_set_timeout(con->transport.ssl.ctx, 15);
-		//ssl_tmp_keys_init(con);
 		ev_set_priority(&con->events.io_in, EV_MAXPRI);
 		ev_io_init(&con->events.io_in, connection_tls_accept_cb, con->socket, EV_READ);
 		ev_io_start(CL, &con->events.io_in);

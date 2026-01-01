@@ -639,8 +639,6 @@ opt->stdOUT.filter);
 	// ssl - OpenSSL 1.1.0+ handles initialization automatically
 	_SSL_connection_index = SSL_get_ex_new_index(0, "connection", NULL, NULL, NULL);
 	g_message("%s", OpenSSL_version(OPENSSL_VERSION));
-	init_dh_params();
-
 
 	// udns
 	d->dns = g_malloc0(sizeof(struct dns));

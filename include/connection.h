@@ -28,12 +28,6 @@
 
 typedef void (*event_fn)(struct connection *con);
 
-#define SSL_TMP_KEY_RSA_512  (0)
-#define SSL_TMP_KEY_RSA_1024 (1)
-#define SSL_TMP_KEY_DH_512   (2)
-#define SSL_TMP_KEY_DH_1024  (3)
-#define SSL_TMP_KEY_MAX      (4)
-
 // Maximum buffer size for receiving data from connections
 // Used by connection_throttle() and recv buffers to stay in sync
 #define CONNECTION_MAX_RECV_SIZE (64*1024)
@@ -184,8 +178,6 @@ struct connection
 
 			unsigned long ssl_error;
 			char ssl_error_string[256];
-
-			void           *pTmpKeys[SSL_TMP_KEY_MAX];
 		} tls;
 		struct
 		{
@@ -263,7 +255,6 @@ enum connection_flags
 #define connection_flag_isset(c, fl)   ((c)->flags & ( 1 << (fl)))
 
 
-void init_dh_params(void);
 bool mkcert(SSL_CTX *);
 
 void connection_stop(struct connection *con);
