@@ -780,7 +780,7 @@ class logsqlhandler(ihandler):
         if con in self.attacks:
             attackid = self.attacks[con][1]
             del self.attacks[con]
-            logger.info("attackid %i is done" % attackid)
+            logger.debug("attackid %i is done" % attackid)
         else:
             logger.debug("no attackid for %s:%s" %
                         (con.local.host, con.local.port) )
