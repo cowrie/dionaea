@@ -199,7 +199,7 @@ void logger_stdout_log(const gchar *log_domain,
 		now = (double)time(NULL);
 
 	time_t stamp = (time_t)now;
-	int millis = (int)((now - stamp) * 1000);
+	int millis = (int)((now - (double)stamp) * 1000);
 
 	struct tm t;
 	gmtime_r(&stamp, &t);
@@ -310,7 +310,7 @@ void logger_file_log(const gchar *log_domain,
 		now = (double)time(NULL);
 
 	time_t stamp = (time_t)now;
-	int millis = (int)((now - stamp) * 1000);
+	int millis = (int)((now - (double)stamp) * 1000);
 
 	struct tm t;
 	gmtime_r(&stamp, &t);
