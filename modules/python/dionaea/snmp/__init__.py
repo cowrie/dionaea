@@ -357,7 +357,7 @@ class SNMPPacket:
 
 
 class SNMPService(ServiceLoader):
-    """Service loader for SNMP honeypot on UDP 161."""
+    """Service loader for SNMP honeypot on UDP 161 (queries)."""
 
     name = "snmp"
 
@@ -370,12 +370,27 @@ class SNMPService(ServiceLoader):
         return [daemon]
 
 
-class snmpd(connection):
-    """SNMP daemon - listens on UDP 161."""
+class SNMPTrapService(ServiceLoader):
+    """Service loader for SNMP trap receiver on UDP 162."""
 
-    def __init__(self, proto: str = 'udp'):
-        logger.debug("snmpd starting")
+    name = "snmptrap"
+
+    @classmethod
+    def start(cls, addr: str, iface: str | None = None,
+              config: dict[str, Any] | None = None) -> list['snmpd'] | None:
+        daemon = snmpd(proto='udp', is_trap_receiver=True)
+        daemon.bind(addr, 162, iface=iface)
+        daemon.listen()
+        return [daemon]
+
+
+class snmpd(connection):
+    """SNMP daemon - listens on UDP 161 (queries) or 162 (traps)."""
+
+    def __init__(self, proto: str = 'udp', is_trap_receiver: bool = False):
+        logger.debug("snmpd starting (trap_receiver=%s)", is_trap_receiver)
         connection.__init__(self, proto)
+        self.is_trap_receiver = is_trap_receiver
 
     def handle_established(self) -> None:
         self.timeouts.idle = 30
@@ -412,8 +427,10 @@ class snmpd(connection):
                      pkt.pdu_name, self.remote.host, self.remote.port,
                      sanitize_for_log(pkt.community), pkt.version_string, oids)
 
-            # Report incident
-            inc = incident("dionaea.modules.python.snmp.request")
+            # Report incident (use different name for traps)
+            is_trap = pkt.pdu_type in (PDU_TRAP, PDU_TRAP_V2, PDU_INFORM_REQUEST)
+            incident_name = "dionaea.modules.python.snmp.trap" if is_trap else "dionaea.modules.python.snmp.request"
+            inc = incident(incident_name)
             inc.con = self
             inc.set("version", pkt.version_string)
             inc.set("community", pkt.community)
@@ -421,8 +438,8 @@ class snmpd(connection):
             inc.set("oids", ','.join(oid for oid, _ in pkt.varbinds))
             inc.report()
 
-            # Send response
-            if pkt.pdu_type in (PDU_GET_REQUEST, PDU_GET_NEXT_REQUEST, PDU_GET_BULK_REQUEST):
+            # Send response (only for queries, not traps)
+            if not self.is_trap_receiver and pkt.pdu_type in (PDU_GET_REQUEST, PDU_GET_NEXT_REQUEST, PDU_GET_BULK_REQUEST):
                 response = self._build_response(pkt)
                 if response:
                     self.send(response)
