@@ -731,7 +731,6 @@ class smbd(connection):
         elif Command == SMB_COM_TRANSACTION2:
             h = p.getlayer(SMB_Trans2_Request)
             if h.Setup[0] == SMB_TRANS2_SESSION_SETUP:
-                smblog.info('Possible DoublePulsar connection attempts..')
                 # DoublePulsar v1 (WannaCry): opcodes encoded via calculate_doublepulsar_opcode()
                 # https://zerosum0x0.blogspot.sg/2017/04/doublepulsar-initial-smb-backdoor-ring.html
                 #   0x23 = ping, 0xc8 = exec, 0x77 = kill
