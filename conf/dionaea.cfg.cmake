@@ -36,7 +36,7 @@ listen.use_ipv4_mapped_ipv6=false
 
 [logging]
 default.filename=@DIONAEA_LOGDIR@/dionaea.log
-default.levels=all
+default.levels=all,-debug
 default.domains=*
 
 errors.filename=@DIONAEA_LOGDIR@/dionaea-errors.log
