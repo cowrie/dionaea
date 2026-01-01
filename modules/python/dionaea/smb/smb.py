@@ -763,14 +763,11 @@ class smbd(connection):
                 elif len(self.buf2) != 0 and h.DataCount == 4096:
                     self.buf2 = self.buf2 + h.Data
                 elif len(self.buf2) != 0 and h.DataCount < 4096:
-                    smblog.info('DoublePulsar payload receiving..')
                     self.buf2 = self.buf2 + h.Data
                     key = smbd.get_doublepulsar_xor_key_bytes()
                     xor_output = xor(self.buf2, key)
-                    hash_buf2 = hashlib.sha256(self.buf2)
-                    smblog.info('DoublePulsar payload - SHA256 (before XOR): %s', hash_buf2.hexdigest())
-                    hash_xor_output = hashlib.sha256(xor_output)
-                    smblog.info('DoublePulsar payload - SHA256 (after XOR): %s', hash_xor_output.hexdigest())
+                    hash_raw = hashlib.sha256(self.buf2).hexdigest()
+                    hash_decoded = hashlib.sha256(xor_output).hexdigest()
 
                     # payload = some data(shellcode or code to load the executable) + executable itself
                     # try to locate the executable and remove the prepended data
@@ -779,11 +776,14 @@ class smbd(connection):
                     for i, c in enumerate(xor_output):
                         if ((xor_output[i] == 0x4d and xor_output[i + 1] == 0x5a) and xor_output[i + 2] == 0x90):
                             offset = i
-                            smblog.info('DoublePulsar payload - MZ header found...')
                             break
 
-                    # save the captured payload/gift/evil/buddy to disk
-                    smblog.info('DoublePulsar payload - Save to disk')
+                    if offset > 0:
+                        smblog.info('DoublePulsar payload: MZ found at offset %d, SHA256 raw=%s decoded=%s',
+                                    offset, hash_raw, hash_decoded)
+                    else:
+                        smblog.info('DoublePulsar payload: no MZ header, SHA256 raw=%s decoded=%s',
+                                    hash_raw, hash_decoded)
 
                     dionaea_config = g_dionaea.config().get("dionaea", {})
                     download_dir = dionaea_config.get("download.dir")
