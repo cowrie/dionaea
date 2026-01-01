@@ -226,7 +226,7 @@ def encode_ber_oid(oid: str) -> bytes:
             encoded += bytes([0])
         else:
             # Encode in base-128 with continuation bits
-            octets = []
+            octets: list[int] = []
             while component > 0:
                 octets.insert(0, component & 0x7F)
                 component >>= 7
@@ -445,6 +445,7 @@ class snmpd(connection):
                 if isinstance(value, int):
                     value_encoded = encode_ber_integer(value)
                 else:
+                    assert isinstance(value, str)
                     value_encoded = encode_ber_string(value.encode('utf-8'))
             else:
                 # Return noSuchObject for unknown OIDs
