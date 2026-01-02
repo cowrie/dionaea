@@ -7,7 +7,6 @@
 
 from setuptools import setup, Extension, find_packages
 from Cython.Build import cythonize
-from setuptools_scm import get_version
 
 core_cflags = '${GLIB2_CFLAGS};' # glib
 core_cflags += '${GMODULE2_CFLAGS}' # gmodule
@@ -55,7 +54,7 @@ ext_modules=[
 
 setup(
     name = 'dionaea',
-    version=get_version(root='${CMAKE_SOURCE_DIR}'),
+    version='${DIONAEA_VERSION}',
     ext_modules = cythonize(ext_modules),
     packages=find_packages(where='${CMAKE_CURRENT_SOURCE_DIR}'),
     package_dir={'': '${CMAKE_CURRENT_SOURCE_DIR}'}

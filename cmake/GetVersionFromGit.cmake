@@ -40,10 +40,16 @@ function(get_version_from_git OUTPUT_VAR FALLBACK_VERSION)
                     endif()
 
                     # Add dirty suffix with date if working tree is modified
-                    # Use + prefix for PEP 440 local version compatibility
+                    # PEP 440: only one + allowed for local version, use . when we already have +ghash
                     if(VERSION_DIRTY)
                         string(TIMESTAMP DIRTY_DATE "%Y%m%d" UTC)
-                        set(VERSION "${VERSION}+dirty.${DIRTY_DATE}")
+                        if(VERSION_DISTANCE EQUAL 0)
+                            # Exact tag but dirty: tag+dirty.date
+                            set(VERSION "${VERSION}+dirty.${DIRTY_DATE}")
+                        else()
+                            # Dev version already has +ghash, append .dirty.date
+                            set(VERSION "${VERSION}.dirty.${DIRTY_DATE}")
+                        endif()
                     endif()
 
                     message(STATUS "Version from git: ${VERSION}")
