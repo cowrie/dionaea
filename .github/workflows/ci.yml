@@ -63,11 +63,12 @@ jobs:
             python3-yaml \
             python3-boto3 \
             fonts-liberation
-          # Install speakeasy-emulator (try with --break-system-packages for newer pip, fallback without)
-          pip install --break-system-packages speakeasy-emulator 2>/dev/null || pip install speakeasy-emulator
+          # Install speakeasy-emulator and setuptools-scm (try with --break-system-packages for newer pip, fallback without)
+          pip install --break-system-packages setuptools-scm speakeasy-emulator 2>/dev/null || pip install setuptools-scm speakeasy-emulator
 
       - name: Build
         run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           rm -rf build/
           mkdir build
           cd build
@@ -125,12 +126,13 @@ jobs:
             wget \
             curl \
             procps
-          # Install speakeasy-emulator and test dependencies
-          pip install --break-system-packages speakeasy-emulator 2>/dev/null || pip install speakeasy-emulator
+          # Install speakeasy-emulator, setuptools-scm and test dependencies
+          pip install --break-system-packages setuptools-scm speakeasy-emulator 2>/dev/null || pip install setuptools-scm speakeasy-emulator
           pip install --break-system-packages -r tests/requirements.txt 2>/dev/null || pip install -r tests/requirements.txt
 
       - name: Build and install
         run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           rm -rf build/
           mkdir build
           cd build
