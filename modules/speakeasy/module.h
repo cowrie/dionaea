@@ -31,6 +31,9 @@ void proc_speakeasy_ctx_free(void *ctx);
 void *proc_speakeasy_ctx_cfg_new(gchar *group_name);
 void proc_speakeasy_on_io_in(struct connection *con, struct processor_data *pd);
 
+// Shellcode storage initialization
+void speakeasy_set_shellcode_dir(const char *dir);
+
 // Processor definition (defined in detect.c)
 extern struct processor proc_speakeasy;
 

@@ -1,5 +1,5 @@
 // ABOUTME: Multi-architecture shellcode detection using GetPC pattern matching
-// ABOUTME: Supports x86, x86-64, ARM32, ARM64, MIPS - emits incidents for analysis
+// ABOUTME: Supports x86, x86-64, ARM32, ARM64, MIPS - saves and emits incidents
 
 /**
  * This file is part of the dionaea honeypot
@@ -11,9 +11,13 @@
  */
 
 #include <stdint.h>
+#include <stdio.h>
+#include <time.h>
+#include <sys/stat.h>
 
 #include <ev.h>
 #include <glib.h>
+#include <openssl/evp.h>
 
 #include <emu/emu.h>
 #include <emu/emu_shellcode.h>
@@ -28,6 +32,145 @@
 #define D_LOG_DOMAIN "speakeasy"
 
 #include "module.h"
+
+// Directory to save shellcode files (set from config)
+static char *shellcode_dir = NULL;
+
+/**
+ * Initialize shellcode storage directory from config
+ * Called from module.c during module initialization
+ */
+void speakeasy_set_shellcode_dir(const char *dir)
+{
+	if (shellcode_dir != NULL) {
+		g_free(shellcode_dir);
+	}
+	shellcode_dir = g_strdup(dir);
+}
+
+/**
+ * Compute SHA256 hash of data and return as hex string
+ * Caller must free the returned string with g_free()
+ */
+static char *compute_sha256_hex(const void *data, size_t len)
+{
+	unsigned char hash[EVP_MAX_MD_SIZE];
+	unsigned int hash_len;
+
+	EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+	if (ctx == NULL) {
+		return NULL;
+	}
+
+	if (EVP_DigestInit_ex(ctx, EVP_sha256(), NULL) != 1 ||
+	    EVP_DigestUpdate(ctx, data, len) != 1 ||
+	    EVP_DigestFinal_ex(ctx, hash, &hash_len) != 1) {
+		EVP_MD_CTX_free(ctx);
+		return NULL;
+	}
+	EVP_MD_CTX_free(ctx);
+
+	// Convert to hex string
+	char *hex = g_malloc(hash_len * 2 + 1);
+	for (unsigned int i = 0; i < hash_len; i++) {
+		sprintf(hex + i * 2, "%02x", hash[i]);
+	}
+	hex[hash_len * 2] = '\0';
+
+	return hex;
+}
+
+/**
+ * Save shellcode to disk with metadata
+ *
+ * Saves:
+ * - shellcode-<sha256>.bin: raw shellcode bytes
+ * - shellcode-<sha256>.txt: metadata (arch, offset, connection info, timestamp)
+ *
+ * Returns true if saved successfully (or already exists), false on error
+ */
+static bool save_shellcode(const void *data, size_t len, int offset,
+                           const char *arch, struct connection *con)
+{
+	if (shellcode_dir == NULL) {
+		g_debug("shellcode_dir not configured, skipping save");
+		return false;
+	}
+
+	char *sha256 = compute_sha256_hex(data, len);
+	if (sha256 == NULL) {
+		g_warning("Failed to compute SHA256");
+		return false;
+	}
+
+	// Build file paths
+	char *bin_path = g_strdup_printf("%s/shellcode-%s.bin", shellcode_dir, sha256);
+	char *txt_path = g_strdup_printf("%s/shellcode-%s.txt", shellcode_dir, sha256);
+
+	// Check if already exists (dedup by hash)
+	struct stat st;
+	if (stat(bin_path, &st) == 0) {
+		g_debug("Shellcode %s already saved", sha256);
+		g_free(sha256);
+		g_free(bin_path);
+		g_free(txt_path);
+		return true;
+	}
+
+	// Save binary data
+	FILE *f = fopen(bin_path, "wb");
+	if (f == NULL) {
+		g_warning("Failed to open %s for writing", bin_path);
+		g_free(sha256);
+		g_free(bin_path);
+		g_free(txt_path);
+		return false;
+	}
+	size_t written = fwrite(data, 1, len, f);
+	fclose(f);
+
+	if (written != len) {
+		g_warning("Failed to write shellcode data");
+		unlink(bin_path);
+		g_free(sha256);
+		g_free(bin_path);
+		g_free(txt_path);
+		return false;
+	}
+
+	// Save metadata
+	f = fopen(txt_path, "w");
+	if (f != NULL) {
+		// Get timestamp
+		time_t now = time(NULL);
+		struct tm tm;
+		gmtime_r(&now, &tm);
+		char timebuf[32];
+		strftime(timebuf, sizeof(timebuf), "%Y-%m-%dT%H:%M:%SZ", &tm);
+
+		fprintf(f, "sha256: %s\n", sha256);
+		fprintf(f, "arch: %s\n", arch);
+		fprintf(f, "size: %zu\n", len);
+		fprintf(f, "offset: %d\n", offset);
+		if (con != NULL) {
+			fprintf(f, "src: %s:%s\n",
+			        con->remote.ip_string ? con->remote.ip_string : "?",
+			        con->remote.port_string ? con->remote.port_string : "?");
+			fprintf(f, "dst: %s:%s\n",
+			        con->local.ip_string ? con->local.ip_string : "?",
+			        con->local.port_string ? con->local.port_string : "?");
+		}
+		fprintf(f, "time: %s\n", timebuf);
+		fclose(f);
+	}
+
+	g_info("Saved shellcode %s.bin (%zu bytes, %s)", sha256, len, arch);
+
+	g_free(sha256);
+	g_free(bin_path);
+	g_free(txt_path);
+	return true;
+}
 
 /**
  * Processor definition
@@ -541,6 +684,9 @@ void proc_speakeasy_on_io_in(struct connection *con, struct processor_data *pd)
 		// Shellcode detected at offset ret
 		g_info("Shellcode detected at offset %d (arch: %s, stream size: %d)",
 		       ret, arch, size);
+
+		// Save shellcode to disk (full stream with offset for decoder stub analysis)
+		save_shellcode(streamdata, size, ret, arch, con);
 
 		// Create incident with shellcode data for Python Speakeasy handler
 		struct incident *ix = incident_new("dionaea.shellcode.detected");

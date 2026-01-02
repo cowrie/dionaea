@@ -35,6 +35,20 @@ static bool speakeasy_new(struct dionaea *d)
 	                    (void *)proc_speakeasy.name,
 	                    &proc_speakeasy);
 
+	// Load shellcode storage directory from config
+	GError *error = NULL;
+	gchar *download_dir = g_key_file_get_string(g_dionaea->config, "dionaea", "download.dir", &error);
+	if (download_dir != NULL) {
+		speakeasy_set_shellcode_dir(download_dir);
+		g_info("Shellcode storage directory: %s", download_dir);
+		g_free(download_dir);
+	} else {
+		g_warning("download.dir not configured, shellcode will not be saved");
+		if (error != NULL) {
+			g_error_free(error);
+		}
+	}
+
 	g_info("Speakeasy shellcode detector registered");
 	return true;
 }
