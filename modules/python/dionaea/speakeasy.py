@@ -147,51 +147,54 @@ class SpeakeasyShellcodeHandler(ihandler):
         )  # Suppress everything including CRITICAL
         speakeasy_logger.addHandler(logging.NullHandler())
 
-        # Create Speakeasy emulator instance with quiet logger
-        # Pass config=None to use Speakeasy's built-in defaults (60s timeout, 256k max API calls)
-        se = speakeasy.Speakeasy(logger=speakeasy_logger, config=None)
-
         # Map architecture name to Speakeasy format
         # C code sends "x86" or "x86_64", Speakeasy expects "x86" or "x64"
         speakeasy_arch = "x64" if arch == "x86_64" else "x86"
 
         # Run shellcode emulation
-        try:
-            # Load shellcode into emulation space
-            sc_addr = se.load_shellcode("shellcode", speakeasy_arch, data=data)
+        # Try from detected offset first, fall back to offset 0 if no API calls
+        report = None
+        for try_offset in ([offset, 0] if offset > 0 else [0]):
+            try:
+                # Create fresh emulator for each attempt
+                se = speakeasy.Speakeasy(logger=speakeasy_logger, config=None)
 
-            # Try execution from detected offset first
-            # If offset is within data, start there; otherwise start at beginning
-            if offset > 0 and offset < len(data):
-                start_addr = sc_addr + offset
-                logger.debug("Starting execution at offset %d (addr: %#x)", offset, start_addr)
-            else:
-                start_addr = sc_addr
-                logger.debug("Starting execution at beginning (addr: %#x)", start_addr)
+                # Slice data to start from the try_offset
+                if try_offset > 0 and try_offset < len(data):
+                    shellcode_data = data[try_offset:]
+                    logger.debug("Trying from offset %d (%d bytes)", try_offset, len(shellcode_data))
+                else:
+                    shellcode_data = data
+                    logger.debug("Trying from offset 0 (%d bytes)", len(shellcode_data))
 
-            # Execute shellcode
-            se.run_shellcode(start_addr)
+                # Load and execute shellcode
+                sc_addr = se.load_shellcode("shellcode", speakeasy_arch, data=shellcode_data)
+                se.run_shellcode(sc_addr)
 
-        except Exception as e:
-            logger.warning("Speakeasy emulation stopped: %s", e)
-            # Don't return None - we still want partial results
+            except Exception as e:
+                logger.debug("Emulation from offset %d stopped: %s", try_offset, e)
 
-        finally:
-            # Always get report, even if emulation crashed or timed out
+            # Get report for this attempt
             report = se.get_report()
-
-            # Count total API calls across all entry points
             total_apis = sum(
                 len(ep.get("apis", [])) for ep in report.get("entry_points", [])
             )
 
-            logger.info(
-                "Speakeasy emulation completed: %d API calls across %d entry points",
-                total_apis,
-                len(report.get("entry_points", [])),
-            )
+            if total_apis > 0:
+                logger.info(
+                    "Speakeasy emulation completed: %d API calls from offset %d",
+                    total_apis, try_offset
+                )
+                return report
+            else:
+                logger.debug("No API calls from offset %d, trying next", try_offset)
 
-            return report
+        # No API calls from any offset
+        logger.info(
+            "Speakeasy emulation completed: 0 API calls across %d entry points",
+            len(report.get("entry_points", [])) if report else 0,
+        )
+        return report
 
     def _process_results(self, results: dict[str, Any], con: connection | None) -> None:
         """
