@@ -27,6 +27,7 @@ target_include_directories(
   module_speakeasy
   SYSTEM PRIVATE
     ${GLIB2_INCLUDE_DIRS}
+    ${EV_INCLUDE_DIRS}
 )
 
 add_dependencies(

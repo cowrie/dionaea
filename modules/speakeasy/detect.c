@@ -342,163 +342,6 @@ static int detect_shellcode_x64(void *data, int size)
 }
 
 /**
- * Detect ARM32 shellcode using GetPC pattern matching
- *
- * ARM32 GetPC patterns (little-endian):
- * - BL + MOV: bl .+4; mov rN, lr (branch-link then copy link register)
- * - ADR: adr rN, . (PC-relative address load)
- * - SUB PC: sub rN, pc, #imm
- *
- * Returns offset of shellcode start, or -1 if not found
- */
-static int detect_shellcode_arm32(void *data, int size)
-{
-	unsigned char *bytes = (unsigned char *)data;
-
-	// ARM instructions are 4 bytes, need at least pattern + more code
-	if (size < 24) {
-		return -1;
-	}
-
-	// Scan on 4-byte boundaries (ARM mode) and 2-byte (Thumb mode)
-	for (int i = 0; i <= size - 24; i += 2) {
-		// Pattern 1: ADR instruction (ARM mode, 4-byte aligned)
-		// ADR Rd, label encodes as: 0x028F0000 | (Rd << 12) | imm
-		// Or SUB PC form: 0xE24F_0xxx (sub rN, pc, #imm)
-		if ((i % 4) == 0 && i <= size - 8) {
-			uint32_t insn = bytes[i] | (bytes[i+1] << 8) |
-			                (bytes[i+2] << 16) | (bytes[i+3] << 24);
-
-			// SUB Rn, PC, #imm (common GetPC)
-			// Encoding: cond 0010 0100 1111 Rd imm12
-			// E24FXxxx where X is dest register
-			if ((insn & 0xFFFF0000) == 0xE24F0000) {
-				if (check_following_bytes(bytes, i + 4, size)) {
-					g_info("Found ARM32 GetPC at offset %d (sub pc)", i);
-					return i;
-				}
-			}
-
-			// ADD Rn, PC, #imm (another GetPC variant)
-			// Encoding: cond 0010 1000 1111 Rd imm12
-			// E28FXxxx
-			if ((insn & 0xFFFF0000) == 0xE28F0000) {
-				if (check_following_bytes(bytes, i + 4, size)) {
-					g_info("Found ARM32 GetPC at offset %d (add pc)", i);
-					return i;
-				}
-			}
-		}
-
-		// Pattern 2: Thumb-2 ADR (2 or 4 bytes)
-		// ADR Rd, label: F2AF 0x00 | (Rd << 8) for ADR.W
-		// Or simple Thumb: 0xA0xx (adr r0-r7, label)
-		if (i <= size - 4) {
-			uint16_t thumb = bytes[i] | (bytes[i+1] << 8);
-
-			// Thumb ADR: 1010 0ddd iiii iiii (A0-A7 xx)
-			if ((thumb & 0xF800) == 0xA000) {
-				if (check_following_bytes(bytes, i + 2, size)) {
-					g_info("Found ARM32 GetPC at offset %d (thumb adr)", i);
-					return i;
-				}
-			}
-		}
-
-		// Pattern 3: BL followed by MOV from LR
-		// BL encodes as: 0xEB xxxxxx (ARM) or F000 F8xx / F7FF Fxxx (Thumb)
-		if ((i % 4) == 0 && i <= size - 8) {
-			uint32_t insn = bytes[i] | (bytes[i+1] << 8) |
-			                (bytes[i+2] << 16) | (bytes[i+3] << 24);
-
-			// ARM BL: cond 1011 xxxx xxxx xxxx xxxx xxxx xxxx
-			// 0xEB______
-			if ((insn & 0x0F000000) == 0x0B000000) {
-				// Check next instruction for MOV Rn, LR
-				uint32_t next = bytes[i+4] | (bytes[i+5] << 8) |
-				                (bytes[i+6] << 16) | (bytes[i+7] << 24);
-				// MOV Rd, LR: E1A0X00E (mov rX, lr)
-				if ((next & 0xFFF0FFFF) == 0xE1A0000E) {
-					if (check_following_bytes(bytes, i + 8, size)) {
-						g_info("Found ARM32 GetPC at offset %d (bl+mov lr)", i);
-						return i;
-					}
-				}
-			}
-		}
-	}
-
-	return -1;
-}
-
-/**
- * Detect ARM64/AArch64 shellcode using GetPC pattern matching
- *
- * ARM64 GetPC patterns:
- * - ADR Xn, . (PC-relative address into register)
- * - ADRP Xn, . (Page-relative address)
- *
- * Returns offset of shellcode start, or -1 if not found
- */
-static int detect_shellcode_arm64(void *data, int size)
-{
-	unsigned char *bytes = (unsigned char *)data;
-
-	// ARM64 instructions are 4 bytes
-	if (size < 24) {
-		return -1;
-	}
-
-	// Scan on 4-byte boundaries
-	for (int i = 0; i <= size - 24; i += 4) {
-		uint32_t insn = bytes[i] | (bytes[i+1] << 8) |
-		                (bytes[i+2] << 16) | (bytes[i+3] << 24);
-
-		// Pattern 1: ADR Xd, label
-		// Encoding: 0 immlo(2) 1 0000 immhi(19) Rd(5)
-		// Bits: 0xx1 0000 xxxx xxxx xxxx xxxx xxxR RRRR
-		// Mask: 0x9F000000 == 0x10000000
-		if ((insn & 0x9F000000) == 0x10000000) {
-			// Extract immediate to check if it's a small/zero offset (GetPC)
-			int immlo = (insn >> 29) & 0x3;
-			int immhi = (insn >> 5) & 0x7FFFF;
-			int imm = (immhi << 2) | immlo;
-
-			// Sign extend 21-bit immediate
-			if (imm & 0x100000) {
-				imm |= 0xFFE00000;
-			}
-
-			// GetPC typically has small offset (0 or small positive)
-			if (imm >= 0 && imm <= 32) {
-				if (check_following_bytes(bytes, i + 4, size)) {
-					g_info("Found ARM64 GetPC at offset %d (adr)", i);
-					return i;
-				}
-			}
-		}
-
-		// Pattern 2: BL followed by MOV from X30 (link register)
-		// BL: 1001 01xx xxxx xxxx xxxx xxxx xxxx xxxx (94-97 xx xx xx)
-		if ((insn & 0xFC000000) == 0x94000000) {
-			if (i + 4 < size - 20) {
-				uint32_t next = bytes[i+4] | (bytes[i+5] << 8) |
-				                (bytes[i+6] << 16) | (bytes[i+7] << 24);
-				// MOV Xd, X30: AA1E03Ex (orr xd, xzr, x30)
-				if ((next & 0xFFFFFFE0) == 0xAA1E03E0) {
-					if (check_following_bytes(bytes, i + 8, size)) {
-						g_info("Found ARM64 GetPC at offset %d (bl+mov x30)", i);
-						return i;
-					}
-				}
-			}
-		}
-	}
-
-	return -1;
-}
-
-/**
  * Detect MIPS shellcode using GetPC pattern matching
  *
  * MIPS GetPC patterns (little-endian):
@@ -648,9 +491,19 @@ void proc_speakeasy_on_io_in(struct connection *con, struct processor_data *pd)
 	// x86-64 still uses pattern-based detection (TODO: add execution validation)
 	int ret_x64 = detect_shellcode_x64(streamdata, size);
 
-	// ARM32 and ARM64 now use execution-validated detection
-	int ret_arm32 = emu_shellcode_test_arm32(streamdata, size);
-	int ret_arm64 = emu_shellcode_test_arm64(streamdata, size);
+	// ARM32 and ARM64 detection with port-based filtering
+	// Skip ARM detection for Windows-only services where ARM shellcode is impossible
+	int ret_arm32 = -1;
+	int ret_arm64 = -1;
+	uint16_t dst_port = con->local.port;
+
+	// Windows-only ports: SMB (445), RPC (135), NetBIOS (139), MSSQL (1433)
+	if (dst_port != 445 && dst_port != 135 && dst_port != 139 && dst_port != 1433) {
+		ret_arm32 = emu_shellcode_test_arm32(streamdata, size);
+		ret_arm64 = emu_shellcode_test_arm64(streamdata, size);
+	} else {
+		g_debug("Skipping ARM detection on Windows-only port %d", dst_port);
+	}
 
 	// MIPS still uses pattern-based detection (TODO: add execution validation)
 	int ret_mips = detect_shellcode_mips(streamdata, size);
