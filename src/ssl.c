@@ -55,19 +55,6 @@ static int add_ext(X509 *cert, int nid, char *value)
 	X509_EXTENSION_free(ex);
 	return 1;
 }
-/* TODO: Rewrite
-static void callback(int p, int n, void *arg)
-{
-	char c='B';
-
-	if( p == 0 ) c='.';
-	if( p == 1 ) c='+';
-	if( p == 2 ) c='*';
-	if( p == 3 ) c='\n';
-	fputc(c,stderr);
-}
-*/
-
 
 bool mkcert(SSL_CTX *ctx)
 {
