@@ -638,15 +638,21 @@ void proc_speakeasy_on_io_in(struct connection *con, struct processor_data *pd)
 	}
 
 	// Try detecting shellcode for all supported architectures
+	// All architectures now use execution-based validation to reduce false positives
+
 	// x86-32 uses libemu for emulation-based detection
 	struct emu *e = emu_new();
 	int ret_x86 = emu_shellcode_test_x86(e, streamdata, size);
 	emu_free(e);
 
-	// Pattern-based detection for other architectures
+	// x86-64 still uses pattern-based detection (TODO: add execution validation)
 	int ret_x64 = detect_shellcode_x64(streamdata, size);
-	int ret_arm32 = detect_shellcode_arm32(streamdata, size);
-	int ret_arm64 = detect_shellcode_arm64(streamdata, size);
+
+	// ARM32 and ARM64 now use execution-validated detection
+	int ret_arm32 = emu_shellcode_test_arm32(streamdata, size);
+	int ret_arm64 = emu_shellcode_test_arm64(streamdata, size);
+
+	// MIPS still uses pattern-based detection (TODO: add execution validation)
 	int ret_mips = detect_shellcode_mips(streamdata, size);
 
 	g_debug("Detection results: x86=%d x64=%d arm32=%d arm64=%d mips=%d",

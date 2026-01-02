@@ -47,7 +47,9 @@ set_target_properties(
 
 target_link_libraries(
   module_speakeasy
+  dionaea
   emu_unicorn
+  ${GLIB2_LIBRARIES}
 )
 
 ########### install files ###############

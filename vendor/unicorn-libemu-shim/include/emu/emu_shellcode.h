@@ -1,5 +1,5 @@
 // ABOUTME: Shellcode detection API for dionaea
-// ABOUTME: Detects x86 shellcode using GetPC patterns and execution heuristics
+// ABOUTME: Detects x86/ARM32/ARM64 shellcode using GetPC patterns and execution validation
 
 #ifndef EMU_SHELLCODE_H
 #define EMU_SHELLCODE_H
@@ -25,6 +25,32 @@ struct emu;
  * @return Offset of detected shellcode, or -1 if no shellcode found
  */
 int32_t emu_shellcode_test_x86(struct emu *e, uint8_t *data, uint16_t size);
+
+/**
+ * Tests a buffer for ARM32 shellcode
+ *
+ * Scans for ARM32 GetPC patterns (ADR, SUB PC, Thumb ADR) and validates
+ * by attempting execution. Returns offset if code executes successfully.
+ *
+ * @param data  Buffer to test
+ * @param size  Size of buffer
+ *
+ * @return Offset of detected shellcode, or -1 if no shellcode found
+ */
+int32_t emu_shellcode_test_arm32(uint8_t *data, uint32_t size);
+
+/**
+ * Tests a buffer for ARM64 shellcode
+ *
+ * Scans for ARM64 GetPC patterns (ADR, ADRP) and validates
+ * by attempting execution. Returns offset if code executes successfully.
+ *
+ * @param data  Buffer to test
+ * @param size  Size of buffer
+ *
+ * @return Offset of detected shellcode, or -1 if no shellcode found
+ */
+int32_t emu_shellcode_test_arm64(uint8_t *data, uint32_t size);
 
 /**
  * Check if offset contains an x86 GetPC pattern
