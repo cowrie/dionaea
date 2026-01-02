@@ -12,7 +12,7 @@
 
 #define STATIC_OFFSET 0x00417000    // Where to map code in memory
 #define MAX_EXECUTION_STEPS 256     // Max steps to try executing
-#define SHELLCODE_THRESHOLD 1       // Min steps to consider it shellcode (lowered for testing)
+#define SHELLCODE_THRESHOLD 8       // Min steps to consider it shellcode
 #define ARM_EXECUTION_THRESHOLD 128 // ARM needs many more steps - random data often decodes validly
 
 // Structure to track execution results
