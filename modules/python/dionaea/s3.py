@@ -70,9 +70,9 @@ class s3handler(ihandler):
             assert icd.file is not None  # For mypy
             assert self.bucket_name is not None  # For mypy
             assert self.s3_dest_folder is not None  # For mypy
-            assert icd.md5hash is not None  # For mypy
-            self.s3.upload_file(icd.file, self.bucket_name, self.s3_dest_folder+icd.md5hash)
-            logger.info(f"File (MD5) uploaded to S3 bucket: {icd.md5hash}")
+            assert icd.sha256hash is not None  # For mypy
+            self.s3.upload_file(icd.file, self.bucket_name, self.s3_dest_folder+icd.sha256hash)
+            logger.info(f"File uploaded to S3 bucket: {icd.sha256hash}")
 
         except Exception as e:
             logger.warn(f"S3 exception: {e}")

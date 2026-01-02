@@ -50,7 +50,7 @@ class storehandler(ihandler):
         md5 = md5file(p)
         sha256 = sha256file(p)
         assert self.download_dir is not None  # For mypy
-        n = os.path.join(self.download_dir, md5)
+        n = os.path.join(self.download_dir, sha256)
         i = incident("dionaea.download.complete.hash")
         i.file = n
         i.url = icd.url
@@ -63,9 +63,9 @@ class storehandler(ihandler):
         try:
             os.stat(n)
             i = incident("dionaea.download.complete.again")
-            logger.debug("file %s already existed" % md5)
+            logger.debug("file %s already existed" % sha256)
         except OSError:
-            logger.debug(f"saving new file {md5} to {n}")
+            logger.debug(f"saving new file {sha256} to {n}")
             os.link(p, n)
             i = incident("dionaea.download.complete.unique")
         i.file = n
