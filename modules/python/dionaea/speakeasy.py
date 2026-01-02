@@ -80,6 +80,12 @@ class SpeakeasyShellcodeHandler(ihandler):
             logger.error("Missing required incident data: %s", e)
             return
 
+        # Speakeasy only supports x86/x64 emulation
+        if arch not in ("x86", "x86_64"):
+            logger.info("Shellcode detected: %d bytes (arch: %s) - no emulation available",
+                       len(shellcode_data), arch)
+            return
+
         logger.info("Analyzing shellcode: %d bytes (arch: %s)", len(shellcode_data), arch)
 
         # Analyze with Speakeasy
