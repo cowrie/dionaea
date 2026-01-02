@@ -122,7 +122,7 @@ class Authentication:
 
     @classmethod
     def loads(cls, data):
-        l = len(data)
+        length = len(data)
         if isinstance(data, str):
             data = bytes(data, "utf-8")
 
@@ -140,7 +140,7 @@ class Authentication:
                 # this values shouldn't be quoted, but nevertheless some clients do it
                 ret[n] = unquote(v)
 
-        return (l, ret)
+        return (length, ret)
 
 # :See: http://tools.ietf.org/html/rfc2617#page-10
 def H(d):

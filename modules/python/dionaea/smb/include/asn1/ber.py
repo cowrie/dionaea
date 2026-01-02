@@ -70,8 +70,8 @@ class BER_Decoding_Error(ASN1_Decoding_Error):
 class BER_BadTag_Decoding_Error(BER_Decoding_Error, ASN1_BadTag_Decoding_Error):
     pass
 
-def BER_identifier_enc(l, pr=0, num=0):
-    ident = l
+def BER_identifier_enc(cls_val, pr=0, num=0):
+    ident = cls_val
     #print ("ident %s" % ident)
     cls = 0
     if ident is not None :
@@ -112,9 +112,9 @@ def BER_identifier_enc(l, pr=0, num=0):
         return(x+x1)
 
 
-def BER_identifier_dec(l):
+def BER_identifier_dec(data):
     off = 0
-    val = l[off]
+    val = data[off]
     off += 1
 
     try:
@@ -127,23 +127,23 @@ def BER_identifier_dec(l):
 
     if tag == 0x1f:
         tag = 0
-        while off < len(l):
-            val = l[off]
+        while off < len(data):
+            val = data[off]
             off += 1
             tag <<= 7
             tag |= val & 0x7f
             if not (val & 0x80):
                 break
-    return (cls,pc,tag,l[off:])
+    return (cls,pc,tag,data[off:])
 
 
-def BER_len_enc(l, size=0):
-    if l <= 127 and size==0:
-        return struct.pack("b", int(l))
+def BER_len_enc(length, size=0):
+    if length <= 127 and size==0:
+        return struct.pack("b", int(length))
     s = b""
-    while l or size>0:
-        s = struct.pack("b", int(l&0xff))+s
-        l >>= 8
+    while length or size>0:
+        s = struct.pack("b", int(length&0xff))+s
+        length >>= 8
         size -= 1
     if len(s) > 127:
         raise BER_Exception(
@@ -153,31 +153,31 @@ def BER_len_enc(l, size=0):
     return x+s
 
 def BER_len_dec(s):
-    #        l = ord(s[0])
-    l = s[0]
-#        logger.debug("l %i" % l)
-    if not (l & 0x80):
-        return l,s[1:]
-#        print("l %i" % l)
-    l &= 0x7f
-#        print("l %i" % l)
-    if len(s) <= l:
+    #        length = ord(s[0])
+    length = s[0]
+#        logger.debug("length %i" % length)
+    if not (length & 0x80):
+        return length,s[1:]
+#        print("length %i" % length)
+    length &= 0x7f
+#        print("length %i" % length)
+    if len(s) <= length:
         raise BER_Decoding_Error(
-            "BER_len_dec: Got %i bytes while expecting %i" % (len(s)-1, l),remaining=s)
+            "BER_len_dec: Got %i bytes while expecting %i" % (len(s)-1, length),remaining=s)
     ll = 0
-    for c in s[1:l+1]:
+    for c in s[1:length+1]:
         ll <<= 8
 #            ll |= ord(c)
         ll |= c
-    return ll,s[l+1:]
+    return ll,s[length+1:]
 
-def BER_num_enc(l, size=1):
+def BER_num_enc(num, size=1):
     x=[]
-    while l or size>0:
-        x.insert(0, l & 0x7f)
+    while num or size>0:
+        x.insert(0, num & 0x7f)
         if len(x) > 1:
             x[0] |= 0x80
-        l >>= 7
+        num >>= 7
         size -= 1
     return b"".join([struct.pack("B",k) for k in x])
 def BER_num_dec(s):
@@ -241,11 +241,11 @@ class BERcodec_Object(metaclass=BERcodec_metaclass):
         return BER_len_dec(s2)
     @classmethod
     def check_type_check_len(cls, s):
-        l,s3 = cls.check_type_get_len(s)
-        if len(s3) < l:
+        length,s3 = cls.check_type_get_len(s)
+        if len(s3) < length:
             raise BER_Decoding_Error("%s: Got %i bytes while expecting %i" %
-                                     (cls.__name__, len(s3), l), remaining=s)
-        return l,s3[:l],s3[l:]
+                                     (cls.__name__, len(s3), length), remaining=s)
+        return length,s3[:length],s3[length:]
 
     @classmethod
     def do_dec(cls, s, context=None, safe=False):
@@ -316,7 +316,7 @@ class BERcodec_INTEGER(BERcodec_Object):
         return b"".join(s)
     @classmethod
     def do_dec(cls, s, context=None, safe=False):
-        l,s,t = cls.check_type_check_len(s)
+        _,s,t = cls.check_type_check_len(s)
         x = 0
         if s:
             #            if ord(s[0])&0x80: # negative int
@@ -355,14 +355,14 @@ class BERcodec_STRING(BERcodec_Object):
             s=s.encode('ascii')
 #        logger.info("s %s type %s" % (s,type(s)))
 #        x = chr(cls.tag)+BER_len_enc(len(s))+s
-        l = BER_len_enc(len(s))
-#        logger.info("l %s type %s" % (l,type(l)))
-        x = struct.pack("b", int(cls.tag)) +  l + s
+        encoded_len = BER_len_enc(len(s))
+#        logger.info("encoded_len %s type %s" % (encoded_len,type(encoded_len)))
+        x = struct.pack("b", int(cls.tag)) +  encoded_len + s
 #        logger.info("x %s type %s" % (x,type(x)))
         return x
     @classmethod
     def do_dec(cls, s, context=None, safe=False):
-        l,s,t = cls.check_type_check_len(s)
+        _,s,t = cls.check_type_check_len(s)
         return cls.tag.asn1_object(s),t
 
 class BERcodec_BIT_STRING(BERcodec_STRING):
@@ -396,7 +396,7 @@ class BERcodec_IPADDRESS(BERcodec_STRING):
 
     @classmethod
     def do_dec(cls, s, context=None, safe=False):
-        l,s,t = cls.check_type_check_len(s)
+        _,s,t = cls.check_type_check_len(s)
         try:
             ipaddr_ascii = inet_ntoa(s)
         except Exception:
@@ -422,16 +422,16 @@ class BERcodec_COUNTER32(BERcodec_INTEGER):
 class BERcodec_SEQUENCE(BERcodec_Object):
     tag = ASN1_Class_UNIVERSAL.SEQUENCE
     @classmethod
-    def enc(cls, l):
-        if type(l) is not bytes:
-            l = b"".join([x.enc(cls.codec) for x in l])
-        return struct.pack("B",int(cls.tag))+BER_len_enc(len(l))+l
+    def enc(cls, items):
+        if type(items) is not bytes:
+            items = b"".join([x.enc(cls.codec) for x in items])
+        return struct.pack("B",int(cls.tag))+BER_len_enc(len(items))+items
     @classmethod
     def do_dec(cls, s, context=None, safe=False):
         if context is None:
             context = cls.tag.context
-        l,st = cls.check_type_get_len(s) # we may have len(s) < l
-        s,t = st[:l],st[l:]
+        length,st = cls.check_type_get_len(s) # we may have len(s) < length
+        s,t = st[:length],st[length:]
         obj = []
         while s:
             try:
@@ -443,7 +443,7 @@ class BERcodec_SEQUENCE(BERcodec_Object):
                 err.decoded = obj
                 raise
             obj.append(o)
-        if len(st) < l:
+        if len(st) < length:
             raise BER_Decoding_Error(
                 "Not enough bytes to decode sequence", decoded=obj)
         return cls.asn1_object(obj),t
@@ -466,11 +466,11 @@ class BERcodec_OID(BERcodec_Object):
         return struct.pack("B",int(cls.tag))+BER_len_enc(len(s))+s
     @classmethod
     def do_dec(cls, s, context=None, safe=False):
-        l,s,t = cls.check_type_check_len(s)
+        _,s,t = cls.check_type_check_len(s)
         lst = []
         while s:
-            l,s = BER_num_dec(s)
-            lst.append(l)
+            num,s = BER_num_dec(s)
+            lst.append(num)
         if (len(lst) > 0):
             lst.insert(0,int((lst[0]-(lst[0]%40))/40))
             lst[1] %= 40

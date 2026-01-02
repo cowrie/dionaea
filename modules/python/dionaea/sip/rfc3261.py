@@ -575,7 +575,7 @@ class Message:
             return (0, {})
 
         # length of used data
-        l = pos.end()
+        consumed = pos.end()
 
         # header without empty line
         header = data[:pos.start()]
@@ -635,12 +635,12 @@ class Message:
                         })
                         raise ErrorWithResponse(msg, BAD_REQUEST, "Invalid SIP body")
 
-                l += content_length
+                consumed += content_length
             else:
                 logger.info("Body is to short than the given content-length: Content-Length %d, Body %d", content_length, len(body))
 
         return (
-            l,
+            consumed,
             {
                 "session": session,
                 "method": method,

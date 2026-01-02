@@ -45,9 +45,9 @@ class mqttd(connection):
 		self.processors()
 
 	def handle_io_in(self, data: bytes) -> int:
-		l=0
+		offset=0
 
-		if len(data) > l:
+		if len(data) > offset:
 			p = None
 			x = None
 			try:
@@ -65,7 +65,7 @@ class mqttd(connection):
 			except Exception:
 				t = traceback.format_exc()
 				logger.error(t)
-				return l
+				return offset
 
 			x = None
 			if self.pendingPacketType == MQTT_CONTROLMESSAGE_TYPE_CONNECT:
@@ -168,9 +168,9 @@ class mqttd(connection):
 
 		elif (  ((self.pendingPacketType & MQTT_CONTROLMESSAGE_TYPE_SUBSCRIBE) == 128) &
 			((self.pendingPacketType & MQTT_CONTROLMESSAGE_TYPE_QoS1) > 0) ) :
-			l = p.getlayer(MQTT_Subscribe)
-			packetidentifier = l.PacketIdentifier
-			GrantedQoS = l.GrantedQoS
+			layer = p.getlayer(MQTT_Subscribe)
+			packetidentifier = layer.PacketIdentifier
+			GrantedQoS = layer.GrantedQoS
 			r = MQTT_SubscribeACK_Identifier()
 			if (packetidentifier is not None):
 				r.PacketIdentifier = packetidentifier
@@ -185,16 +185,16 @@ class mqttd(connection):
 
 		elif (  ((self.pendingPacketType & MQTT_CONTROLMESSAGE_TYPE_PUBLISH) == 48) &
 			((PacketType & MQTT_CONTROLMESSAGE_TYPE_QoS1) == 2) ) :
-			l = p.getlayer(MQTT_Publish)
-			packetidentifier = l.PacketIdentifier
+			layer = p.getlayer(MQTT_Publish)
+			packetidentifier = layer.PacketIdentifier
 			if (packetidentifier is not None):
 				r = MQTT_PublishACK_Identifier()
 				r.PacketIdentifier = packetidentifier
 
 		elif (  ((self.pendingPacketType & MQTT_CONTROLMESSAGE_TYPE_PUBLISH) == 48) &
 			((PacketType & MQTT_CONTROLMESSAGE_TYPE_QoS2) == 4) ) :
-			l = p.getlayer(MQTT_Publish)
-			packetidentifier = l.PacketIdentifier
+			layer = p.getlayer(MQTT_Publish)
+			packetidentifier = layer.PacketIdentifier
 			if (packetidentifier is not None):
 				r = MQTT_PublishACK_Identifier()
 				r.HeaderFlags = MQTT_CONTROLMESSAGE_TYPE_PUBLISHRCV
@@ -205,8 +205,8 @@ class mqttd(connection):
 			r = ''
 
 		elif (PacketType & MQTT_CONTROLMESSAGE_TYPE_PUBLISHREL) == 96:
-			l = p.getlayer(MQTT_Publish_Release)
-			packetidentifier = l.PacketIdentifier
+			layer = p.getlayer(MQTT_Publish_Release)
+			packetidentifier = layer.PacketIdentifier
 			if (packetidentifier is not None):
 				r = MQTT_PublishACK_Identifier()
 				r.PacketIdentifier = packetidentifier

@@ -55,30 +55,30 @@ class mssqld(connection):
             self.session = None
 
     def handle_io_in(self, data: bytes) -> int:
-        l = 0
+        offset = 0
         chunk = b''
-        while len(data) > l:
-            # logger.warning("len(data) %d l %s", len(data), l)
+        while len(data) > offset:
+            # logger.warning("len(data) %d offset %s", len(data), offset)
             p = None
             try:
-                if len(data) - l < 8:  # length of TDS_Header
+                if len(data) - offset < 8:  # length of TDS_Header
                     logger.warning("Incomplete TDS_Header")
-                    return l
+                    return offset
 
-                p = TDS_Header(data[l:l+8])
+                p = TDS_Header(data[offset:offset+8])
                 p.show()
 
                 if p.Length == 0:
                     logger.warning("Bad TDS Header, Length = 0")
-                    return l
+                    return offset
 
-                if len(data[l:]) < p.Length:
-                    return l
+                if len(data[offset:]) < p.Length:
+                    return offset
 
-                chunk = data[l:l+p.Length]
+                chunk = data[offset:offset+p.Length]
                 p = TDS_Header(chunk)
 
-                l += p.Length
+                offset += p.Length
                 self.buf += chunk[8:]
                 self.pendingPacketType = p.Type
 
@@ -89,7 +89,7 @@ class mssqld(connection):
             except Exception:
                 t = traceback.format_exc()
                 logger.error(t)
-                return l
+                return offset
 
             x: TDS_Prelogin_Request | TDS_Login7_Request | TDS_SQLBatchData | TDS_PreTDS7_Login_Request | TDS_TDS5_Query_Request
             if self.pendingPacketType == TDS_TYPES_PRE_LOGIN:
@@ -131,8 +131,8 @@ class mssqld(connection):
                 rp.show()
                 self.send(rp.build())
 
-        # logger.warning("return len(data) %d l %s", len(data), l)
-        return l
+        # logger.warning("return len(data) %d offset %s", len(data), offset)
+        return offset
 
     def decode_password(self, password):
         decoded = ""
@@ -169,14 +169,14 @@ class mssqld(connection):
             # another layers TDS_Token_EnvChange, TDS_Token_Info() can be added
             # example : r = TDS_Token_EnvChange()/TDS_Token_Info()/TDS_Token_LoginACK()/TDS_Token_Done()
             # for the moment, only these 2 layers have binded
-            l = p.getlayer(TDS_Login7_Request)
+            layer = p.getlayer(TDS_Login7_Request)
 
             # we can gather some values from the client, maybe use for
             # fingerprinting clients
             fields = {}
             for i in ["HostName", "UserName", "Password", "AppName", "ServerName", "CltIntName", "Language", "Database"]:
-                ib = 8 + l.getfieldval("ib" + i)
-                cch = l.getfieldval("cch" + i)*2
+                ib = 8 + layer.getfieldval("ib" + i)
+                cch = layer.getfieldval("cch" + i)*2
                 field = data[ib:ib+cch]
                 xfield = field.decode('utf-16')
                 if i == "Password":
@@ -207,8 +207,8 @@ class mssqld(connection):
             ]
 
         elif PacketType == TDS_TYPES_SQL_BATCH:
-            l = p.getlayer(TDS_SQLBatchData)
-            cmd = l.SQLBatchData
+            layer = p.getlayer(TDS_SQLBatchData)
+            cmd = layer.SQLBatchData
 
             if cmd[1] == 0x00:
                 # we got unicode, hopefully there is a way to detect this

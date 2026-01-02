@@ -1941,7 +1941,7 @@ class samr(RPCService):
                 self.__packer.pack_long(0)
                 self.__packer.pack_long(int(self.UnitsPerWeek/8))
 
-                for l in range(int(self.UnitsPerWeek/8)):
+                for _ in range(int(self.UnitsPerWeek/8)):
                     self.__packer.pack_small(self.LogonHours)
 
     class SAMPR_PSID_ARRAY:

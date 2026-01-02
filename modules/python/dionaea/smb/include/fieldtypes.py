@@ -121,10 +121,10 @@ class Field:
             return {"B":RandByte,"H":RandShort,"I":RandInt, "Q":RandLong}[fmtt]()
         elif fmtt == "s":
             if self.fmt[0] in "0123456789":
-                l = int(self.fmt[:-1])
+                length = int(self.fmt[:-1])
             else:
-                l = int(self.fmt[1:-1])
-            return RandBin(l)
+                length = int(self.fmt[1:-1])
+            return RandBin(length)
         else:
             warning(
                 f"no random class for [{self.name}] (fmt={self.fmt}).")
@@ -420,12 +420,12 @@ class PacketLenField(PacketField):
         self.length_from = length_from
     def getfield(self, pkt, s):
         from .packet import Raw  # Lazy import to avoid circular dependency
-        l = self.length_from(pkt)
+        length = self.length_from(pkt)
         try:
-            i = self.m2i(pkt, s[:l])
+            i = self.m2i(pkt, s[:length])
         except Exception:
-            i = Raw(load=s[:l])
-        return s[l:],i
+            i = Raw(load=s[:length])
+        return s[length:],i
 
 
 class PacketListField(PacketField):
@@ -458,17 +458,17 @@ class PacketListField(PacketField):
     def do_copy(self, x):
         return [p.copy() for p in x]
     def getfield(self, pkt, s):
-        c = l = None
+        c = length = None
         if self.length_from is not None:
-            l = self.length_from(pkt)
+            length = self.length_from(pkt)
         elif self.count_from is not None:
             c = self.count_from(pkt)
         lst = []
         ret = b""
         remain = s
 
-        if l is not None:
-            remain,ret = s[:l],s[l:]
+        if length is not None:
+            remain,ret = s[:length],s[length:]
         while remain:
             if c is not None:
                 if c <= 0:
@@ -502,36 +502,36 @@ class StrFixedLenField(StrField):
             v = v.rstrip("\0")
         return repr(v)
     def getfield(self, pkt, s):
-        l = self.length_from(pkt)
-        return s[l:], self.m2i(pkt,s[:l])
+        length = self.length_from(pkt)
+        return s[length:], self.m2i(pkt,s[:length])
     def addfield(self, pkt, s, val):
-        l = self.length_from(pkt)
+        length = self.length_from(pkt)
         # if we use more of less complex expressions to calc the length
         # length_from can be negative
-        if l < 0:
-            l = len(val)
-#        print(l)
+        if length < 0:
+            length = len(val)
+#        print(length)
 #        print(val)
-        return s+struct.pack("%is"%l,self.i2m(pkt, val))
+        return s+struct.pack("%is"%length,self.i2m(pkt, val))
     def size(self, pkt, val):
         return self.length_from(pkt)
     def randval(self):
         try:
-            l = self.length_from(None)
+            length = self.length_from(None)
         except Exception:
-            l = RandNum(0,200)
-        return RandBin(l)
+            length = RandNum(0,200)
+        return RandBin(length)
 
 
 class NetBIOSNameField(StrFixedLenField):
     def __init__(self, name, default, length=31):
         StrFixedLenField.__init__(self, name, default, length)
     def i2m(self, pkt, x):
-        l = self.length_from(pkt)//2
+        length = self.length_from(pkt)//2
         if x is None:
             x = ""
-        x += " "*(l)
-        x = x[:l]
+        x += " "*(length)
+        x = x[:length]
         x = "".join([chr(0x41+(ord(x)>>4))+chr(0x41+(ord(x)&0xf)) for x in x])
         x = " "+x
         return x
@@ -544,16 +544,16 @@ class StrLenField(StrField):
         StrField.__init__(self, name, default)
         self.length_from = length_from
     def getfield(self, pkt, s):
-        l = self.length_from(pkt)
-        return s[l:], self.m2i(pkt,s[:l])
+        length = self.length_from(pkt)
+        return s[length:], self.m2i(pkt,s[:length])
 #    def size(self, pkt, val):
 #        return self.length_from(pkt)
 
 class FixGapField(StrField):
     def getfield(self, pkt, s):
-        l = len(self.default)
-        if s[:l] == self.default:
-            return s[l:], self.m2i(pkt, s[:l])
+        length = len(self.default)
+        if s[:length] == self.default:
+            return s[length:], self.m2i(pkt, s[:length])
         else:
             return s, self.m2i(pkt, b'')
     def addfield(self, pkt, s, val):
@@ -562,8 +562,8 @@ class FixGapField(StrField):
         else:
             return s
     def size(self, pkt, val):
-        l = len(self.default)
-        if pkt[:l] == self.default:
+        length = len(self.default)
+        if pkt[:length] == self.default:
             return len(self.default)
         return 0
 
@@ -604,16 +604,16 @@ class FieldListField(Field):
             s = self.field.addfield(pkt, s, v)
         return s
     def getfield(self, pkt, s):
-        c = l = None
+        c = length = None
         if self.length_from is not None:
-            l = self.length_from(pkt)
+            length = self.length_from(pkt)
         elif self.count_from is not None:
             c = self.count_from(pkt)
 
         val = []
         ret=b""
-        if l is not None:
-            s,ret = s[:l],s[l:]
+        if length is not None:
+            s,ret = s[:length],s[length:]
 
         while s:
             if c is not None:
@@ -625,10 +625,10 @@ class FieldListField(Field):
         return s+ret, val
 
     def size(self, pkt, val):
-        c = l = None
+        c = length = None
         if self.length_from is not None:
-            l = self.length_from(pkt)
-            return l
+            length = self.length_from(pkt)
+            return length
         elif self.count_from is not None:
             c = self.count_from(pkt)
             return c * self.field.size(pkt, val)
@@ -646,15 +646,15 @@ class MultiFieldLenField(Field):
         self.adjust=adjust
     def i2m(self, pkt, x):
         if x is None:
-            l = 0
+            length = 0
             for fieldname in self.length_of:
                 fld,fval = pkt.getfield_and_val(fieldname)
                 f = fld.size(pkt, fval)
-                l += self.adjust(pkt,f)
+                length += self.adjust(pkt,f)
         else:
-            l = x
-#        print("MultiFIeldLenField %i" % l)
-        return l
+            length = x
+#        print("MultiFIeldLenField %i" % length)
+        return length
 
 
 class FieldLenField(Field):
@@ -688,12 +688,12 @@ class StrNullField(StrField):
     def addfield(self, pkt, s, val):
         return s+self.i2m(pkt, val)
     def getfield(self, pkt, s):
-        l = s.find(b"\x00")
-        if l < 0:
+        pos = s.find(b"\x00")
+        if pos < 0:
             #XXX \x00 not found
             return "",s
-#        return s[l+1:],self.m2i(pkt, s[:l])
-        return s[l+1:],s[:l+1]
+#        return s[pos+1:],self.m2i(pkt, s[:pos])
+        return s[pos+1:],s[:pos+1]
     def randval(self):
         return RandTermString(RandNum(0,1200),"\x00")
     def size(self, pkt, val):
@@ -774,12 +774,12 @@ class StrStopField(StrField):
         self.stop=stop
         self.additionnal=additionnal
     def getfield(self, pkt, s):
-        l = s.find(self.stop)
-        if l < 0:
+        pos = s.find(self.stop)
+        if pos < 0:
             return "",s
 #            raise Scapy_Exception,"StrStopField: stop value [%s] not found" %stop
-        l += len(self.stop)+self.additionnal
-        return s[l:],s[:l]
+        pos += len(self.stop)+self.additionnal
+        return s[pos:],s[:pos]
     def randval(self):
         return RandTermString(RandNum(0,1200),self.stop)
 

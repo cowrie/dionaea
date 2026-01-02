@@ -360,7 +360,7 @@ class smbd(connection):
                     # * BER encoded identifier
                     # * BER encoded length of the data
                     cls, pc, tag, sb = BER_identifier_dec(sb)
-                    l, sb = BER_len_dec(sb)
+                    _, sb = BER_len_dec(sb)
                     if cls == BER_CLASS_APP and pc > 0 and tag == 0:
                         # NTLM NEGOTIATE
                         #
@@ -372,7 +372,7 @@ class smbd(connection):
                         gssapi = GSSAPI(sb)
                         sb = gssapi.getlayer(Raw).load
                         cls, pc, tag, sb = BER_identifier_dec(sb)
-                        l, sb = BER_len_dec(sb)
+                        _, sb = BER_len_dec(sb)
                         spnego = SPNEGO(sb)
                         spnego.show()
                         sb = spnego.NegotiationToken.mechToken.__str__()
@@ -381,7 +381,7 @@ class smbd(connection):
                         except BER_Exception:
                             smblog.warning("BER Exception", exc_info=True)
                             return rp
-                        l, sb = BER_len_dec(sb)
+                        _, sb = BER_len_dec(sb)
                         ntlmssp = NTLMSSP_Header(sb)
                         ntlmssp.show()
                         if ntlmssp.MessageType == 1:
@@ -683,8 +683,8 @@ class smbd(connection):
                         )
                     )
                     if InfoLevel == 1:
-                        l = len(__shares__)
-                        rout.OutParams = struct.pack("<HH", l, l)
+                        count = len(__shares__)
+                        rout.OutParams = struct.pack("<HH", count, count)
                     rout.OutData = b""
                     comments = []
                     for i in __shares__:
