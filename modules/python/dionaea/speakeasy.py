@@ -78,6 +78,11 @@ class SpeakeasyShellcodeHandler(ihandler):
             arch = icd.get("arch")
             if arch is None:
                 arch = "x86"  # Default to x86 for backwards compatibility
+
+            # Get detected offset (may be None for old incidents)
+            offset = icd.get("offset")
+            if offset is None:
+                offset = 0
         except (AttributeError, KeyError) as e:
             logger.error("Missing required incident data: %s", e)
             return
@@ -92,26 +97,28 @@ class SpeakeasyShellcodeHandler(ihandler):
             return
 
         logger.info(
-            "Analyzing shellcode: %d bytes (arch: %s)", len(shellcode_data), arch
+            "Analyzing shellcode: %d bytes (arch: %s, offset: %d)",
+            len(shellcode_data), arch, offset
         )
 
         # Analyze with Speakeasy
         try:
-            results = self._analyze_shellcode(shellcode_data, arch)
+            results = self._analyze_shellcode(shellcode_data, arch, offset)
             if results:
                 self._process_results(results, con)
         except Exception as e:
             logger.error("Speakeasy analysis failed: %s", e, exc_info=True)
 
     def _analyze_shellcode(
-        self, data: bytes, arch: str = "x86"
+        self, data: bytes, arch: str = "x86", offset: int = 0
     ) -> dict[str, Any] | None:
         """
         Run Speakeasy emulation on shellcode.
 
         Args:
-            data: Shellcode bytes starting from GetPC position
+            data: Full stream data (may include protocol headers)
             arch: Architecture - "x86" for 32-bit or "x86_64" for 64-bit
+            offset: Detected GetPC offset (hint for entry point)
 
         Returns emulation results with API calls, network activity, file operations, etc.
         """
@@ -120,7 +127,7 @@ class SpeakeasyShellcodeHandler(ihandler):
         except ImportError:
             return None
 
-        logger.debug("Starting Speakeasy emulation (arch: %s)", arch)
+        logger.debug("Starting Speakeasy emulation (arch: %s, offset: %d)", arch, offset)
 
         # Validate shellcode data
         if not data or len(data) == 0:
@@ -153,8 +160,17 @@ class SpeakeasyShellcodeHandler(ihandler):
             # Load shellcode into emulation space
             sc_addr = se.load_shellcode("shellcode", speakeasy_arch, data=data)
 
-            # Execute shellcode from loaded address
-            se.run_shellcode(sc_addr)
+            # Try execution from detected offset first
+            # If offset is within data, start there; otherwise start at beginning
+            if offset > 0 and offset < len(data):
+                start_addr = sc_addr + offset
+                logger.debug("Starting execution at offset %d (addr: %#x)", offset, start_addr)
+            else:
+                start_addr = sc_addr
+                logger.debug("Starting execution at beginning (addr: %#x)", start_addr)
+
+            # Execute shellcode
+            se.run_shellcode(start_addr)
 
         except Exception as e:
             logger.warning("Speakeasy emulation stopped: %s", e)

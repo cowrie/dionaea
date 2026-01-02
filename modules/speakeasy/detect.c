@@ -550,13 +550,13 @@ void proc_speakeasy_on_io_in(struct connection *con, struct processor_data *pd)
 		// Create incident with shellcode data for Python Speakeasy handler
 		struct incident *ix = incident_new("dionaea.shellcode.detected");
 
-		// Attach shellcode data starting from GetPC position
-		// Note: Encoded shellcode with decoder stubs before GetPC may not emulate properly
-		GString *shellcode_bytes = g_string_new_len(streamdata + ret, size - ret);
+		// Attach FULL stream data - decoder stubs may start before GetPC position
+		// Speakeasy will try to find the actual entry point
+		GString *shellcode_bytes = g_string_new_len(streamdata, size);
 		incident_value_bytes_set(ix, "data", shellcode_bytes);
 
-		// Offset is always 0 (execution starts at beginning of data)
-		incident_value_int_set(ix, "offset", 0);
+		// Pass detected GetPC offset as a hint for Speakeasy
+		incident_value_int_set(ix, "offset", ret);
 
 		// Attach architecture for Python handler
 		incident_value_string_set(ix, "arch", g_string_new(arch));
