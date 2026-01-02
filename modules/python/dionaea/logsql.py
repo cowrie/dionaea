@@ -12,7 +12,7 @@ import json
 import sqlite3
 import time
 
-logger = logging.getLogger('log_sqlite')
+logger = logging.getLogger("log_sqlite")
 logger.setLevel(logging.DEBUG)
 
 
@@ -37,7 +37,7 @@ class logsqlhandler(ihandler):
 
         self.pending = {}
 
-#       self.dbh = sqlite3.connect(user = g_dionaea.config()['modules']['python']['logsql']['file'])
+        #       self.dbh = sqlite3.connect(user = g_dionaea.config()['modules']['python']['logsql']['file'])
         self.dbh = sqlite3.connect(self.filename)
         self.cursor = self.dbh.cursor()
         update = False
@@ -67,30 +67,33 @@ class logsqlhandler(ihandler):
                 UPDATE connections SET connection_root = connection WHERE connection = new.connection AND new.connection_root IS NULL;
             END""")
 
-        for idx in ["type","timestamp","root","parent"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS connections_{}_idx
-            ON connections (connection_{})""".format(idx, idx))
+        for idx in ["type", "timestamp", "root", "parent"]:
+            self.cursor.execute(
+                """CREATE INDEX IF NOT EXISTS connections_{}_idx
+            ON connections (connection_{})""".format(idx, idx)
+            )
 
-        for idx in ["local_host","local_port","remote_host"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS connections_{}_idx
-            ON connections ({})""".format(idx, idx))
+        for idx in ["local_host", "local_port", "remote_host"]:
+            self.cursor.execute(
+                """CREATE INDEX IF NOT EXISTS connections_{}_idx
+            ON connections ({})""".format(idx, idx)
+            )
 
-
-#         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
-#            bistreams (
-#                bistream INTEGER PRIMARY KEY,
-#                connection INTEGER,
-#                bistream_data TEXT
-#            )""")
-#
-#        self.cursor.execute("""CREATE TABLE IF NOT EXISTS
-#            smbs (
-#                smb INTEGER PRIMARY KEY,
-#                connection INTEGER,
-#                smb_direction TEXT,
-#                smb_action TEXT,
-#                CONSTRAINT smb_connection_fkey FOREIGN KEY (connection) REFERENCES connections (connection)
-#            )""")
+        #         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
+        #            bistreams (
+        #                bistream INTEGER PRIMARY KEY,
+        #                connection INTEGER,
+        #                bistream_data TEXT
+        #            )""")
+        #
+        #        self.cursor.execute("""CREATE TABLE IF NOT EXISTS
+        #            smbs (
+        #                smb INTEGER PRIMARY KEY,
+        #                connection INTEGER,
+        #                smb_direction TEXT,
+        #                smb_action TEXT,
+        #                CONSTRAINT smb_connection_fkey FOREIGN KEY (connection) REFERENCES connections (connection)
+        #            )""")
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
             dcerpcbinds (
@@ -101,9 +104,11 @@ class logsqlhandler(ihandler):
                 -- CONSTRAINT dcerpcs_connection_fkey FOREIGN KEY (connection) REFERENCES connections (connection)
             )""")
 
-        for idx in ["uuid","transfersyntax"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS dcerpcbinds_{}_idx
-            ON dcerpcbinds (dcerpcbind_{})""".format(idx, idx))
+        for idx in ["uuid", "transfersyntax"]:
+            self.cursor.execute(
+                """CREATE INDEX IF NOT EXISTS dcerpcbinds_{}_idx
+            ON dcerpcbinds (dcerpcbind_{})""".format(idx, idx)
+            )
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
             dcerpcrequests (
@@ -115,10 +120,11 @@ class logsqlhandler(ihandler):
                 -- CONSTRAINT dcerpcs_connection_fkey FOREIGN KEY (connection) REFERENCES connections (connection)
             )""")
 
-        for idx in ["uuid","opnum"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS dcerpcrequests_{}_idx
-            ON dcerpcrequests (dcerpcrequest_{})""".format(idx, idx))
-
+        for idx in ["uuid", "opnum"]:
+            self.cursor.execute(
+                """CREATE INDEX IF NOT EXISTS dcerpcrequests_{}_idx
+            ON dcerpcrequests (dcerpcrequest_{})""".format(idx, idx)
+            )
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
             dcerpcservices (
@@ -131,27 +137,29 @@ class logsqlhandler(ihandler):
         from uuid import UUID
         from dionaea.smb import rpcservices
         import inspect
+
         services = inspect.getmembers(rpcservices, inspect.isclass)
         for name, servicecls in services:
-            if not name == 'RPCService' and issubclass(servicecls, rpcservices.RPCService):
+            if not name == "RPCService" and issubclass(
+                servicecls, rpcservices.RPCService
+            ):
                 try:
-                    self.cursor.execute("INSERT INTO dcerpcservices (dcerpcservice_name, dcerpcservice_uuid) VALUES (?,?)",
-                                        (name, str(UUID(hex=servicecls.uuid))) )
+                    self.cursor.execute(
+                        "INSERT INTO dcerpcservices (dcerpcservice_name, dcerpcservice_uuid) VALUES (?,?)",
+                        (name, str(UUID(hex=servicecls.uuid))),
+                    )
                 except Exception:
                     #                    print("dcerpcservice %s existed %s " % (servicecls.uuid, e) )
                     pass
 
-
         logger.info("Getting RPC Services")
         r = self.cursor.execute("SELECT * FROM dcerpcservices")
-#        print(r)
+        #        print(r)
         names = [r.description[x][0] for x in range(len(r.description))]
-        r = [ dict(zip(names, i)) for i in r]
-#        print(r)
-        r = {UUID(i['dcerpcservice_uuid']).hex:i['dcerpcservice']
-                  for i in r}
-#        print(r)
-
+        r = [dict(zip(names, i)) for i in r]
+        #        print(r)
+        r = {UUID(i["dcerpcservice_uuid"]).hex: i["dcerpcservice"] for i in r}
+        #        print(r)
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
             dcerpcserviceops (
@@ -165,17 +173,21 @@ class logsqlhandler(ihandler):
 
         logger.info("Setting RPC ServiceOps")
         for name, servicecls in services:
-            if not name == 'RPCService' and issubclass(servicecls, rpcservices.RPCService):
+            if not name == "RPCService" and issubclass(
+                servicecls, rpcservices.RPCService
+            ):
                 for opnum in servicecls.ops:
                     op = servicecls.ops[opnum]
                     uuid = servicecls.uuid
-                    vuln = ''
+                    vuln = ""
                     dcerpcservice = r[uuid]
                     if opnum in servicecls.vulns:
                         vuln = servicecls.vulns[opnum]
                     try:
-                        self.cursor.execute("INSERT INTO dcerpcserviceops (dcerpcservice, dcerpcserviceop_opnum, dcerpcserviceop_name, dcerpcserviceop_vuln) VALUES (?,?,?,?)",
-                                            (dcerpcservice, opnum, op, vuln))
+                        self.cursor.execute(
+                            "INSERT INTO dcerpcserviceops (dcerpcservice, dcerpcserviceop_opnum, dcerpcserviceop_name, dcerpcserviceop_vuln) VALUES (?,?,?,?)",
+                            (dcerpcservice, opnum, op, vuln),
+                        )
                     except Exception:
                         #                        print("%s %s %s %s %s existed" % (dcerpcservice, uuid, name, op, vuln))
                         pass
@@ -184,10 +196,12 @@ class logsqlhandler(ihandler):
         try:
             logger.debug("Trying to update table: dcerpcserviceops")
             x = self.cursor.execute(
-                """SELECT * FROM dcerpcserviceops WHERE dcerpcserviceop_name = 'NetCompare'""").fetchall()
+                """SELECT * FROM dcerpcserviceops WHERE dcerpcserviceop_name = 'NetCompare'"""
+            ).fetchall()
             if len(x) > 0:
                 self.cursor.execute(
-                    """UPDATE dcerpcserviceops SET dcerpcserviceop_name = 'NetPathCompare' WHERE dcerpcserviceop_name = 'NetCompare'""")
+                    """UPDATE dcerpcserviceops SET dcerpcserviceop_name = 'NetPathCompare' WHERE dcerpcserviceop_name = 'NetCompare'"""
+                )
                 logger.debug("... done")
             else:
                 logger.info("... not required")
@@ -203,16 +217,15 @@ class logsqlhandler(ihandler):
                 -- CONSTRAINT emu_profiles_connection_fkey FOREIGN KEY (connection) REFERENCES connections (connection)
             )""")
 
-
         # fix a typo on emu_services table definition
         # emu_services.emu_serive is wrong, should be emu_services.emu_service
         # 1) rename table, create the proper table
         try:
             logger.debug("Trying to update table: emu_services")
+            self.cursor.execute("""SELECT emu_serivce FROM emu_services LIMIT 1""")
             self.cursor.execute(
-                """SELECT emu_serivce FROM emu_services LIMIT 1""")
-            self.cursor.execute(
-                """ALTER TABLE emu_services RENAME TO emu_services_old""")
+                """ALTER TABLE emu_services RENAME TO emu_services_old"""
+            )
             update = True
         except Exception:
             logger.debug("... not required")
@@ -239,8 +252,8 @@ class logsqlhandler(ihandler):
                 logger.debug("... done")
         except Exception as e:
             logger.debug(
-                "Updating emu_services failed, copying old table failed (%s)" % e)
-
+                "Updating emu_services failed, copying old table failed (%s)" % e
+            )
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
             offers (
@@ -251,7 +264,8 @@ class logsqlhandler(ihandler):
             )""")
 
         self.cursor.execute(
-            """CREATE INDEX IF NOT EXISTS offers_url_idx ON offers (offer_url)""")
+            """CREATE INDEX IF NOT EXISTS offers_url_idx ON offers (offer_url)"""
+        )
 
         # fix a type on downloads table definition
         # downloads.downloads is wrong, should be downloads.download
@@ -259,8 +273,7 @@ class logsqlhandler(ihandler):
         try:
             logger.debug("Trying to update table: downloads")
             self.cursor.execute("""SELECT downloads FROM downloads LIMIT 1""")
-            self.cursor.execute(
-                """ALTER TABLE downloads RENAME TO downloads_old""")
+            self.cursor.execute("""ALTER TABLE downloads RENAME TO downloads_old""")
             update = True
         except Exception:
             #            print(e)
@@ -288,13 +301,13 @@ class logsqlhandler(ihandler):
                 self.cursor.execute("""DROP TABLE downloads_old""")
                 logger.debug("... done")
         except Exception as e:
-            logger.debug(
-                "Updating downloads failed, copying old table failed (%s)" % e)
+            logger.debug("Updating downloads failed, copying old table failed (%s)" % e)
 
         for idx in ["url", "md5_hash"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS downloads_{}_idx
-            ON downloads (download_{})""".format(idx, idx))
-
+            self.cursor.execute(
+                """CREATE INDEX IF NOT EXISTS downloads_{}_idx
+            ON downloads (download_{})""".format(idx, idx)
+            )
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
             resolves (
@@ -320,9 +333,11 @@ class logsqlhandler(ihandler):
                 -- CONSTRAINT p0fs_connection_fkey FOREIGN KEY (connection) REFERENCES connections (connection)
             )""")
 
-        for idx in ["genre","detail","uptime"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS p0fs_{}_idx
-            ON p0fs (p0f_{})""".format(idx, idx))
+        for idx in ["genre", "detail", "uptime"]:
+            self.cursor.execute(
+                """CREATE INDEX IF NOT EXISTS p0fs_{}_idx
+            ON p0fs (p0f_{})""".format(idx, idx)
+            )
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
             logins (
@@ -333,9 +348,11 @@ class logsqlhandler(ihandler):
                 -- CONSTRAINT logins_connection_fkey FOREIGN KEY (connection) REFERENCES connections (connection)
             )""")
 
-        for idx in ["username","password"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS logins_{}_idx
-            ON logins (login_{})""".format(idx, idx))
+        for idx in ["username", "password"]:
+            self.cursor.execute(
+                """CREATE INDEX IF NOT EXISTS logins_{}_idx
+            ON logins (login_{})""".format(idx, idx)
+            )
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
             mssql_fingerprints (
@@ -347,9 +364,11 @@ class logsqlhandler(ihandler):
                 -- CONSTRAINT mssql_fingerprints_connection_fkey FOREIGN KEY (connection) REFERENCES connections (connection)
             )""")
 
-        for idx in ["hostname","appname","cltintname"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS mssql_fingerprints_{}_idx
-            ON mssql_fingerprints (mssql_fingerprint_{})""".format(idx, idx))
+        for idx in ["hostname", "appname", "cltintname"]:
+            self.cursor.execute(
+                """CREATE INDEX IF NOT EXISTS mssql_fingerprints_{}_idx
+            ON mssql_fingerprints (mssql_fingerprint_{})""".format(idx, idx)
+            )
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
             mssql_commands (
@@ -361,10 +380,10 @@ class logsqlhandler(ihandler):
             )""")
 
         for idx in ["status"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS mssql_commands_{}_idx
-            ON mssql_commands (mssql_command_{})""".format(idx, idx))
-
-
+            self.cursor.execute(
+                """CREATE INDEX IF NOT EXISTS mssql_commands_{}_idx
+            ON mssql_commands (mssql_command_{})""".format(idx, idx)
+            )
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS virustotals (
                 virustotal INTEGER PRIMARY KEY,
@@ -374,8 +393,10 @@ class logsqlhandler(ihandler):
             )""")
 
         for idx in ["md5_hash"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS virustotals_{}_idx
-            ON virustotals (virustotal_{})""".format(idx, idx))
+            self.cursor.execute(
+                """CREATE INDEX IF NOT EXISTS virustotals_{}_idx
+            ON virustotals (virustotal_{})""".format(idx, idx)
+            )
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS virustotalscans (
             virustotalscan INTEGER PRIMARY KEY,
@@ -384,10 +405,11 @@ class logsqlhandler(ihandler):
             virustotalscan_result TEXT
         )""")
 
-
-        for idx in ["scanner","result"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS virustotalscans_{}_idx
-            ON virustotalscans (virustotalscan_{})""".format(idx, idx))
+        for idx in ["scanner", "result"]:
+            self.cursor.execute(
+                """CREATE INDEX IF NOT EXISTS virustotalscans_{}_idx
+            ON virustotalscans (virustotalscan_{})""".format(idx, idx)
+            )
 
         self.cursor.execute("""CREATE INDEX IF NOT EXISTS virustotalscans_virustotal_idx
             ON virustotalscans (virustotal)""")
@@ -410,8 +432,10 @@ class logsqlhandler(ihandler):
             )""")
 
         for idx in ["command"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS mysql_command_args_{}_idx
-            ON mysql_command_args (mysql_{})""".format(idx, idx))
+            self.cursor.execute(
+                """CREATE INDEX IF NOT EXISTS mysql_command_args_{}_idx
+            ON mysql_command_args (mysql_{})""".format(idx, idx)
+            )
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
             mysql_command_ops (
@@ -422,11 +446,14 @@ class logsqlhandler(ihandler):
             )""")
 
         from dionaea.mysql.include.packets import MySQL_Commands
+
         logger.info("Setting MySQL Command Ops")
-        for num,name in MySQL_Commands.items():
+        for num, name in MySQL_Commands.items():
             try:
-                self.cursor.execute("INSERT INTO mysql_command_ops (mysql_command_cmd, mysql_command_op_name) VALUES (?,?)",
-                                    (num, name))
+                self.cursor.execute(
+                    "INSERT INTO mysql_command_ops (mysql_command_cmd, mysql_command_op_name) VALUES (?,?)",
+                    (num, name),
+                )
             except Exception:
                 pass
 
@@ -503,18 +530,18 @@ class logsqlhandler(ihandler):
                 -- CONSTRAINT sip_sdp_medias_fkey FOREIGN KEY (sip_command) REFERENCES sip_commands (sip_command)
             )""")
 
-#        self.cursor.execute("""CREATE TABLE IF NOT EXISTS
-#            httpheaders (
-#                httpheader INTEGER PRIMARY KEY,
-#                connection INTEGER,
-#                http_headerkey TEXT,
-#                http_headervalue TEXT,
-#                -- CONSTRAINT httpheaders_connection_fkey FOREIGN KEY (connection) REFERENCES connections (connection)
-#            )""")
-#
-#        for idx in ["headerkey","headervalue"]:
-#            self.cursor.execute("""CREATE INDEX IF NOT EXISTS httpheaders_%s_idx
-#            ON httpheaders (httpheader_%s)""" % (idx, idx))
+        #        self.cursor.execute("""CREATE TABLE IF NOT EXISTS
+        #            httpheaders (
+        #                httpheader INTEGER PRIMARY KEY,
+        #                connection INTEGER,
+        #                http_headerkey TEXT,
+        #                http_headervalue TEXT,
+        #                -- CONSTRAINT httpheaders_connection_fkey FOREIGN KEY (connection) REFERENCES connections (connection)
+        #            )""")
+        #
+        #        for idx in ["headerkey","headervalue"]:
+        #            self.cursor.execute("""CREATE INDEX IF NOT EXISTS httpheaders_%s_idx
+        #            ON httpheaders (httpheader_%s)""" % (idx, idx))
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
             http_requests (
@@ -540,9 +567,11 @@ class logsqlhandler(ihandler):
                 -- CONSTRAINT mqtt_fingerprints_connection_fkey FOREIGN KEY (connection) REFERENCES connections (connection)
             )""")
 
-        for idx in ["clientid","willtopic","willmessage", "username", "password"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS mqtt_fingerprints_{}_idx
-            ON mqtt_fingerprints (mqtt_fingerprint_{})""".format(idx, idx))
+        for idx in ["clientid", "willtopic", "willmessage", "username", "password"]:
+            self.cursor.execute(
+                """CREATE INDEX IF NOT EXISTS mqtt_fingerprints_{}_idx
+            ON mqtt_fingerprints (mqtt_fingerprint_{})""".format(idx, idx)
+            )
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
             mqtt_publish_commands (
@@ -554,8 +583,10 @@ class logsqlhandler(ihandler):
             )""")
 
         for idx in ["topic", "message"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS mqtt_publish_commands_{}_idx
-            ON mqtt_publish_commands (mqtt_publish_command_{})""".format(idx, idx))
+            self.cursor.execute(
+                """CREATE INDEX IF NOT EXISTS mqtt_publish_commands_{}_idx
+            ON mqtt_publish_commands (mqtt_publish_command_{})""".format(idx, idx)
+            )
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
             mqtt_subscribe_commands (
@@ -567,8 +598,10 @@ class logsqlhandler(ihandler):
             )""")
 
         for idx in ["messageid", "topic"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS mqtt_subscribe_commands_{}_idx
-            ON mqtt_subscribe_commands (mqtt_subscribe_command_{})""".format(idx, idx))
+            self.cursor.execute(
+                """CREATE INDEX IF NOT EXISTS mqtt_subscribe_commands_{}_idx
+            ON mqtt_subscribe_commands (mqtt_subscribe_command_{})""".format(idx, idx)
+            )
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
             nbns_queries (
@@ -585,18 +618,35 @@ class logsqlhandler(ihandler):
             )""")
 
         for idx in ["name", "is_wpad"]:
-            self.cursor.execute("""CREATE INDEX IF NOT EXISTS nbns_queries_{}_idx
-            ON nbns_queries (nbns_query_{})""".format(idx, idx))
+            self.cursor.execute(
+                """CREATE INDEX IF NOT EXISTS nbns_queries_{}_idx
+            ON nbns_queries (nbns_query_{})""".format(idx, idx)
+            )
 
         # connection index for all
-        for idx in ["dcerpcbinds", "dcerpcrequests", "emu_profiles", "emu_services", "offers", "downloads", "p0fs", "logins", "mssql_fingerprints", "mssql_commands","mysql_commands","sip_commands", "mqtt_fingerprints", "mqtt_publish_commands", "mqtt_subscribe_commands", "nbns_queries"]:
+        for idx in [
+            "dcerpcbinds",
+            "dcerpcrequests",
+            "emu_profiles",
+            "emu_services",
+            "offers",
+            "downloads",
+            "p0fs",
+            "logins",
+            "mssql_fingerprints",
+            "mssql_commands",
+            "mysql_commands",
+            "sip_commands",
+            "mqtt_fingerprints",
+            "mqtt_publish_commands",
+            "mqtt_subscribe_commands",
+            "nbns_queries",
+        ]:
             self.cursor.execute(
                 f"""CREATE INDEX IF NOT EXISTS {idx}_connection_idx    ON {idx} (connection)"""
             )
 
-
         self.dbh.commit()
-
 
         # updates, database schema corrections for old versions
 
@@ -621,7 +671,9 @@ class logsqlhandler(ihandler):
 
         try:
             logger.debug("Adding stub_data column to dcerpcrequests")
-            self.cursor.execute("""ALTER TABLE dcerpcrequests ADD COLUMN dcerpcrequest_stub_data BLOB""")
+            self.cursor.execute(
+                """ALTER TABLE dcerpcrequests ADD COLUMN dcerpcrequest_stub_data BLOB"""
+            )
             self.dbh.commit()
             logger.debug("... done")
         except Exception:
@@ -645,7 +697,7 @@ class logsqlhandler(ihandler):
             attack_id = self.attacks[con][1]
             self.cursor.execute(
                 "INSERT INTO logins (connection, login_username, login_password) VALUES (?,?,?)",
-                (attack_id, icd.username, icd.password)
+                (attack_id, icd.username, icd.password),
             )
             self.dbh.commit()
 
@@ -654,9 +706,21 @@ class logsqlhandler(ihandler):
         pass
 
     def connection_insert(self, icd, connection_type):
-        con=icd.con
-        self.cursor.execute("INSERT INTO connections (connection_timestamp, connection_type, connection_transport, connection_protocol, local_host, local_port, remote_host, remote_hostname, remote_port) VALUES (?,?,?,?,?,?,?,?,?)",
-                                (time.time(), connection_type, con.transport, con.protocol, con.local.host, con.local.port, con.remote.host, con.remote.hostname, con.remote.port) )
+        con = icd.con
+        self.cursor.execute(
+            "INSERT INTO connections (connection_timestamp, connection_type, connection_transport, connection_protocol, local_host, local_port, remote_host, remote_hostname, remote_port) VALUES (?,?,?,?,?,?,?,?,?)",
+            (
+                time.time(),
+                connection_type,
+                con.transport,
+                con.protocol,
+                con.local.host,
+                con.local.port,
+                con.remote.host,
+                con.remote.hostname,
+                con.remote.port,
+            ),
+        )
         attackid = self.cursor.lastrowid
         self.attacks[con] = (attackid, attackid)
         self.dbh.commit()
@@ -668,70 +732,134 @@ class logsqlhandler(ihandler):
             # - update the connection_root and connection_parent for all connections which had the pending
             # - update the connection_root for all connections which had the 'childid' as connection_root
             for i in self.pending[con]:
-                logger.debug(f"Updating connection root/parent: attackid={attackid} connection={i}")
-                self.cursor.execute("UPDATE connections SET connection_root = ?, connection_parent = ? WHERE connection = ?",
-                                    (attackid, attackid, i ) )
-                self.cursor.execute("UPDATE connections SET connection_root = ? WHERE connection_root = ?",
-                                    (attackid, i ) )
+                logger.debug(
+                    f"Updating connection root/parent: attackid={attackid} connection={i}"
+                )
+                self.cursor.execute(
+                    "UPDATE connections SET connection_root = ?, connection_parent = ? WHERE connection = ?",
+                    (attackid, attackid, i),
+                )
+                self.cursor.execute(
+                    "UPDATE connections SET connection_root = ? WHERE connection_root = ?",
+                    (attackid, i),
+                )
             self.dbh.commit()
 
         return attackid
 
-
     def handle_incident_dionaea_connection_tcp_listen(self, icd):
-        attackid = self.connection_insert( icd, 'listen')
-        con=icd.con
-        logger.info("listen connection on %s:%i (id=%i)" %
-                    (con.remote.host, con.remote.port, attackid))
+        attackid = self.connection_insert(icd, "listen")
+        con = icd.con
+        logger.info(
+            "listen connection on %s:%i (id=%i)"
+            % (con.remote.host, con.remote.port, attackid)
+        )
 
     def handle_incident_dionaea_connection_tls_listen(self, icd):
-        attackid = self.connection_insert( icd, 'listen')
-        con=icd.con
-        logger.info("listen connection on %s:%i (id=%i)" %
-                    (con.remote.host, con.remote.port, attackid))
+        attackid = self.connection_insert(icd, "listen")
+        con = icd.con
+        logger.info(
+            "listen connection on %s:%i (id=%i)"
+            % (con.remote.host, con.remote.port, attackid)
+        )
 
     def handle_incident_dionaea_connection_tcp_connect(self, icd):
-        attackid = self.connection_insert( icd, 'connect')
-        con=icd.con
-        logger.info("connect connection to %s:%i from %s:%i (id=%i)" %
-                    (con.remote.host, con.remote.port, con.local.host, con.local.port, attackid))
+        attackid = self.connection_insert(icd, "connect")
+        con = icd.con
+        logger.info(
+            "connect connection to %s:%i from %s:%i (id=%i)"
+            % (
+                con.remote.host,
+                con.remote.port,
+                con.local.host,
+                con.local.port,
+                attackid,
+            )
+        )
 
     def handle_incident_dionaea_connection_tls_connect(self, icd):
-        attackid = self.connection_insert( icd, 'connect')
-        con=icd.con
-        logger.info("connect connection to %s:%i from %s:%i (id=%i)" %
-                    (con.remote.host, con.remote.port, con.local.host, con.local.port, attackid))
+        attackid = self.connection_insert(icd, "connect")
+        con = icd.con
+        logger.info(
+            "connect connection to %s:%i from %s:%i (id=%i)"
+            % (
+                con.remote.host,
+                con.remote.port,
+                con.local.host,
+                con.local.port,
+                attackid,
+            )
+        )
 
     def handle_incident_dionaea_connection_udp_connect(self, icd):
-        attackid = self.connection_insert( icd, 'connect')
-        con=icd.con
-        logger.info("connect connection to %s:%i from %s:%i (id=%i)" %
-                    (con.remote.host, con.remote.port, con.local.host, con.local.port, attackid))
+        attackid = self.connection_insert(icd, "connect")
+        con = icd.con
+        logger.info(
+            "connect connection to %s:%i from %s:%i (id=%i)"
+            % (
+                con.remote.host,
+                con.remote.port,
+                con.local.host,
+                con.local.port,
+                attackid,
+            )
+        )
 
     def handle_incident_dionaea_connection_tcp_accept(self, icd):
-        attackid = self.connection_insert( icd, 'accept')
-        con=icd.con
-        logger.info("accepted connection from %s:%i to %s:%i (id=%i)" %
-                    (con.remote.host, con.remote.port, con.local.host, con.local.port, attackid))
+        attackid = self.connection_insert(icd, "accept")
+        con = icd.con
+        logger.info(
+            "accepted connection from %s:%i to %s:%i (id=%i)"
+            % (
+                con.remote.host,
+                con.remote.port,
+                con.local.host,
+                con.local.port,
+                attackid,
+            )
+        )
 
     def handle_incident_dionaea_connection_tls_accept(self, icd):
-        attackid = self.connection_insert( icd, 'accept')
-        con=icd.con
-        logger.info("accepted connection from %s:%i to %s:%i (id=%i)" %
-                    (con.remote.host, con.remote.port, con.local.host, con.local.port, attackid))
-
+        attackid = self.connection_insert(icd, "accept")
+        con = icd.con
+        logger.info(
+            "accepted connection from %s:%i to %s:%i (id=%i)"
+            % (
+                con.remote.host,
+                con.remote.port,
+                con.local.host,
+                con.local.port,
+                attackid,
+            )
+        )
 
     def handle_incident_dionaea_connection_tcp_reject(self, icd):
-        attackid = self.connection_insert(icd, 'reject')
-        con=icd.con
-        logger.info("reject connection from %s:%i to %s:%i (id=%i)" %
-                    (con.remote.host, con.remote.port, con.local.host, con.local.port, attackid))
+        attackid = self.connection_insert(icd, "reject")
+        con = icd.con
+        logger.info(
+            "reject connection from %s:%i to %s:%i (id=%i)"
+            % (
+                con.remote.host,
+                con.remote.port,
+                con.local.host,
+                con.local.port,
+                attackid,
+            )
+        )
 
     def handle_incident_dionaea_connection_tcp_pending(self, icd):
-        attackid = self.connection_insert(icd, 'pending')
-        con=icd.con
-        logger.info("pending connection from %s:%i to %s:%i (id=%i)" %
-                    (con.remote.host, con.remote.port, con.local.host, con.local.port, attackid))
+        attackid = self.connection_insert(icd, "pending")
+        con = icd.con
+        logger.info(
+            "pending connection from %s:%i to %s:%i (id=%i)"
+            % (
+                con.remote.host,
+                con.remote.port,
+                con.local.host,
+                con.local.port,
+                attackid,
+            )
+        )
 
     def handle_incident_dionaea_connection_link_early(self, icd):
         # if we have to link a connection with a connection we do not know yet,
@@ -755,10 +883,11 @@ class logsqlhandler(ihandler):
                 childid = parentid
             self.attacks[icd.child] = (parentroot, childid)
             logger.info("child has ids %s" % str(self.attacks[icd.child]))
-            logger.info("child %i parent %i root %i" %
-                        (childid, parentid, parentroot) )
-            self.cursor.execute("UPDATE connections SET connection_root = ?, connection_parent = ? WHERE connection = ?",
-                                    (parentroot, parentid, childid) )
+            logger.info("child %i parent %i root %i" % (childid, parentid, parentroot))
+            self.cursor.execute(
+                "UPDATE connections SET connection_root = ?, connection_parent = ? WHERE connection = ?",
+                (parentroot, parentid, childid),
+            )
             self.dbh.commit()
 
         if icd.child in self.pending:
@@ -771,22 +900,22 @@ class logsqlhandler(ihandler):
             else:
                 childid = parentid
 
-            self.cursor.execute("UPDATE connections SET connection_root = ? WHERE connection_root = ?",
-                                (parentroot, childid) )
+            self.cursor.execute(
+                "UPDATE connections SET connection_root = ? WHERE connection_root = ?",
+                (parentroot, childid),
+            )
             self.dbh.commit()
 
     def handle_incident_dionaea_connection_free(self, icd):
-        con=icd.con
+        con = icd.con
         if con in self.attacks:
             attackid = self.attacks[con][1]
             del self.attacks[con]
             logger.debug("attackid %i is done" % attackid)
         else:
-            logger.debug("no attackid for %s:%s" %
-                        (con.local.host, con.local.port) )
+            logger.debug("no attackid for %s:%s" % (con.local.host, con.local.port))
         if con in self.pending:
             del self.pending[con]
-
 
     def handle_incident_dionaea_module_emu_profile(self, icd):
         con = icd.con
@@ -794,96 +923,126 @@ class logsqlhandler(ihandler):
             return
         attackid = self.attacks[con][1]
         logger.info("emu profile for attackid %i" % attackid)
-        self.cursor.execute("INSERT INTO emu_profiles (connection, emu_profile_json) VALUES (?,?)",
-                            (attackid, icd.profile) )
+        self.cursor.execute(
+            "INSERT INTO emu_profiles (connection, emu_profile_json) VALUES (?,?)",
+            (attackid, icd.profile),
+        )
         self.dbh.commit()
 
-
     def handle_incident_dionaea_download_offer(self, icd):
-        con=icd.con
+        con = icd.con
         if con not in self.attacks:
             return
         attackid = self.attacks[con][1]
         logger.info("offer for attackid %i" % attackid)
-        self.cursor.execute("INSERT INTO offers (connection, offer_url) VALUES (?,?)",
-                            (attackid, icd.url) )
+        self.cursor.execute(
+            "INSERT INTO offers (connection, offer_url) VALUES (?,?)",
+            (attackid, icd.url),
+        )
         self.dbh.commit()
 
     def handle_incident_dionaea_download_complete_hash(self, icd):
-        con=icd.con
+        con = icd.con
         if con not in self.attacks:
             return
         attackid = self.attacks[con][1]
         logger.info("complete for attackid %i" % attackid)
-        self.cursor.execute("INSERT INTO downloads (connection, download_url, download_md5_hash) VALUES (?,?,?)",
-                            (attackid, icd.url, icd.md5hash) )
+        self.cursor.execute(
+            "INSERT INTO downloads (connection, download_url, download_md5_hash) VALUES (?,?,?)",
+            (attackid, icd.url, icd.md5hash),
+        )
         self.dbh.commit()
 
-
     def handle_incident_dionaea_service_shell_listen(self, icd):
-        con=icd.con
+        con = icd.con
         if con not in self.attacks:
             return
         attackid = self.attacks[con][1]
         logger.info("listen shell for attackid %i" % attackid)
-        self.cursor.execute("INSERT INTO emu_services (connection, emu_service_url) VALUES (?,?)",
-                            (attackid, "bindshell://"+str(icd.port)) )
+        self.cursor.execute(
+            "INSERT INTO emu_services (connection, emu_service_url) VALUES (?,?)",
+            (attackid, "bindshell://" + str(icd.port)),
+        )
         self.dbh.commit()
 
     def handle_incident_dionaea_service_shell_connect(self, icd):
-        con=icd.con
+        con = icd.con
         if con not in self.attacks:
             return
         attackid = self.attacks[con][1]
         logger.info("connect shell for attackid %i" % attackid)
-        self.cursor.execute("INSERT INTO emu_services (connection, emu_service_url) VALUES (?,?)",
-                            (attackid, "connectbackshell://"+str(icd.host)+":"+str(icd.port)) )
+        self.cursor.execute(
+            "INSERT INTO emu_services (connection, emu_service_url) VALUES (?,?)",
+            (attackid, "connectbackshell://" + str(icd.host) + ":" + str(icd.port)),
+        )
         self.dbh.commit()
 
     def handle_incident_dionaea_modules_python_p0f(self, icd):
-        con=icd.con
+        con = icd.con
         if con in self.attacks:
             attackid = self.attacks[con][1]
-            self.cursor.execute("INSERT INTO p0fs (connection, p0f_genre, p0f_link, p0f_detail, p0f_uptime, p0f_tos, p0f_dist, p0f_nat, p0f_fw) VALUES (?,?,?,?,?,?,?,?,?)",
-                                ( attackid, icd.genre, icd.link, icd.detail, icd.uptime, icd.tos, icd.dist, icd.nat, icd.fw))
+            self.cursor.execute(
+                "INSERT INTO p0fs (connection, p0f_genre, p0f_link, p0f_detail, p0f_uptime, p0f_tos, p0f_dist, p0f_nat, p0f_fw) VALUES (?,?,?,?,?,?,?,?,?)",
+                (
+                    attackid,
+                    icd.genre,
+                    icd.link,
+                    icd.detail,
+                    icd.uptime,
+                    icd.tos,
+                    icd.dist,
+                    icd.nat,
+                    icd.fw,
+                ),
+            )
             self.dbh.commit()
 
     def handle_incident_dionaea_modules_python_ftp_login(self, icd):
         self._handle_credentials(icd)
 
     def handle_incident_dionaea_modules_python_smb_dcerpc_request(self, icd):
-        con=icd.con
+        con = icd.con
         if con in self.attacks:
             attackid = self.attacks[con][1]
-            stub_data = getattr(icd, 'stub_data', None)
-            self.cursor.execute("INSERT INTO dcerpcrequests (connection, dcerpcrequest_uuid, dcerpcrequest_opnum, dcerpcrequest_stub_data) VALUES (?,?,?,?)",
-                                (attackid, icd.uuid, icd.opnum, stub_data))
+            stub_data = getattr(icd, "stub_data", None)
+            self.cursor.execute(
+                "INSERT INTO dcerpcrequests (connection, dcerpcrequest_uuid, dcerpcrequest_opnum, dcerpcrequest_stub_data) VALUES (?,?,?,?)",
+                (attackid, icd.uuid, icd.opnum, stub_data),
+            )
             self.dbh.commit()
 
     def handle_incident_dionaea_modules_python_smb_dcerpc_bind(self, icd):
-        con=icd.con
+        con = icd.con
         if con in self.attacks:
             attackid = self.attacks[con][1]
-            self.cursor.execute("INSERT INTO dcerpcbinds (connection, dcerpcbind_uuid, dcerpcbind_transfersyntax) VALUES (?,?,?)",
-                                (attackid, icd.uuid, icd.transfersyntax))
+            self.cursor.execute(
+                "INSERT INTO dcerpcbinds (connection, dcerpcbind_uuid, dcerpcbind_transfersyntax) VALUES (?,?,?)",
+                (attackid, icd.uuid, icd.transfersyntax),
+            )
             self.dbh.commit()
 
     def handle_incident_dionaea_modules_python_mssql_login(self, icd):
         con = icd.con
         if con in self.attacks:
             attackid = self.attacks[con][1]
-            self.cursor.execute("INSERT INTO logins (connection, login_username, login_password) VALUES (?,?,?)",
-                                (attackid, icd.username, icd.password))
-            self.cursor.execute("INSERT INTO mssql_fingerprints (connection, mssql_fingerprint_hostname, mssql_fingerprint_appname, mssql_fingerprint_cltintname) VALUES (?,?,?,?)",
-                                (attackid, icd.hostname, icd.appname, icd.cltintname))
+            self.cursor.execute(
+                "INSERT INTO logins (connection, login_username, login_password) VALUES (?,?,?)",
+                (attackid, icd.username, icd.password),
+            )
+            self.cursor.execute(
+                "INSERT INTO mssql_fingerprints (connection, mssql_fingerprint_hostname, mssql_fingerprint_appname, mssql_fingerprint_cltintname) VALUES (?,?,?,?)",
+                (attackid, icd.hostname, icd.appname, icd.cltintname),
+            )
             self.dbh.commit()
 
     def handle_incident_dionaea_modules_python_mssql_cmd(self, icd):
         con = icd.con
         if con in self.attacks:
             attackid = self.attacks[con][1]
-            self.cursor.execute("INSERT INTO mssql_commands (connection, mssql_command_status, mssql_command_cmd) VALUES (?,?,?)",
-                                (attackid, icd.status, icd.cmd))
+            self.cursor.execute(
+                "INSERT INTO mssql_commands (connection, mssql_command_status, mssql_command_cmd) VALUES (?,?,?)",
+                (attackid, icd.status, icd.cmd),
+            )
             self.dbh.commit()
 
     def handle_incident_dionaea_modules_python_virustotal_report(self, icd):
@@ -891,50 +1050,59 @@ class logsqlhandler(ihandler):
         with open(icd.path) as f:
             j = json.load(f)
 
-        if j['response_code'] == 1: # file was known to virustotal
-            permalink = j['permalink']
-            date = j['scan_date']
-            self.cursor.execute("INSERT INTO virustotals (virustotal_md5_hash, virustotal_permalink, virustotal_timestamp) VALUES (?,?,strftime('%s',?))",
-                                (md5, permalink, date))
+        if j["response_code"] == 1:  # file was known to virustotal
+            permalink = j["permalink"]
+            date = j["scan_date"]
+            self.cursor.execute(
+                "INSERT INTO virustotals (virustotal_md5_hash, virustotal_permalink, virustotal_timestamp) VALUES (?,?,strftime('%s',?))",
+                (md5, permalink, date),
+            )
             self.dbh.commit()
 
             virustotal = self.cursor.lastrowid
 
-            scans = j['scans']
+            scans = j["scans"]
             for av, val in scans.items():
-                res = val['result']
+                res = val["result"]
                 # not detected = '' -> NULL
-                if res == '':
+                if res == "":
                     res = None
 
-                self.cursor.execute("""INSERT INTO virustotalscans (virustotal, virustotalscan_scanner, virustotalscan_result) VALUES (?,?,?)""",
-                                    (virustotal, av, res))
-#                logger.debug("scanner {} result {}".format(av,scans[av]))
+                self.cursor.execute(
+                    """INSERT INTO virustotalscans (virustotal, virustotalscan_scanner, virustotalscan_result) VALUES (?,?,?)""",
+                    (virustotal, av, res),
+                )
+            #                logger.debug("scanner {} result {}".format(av,scans[av]))
             self.dbh.commit()
 
     def handle_incident_dionaea_modules_python_mysql_login(self, icd):
         con = icd.con
         if con in self.attacks:
             attackid = self.attacks[con][1]
-            self.cursor.execute("INSERT INTO logins (connection, login_username, login_password) VALUES (?,?,?)",
-                                (attackid, icd.username, icd.password))
+            self.cursor.execute(
+                "INSERT INTO logins (connection, login_username, login_password) VALUES (?,?,?)",
+                (attackid, icd.username, icd.password),
+            )
             self.dbh.commit()
-
 
     def handle_incident_dionaea_modules_python_mysql_command(self, icd):
         con = icd.con
         if con in self.attacks:
             attackid = self.attacks[con][1]
-            self.cursor.execute("INSERT INTO mysql_commands (connection, mysql_command_cmd) VALUES (?,?)",
-                                (attackid, icd.command))
+            self.cursor.execute(
+                "INSERT INTO mysql_commands (connection, mysql_command_cmd) VALUES (?,?)",
+                (attackid, icd.command),
+            )
             cmdid = self.cursor.lastrowid
 
-            if hasattr(icd, 'args'):
+            if hasattr(icd, "args"):
                 args = icd.args
                 for i in range(len(args)):
                     arg = args[i]
-                    self.cursor.execute("INSERT INTO mysql_command_args (mysql_command, mysql_command_arg_index, mysql_command_arg_data) VALUES (?,?,?)",
-                                        (cmdid, i, arg))
+                    self.cursor.execute(
+                        "INSERT INTO mysql_command_args (mysql_command, mysql_command_arg_index, mysql_command_arg_data) VALUES (?,?,?)",
+                        (cmdid, i, arg),
+                    )
             self.dbh.commit()
 
     def handle_incident_dionaea_modules_python_sip_command(self, icd):
@@ -943,121 +1111,140 @@ class logsqlhandler(ihandler):
             return
 
         def calc_allow(a):
-            b={ b'UNKNOWN'  :(1<<0),
-                'ACK'       :(1<<1),
-                'BYE'       :(1<<2),
-                'CANCEL'    :(1<<3),
-                'INFO'      :(1<<4),
-                'INVITE'    :(1<<5),
-                'MESSAGE'   :(1<<6),
-                'NOTIFY'    :(1<<7),
-                'OPTIONS'   :(1<<8),
-                'PRACK'     :(1<<9),
-                'PUBLISH'   :(1<<10),
-                'REFER'     :(1<<11),
-                'REGISTER'  :(1<<12),
-                'SUBSCRIBE' :(1<<13),
-                'UPDATE'    :(1<<14)
-                }
-            allow=0
+            b = {
+                b"UNKNOWN": (1 << 0),
+                "ACK": (1 << 1),
+                "BYE": (1 << 2),
+                "CANCEL": (1 << 3),
+                "INFO": (1 << 4),
+                "INVITE": (1 << 5),
+                "MESSAGE": (1 << 6),
+                "NOTIFY": (1 << 7),
+                "OPTIONS": (1 << 8),
+                "PRACK": (1 << 9),
+                "PUBLISH": (1 << 10),
+                "REFER": (1 << 11),
+                "REGISTER": (1 << 12),
+                "SUBSCRIBE": (1 << 13),
+                "UPDATE": (1 << 14),
+            }
+            allow = 0
             for i in a:
                 if i in b:
                     allow |= b[i]
                 else:
-                    allow |= b[b'UNKNOWN']
+                    allow |= b[b"UNKNOWN"]
             return allow
 
         attackid = self.attacks[con][1]
-        self.cursor.execute("""INSERT INTO sip_commands
+        self.cursor.execute(
+            """INSERT INTO sip_commands
             (connection, sip_command_method, sip_command_call_id,
             sip_command_user_agent, sip_command_allow) VALUES (?,?,?,?,?)""",
-                            (attackid, icd.method, icd.call_id, icd.user_agent, calc_allow(icd.allow)))
+            (attackid, icd.method, icd.call_id, icd.user_agent, calc_allow(icd.allow)),
+        )
         cmdid = self.cursor.lastrowid
 
         def add_addr(cmd, _type, addr):
             if addr is None:
                 return
-            self.cursor.execute("""INSERT INTO sip_addrs
+            self.cursor.execute(
+                """INSERT INTO sip_addrs
                 (sip_command, sip_addr_type, sip_addr_display_name,
                 sip_addr_uri_scheme, sip_addr_uri_user, sip_addr_uri_password,
                 sip_addr_uri_host, sip_addr_uri_port) VALUES (?,?,?,?,?,?,?,?)""",
-                                (
-                                    cmd, _type, addr['display_name'],
-                                    addr['uri']['scheme'], addr['uri'][
-                                        'user'], addr['uri']['password'],
-                                    addr['uri']['host'], addr['uri']['port']
-                                ))
-        add_addr(cmdid,'addr',icd.get('addr'))
-        add_addr(cmdid,'to',icd.get('to'))
-        add_addr(cmdid,'contact',icd.get('contact'))
-        from_addrs = icd.get('from')
+                (
+                    cmd,
+                    _type,
+                    addr["display_name"],
+                    addr["uri"]["scheme"],
+                    addr["uri"]["user"],
+                    addr["uri"]["password"],
+                    addr["uri"]["host"],
+                    addr["uri"]["port"],
+                ),
+            )
+
+        add_addr(cmdid, "addr", icd.get("addr"))
+        add_addr(cmdid, "to", icd.get("to"))
+        add_addr(cmdid, "contact", icd.get("contact"))
+        from_addrs = icd.get("from")
         if from_addrs:
             for i in from_addrs:
-                add_addr(cmdid,'from',i)
+                add_addr(cmdid, "from", i)
 
         def add_via(cmd, via):
             if via is None:
                 return
-            self.cursor.execute("""INSERT INTO sip_vias
+            self.cursor.execute(
+                """INSERT INTO sip_vias
                 (sip_command, sip_via_protocol, sip_via_address, sip_via_port)
                 VALUES (?,?,?,?)""",
-                                (
-                                    cmd, via['protocol'],
-                                    via['address'], via['port']
+                (cmd, via["protocol"], via["address"], via["port"]),
+            )
 
-                                ))
-
-        via_addrs = icd.get('via')
+        via_addrs = icd.get("via")
         if via_addrs:
             for i in via_addrs:
                 add_via(cmdid, i)
 
         def add_sdp(cmd, sdp):
             def add_origin(cmd, o):
-                self.cursor.execute("""INSERT INTO sip_sdp_origins
+                self.cursor.execute(
+                    """INSERT INTO sip_sdp_origins
                     (sip_command, sip_sdp_origin_username,
                     sip_sdp_origin_sess_id, sip_sdp_origin_sess_version,
                     sip_sdp_origin_nettype, sip_sdp_origin_addrtype,
                     sip_sdp_origin_unicast_address)
                     VALUES (?,?,?,?,?,?,?)""",
-                                    (
-                                        cmd, o['username'],
-                                        o['sess_id'], o['sess_version'],
-                                        o['nettype'], o['addrtype'],
-                                        o['unicast_address']
-                                    ))
+                    (
+                        cmd,
+                        o["username"],
+                        o["sess_id"],
+                        o["sess_version"],
+                        o["nettype"],
+                        o["addrtype"],
+                        o["unicast_address"],
+                    ),
+                )
+
             def add_condata(cmd, c):
-                self.cursor.execute("""INSERT INTO sip_sdp_connectiondatas
+                self.cursor.execute(
+                    """INSERT INTO sip_sdp_connectiondatas
                     (sip_command, sip_sdp_connectiondata_nettype,
                     sip_sdp_connectiondata_addrtype, sip_sdp_connectiondata_connection_address,
                     sip_sdp_connectiondata_ttl, sip_sdp_connectiondata_number_of_addresses)
                     VALUES (?,?,?,?,?,?)""",
-                                    (
-                                        cmd, c['nettype'],
-                                        c['addrtype'], c['connection_address'],
-                                        c['ttl'], c['number_of_addresses']
-                                    ))
+                    (
+                        cmd,
+                        c["nettype"],
+                        c["addrtype"],
+                        c["connection_address"],
+                        c["ttl"],
+                        c["number_of_addresses"],
+                    ),
+                )
+
             def add_media(cmd, c):
-                self.cursor.execute("""INSERT INTO sip_sdp_medias
+                self.cursor.execute(
+                    """INSERT INTO sip_sdp_medias
                     (sip_command, sip_sdp_media_media,
                     sip_sdp_media_port, sip_sdp_media_number_of_ports,
                     sip_sdp_media_proto)
                     VALUES (?,?,?,?,?)""",
-                                    (
-                                        cmd, c['media'],
-                                        c['port'], c['number_of_ports'],
-                                        c['proto']
-                                    ))
-            if 'o' in sdp and sdp['o'] is not None:
-                add_origin(cmd, sdp['o'])
-            if 'c' in sdp and sdp['c'] is not None:
-                add_condata(cmd, sdp['c'])
-            if 'm' in sdp and sdp['m'] is not None:
-                for i in sdp['m']:
+                    (cmd, c["media"], c["port"], c["number_of_ports"], c["proto"]),
+                )
+
+            if "o" in sdp and sdp["o"] is not None:
+                add_origin(cmd, sdp["o"])
+            if "c" in sdp and sdp["c"] is not None:
+                add_condata(cmd, sdp["c"])
+            if "m" in sdp and sdp["m"] is not None:
+                for i in sdp["m"]:
                     add_media(cmd, i)
 
-        if hasattr(icd,'sdp') and icd.sdp is not None:
-            add_sdp(cmdid,icd.sdp)
+        if hasattr(icd, "sdp") and icd.sdp is not None:
+            add_sdp(cmdid, icd.sdp)
 
         self.dbh.commit()
 
@@ -1065,26 +1252,39 @@ class logsqlhandler(ihandler):
         con = icd.con
         if con in self.attacks:
             attackid = self.attacks[con][1]
-            #self.cursor.execute("INSERT INTO logins (connection, login_username, login_password) VALUES (?,?,?)",
+            # self.cursor.execute("INSERT INTO logins (connection, login_username, login_password) VALUES (?,?,?)",
             #    (attackid, icd.username, icd.password))
-            self.cursor.execute("INSERT INTO mqtt_fingerprints (connection, mqtt_fingerprint_clientid, mqtt_fingerprint_willtopic, mqtt_fingerprint_willmessage,mqtt_fingerprint_username,mqtt_fingerprint_password) VALUES (?,?,?,?,?,?)",
-                (attackid, icd.clientid, icd.willtopic, icd.willmessage, icd.username, icd.password))
+            self.cursor.execute(
+                "INSERT INTO mqtt_fingerprints (connection, mqtt_fingerprint_clientid, mqtt_fingerprint_willtopic, mqtt_fingerprint_willmessage,mqtt_fingerprint_username,mqtt_fingerprint_password) VALUES (?,?,?,?,?,?)",
+                (
+                    attackid,
+                    icd.clientid,
+                    icd.willtopic,
+                    icd.willmessage,
+                    icd.username,
+                    icd.password,
+                ),
+            )
             self.dbh.commit()
 
     def handle_incident_dionaea_modules_python_mqtt_publish(self, icd):
         con = icd.con
         if con in self.attacks:
             attackid = self.attacks[con][1]
-            self.cursor.execute("INSERT INTO mqtt_publish_commands (connection, mqtt_publish_command_topic, mqtt_publish_command_message) VALUES (?,?,?)",
-                (attackid, icd.publishtopic, icd.publishmessage))
+            self.cursor.execute(
+                "INSERT INTO mqtt_publish_commands (connection, mqtt_publish_command_topic, mqtt_publish_command_message) VALUES (?,?,?)",
+                (attackid, icd.publishtopic, icd.publishmessage),
+            )
             self.dbh.commit()
 
     def handle_incident_dionaea_modules_python_mqtt_subscribe(self, icd):
         con = icd.con
         if con in self.attacks:
             attackid = self.attacks[con][1]
-            self.cursor.execute("INSERT INTO mqtt_subscribe_commands (connection, mqtt_subscribe_command_messageid, mqtt_subscribe_command_topic) VALUES (?,?,?)",
-                (attackid, icd.subscribemessageid, icd.subscribetopic))
+            self.cursor.execute(
+                "INSERT INTO mqtt_subscribe_commands (connection, mqtt_subscribe_command_messageid, mqtt_subscribe_command_topic) VALUES (?,?,?)",
+                (attackid, icd.subscribemessageid, icd.subscribetopic),
+            )
             self.dbh.commit()
 
     def handle_incident_dionaea_modules_python_http_request(self, icd):
@@ -1093,7 +1293,8 @@ class logsqlhandler(ihandler):
             attackid = self.attacks[con][1]
             self.cursor.execute(
                 "INSERT INTO http_requests (connection, http_request_method, http_request_path, http_request_version, http_request_headers, http_request_body) VALUES (?,?,?,?,?,?)",
-                (attackid, icd.method, icd.path, icd.version, icd.headers, icd.body))
+                (attackid, icd.method, icd.path, icd.version, icd.headers, icd.body),
+            )
             self.dbh.commit()
 
     def handle_incident_dionaea_modules_python_nbns_query(self, icd):
@@ -1102,5 +1303,15 @@ class logsqlhandler(ihandler):
             attackid = self.attacks[con][1]
             self.cursor.execute(
                 "INSERT INTO nbns_queries (connection, nbns_query_name, nbns_query_suffix, nbns_query_suffix_name, nbns_query_opcode, nbns_query_opcode_name, nbns_query_qtype, nbns_query_is_wpad) VALUES (?,?,?,?,?,?,?,?)",
-                (attackid, icd.name, icd.suffix, icd.suffix_name, icd.opcode, icd.opcode_name, icd.qtype, 1 if icd.is_wpad else 0))
+                (
+                    attackid,
+                    icd.name,
+                    icd.suffix,
+                    icd.suffix_name,
+                    icd.opcode,
+                    icd.opcode_name,
+                    icd.qtype,
+                    1 if icd.is_wpad else 0,
+                ),
+            )
             self.dbh.commit()

@@ -8,16 +8,17 @@ import json
 from dionaea import IHandlerLoader
 from dionaea.core import ihandler, incident, connection
 
-logger = logging.getLogger('speakeasy')
+logger = logging.getLogger("speakeasy")
 logger.setLevel(logging.DEBUG)
 
 
 class SpeakeasyHandler(IHandlerLoader):
     """Handler loader for Speakeasy shellcode analysis"""
+
     name = "speakeasy"
 
     @classmethod
-    def start(cls, config: dict[str, Any] | None = None) -> 'SpeakeasyShellcodeHandler':
+    def start(cls, config: dict[str, Any] | None = None) -> "SpeakeasyShellcodeHandler":
         return SpeakeasyShellcodeHandler("dionaea.shellcode.detected", config=config)
 
 
@@ -36,6 +37,7 @@ class SpeakeasyShellcodeHandler(ihandler):
         # Import Speakeasy (lazy import to fail gracefully if not installed)
         try:
             import speakeasy
+
             self.speakeasy = speakeasy
             self.speakeasy_available = True
             logger.info("Speakeasy emulation framework loaded successfully")
@@ -82,11 +84,16 @@ class SpeakeasyShellcodeHandler(ihandler):
 
         # Speakeasy only supports x86/x64 emulation
         if arch not in ("x86", "x86_64"):
-            logger.info("Shellcode detected: %d bytes (arch: %s) - no emulation available",
-                       len(shellcode_data), arch)
+            logger.info(
+                "Shellcode detected: %d bytes (arch: %s) - no emulation available",
+                len(shellcode_data),
+                arch,
+            )
             return
 
-        logger.info("Analyzing shellcode: %d bytes (arch: %s)", len(shellcode_data), arch)
+        logger.info(
+            "Analyzing shellcode: %d bytes (arch: %s)", len(shellcode_data), arch
+        )
 
         # Analyze with Speakeasy
         try:
@@ -96,7 +103,9 @@ class SpeakeasyShellcodeHandler(ihandler):
         except Exception as e:
             logger.error("Speakeasy analysis failed: %s", e, exc_info=True)
 
-    def _analyze_shellcode(self, data: bytes, arch: str = "x86") -> dict[str, Any] | None:
+    def _analyze_shellcode(
+        self, data: bytes, arch: str = "x86"
+    ) -> dict[str, Any] | None:
         """
         Run Speakeasy emulation on shellcode.
 
@@ -124,8 +133,11 @@ class SpeakeasyShellcodeHandler(ihandler):
         # These are expected (false positives, partial shellcode, etc.) and not actual errors.
         # We suppress them by setting the log level very high.
         import logging
-        speakeasy_logger = logging.getLogger('speakeasy.quiet')
-        speakeasy_logger.setLevel(logging.CRITICAL + 10)  # Suppress everything including CRITICAL
+
+        speakeasy_logger = logging.getLogger("speakeasy.quiet")
+        speakeasy_logger.setLevel(
+            logging.CRITICAL + 10
+        )  # Suppress everything including CRITICAL
         speakeasy_logger.addHandler(logging.NullHandler())
 
         # Create Speakeasy emulator instance with quiet logger
@@ -139,11 +151,7 @@ class SpeakeasyShellcodeHandler(ihandler):
         # Run shellcode emulation
         try:
             # Load shellcode into emulation space
-            sc_addr = se.load_shellcode(
-                'shellcode',
-                speakeasy_arch,
-                data=data
-            )
+            sc_addr = se.load_shellcode("shellcode", speakeasy_arch, data=data)
 
             # Execute shellcode from loaded address
             se.run_shellcode(sc_addr)
@@ -157,11 +165,15 @@ class SpeakeasyShellcodeHandler(ihandler):
             report = se.get_report()
 
             # Count total API calls across all entry points
-            total_apis = sum(len(ep.get('apis', []))
-                           for ep in report.get('entry_points', []))
+            total_apis = sum(
+                len(ep.get("apis", [])) for ep in report.get("entry_points", [])
+            )
 
-            logger.info("Speakeasy emulation completed: %d API calls across %d entry points",
-                       total_apis, len(report.get('entry_points', [])))
+            logger.info(
+                "Speakeasy emulation completed: %d API calls across %d entry points",
+                total_apis,
+                len(report.get("entry_points", [])),
+            )
 
             return report
 
@@ -178,7 +190,7 @@ class SpeakeasyShellcodeHandler(ihandler):
         """
 
         # Speakeasy reports have entry_points at top level
-        entry_points = results.get('entry_points', [])
+        entry_points = results.get("entry_points", [])
         if not entry_points:
             logger.debug("No entry points in emulation report")
             return
@@ -186,19 +198,21 @@ class SpeakeasyShellcodeHandler(ihandler):
         # Process each entry point (shellcode can have multiple execution paths)
         all_apis = []
         for ep in entry_points:
-            ep_type = ep.get('ep_type', 'unknown')
+            ep_type = ep.get("ep_type", "unknown")
             logger.debug("Processing entry point: %s", ep_type)
 
             # Extract APIs from this entry point
-            apis = ep.get('apis', [])
+            apis = ep.get("apis", [])
             all_apis.extend(apis)
 
             # Extract network events (structured data for better detection)
-            network_events = ep.get('network_events', {})
+            network_events = ep.get("network_events", {})
 
             # Log API trace for this entry point
             if apis:
-                logger.debug("Entry point %s API trace: %s", ep_type, json.dumps(apis, indent=2))
+                logger.debug(
+                    "Entry point %s API trace: %s", ep_type, json.dumps(apis, indent=2)
+                )
 
             # Analyze for specific behaviors in this entry point
             self._detect_downloads(apis, con)
@@ -220,11 +234,11 @@ class SpeakeasyShellcodeHandler(ihandler):
     def _detect_downloads(self, apis: list[dict], con: connection | None) -> None:
         """Detect URL download attempts"""
         for api in apis:
-            api_name = api.get('api_name', '')
+            api_name = api.get("api_name", "")
 
-            if api_name == 'URLDownloadToFileA' or api_name == 'URLDownloadToFileW':
-                args = api.get('args', {})
-                url = args.get('szURL') or args.get('url')
+            if api_name == "URLDownloadToFileA" or api_name == "URLDownloadToFileW":
+                args = api.get("args", {})
+                url = args.get("szURL") or args.get("url")
 
                 if url:
                     logger.info("Detected download: %s", url)
@@ -241,23 +255,23 @@ class SpeakeasyShellcodeHandler(ihandler):
         port = None
 
         for api in apis:
-            api_name = api.get('api_name', '')
-            args = api.get('args', {})
+            api_name = api.get("api_name", "")
+            args = api.get("args", {})
 
-            if state == "NONE" and api_name in ['socket', 'WSASocketA']:
+            if state == "NONE" and api_name in ["socket", "WSASocketA"]:
                 state = "SOCKET"
-            elif state == "SOCKET" and api_name == 'bind':
+            elif state == "SOCKET" and api_name == "bind":
                 state = "BIND"
                 # Extract bind address
-                if 'name' in args:
-                    sockaddr = args['name']
-                    host = sockaddr.get('sin_addr', {}).get('s_addr')
-                    port = sockaddr.get('sin_port')
-            elif state == "BIND" and api_name == 'listen':
+                if "name" in args:
+                    sockaddr = args["name"]
+                    host = sockaddr.get("sin_addr", {}).get("s_addr")
+                    port = sockaddr.get("sin_port")
+            elif state == "BIND" and api_name == "listen":
                 state = "LISTEN"
-            elif state == "LISTEN" and api_name == 'accept':
+            elif state == "LISTEN" and api_name == "accept":
                 state = "ACCEPT"
-            elif state == "ACCEPT" and api_name in ['CreateProcessA', 'CreateProcessW']:
+            elif state == "ACCEPT" and api_name in ["CreateProcessA", "CreateProcessW"]:
                 logger.info("Detected bind shell on %s:%s", host, port)
                 i = incident("dionaea.service.shell.listen")
                 if port:
@@ -276,19 +290,22 @@ class SpeakeasyShellcodeHandler(ihandler):
         port = None
 
         for api in apis:
-            api_name = api.get('api_name', '')
-            args = api.get('args', {})
+            api_name = api.get("api_name", "")
+            args = api.get("args", {})
 
-            if state == "NONE" and api_name in ['socket', 'WSASocketA']:
+            if state == "NONE" and api_name in ["socket", "WSASocketA"]:
                 state = "SOCKET"
-            elif state == "SOCKET" and api_name == 'connect':
+            elif state == "SOCKET" and api_name == "connect":
                 state = "CONNECT"
                 # Extract connect address
-                if 'name' in args:
-                    sockaddr = args['name']
-                    host = sockaddr.get('sin_addr', {}).get('s_addr')
-                    port = sockaddr.get('sin_port')
-            elif state == "CONNECT" and api_name in ['CreateProcessA', 'CreateProcessW']:
+                if "name" in args:
+                    sockaddr = args["name"]
+                    host = sockaddr.get("sin_addr", {}).get("s_addr")
+                    port = sockaddr.get("sin_port")
+            elif state == "CONNECT" and api_name in [
+                "CreateProcessA",
+                "CreateProcessW",
+            ]:
                 logger.info("Detected reverse shell to %s:%s", host, port)
                 i = incident("dionaea.service.shell.connect")
                 if port:
@@ -300,34 +317,38 @@ class SpeakeasyShellcodeHandler(ihandler):
                 i.report()
                 state = "DONE"
 
-    def _detect_command_execution(self, apis: list[dict], con: connection | None) -> None:
+    def _detect_command_execution(
+        self, apis: list[dict], con: connection | None
+    ) -> None:
         """Detect command execution attempts"""
         from dionaea.cmd import cmdexe
 
         for api in apis:
-            api_name = api.get('api_name', '')
-            args = api.get('args', {})
+            api_name = api.get("api_name", "")
+            args = api.get("args", {})
 
-            if api_name == 'WinExec':
-                cmd = args.get('lpCmdLine', '')
+            if api_name == "WinExec":
+                cmd = args.get("lpCmdLine", "")
                 if cmd:
                     logger.info("Detected WinExec: %s", cmd)
                     # Emulate command execution
                     r = cmdexe(None)
                     if con:
                         r.con = con  # type: ignore[attr-defined]
-                    r.handle_io_in(cmd.encode() + b'\0')
+                    r.handle_io_in(cmd.encode() + b"\0")
 
-            elif api_name in ['CreateProcessA', 'CreateProcessW']:
-                cmdline = args.get('lpCommandLine', '')
+            elif api_name in ["CreateProcessA", "CreateProcessW"]:
+                cmdline = args.get("lpCommandLine", "")
                 if cmdline:
                     logger.info("Detected CreateProcess: %s", cmdline)
                     r = cmdexe(None)
                     if con:
                         r.con = con  # type: ignore[attr-defined]
-                    r.handle_io_in(cmdline.encode() + b'\0')
+                    r.handle_io_in(cmdline.encode() + b"\0")
 
-    def _process_network_events(self, network_events: dict[str, Any], con: connection | None) -> None:
+    def _process_network_events(
+        self, network_events: dict[str, Any], con: connection | None
+    ) -> None:
         """
         Process structured network events from Speakeasy report.
 
@@ -336,24 +357,29 @@ class SpeakeasyShellcodeHandler(ihandler):
         """
 
         # Process DNS queries
-        dns_queries = network_events.get('dns', [])
+        dns_queries = network_events.get("dns", [])
         for query in dns_queries:
-            domain = query.get('request')
+            domain = query.get("request")
             if domain:
                 logger.info("DNS query: %s", domain)
 
         # Process network traffic (connections)
-        traffic = network_events.get('traffic', [])
+        traffic = network_events.get("traffic", [])
         for conn in traffic:
-            proto = conn.get('proto', 'unknown')
-            server = conn.get('server')
-            port = conn.get('port')
-            conn_type = conn.get('type')  # 'connect', 'bind', etc.
-            method = conn.get('method')  # 'winsock.connect', etc.
+            proto = conn.get("proto", "unknown")
+            server = conn.get("server")
+            port = conn.get("port")
+            conn_type = conn.get("type")  # 'connect', 'bind', etc.
+            method = conn.get("method")  # 'winsock.connect', etc.
 
-            if conn_type == 'connect' and server and port:
-                logger.info("Network connection: %s://%s:%d (method: %s)",
-                          proto, server, port, method)
+            if conn_type == "connect" and server and port:
+                logger.info(
+                    "Network connection: %s://%s:%d (method: %s)",
+                    proto,
+                    server,
+                    port,
+                    method,
+                )
 
                 # Emit reverse shell incident
                 i = incident("dionaea.service.shell.connect")
@@ -363,7 +389,7 @@ class SpeakeasyShellcodeHandler(ihandler):
                     i.set("con", con)
                 i.report()
 
-            elif conn_type == 'bind' and port:
+            elif conn_type == "bind" and port:
                 logger.info("Network bind: %s on port %d", proto, port)
 
                 # Emit bind shell incident
