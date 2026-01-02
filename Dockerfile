@@ -51,7 +51,7 @@ RUN apt-get update && \
         python3-bson \
         python3-yaml \
         fonts-liberation && \
-    pip install --break-system-packages speakeasy-emulator
+    pip install --break-system-packages setuptools-scm speakeasy-emulator
 
 RUN   git config --global --add safe.directory /code && \
       mkdir -p /code/build && \

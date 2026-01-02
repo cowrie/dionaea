@@ -40,9 +40,10 @@ function(get_version_from_git OUTPUT_VAR FALLBACK_VERSION)
                     endif()
 
                     # Add dirty suffix with date if working tree is modified
+                    # Use + prefix for PEP 440 local version compatibility
                     if(VERSION_DIRTY)
                         string(TIMESTAMP DIRTY_DATE "%Y%m%d" UTC)
-                        set(VERSION "${VERSION}.d${DIRTY_DATE}")
+                        set(VERSION "${VERSION}+dirty.${DIRTY_DATE}")
                     endif()
 
                     message(STATUS "Version from git: ${VERSION}")
