@@ -54,6 +54,7 @@ RUN apt-get update && \
     pip install --break-system-packages speakeasy-emulator
 
 RUN   git config --global --add safe.directory /code && \
+      cd /code && git checkout . && \
       mkdir -p /code/build && \
       cd /code/build && \
       cmake -DCMAKE_INSTALL_PREFIX:PATH=/opt/dionaea /code && \
