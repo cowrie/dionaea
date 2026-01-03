@@ -204,10 +204,10 @@ class logsqlhandler(ihandler):
                 )
                 logger.debug("... done")
             else:
-                logger.info("... not required")
+                logger.debug("... not required")
         except Exception as e:
             logger.debug(f"Migration check failed: {e}")
-            logger.info("... not required")
+            logger.debug("... not required")
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
             emu_profiles (
