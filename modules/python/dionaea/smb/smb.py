@@ -220,7 +220,7 @@ class smbd(connection):
         if p.haslayer(SMB_Header) and p[SMB_Header].Start != b"\xffSMB":
             start = p[SMB_Header].Start
             if start == b"\xfeSMB":
-                smblog.error("SMB2/SMB3 not supported (client sent SMB2 header)")
+                smblog.warning("SMB2/SMB3 not supported (client sent SMB2 header)")
             else:
                 smblog.error("Unknown SMB header: %r", start)
             self.close()

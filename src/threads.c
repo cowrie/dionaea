@@ -65,7 +65,7 @@ void surveillance_cb(struct ev_loop *loop, struct ev_periodic *w, int revents)
 	while( g_thread_pool_unprocessed(g_dionaea->threads->pool) >
 		   g_thread_pool_get_max_threads(g_dionaea->threads->pool) )
 	{
-		g_critical("Threadpool is crowded %i/%i, suspending *all* activity",
+		g_warning("Threadpool is crowded %i/%i, suspending *all* activity",
 				   g_thread_pool_unprocessed(g_dionaea->threads->pool),
 				   g_thread_pool_get_max_threads(g_dionaea->threads->pool));
 		sleep(1);
