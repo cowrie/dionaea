@@ -18,88 +18,142 @@
 dionaea is a low interaction honeypot.
 The code from the [official dionaea repository](https://github.com/cowrie/dionaea) is used to build the service during the image build process.
 
-# How to use this image.
+# How to use this image
 
-## Start a dionaea instance
+## Quick start (no persistence)
 
 ```console
-$ docker run --rm -it -p 21:21 -p 42:42 -p 69:69/udp -p 80:80 -p 135:135 -p 443:443 -p 445:445 -p 1433:1433 -p 1723:1723 -p 1883:1883 -p 1900:1900/udp -p 3306:3306 -p 5060:5060 -p 5060:5060/udp -p 5061:5061 -p 11211:11211 cowrie/dionaea
+docker run --rm -it \
+  -p 21:21 -p 80:80 -p 443:443 -p 445:445 -p 1433:1433 -p 3306:3306 \
+  cowrie/dionaea
 ```
 
-## ... via [docker-compose](https://github.com/docker/compose)
+This runs dionaea with default settings. Data is lost when the container stops.
 
-Example ```docker-compose.yml```
+## With persistent storage (recommended)
+
+There are two ways to persist data: **named volumes** (simpler) or **bind mounts** (more control).
+
+### Option 1: Named volumes (recommended)
+
+Named volumes are managed by Docker and automatically initialized with default config on first run.
+
+```console
+docker run -d --name dionaea \
+  -v dionaea-config:/opt/dionaea/etc \
+  -v dionaea-data:/opt/dionaea/var/lib \
+  -v dionaea-logs:/opt/dionaea/var/log \
+  -p 21:21 -p 80:80 -p 443:443 -p 445:445 -p 1433:1433 -p 3306:3306 \
+  cowrie/dionaea
+```
+
+To edit config files:
+```console
+docker exec -it dionaea vi /opt/dionaea/etc/dionaea/dionaea.cfg
+docker restart dionaea
+```
+
+To reset to defaults, remove the volume:
+```console
+docker rm dionaea
+docker volume rm dionaea-config
+```
+
+### Option 2: Bind mounts (host directories)
+
+Bind mounts give you direct access to files on the host, but require initialization on first run.
+
+```console
+# Create directories
+mkdir -p ./dionaea/{etc,var/lib,var/log}
+
+# First run: initialize with defaults
+docker run --rm \
+  -v ./dionaea/etc:/opt/dionaea/etc \
+  -v ./dionaea/var/lib:/opt/dionaea/var/lib \
+  -v ./dionaea/var/log:/opt/dionaea/var/log \
+  -e DIONAEA_FORCE_INIT=1 \
+  cowrie/dionaea --help
+
+# Now run normally
+docker run -d --name dionaea \
+  -v ./dionaea/etc:/opt/dionaea/etc \
+  -v ./dionaea/var/lib:/opt/dionaea/var/lib \
+  -v ./dionaea/var/log:/opt/dionaea/var/log \
+  -p 21:21 -p 80:80 -p 443:443 -p 445:445 -p 1433:1433 -p 3306:3306 \
+  cowrie/dionaea
+```
+
+You can now edit `./dionaea/etc/dionaea/dionaea.cfg` directly on the host.
+
+## Docker Compose
 
 ```yaml
-version: '3.8'
-
 services:
   dionaea:
     image: cowrie/dionaea
     restart: always
+    ports:
+      - "21:21"
+      - "80:80"
+      - "443:443"
+      - "445:445"
+      - "1433:1433"
+      - "3306:3306"
+    volumes:
+      - dionaea-config:/opt/dionaea/etc
+      - dionaea-data:/opt/dionaea/var/lib
+      - dionaea-logs:/opt/dionaea/var/log
+
+volumes:
+  dionaea-config:
+  dionaea-data:
+  dionaea-logs:
 ```
 
-# How to extend this image
+# Volume initialization
 
-There are many ways to extend the image, but here are some we found useful.
+The image stores default config/data in `/opt/dionaea/template/`. The entrypoint script copies these to the actual locations if they don't exist.
 
-## Entrypoint
+**Why this is needed:** Docker only auto-populates named volumes, not bind mounts. The entrypoint script ensures both work correctly.
 
-In the image a custom script is used as entrypoint. This helps to ensure all required data, log and config directories and files are in place.
-
-If the following base directories are missing the default files from the build process are copied.
-
-- config dir: /opt/dionaea/etc/dionaea
-- data dir: /opt/dionaea/var/lib/dionaea
-- log dir: /opt/dionaea/var/log/dionaea
+| Storage type | First run behavior |
+|--------------|-------------------|
+| Named volume | Docker auto-populates from image |
+| Bind mount   | Entrypoint copies from template/ |
+| No volume    | Uses image defaults directly |
 
 ## Environment variables
 
-### `DIONAEA_SKIP_INIT`
-
-The default directories and files **are not copied** even if the base directory is missing
-
 ### `DIONAEA_FORCE_INIT`
 
-The default directories and files **are copied** even if the base directory exists. But only missing directories and files should be created.
+Force copy default files even if directories exist. Useful for:
+- Initializing empty bind mounts
+- Resetting to defaults after config changes
 
-### `DIONAEA_FORCE_INIT_CONF`
+Only missing files are copied (won't overwrite your modifications).
 
-Same as `DIONAEA_FORCE_INIT` but the action is forced only for the config directory.
+### `DIONAEA_SKIP_INIT`
 
-### `DIONAEA_FORCE_INIT_DATA`
+Skip all initialization. Use when you've manually prepared the config directories.
 
-Same as `DIONAEA_FORCE_INIT` but the action is forced only for the data and log directories.
-
-## Persistent storage
-
-It is recommended to use a persistent storage like docker volumes or bind mounts for the following directories.
-
-- /opt/dionaea/etc
-- /opt/dionaea/var/lib
-- /opt/dionaea/var/log
-
-## Build a custom image
-
-### Create a `Dockerfile` in your project
+# Building a custom image
 
 ```dockerfile
 FROM cowrie/dionaea:latest
-COPY conf/your-service.yaml /opt/dionaea/etc/dionaea/services-enabled/
-COPY conf/your-ihandler.yaml /opt/dionaea/etc/dionaea/ihandlers-enabled/
+COPY my-service.yaml /opt/dionaea/etc/dionaea/services-enabled/
+COPY my-ihandler.yaml /opt/dionaea/etc/dionaea/ihandlers-enabled/
 ```
 
-Then, run the command to build the image:
-
 ```console
-docker build -t my-dionaea
+docker build -t my-dionaea .
 ```
 
 # User Feedback
 
 ## Issues
 
-If you have any problems with or questions about this image, please create an [GitHub issue](https://github.com/cowrie/dionaea/issues).
+If you have any problems with or questions about this image, please create a [GitHub issue](https://github.com/cowrie/dionaea/issues).
 
 ## Contributing
 
