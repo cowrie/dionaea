@@ -152,7 +152,7 @@ class logsqlhandler(ihandler):
                     #                    print("dcerpcservice %s existed %s " % (servicecls.uuid, e) )
                     pass
 
-        logger.info("Getting RPC Services")
+        logger.debug("Getting RPC Services")
         r = self.cursor.execute("SELECT * FROM dcerpcservices")
         #        print(r)
         names = [r.description[x][0] for x in range(len(r.description))]
@@ -171,7 +171,7 @@ class logsqlhandler(ihandler):
                 CONSTRAINT dcerpcop_service_opnum_uniq UNIQUE (dcerpcservice, dcerpcserviceop_opnum)
             )""")
 
-        logger.info("Setting RPC ServiceOps")
+        logger.debug("Setting RPC ServiceOps")
         for name, servicecls in services:
             if not name == "RPCService" and issubclass(
                 servicecls, rpcservices.RPCService
@@ -447,7 +447,7 @@ class logsqlhandler(ihandler):
 
         from dionaea.mysql.include.packets import MySQL_Commands
 
-        logger.info("Setting MySQL Command Ops")
+        logger.debug("Setting MySQL Command Ops")
         for num, name in MySQL_Commands.items():
             try:
                 self.cursor.execute(
@@ -680,7 +680,7 @@ class logsqlhandler(ihandler):
             logger.debug("... not required")
 
     def __del__(self):
-        logger.info("Closing sqlite handle")
+        logger.debug("Closing sqlite handle")
         self.cursor.close()
         self.cursor = None
         self.dbh.close()
