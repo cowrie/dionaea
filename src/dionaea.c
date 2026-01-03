@@ -811,8 +811,10 @@ opt->stdOUT.filter);
 
 	ev_signal_init(&d->signals->sighup,  sighup_cb, SIGHUP);
 	ev_signal_start(d->loop, &d->signals->sighup);
-	// NOLINTNEXTLINE(cert-sig30-c,cert-msc54-cpp): crash handler uses non-async-safe funcs intentionally
+	// NOLINTBEGIN(cert-sig30-c,cert-msc54-cpp): crash handler uses non-async-safe funcs intentionally
 	signal(SIGSEGV, sigsegv_backtrace_cb);
+	signal(SIGABRT, sigsegv_backtrace_cb);
+	// NOLINTEND(cert-sig30-c,cert-msc54-cpp)
 
 	/*
 	 * SIGPIPE
