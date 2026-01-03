@@ -818,12 +818,27 @@ class smbd(connection):
                             hash_raw,
                             hash_decoded,
                         )
+                        # Trigger shellcode analysis on the loader stub (before MZ)
+                        if offset > 64:  # Only if there's substantial shellcode
+                            icd = incident("dionaea.shellcode.detected")
+                            icd.set("data", xor_output[:offset])
+                            icd.set("offset", 0)
+                            icd.set("arch", "x86")
+                            icd.con = self
+                            icd.report()
                     else:
                         smblog.info(
-                            "DoublePulsar payload: no MZ header, SHA256 raw=%s decoded=%s",
+                            "DoublePulsar payload: no MZ header (pure shellcode), SHA256 raw=%s decoded=%s",
                             hash_raw,
                             hash_decoded,
                         )
+                        # Trigger shellcode analysis on entire decoded payload
+                        icd = incident("dionaea.shellcode.detected")
+                        icd.set("data", xor_output)
+                        icd.set("offset", 0)
+                        icd.set("arch", "x86")
+                        icd.con = self
+                        icd.report()
 
                     dionaea_config = g_dionaea.config().get("dionaea", {})
                     download_dir = dionaea_config.get("download.dir")
