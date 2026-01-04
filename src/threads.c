@@ -61,9 +61,9 @@ void surveillance_cb(struct ev_loop *loop, struct ev_periodic *w, int revents)
 	static gboolean was_crowded = FALSE;
 	static time_t last_log_time = 0;
 
-	gint unprocessed = g_thread_pool_unprocessed(g_dionaea->threads->pool);
+	guint unprocessed = g_thread_pool_unprocessed(g_dionaea->threads->pool);
 	gint max_threads = g_thread_pool_get_max_threads(g_dionaea->threads->pool);
-	gint running = g_thread_pool_get_num_threads(g_dionaea->threads->pool);
+	guint running = g_thread_pool_get_num_threads(g_dionaea->threads->pool);
 
 	while( unprocessed > max_threads )
 	{
@@ -72,7 +72,7 @@ void surveillance_cb(struct ev_loop *loop, struct ev_periodic *w, int revents)
 		// Log on state change or every 30 seconds while crowded
 		if( !was_crowded || (now - last_log_time >= 30) )
 		{
-			g_warning("Threadpool crowded: %i queued, %i running, %i max - suspending activity",
+			g_warning("Threadpool crowded: %u queued, %u running, %d max - suspending activity",
 					   unprocessed, running, max_threads);
 			was_crowded = TRUE;
 			last_log_time = now;
@@ -82,13 +82,12 @@ void surveillance_cb(struct ev_loop *loop, struct ev_periodic *w, int revents)
 
 		// Refresh counts after sleep
 		unprocessed = g_thread_pool_unprocessed(g_dionaea->threads->pool);
-		max_threads = g_thread_pool_get_max_threads(g_dionaea->threads->pool);
 		running = g_thread_pool_get_num_threads(g_dionaea->threads->pool);
 	}
 
 	if( was_crowded && unprocessed <= max_threads )
 	{
-		g_message("Threadpool recovered: %i queued, %i running, %i max",
+		g_message("Threadpool recovered: %u queued, %u running, %d max",
 				   unprocessed, running, max_threads);
 		was_crowded = FALSE;
 	}
