@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: none
+# SPDX-License-Identifier: CC0-1.0
+
+- name: wireguard
+  config:
+    # Send fake handshake response to trigger additional scanner behavior
+    # The response won't complete the handshake (no valid crypto) but may
+    # cause scanners to reveal more about themselves
+    send_fake_response: false

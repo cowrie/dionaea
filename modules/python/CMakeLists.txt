@@ -109,6 +109,7 @@ install_available_python_config(
         smb.yaml
         tftp.yaml.in
         upnp.yaml.in
+        wireguard.yaml.in
 )
 
 install_enabled_python_config(
@@ -132,6 +133,7 @@ install_enabled_python_config(
         smb.yaml
         tftp.yaml
         upnp.yaml
+        wireguard.yaml
 )
 
 ########### install ihandler config ###############
