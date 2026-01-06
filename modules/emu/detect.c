@@ -20,6 +20,7 @@
 #include "log.h"
 #include "incident.h"
 #include "threads.h"
+#include "connection.h"
 
 #define D_LOG_DOMAIN "emu"
 
@@ -136,6 +137,15 @@ void proc_emu_on_io_in(struct connection *con, struct processor_data *pd)
 		if( ret >= 0 )
 		{
 			struct incident *ix = incident_new("dionaea.shellcode.detected");
+
+			// Attach shellcode data for Python Speakeasy handler
+			GString *shellcode_bytes = g_string_new_len(streamdata, size);
+			incident_value_bytes_set(ix, "data", shellcode_bytes);
+			incident_value_int_set(ix, "offset", ret);
+			incident_value_string_set(ix, "arch", g_string_new("x86"));
+			incident_value_con_set(ix, "con", con);
+			connection_ref(con);
+
 			GAsyncQueue *aq = g_async_queue_ref(g_dionaea->threads->cmds);
 			g_async_queue_push(aq, async_cmd_new(async_incident_report, ix));
 			g_async_queue_unref(aq);
