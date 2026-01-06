@@ -37,5 +37,14 @@ if [ "x$DIONAEA_FORCE_INIT_DATA" = "x1" ]; then
     init_log
 fi
 
+# Enable core dumps
+# Requires: docker run --ulimit core=-1
+ulimit -c unlimited 2>/dev/null || true
+
+# Set core pattern (requires --privileged or set on host)
+if [ -w /proc/sys/kernel/core_pattern ]; then
+    echo "/opt/dionaea/var/lib/dionaea/core.%e.%p.%t" > /proc/sys/kernel/core_pattern
+fi
+
 echo "Starting dionaea ..."
 exec /opt/dionaea/bin/dionaea -u dionaea -g dionaea -c /opt/dionaea/etc/dionaea/dionaea.cfg "$@"
