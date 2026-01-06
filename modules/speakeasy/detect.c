@@ -494,15 +494,9 @@ void proc_speakeasy_on_io_in(struct connection *con, struct processor_data *pd)
 	// ARM32 detection disabled - too many false positives from random data
 	int ret_arm32 = -1;
 
-	// ARM64 detection with port-based filtering
-	// Skip ARM detection for Windows-only services where ARM shellcode is impossible
+	// ARM64 detection disabled - Unicorn crashes on certain input
+	// See: arm_reg_reset_arm() segfault in unicorn_arm.c
 	int ret_arm64 = -1;
-	uint16_t dst_port = con->local.port;
-
-	// Windows-only ports: SMB (445), RPC (135), NetBIOS (139), MSSQL (1433)
-	if (dst_port != 445 && dst_port != 135 && dst_port != 139 && dst_port != 1433) {
-		ret_arm64 = emu_shellcode_test_arm64(streamdata, size);
-	}
 
 	// MIPS still uses pattern-based detection (TODO: add execution validation)
 	int ret_mips = detect_shellcode_mips(streamdata, size);
