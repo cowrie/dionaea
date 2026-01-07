@@ -203,7 +203,7 @@ static void check_run_count(void)
 				case session_type_upload:
 					if( msg->data.result == CURLE_OK )
 					{
-						g_info("UPLOAD DONE: %s => HTTP %ld (%d) %s", eff_url, http_code, msg->data.result, session->error);
+						g_debug("UPLOAD DONE: %s => HTTP %ld (%d) %s", eff_url, http_code, msg->data.result, session->error);
 
 						if( session->action.upload.callback == NULL )
 							break;

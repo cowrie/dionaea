@@ -809,13 +809,13 @@ class logsqlhandler(ihandler):
         attackid = self.connection_insert(icd, "accept")
         con = icd.con
         logger.info(
-            "accepted connection from %s:%i to %s:%i (id=%i)"
+            "created incident id=%i (%s:%i->%s:%i)"
             % (
+                attackid,
                 con.remote.host,
                 con.remote.port,
                 con.local.host,
                 con.local.port,
-                attackid,
             )
         )
 
@@ -823,13 +823,13 @@ class logsqlhandler(ihandler):
         attackid = self.connection_insert(icd, "accept")
         con = icd.con
         logger.info(
-            "accepted connection from %s:%i to %s:%i (id=%i)"
+            "created incident id=%i (%s:%i->%s:%i)"
             % (
+                attackid,
                 con.remote.host,
                 con.remote.port,
                 con.local.host,
                 con.local.port,
-                attackid,
             )
         )
 
