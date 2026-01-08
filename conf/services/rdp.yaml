@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: none
+# SPDX-License-Identifier: CC0-1.0
+---
+- name: rdp
+  config:
+    port: 3389
+
+    # DOUBLEPULSAR ping response OS fingerprint
+    # Default: Windows 7 SP1 x64 (common DOUBLEPULSAR target)
+    os_version:
+      # Windows version numbers:
+      # Windows 7: major=6, minor=1
+      # Windows 8: major=6, minor=2
+      # Windows 8.1: major=6, minor=3
+      # Windows 10: major=10, minor=0
+      major: 6
+      minor: 1
+      build: 7601
+      service_pack: 1
+      # Product type:
+      # 1 = VER_NT_WORKSTATION (Desktop)
+      # 2 = VER_NT_DOMAIN_CONTROLLER
+      # 3 = VER_NT_SERVER
+      product_type: 1
+      # Architecture: 32 or 64
+      arch: 64
