@@ -274,6 +274,14 @@ class rdpd(connection):
         if len(mcs_data) < 2:
             return
 
+        # Check for DOUBLEPULSAR first - can arrive at any state
+        if mcs_data[0] == 0x3c:  # channelJoinConfirm carrier
+            dp = DoublePulsarPacket.parse(mcs_data)
+            if dp:
+                self.state = State.DOUBLEPULSAR
+                self._handle_doublepulsar_command(mcs_data)
+                return
+
         # BER-encoded Connect-Initial starts with 0x7f 0x65
         if mcs_data[0:2] == bytes([0x7f, 0x65]):
             mcs = MCSConnectInitial.parse(mcs_data)
