@@ -885,12 +885,13 @@ class smbd(connection):
             smbh.MID = p.getlayer(SMB_Header).MID
             smbh.PID = p.getlayer(SMB_Header).PID
             # DoublePulsar PING response: MID+16 signals success, Signature encodes XOR key
-            # Upper 32 bits of Signature = 0 means x86 architecture
+            # Upper 32 bits of Signature: 0 = x86, non-zero = x64
             if Command == SMB_COM_TRANSACTION2:
                 h = p.getlayer(SMB_Trans2_Request)
                 if h.Setup[0] == SMB_TRANS2_SESSION_SETUP:
                     smbh.MID = p.getlayer(SMB_Header).MID + 16
-                    smbh.Signature = smbd.doublepulsar_signature
+                    arch_indicator = 0x1 if self.config.os_arch == 64 else 0x0
+                    smbh.Signature = smbd.doublepulsar_signature | (arch_indicator << 32)
             rp = NBTSession() / smbh / r
 
         if Command in SMB_Commands:
