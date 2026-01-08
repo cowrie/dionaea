@@ -105,6 +105,7 @@ install_available_python_config(
         nbns.yaml.in
         pptp.yaml
         printer.yaml.in
+        rdp.yaml
         sip.yaml.in
         smb.yaml
         tftp.yaml.in
@@ -129,6 +130,7 @@ install_enabled_python_config(
         nbns.yaml
         pptp.yaml
         printer.yaml
+        rdp.yaml
         sip.yaml
         smb.yaml
         tftp.yaml
