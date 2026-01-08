@@ -442,9 +442,11 @@ void proc_streamdumper_on_io(struct connection *con, struct processor_data *pd, 
 
 		struct stat s;
 		if( stat(path, &s) != 0 &&
-			mkdir(path, S_IRWXU|S_IRUSR|S_IWUSR|S_IXUSR|S_IRWXG|S_IRGRP|S_IWGRP|S_IXGRP|S_IRWXO|S_IROTH|S_IWOTH|S_IXOTH) != 0 )
+			mkdir(path, S_IRWXU|S_IRUSR|S_IWUSR|S_IXUSR|S_IRWXG|S_IRGRP|S_IWGRP|S_IXGRP|S_IRWXO|S_IROTH|S_IWOTH|S_IXOTH) != 0 &&
+			errno != EEXIST )
 		{
-			g_warning("Could not create %s %s",  path, strerror(errno));
+			g_warning("Could not create %s (%s)",  path, strerror(errno));
+			return;
 		}
 
 
