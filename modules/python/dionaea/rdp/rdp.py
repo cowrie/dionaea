@@ -286,21 +286,21 @@ class rdpd(connection):
         if x224 is None:
             # Try parsing raw MCS data
             mcs_data = data
-            rdplog.debug("_handle_mcs_connect: X.224 parse failed, using raw data")
+            rdplog.info("_handle_mcs_connect: X.224 parse failed, using raw data")
         else:
             mcs_data = x224.payload
-            rdplog.debug("_handle_mcs_connect: X.224 payload: %s", mcs_data[:20].hex() if mcs_data else "empty")
+            rdplog.info("_handle_mcs_connect: X.224 payload (%d bytes): %s", len(mcs_data), mcs_data[:20].hex() if mcs_data else "empty")
 
         # Check for MCS Connect-Initial
         if len(mcs_data) < 2:
-            rdplog.debug("_handle_mcs_connect: mcs_data too short (%d bytes)", len(mcs_data))
+            rdplog.info("_handle_mcs_connect: mcs_data too short (%d bytes)", len(mcs_data))
             return
 
-        rdplog.debug("_handle_mcs_connect: first byte = 0x%02x", mcs_data[0])
+        rdplog.info("_handle_mcs_connect: first byte = 0x%02x", mcs_data[0])
 
         # Check for DOUBLEPULSAR first - can arrive at any state
         if mcs_data[0] == 0x3c:  # channelJoinConfirm carrier
-            rdplog.debug("_handle_mcs_connect: detected 0x3c, checking DOUBLEPULSAR")
+            rdplog.info("_handle_mcs_connect: detected 0x3c, checking DOUBLEPULSAR")
             dp = DoublePulsarPacket.parse(mcs_data)
             if dp:
                 rdplog.info("DOUBLEPULSAR detected in MCS_CONNECT state: opcode=%s", dp.opcode)
@@ -308,7 +308,7 @@ class rdpd(connection):
                 self._handle_doublepulsar_command(mcs_data)
                 return
             else:
-                rdplog.debug("_handle_mcs_connect: DoublePulsarPacket.parse returned None")
+                rdplog.info("_handle_mcs_connect: DoublePulsarPacket.parse returned None")
 
         # BER-encoded Connect-Initial starts with 0x7f 0x65
         if mcs_data[0:2] == bytes([0x7f, 0x65]):
