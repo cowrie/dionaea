@@ -26,6 +26,7 @@ class SmbConfig:
         self.native_lan_manager: str = "Windows 2000 LAN Manager"
         self.oem_domain_name: str = "WORKGROUP"
         self.os_type: int = 2
+        self.os_arch: int = 64
         self.primary_domain: str = "WORKGROUP"
         self.server_name: str = "HOMEUSER-3AF6FE"
         self.shares: dict[str, dict[str, Any]] = {}
@@ -59,6 +60,7 @@ class SmbConfig:
             "native_os",
             "oem_domain_name",
             "os_type",
+            "os_arch",
             "primary_domain",
             "server_name",
             "port"

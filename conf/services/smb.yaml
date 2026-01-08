@@ -13,6 +13,10 @@
   # 5:"Linux Samba 4.3.11"
 #    os_type: 2
 
+  # Architecture to advertise for DoublePulsar (32 or 64)
+  # Controls whether 32-bit or 64-bit payloads are delivered
+#    os_arch: 64
+
 # Additional config
 #    primary_domain: Test
 #    oem_domain_name: Test
