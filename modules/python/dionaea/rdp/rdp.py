@@ -142,6 +142,11 @@ class rdpd(connection):
         )
         self.timeouts.idle = 30.0
         self.timeouts.sustain = 120.0
+        try:
+            self.processors()
+            rdplog.info("processors() called successfully")
+        except Exception as e:
+            rdplog.error("Error calling processors(): %s", e)
 
     def handle_disconnect(self) -> bool:
         """Handle disconnection."""
@@ -165,17 +170,28 @@ class rdpd(connection):
 
     def handle_io_in(self, data: bytes) -> int:
         """Handle incoming data."""
-        self.buffer += data
+        import sys
+        try:
+            rdplog.info("handle_io_in: received %d bytes: %s", len(data), data[:20].hex())
+            sys.stderr.write(f"RDP handle_io_in called: {len(data)} bytes\n")
+            sys.stderr.flush()
+            self.buffer += data
 
-        while True:
-            consumed = self._process_buffer()
-            if consumed == 0:
-                break
+            while True:
+                consumed = self._process_buffer()
+                if consumed == 0:
+                    break
 
-        return len(data)
+            return len(data)
+        except Exception as e:
+            import traceback
+            sys.stderr.write(f"Exception in handle_io_in: {e}\n")
+            traceback.print_exc()
+            raise
 
     def _process_buffer(self) -> int:
         """Process buffered data based on current state."""
+        rdplog.info("_process_buffer: buffer=%d bytes, state=%s", len(self.buffer), State(self.state).name)
         if len(self.buffer) < 4:
             return 0
 
@@ -212,6 +228,7 @@ class rdpd(connection):
     def _handle_packet(self, tpkt: TPKTPacket) -> None:
         """Route packet to appropriate handler based on state."""
         payload = tpkt.payload
+        rdplog.info("_handle_packet: state=%s, payload=%d bytes", State(self.state).name, len(payload))
 
         if self.state == State.NEGOTIATION:
             self._handle_negotiation(payload)
@@ -262,25 +279,36 @@ class rdpd(connection):
 
     def _handle_mcs_connect(self, data: bytes) -> None:
         """Handle MCS Connect-Initial."""
+        rdplog.info("_handle_mcs_connect: received %d bytes: %s", len(data), data[:20].hex())
+
         # Skip X.224 Data header
         x224 = X224Packet.parse_data(data)
         if x224 is None:
             # Try parsing raw MCS data
             mcs_data = data
+            rdplog.debug("_handle_mcs_connect: X.224 parse failed, using raw data")
         else:
             mcs_data = x224.payload
+            rdplog.debug("_handle_mcs_connect: X.224 payload: %s", mcs_data[:20].hex() if mcs_data else "empty")
 
         # Check for MCS Connect-Initial
         if len(mcs_data) < 2:
+            rdplog.debug("_handle_mcs_connect: mcs_data too short (%d bytes)", len(mcs_data))
             return
+
+        rdplog.debug("_handle_mcs_connect: first byte = 0x%02x", mcs_data[0])
 
         # Check for DOUBLEPULSAR first - can arrive at any state
         if mcs_data[0] == 0x3c:  # channelJoinConfirm carrier
+            rdplog.debug("_handle_mcs_connect: detected 0x3c, checking DOUBLEPULSAR")
             dp = DoublePulsarPacket.parse(mcs_data)
             if dp:
+                rdplog.info("DOUBLEPULSAR detected in MCS_CONNECT state: opcode=%s", dp.opcode)
                 self.state = State.DOUBLEPULSAR
                 self._handle_doublepulsar_command(mcs_data)
                 return
+            else:
+                rdplog.debug("_handle_mcs_connect: DoublePulsarPacket.parse returned None")
 
         # BER-encoded Connect-Initial starts with 0x7f 0x65
         if mcs_data[0:2] == bytes([0x7f, 0x65]):
