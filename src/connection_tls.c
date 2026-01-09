@@ -683,7 +683,7 @@ void connection_tls_handshake_again_cb(EV_P_ struct ev_io *w, int revents)
 					SSL_get_version(con->transport.tls.ssl),
 					SSL_state_string_long(con->transport.tls.ssl));
 			else
-				g_warning("TLS handshake failed: SYSCALL error (client %s:%s, errno: %d %s, version: %s, state: %s)",
+				g_info("TLS handshake failed: SYSCALL error (client %s:%s, errno: %d %s, version: %s, state: %s)",
 					con->remote.ip_string,
 					con->remote.port_string,
 					errno, strerror(errno),
