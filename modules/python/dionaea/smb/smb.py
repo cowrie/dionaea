@@ -788,12 +788,11 @@ class smbd(connection):
 
                 # make sure the payload size not larger than 10MB
                 if len(self.buf2) > 10485760:
-                    self.buf2 = ""
-                elif len(self.buf2) == 0 and h.DataCount == 4096:
+                    self.buf2 = b""
+                elif h.DataCount == 4096:
+                    # Full chunk - accumulate (first or middle chunk)
                     self.buf2 = self.buf2 + h.Data
-                elif len(self.buf2) != 0 and h.DataCount == 4096:
-                    self.buf2 = self.buf2 + h.Data
-                elif len(self.buf2) != 0 and h.DataCount < 4096:
+                elif h.DataCount > 0 and h.DataCount < 4096:
                     self.buf2 = self.buf2 + h.Data
                     key = smbd.get_doublepulsar_xor_key_bytes()
                     xor_output = xor(self.buf2, key)
