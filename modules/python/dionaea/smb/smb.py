@@ -826,6 +826,7 @@ class smbd(connection):
                             )
                             icd_sc = incident("dionaea.shellcode.detected")
                             icd_sc.set("data", shellcode_data)
+                            # TODO: detect arch from shellcode instead of assuming x86
                             icd_sc.set("arch", "x86")
                             icd_sc.set("offset", 0)
                             icd_sc.set("con", self)
@@ -845,6 +846,7 @@ class smbd(connection):
                             )
                             icd_sc = incident("dionaea.shellcode.detected")
                             icd_sc.set("data", shellcode_data)
+                            # TODO: detect arch from shellcode instead of assuming x86
                             icd_sc.set("arch", "x86")
                             icd_sc.set("offset", 0)
                             icd_sc.set("con", self)
