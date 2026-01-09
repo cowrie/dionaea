@@ -838,22 +838,8 @@ class smbd(connection):
                 elif h.DataCount > 0 and h.DataCount < 4096:
                     self.buf2 = self.buf2 + h.Data
                     key = smbd.get_doublepulsar_xor_key_bytes()
-                    # First 4 bytes are payload length (little-endian), not encrypted
-                    if len(self.buf2) < 4:
-                        smblog.warning(
-                            "DoublePulsar payload too short: %d bytes", len(self.buf2)
-                        )
-                        self.buf2 = b""
-                        return rp
-                    payload_len = struct.unpack("<I", self.buf2[:4])[0]
-                    encrypted_data = self.buf2[4:]
-                    xor_output = xor(encrypted_data, key)
-                    smblog.info(
-                        "DoublePulsar payload: declared_len=%d, actual_len=%d",
-                        payload_len,
-                        len(encrypted_data),
-                    )
-                    hash_raw = hashlib.sha256(encrypted_data).hexdigest()
+                    xor_output = xor(self.buf2, key)
+                    hash_raw = hashlib.sha256(self.buf2).hexdigest()
                     hash_decoded = hashlib.sha256(xor_output).hexdigest()
 
                     # payload = some data(shellcode or code to load the executable) + executable itself
