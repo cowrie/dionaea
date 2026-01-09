@@ -192,7 +192,9 @@ class smbd(connection):
         self.timeouts.idle = 120
         # self._in.accounting.limit  = 2000*1024
         # self._out.accounting.limit = 2000*1024
-        self.processors()
+        # Skip self.processors() - SMB handles shellcode detection via DoublePulsar
+        # XOR decode path. Running the stream processor on encrypted data produces
+        # false positives.
 
     def handle_io_in(self, data: bytes) -> int:
         try:
