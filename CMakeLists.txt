@@ -122,6 +122,20 @@ pkg_check_modules(LIBNL3 libnl-3.0)
 pkg_check_modules(LIBNL3_ROUTE libnl-route-3.0)
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
+
+# Check for Cython (required for Python bindings)
+execute_process(
+    COMMAND ${Python3_EXECUTABLE} -c "import Cython; print(Cython.__version__)"
+    RESULT_VARIABLE CYTHON_RESULT
+    OUTPUT_VARIABLE CYTHON_VERSION
+    ERROR_QUIET
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+if(NOT CYTHON_RESULT EQUAL 0)
+    message(FATAL_ERROR "Cython is required but not found. Install it with: pip install cython")
+endif()
+message(STATUS "Found Cython: ${CYTHON_VERSION}")
+
 find_package(OpenSSL REQUIRED)
 
 find_package(UDNS REQUIRED)

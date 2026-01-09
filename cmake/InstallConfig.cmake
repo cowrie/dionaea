@@ -14,13 +14,9 @@ function(install_if_not_exists src dest)
   install(CODE "
     if(\${CMAKE_INSTALL_FULL_PREFIX} MATCHES .*/_CPack_Packages/.* OR NOT EXISTS \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${dest}/${src_name}\")
       message(STATUS \"Installing: \$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${dest}/${src_name}\")
-      execute_process(COMMAND \${CMAKE_COMMAND} -E copy \"${src}\"
-                      \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${dest}/${src_name}\"
-                      RESULT_VARIABLE copy_result
-                      ERROR_VARIABLE error_output)
-      if(copy_result)
-        message(FATAL_ERROR \${error_output})
-      endif()
+      file(INSTALL \"${src}\" DESTINATION \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${dest}\"
+           FILE_PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
+           NO_SOURCE_PERMISSIONS)
     else()
       message(STATUS \"Skipping  : \$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${dest}/${src_name}\")
     endif()
