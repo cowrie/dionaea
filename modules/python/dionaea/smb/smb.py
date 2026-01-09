@@ -220,9 +220,18 @@ class smbd(connection):
         if p.haslayer(SMB_Header) and p[SMB_Header].Start != b"\xffSMB":
             start = p[SMB_Header].Start
             if start == b"\xfeSMB":
-                smblog.warning("SMB2/SMB3 not supported (client sent SMB2 header)")
+                smblog.info(
+                    "SMB2/SMB3 from %s:%d - not supported, closing",
+                    self.remote.host,
+                    self.remote.port,
+                )
             else:
-                smblog.error("Unknown SMB header: %r", start)
+                smblog.warning(
+                    "Unknown SMB header from %s:%d: %r",
+                    self.remote.host,
+                    self.remote.port,
+                    start,
+                )
             self.close()
             return len(data)
 
@@ -302,13 +311,24 @@ class smbd(connection):
             # we have to select dialect
             c = 0
             tmp = p.getlayer(SMB_Negociate_Protocol_Request_Counts)
+            dialects = []
             while c < len(tmp.Requests):
                 request = tmp.Requests[c]
-                if request.BufferData.decode("ascii").find("NT LM 0.12") != -1:
+                dialect = request.BufferData.decode("ascii", errors="replace").rstrip(
+                    "\x00"
+                )
+                dialects.append(dialect)
+                if dialect.find("NT LM 0.12") != -1:
                     break
                 c += 1
 
             r.DialectIndex = c
+            smblog.info(
+                "SMB Negotiate from %s:%d - dialects: %s",
+                self.remote.host,
+                self.remote.port,
+                ", ".join(dialects) if dialects else "none",
+            )
 
             # r.Capabilities = r.Capabilities & ~CAP_EXTENDED_SECURITY
             if not p.Flags2 & SMB_FLAGS2_EXT_SEC:
@@ -317,6 +337,11 @@ class smbd(connection):
         # elif self.state == STATE_SESSIONSETUP and
         # p.getlayer(SMB_Header).Command == 0x73:
         elif Command == SMB_COM_SESSION_SETUP_ANDX:
+            smblog.info(
+                "SMB Session Setup from %s:%d",
+                self.remote.host,
+                self.remote.port,
+            )
             if p.haslayer(SMB_Sessionsetup_ESEC_AndX_Request):
                 r = SMB_Sessionsetup_ESEC_AndX_Response(
                     NativeOS=self.config.native_os + "\0",
@@ -444,7 +469,6 @@ class smbd(connection):
         elif Command == SMB_COM_TREE_CONNECT_ANDX:
             r = SMB_Treeconnect_AndX_Response()
             h = p.getlayer(SMB_Treeconnect_AndX_Request)
-            # print ("Service : %s" % h.Path)
 
             # for SMB_Treeconnect_AndX_Request.Flags = 0x0008
             if h.Flags & 0x08:
@@ -453,6 +477,13 @@ class smbd(connection):
             # get Path as ascii string
             f, v = h.getfield_and_val("Path")
             Service = f.i2repr(h, v)
+
+            smblog.info(
+                "SMB Tree Connect from %s:%d - path: %s",
+                self.remote.host,
+                self.remote.port,
+                Service.rstrip("\x00"),
+            )
 
             # compile Service from the last part of path
             # remove \\
@@ -510,6 +541,15 @@ class smbd(connection):
             # requires mapping of TreeConnect ids to names/objects
             r = SMB_NTcreate_AndX_Response()
             h = p.getlayer(SMB_NTcreate_AndX_Request)
+            # Log the file/pipe being opened
+            f, v = h.getfield_and_val("Filename")
+            req_filename = f.i2repr(h, v).rstrip("\x00")
+            smblog.info(
+                "SMB NT Create from %s:%d - file: %s",
+                self.remote.host,
+                self.remote.port,
+                req_filename,
+            )
             r.FID = 0x4000
             while r.FID in self.fids:
                 r.FID += 0x200
@@ -663,9 +703,12 @@ class smbd(connection):
             if TransactionName[-1] == "\0":
                 TransactionName = TransactionName[:-1]
 
-            # print("'{}' == '{}' => {} {} {}".format(TransactionName, '\\PIPE\\',
-            # TransactionName == '\\PIPE\\', type(TransactionName) == type('\\PIPE\\'),
-            # len(TransactionName)) )
+            smblog.info(
+                "SMB Transaction from %s:%d - name: %s",
+                self.remote.host,
+                self.remote.port,
+                TransactionName,
+            )
 
             if TransactionName == "\\PIPE\\LANMAN":
                 # [MS-RAP].pdf - Remote Administration Protocol
