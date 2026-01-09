@@ -818,12 +818,38 @@ class smbd(connection):
                             hash_raw,
                             hash_decoded,
                         )
+                        # Emit decoded shellcode (loader stub before PE) for speakeasy analysis
+                        shellcode_data = bytes(xor_output[:offset])
+                        if len(shellcode_data) > 0:
+                            smblog.info(
+                                "DoublePulsar shellcode: %d bytes (PE loader stub)",
+                                len(shellcode_data),
+                            )
+                            icd_sc = incident("dionaea.shellcode.detected")
+                            icd_sc.set("data", shellcode_data)
+                            icd_sc.set("arch", "x86")
+                            icd_sc.set("offset", 0)
+                            icd_sc.set("con", self)
+                            icd_sc.report()
                     else:
                         smblog.info(
                             "DoublePulsar payload: no MZ header, SHA256 raw=%s decoded=%s",
                             hash_raw,
                             hash_decoded,
                         )
+                        # Entire decoded payload is shellcode (no embedded PE)
+                        shellcode_data = bytes(xor_output)
+                        if len(shellcode_data) > 0:
+                            smblog.info(
+                                "DoublePulsar shellcode: %d bytes",
+                                len(shellcode_data),
+                            )
+                            icd_sc = incident("dionaea.shellcode.detected")
+                            icd_sc.set("data", shellcode_data)
+                            icd_sc.set("arch", "x86")
+                            icd_sc.set("offset", 0)
+                            icd_sc.set("con", self)
+                            icd_sc.report()
 
                     dionaea_config = g_dionaea.config().get("dionaea", {})
                     download_dir = dionaea_config.get("download.dir")
@@ -891,7 +917,9 @@ class smbd(connection):
                 if h.Setup[0] == SMB_TRANS2_SESSION_SETUP:
                     smbh.MID = p.getlayer(SMB_Header).MID + 16
                     arch_indicator = 0x1 if self.config.os_arch == 64 else 0x0
-                    smbh.Signature = smbd.doublepulsar_signature | (arch_indicator << 32)
+                    smbh.Signature = smbd.doublepulsar_signature | (
+                        arch_indicator << 32
+                    )
             rp = NBTSession() / smbh / r
 
         if Command in SMB_Commands:
