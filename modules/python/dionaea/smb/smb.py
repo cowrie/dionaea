@@ -196,6 +196,93 @@ class smbd(connection):
         # XOR decode path. Running the stream processor on encrypted data produces
         # false positives.
 
+    def _process_doublepulsar_payload(self):
+        """Process accumulated DoublePulsar payload data."""
+        if len(self.buf2) == 0:
+            return
+
+        smblog.info(
+            "Processing DoublePulsar payload: %d bytes",
+            len(self.buf2),
+        )
+
+        key = smbd.get_doublepulsar_xor_key_bytes()
+        xor_output = xor(self.buf2, key)
+        hash_raw = hashlib.sha256(self.buf2).hexdigest()
+        hash_decoded = hashlib.sha256(xor_output).hexdigest()
+
+        # Look for MZ header to find embedded PE
+        offset = 0
+        for i, c in enumerate(xor_output):
+            if (
+                xor_output[i] == 0x4D and xor_output[i + 1] == 0x5A
+            ) and xor_output[i + 2] == 0x90:
+                offset = i
+                break
+
+        if offset > 0:
+            smblog.info(
+                "DoublePulsar payload: MZ found at offset %d, SHA256 raw=%s decoded=%s",
+                offset,
+                hash_raw,
+                hash_decoded,
+            )
+            # Emit decoded shellcode (loader stub before PE) for speakeasy analysis
+            shellcode_data = bytes(xor_output[:offset])
+            if len(shellcode_data) > 0:
+                smblog.info(
+                    "DoublePulsar shellcode: %d bytes (PE loader stub)",
+                    len(shellcode_data),
+                )
+                icd_sc = incident("dionaea.shellcode.detected")
+                icd_sc.set("data", shellcode_data)
+                # TODO: detect arch from shellcode instead of assuming x86
+                icd_sc.set("arch", "x86")
+                icd_sc.set("offset", 0)
+                icd_sc.set("con", self)
+                icd_sc.report()
+        else:
+            smblog.info(
+                "DoublePulsar payload: no MZ header, SHA256 raw=%s decoded=%s",
+                hash_raw,
+                hash_decoded,
+            )
+            # Entire decoded payload is shellcode (no embedded PE)
+            shellcode_data = bytes(xor_output)
+            if len(shellcode_data) > 0:
+                smblog.info(
+                    "DoublePulsar shellcode: %d bytes",
+                    len(shellcode_data),
+                )
+                icd_sc = incident("dionaea.shellcode.detected")
+                icd_sc.set("data", shellcode_data)
+                # TODO: detect arch from shellcode instead of assuming x86
+                icd_sc.set("arch", "x86")
+                icd_sc.set("offset", 0)
+                icd_sc.set("con", self)
+                icd_sc.report()
+
+        dionaea_config = g_dionaea.config().get("dionaea", {})
+        download_dir = dionaea_config.get("download.dir")
+        download_suffix = dionaea_config.get("download.suffix", ".tmp")
+
+        fp = tempfile.NamedTemporaryFile(
+            delete=False,
+            prefix="smb-",
+            suffix=download_suffix,
+            dir=download_dir,
+        )
+        fp.write(xor_output[offset:])
+        fp.close()
+        self.buf2 = b""
+
+        icd = incident("dionaea.download.complete")
+        icd.path = fp.name
+        icd.url = ""
+        icd.con = self
+        icd.report()
+        os.unlink(fp.name)
+
     def handle_io_in(self, data: bytes) -> int:
         try:
             p = NBTSession(data, _ctx=self)
@@ -852,86 +939,7 @@ class smbd(connection):
                         h.DataCount,
                         len(self.buf2),
                     )
-                    key = smbd.get_doublepulsar_xor_key_bytes()
-                    xor_output = xor(self.buf2, key)
-                    hash_raw = hashlib.sha256(self.buf2).hexdigest()
-                    hash_decoded = hashlib.sha256(xor_output).hexdigest()
-
-                    # payload = some data(shellcode or code to load the executable) + executable itself
-                    # try to locate the executable and remove the prepended data
-                    # now, we will have the executable itself
-                    offset = 0
-                    for i, c in enumerate(xor_output):
-                        if (
-                            xor_output[i] == 0x4D and xor_output[i + 1] == 0x5A
-                        ) and xor_output[i + 2] == 0x90:
-                            offset = i
-                            break
-
-                    if offset > 0:
-                        smblog.info(
-                            "DoublePulsar payload: MZ found at offset %d, SHA256 raw=%s decoded=%s",
-                            offset,
-                            hash_raw,
-                            hash_decoded,
-                        )
-                        # Emit decoded shellcode (loader stub before PE) for speakeasy analysis
-                        shellcode_data = bytes(xor_output[:offset])
-                        if len(shellcode_data) > 0:
-                            smblog.info(
-                                "DoublePulsar shellcode: %d bytes (PE loader stub)",
-                                len(shellcode_data),
-                            )
-                            icd_sc = incident("dionaea.shellcode.detected")
-                            icd_sc.set("data", shellcode_data)
-                            # TODO: detect arch from shellcode instead of assuming x86
-                            icd_sc.set("arch", "x86")
-                            icd_sc.set("offset", 0)
-                            icd_sc.set("con", self)
-                            icd_sc.report()
-                    else:
-                        smblog.info(
-                            "DoublePulsar payload: no MZ header, SHA256 raw=%s decoded=%s",
-                            hash_raw,
-                            hash_decoded,
-                        )
-                        # Entire decoded payload is shellcode (no embedded PE)
-                        shellcode_data = bytes(xor_output)
-                        if len(shellcode_data) > 0:
-                            smblog.info(
-                                "DoublePulsar shellcode: %d bytes",
-                                len(shellcode_data),
-                            )
-                            icd_sc = incident("dionaea.shellcode.detected")
-                            icd_sc.set("data", shellcode_data)
-                            # TODO: detect arch from shellcode instead of assuming x86
-                            icd_sc.set("arch", "x86")
-                            icd_sc.set("offset", 0)
-                            icd_sc.set("con", self)
-                            icd_sc.report()
-
-                    dionaea_config = g_dionaea.config().get("dionaea", {})
-                    download_dir = dionaea_config.get("download.dir")
-                    download_suffix = dionaea_config.get("download.suffix", ".tmp")
-
-                    fp = tempfile.NamedTemporaryFile(
-                        delete=False,
-                        prefix="smb-",
-                        suffix=download_suffix,
-                        dir=download_dir,
-                    )
-                    fp.write(xor_output[offset:])
-                    fp.close()
-                    self.buf2 = b""
-                    xor_output = b""
-
-                    icd = incident("dionaea.download.complete")
-                    icd.path = fp.name
-                    # We need the url for logging
-                    icd.url = ""
-                    icd.con = self
-                    icd.report()
-                    os.unlink(fp.name)
+                    self._process_doublepulsar_payload()
 
                     # Response for final chunk
                     r = SMB_Trans2_Response()
@@ -1110,6 +1118,14 @@ class smbd(connection):
         return False
 
     def handle_disconnect(self):
+        # Process any accumulated DoublePulsar payload on disconnect
+        if len(self.buf2) > 0:
+            smblog.info(
+                "Connection closed with %d bytes buffered, processing",
+                len(self.buf2),
+            )
+            self._process_doublepulsar_payload()
+
         for fid in list(self.fids.values()):
             if fid is not None:
                 fid.close()
