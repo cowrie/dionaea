@@ -933,15 +933,13 @@ class smbd(connection):
                     r = SMB_Trans2_Response()
                     rstatus = 0x00000000  # STATUS_SUCCESS
                 elif h.DataCount > 0 and h.DataCount < 4096:
+                    # Final chunk - accumulate, respond, process on disconnect
                     self.buf2 = self.buf2 + h.Data
                     smblog.debug(
                         "DoublePulsar final chunk: %d bytes, total: %d",
                         h.DataCount,
                         len(self.buf2),
                     )
-                    self._process_doublepulsar_payload()
-
-                    # Response for final chunk
                     r = SMB_Trans2_Response()
                     rstatus = 0x00000000  # STATUS_SUCCESS
                 else:
