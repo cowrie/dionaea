@@ -214,9 +214,9 @@ class smbd(connection):
         # Look for MZ header to find embedded PE
         offset = 0
         for i, c in enumerate(xor_output):
-            if (
-                xor_output[i] == 0x4D and xor_output[i + 1] == 0x5A
-            ) and xor_output[i + 2] == 0x90:
+            if (xor_output[i] == 0x4D and xor_output[i + 1] == 0x5A) and xor_output[
+                i + 2
+            ] == 0x90:
                 offset = i
                 break
 
