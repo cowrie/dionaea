@@ -262,6 +262,7 @@ jobs:
             clang-tidy \
             cppcheck \
             cmake \
+            cython3 \
             libcurl4-openssl-dev \
             libev-dev \
             libglib2.0-dev \
@@ -271,7 +272,8 @@ jobs:
             libpcap-dev \
             libssl-dev \
             libudns-dev \
-            python3-dev
+            python3-dev \
+            python3-setuptools
 
       - name: Generate compile_commands.json
         run: |
