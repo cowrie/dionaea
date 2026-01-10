@@ -842,6 +842,9 @@ class smbd(connection):
                         h.DataCount,
                         len(self.buf2),
                     )
+                    # Send acknowledgement response for intermediate chunks
+                    r = SMB_Trans2_Response()
+                    rstatus = 0x00000000  # STATUS_SUCCESS
                 elif h.DataCount > 0 and h.DataCount < 4096:
                     self.buf2 = self.buf2 + h.Data
                     smblog.info(
@@ -930,8 +933,13 @@ class smbd(connection):
                     icd.report()
                     os.unlink(fp.name)
 
-                r = SMB_Trans2_Response()
-                rstatus = 0xC0000002  # STATUS_NOT_IMPLEMENTED
+                    # Response for final chunk
+                    r = SMB_Trans2_Response()
+                    rstatus = 0x00000000  # STATUS_SUCCESS
+                else:
+                    # No data in this request
+                    r = SMB_Trans2_Response()
+                    rstatus = 0xC0000002  # STATUS_NOT_IMPLEMENTED
             elif h.Setup[0] == SMB_TRANS2_FIND_FIRST2:
                 r = SMB_Trans2_FIND_FIRST2_Response()
             else:
