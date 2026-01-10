@@ -594,7 +594,7 @@ cdef class connection:
 
 	def handle_timeout_idle(self):
 		"""callback for established connection idle timeouts, return True to keep the connection"""
-		return True
+		return False
 
 	def handle_timeout_listen(self):
 		"""callback for listening timeouts, return True to keep the listener alive for a new period"""

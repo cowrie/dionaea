@@ -433,10 +433,6 @@ class nbnsHandler(connection):
 
         return len(data)
 
-    def handle_timeout_idle(self):
-        self.close()
-        return False
-
     def handle_timeout_sustain(self):
         return True
 
@@ -586,9 +582,6 @@ class nbnsd(connection):
                     self.send(response)
 
         return len(data)
-
-    def handle_timeout_idle(self):
-        return False
 
     def handle_timeout_sustain(self):
         return True

@@ -147,9 +147,6 @@ class Memcache(connection):
         self.timeouts.idle = 10
         self.processors()
 
-    def handle_timeout_idle(self) -> bool:
-        return False
-
     def handle_io_in(self, data: bytes) -> int:
         processed_bytes = 0
         if self.command is None:
