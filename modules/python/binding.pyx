@@ -952,6 +952,7 @@ cdef extern from "glib.h":
 		char *str
 		int len
 	c_GString *c_g_string_new "g_string_new" (char *)
+	c_GString *c_g_string_new_len "g_string_new_len" (char *, int)
 
 	ctypedef struct c_GList "GList":
 		void *data
@@ -1113,7 +1114,7 @@ cdef c_opaque_data *py_to_opaque(value) with gil:
 		value = value.encode('UTF-8')
 		c_opaque_data_string_set(o, c_g_string_new(value))
 	elif isinstance(value, bytes):
-		c_opaque_data_string_set(o, c_g_string_new(value))
+		c_opaque_data_string_set(o, c_g_string_new_len(value, len(value)))
 	elif isinstance(value, list) or isinstance(value, tuple) :
 		c_opaque_data_list_set(o, py_to_glist(value))
 	elif isinstance(value, dict):
@@ -1207,7 +1208,7 @@ cdef class incident:
 		elif isinstance(value, int) :
 			c_incident_value_int_set(self.thisptr, key, value)
 		elif isinstance(value, bytes):
-			c_incident_value_bytes_set(self.thisptr, key, c_g_string_new(value))
+			c_incident_value_bytes_set(self.thisptr, key, c_g_string_new_len(value, len(value)))
 		elif isinstance(value, str):
 			value = value.encode('UTF-8')
 			c_incident_value_string_set(self.thisptr, key, c_g_string_new(value))
