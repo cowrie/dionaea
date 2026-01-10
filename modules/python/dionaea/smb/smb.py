@@ -924,7 +924,7 @@ class smbd(connection):
                 elif h.DataCount == 4096:
                     # Full chunk - accumulate (first or middle chunk)
                     self.buf2 = self.buf2 + h.Data
-                    smblog.info(
+                    smblog.debug(
                         "DoublePulsar chunk: %d bytes, total accumulated: %d",
                         h.DataCount,
                         len(self.buf2),
@@ -934,7 +934,7 @@ class smbd(connection):
                     rstatus = 0x00000000  # STATUS_SUCCESS
                 elif h.DataCount > 0 and h.DataCount < 4096:
                     self.buf2 = self.buf2 + h.Data
-                    smblog.info(
+                    smblog.debug(
                         "DoublePulsar final chunk: %d bytes, total: %d",
                         h.DataCount,
                         len(self.buf2),
