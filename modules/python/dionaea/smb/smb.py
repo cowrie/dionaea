@@ -837,8 +837,18 @@ class smbd(connection):
                 elif h.DataCount == 4096:
                     # Full chunk - accumulate (first or middle chunk)
                     self.buf2 = self.buf2 + h.Data
+                    smblog.info(
+                        "DoublePulsar chunk: %d bytes, total accumulated: %d",
+                        h.DataCount,
+                        len(self.buf2),
+                    )
                 elif h.DataCount > 0 and h.DataCount < 4096:
                     self.buf2 = self.buf2 + h.Data
+                    smblog.info(
+                        "DoublePulsar final chunk: %d bytes, total: %d",
+                        h.DataCount,
+                        len(self.buf2),
+                    )
                     key = smbd.get_doublepulsar_xor_key_bytes()
                     xor_output = xor(self.buf2, key)
                     hash_raw = hashlib.sha256(self.buf2).hexdigest()
