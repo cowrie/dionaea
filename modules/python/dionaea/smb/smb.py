@@ -852,7 +852,12 @@ class smbd(connection):
                 )
 
             elif TransactionName == "\\PIPE\\":
-                if socket.htons(h.Setup[0]) == TRANS_NMPIPE_TRANSACT:
+                setup_code = socket.htons(h.Setup[0]) if h.Setup else 0
+                smblog.info(
+                    "SMB Transaction \\PIPE\\ setup code: 0x%04x",
+                    setup_code,
+                )
+                if setup_code == TRANS_NMPIPE_TRANSACT:
                     outpacket = self.process_dcerpc_packet(p.getlayer(DCERPC_Header))
 
                     if not outpacket:
@@ -870,7 +875,7 @@ class smbd(connection):
                     rdata.ByteCount = dceplen
                     rdata.Bytes = self.outbuf
 
-                if socket.htons(h.Setup[0]) == TRANS_NMPIPE_PEEK:
+                elif setup_code == TRANS_NMPIPE_PEEK:
                     SetupCount = h.SetupCount
                     if SetupCount > 0:
                         smblog.info("MS17-010 - SMB RCE exploit scanning..")
