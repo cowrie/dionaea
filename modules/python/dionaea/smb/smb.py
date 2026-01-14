@@ -600,9 +600,10 @@ class smbd(connection):
                             rntlmchallenge.Payload = target_name + target_info
                             rntlmssp = rntlmssp / rntlmchallenge
                             rntlmssp.show()
-                            negtokentarg = NegTokenTarg(
-                                negResult=1, supportedMech="1.3.6.1.4.1.311.2.2.10"
-                            )
+                            # MS-SPNG: Server's negTokenTarg should only include
+                            # negResult and responseToken, not supportedMech
+                            negtokentarg = NegTokenTarg(negResult=1)
+                            negtokentarg.supportedMech = None
                             negtokentarg.responseToken = rntlmssp.build()
                             negtokentarg.mechListMIC = None
                             raw = negtokentarg.build()
