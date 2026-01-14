@@ -1003,14 +1003,14 @@ class smbd(connection):
                 # Extend buffer if needed
                 if disp + h.ParamCount > len(self.trans_params):
                     self.trans_params = self.trans_params.ljust(
-                        disp + h.ParamCount, b'\x00'
+                        disp + h.ParamCount, b"\x00"
                     )
                 # Copy data at displacement
-                params_bytes = bytes(h.Params) if hasattr(h, 'Params') else b''
+                params_bytes = bytes(h.Params) if hasattr(h, "Params") else b""
                 self.trans_params = (
                     self.trans_params[:disp]
-                    + params_bytes[:h.ParamCount]
-                    + self.trans_params[disp + h.ParamCount:]
+                    + params_bytes[: h.ParamCount]
+                    + self.trans_params[disp + h.ParamCount :]
                 )
 
             # Accumulate data at displacement offset
@@ -1018,15 +1018,13 @@ class smbd(connection):
                 disp = h.DataDisplacement
                 # Extend buffer if needed
                 if disp + h.DataCount > len(self.trans_data):
-                    self.trans_data = self.trans_data.ljust(
-                        disp + h.DataCount, b'\x00'
-                    )
+                    self.trans_data = self.trans_data.ljust(disp + h.DataCount, b"\x00")
                 # Copy data at displacement
-                data_bytes = bytes(h.Data) if hasattr(h, 'Data') else b''
+                data_bytes = bytes(h.Data) if hasattr(h, "Data") else b""
                 self.trans_data = (
                     self.trans_data[:disp]
-                    + data_bytes[:h.DataCount]
-                    + self.trans_data[disp + h.DataCount:]
+                    + data_bytes[: h.DataCount]
+                    + self.trans_data[disp + h.DataCount :]
                 )
 
             smblog.debug(
@@ -1038,8 +1036,10 @@ class smbd(connection):
             )
 
             # Check if complete
-            if (len(self.trans_params) >= self.trans_total_params and
-                    len(self.trans_data) >= self.trans_total_data):
+            if (
+                len(self.trans_params) >= self.trans_total_params
+                and len(self.trans_data) >= self.trans_total_data
+            ):
                 smblog.info(
                     "Transaction Secondary complete: %d param bytes, %d data bytes",
                     len(self.trans_params),

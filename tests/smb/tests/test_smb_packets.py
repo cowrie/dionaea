@@ -13,7 +13,7 @@ import types
 
 # Set up path to load include modules as a package
 _base = os.path.dirname(__file__)
-_dionaea_path = os.path.join(_base, '../../../modules/python')
+_dionaea_path = os.path.join(_base, "../../../modules/python")
 _dionaea_path = os.path.abspath(_dionaea_path)
 
 # Add to path so that the dionaea.smb.include package can be found
@@ -21,27 +21,26 @@ if _dionaea_path not in sys.path:
     sys.path.insert(0, _dionaea_path)
 
 # Create stub modules to avoid loading dionaea/__init__.py which requires yaml
-_dionaea_stub = types.ModuleType('dionaea')
-_dionaea_stub.__path__ = [os.path.join(_dionaea_path, 'dionaea')]
-sys.modules['dionaea'] = _dionaea_stub
+_dionaea_stub = types.ModuleType("dionaea")
+_dionaea_stub.__path__ = [os.path.join(_dionaea_path, "dionaea")]
+sys.modules["dionaea"] = _dionaea_stub
 
-_smb_stub = types.ModuleType('dionaea.smb')
-_smb_stub.__path__ = [os.path.join(_dionaea_path, 'dionaea/smb')]
-sys.modules['dionaea.smb'] = _smb_stub
+_smb_stub = types.ModuleType("dionaea.smb")
+_smb_stub.__path__ = [os.path.join(_dionaea_path, "dionaea/smb")]
+sys.modules["dionaea.smb"] = _smb_stub
 
-_include_stub = types.ModuleType('dionaea.smb.include')
-_include_stub.__path__ = [os.path.join(_dionaea_path, 'dionaea/smb/include')]
-sys.modules['dionaea.smb.include'] = _include_stub
+_include_stub = types.ModuleType("dionaea.smb.include")
+_include_stub.__path__ = [os.path.join(_dionaea_path, "dionaea/smb/include")]
+sys.modules["dionaea.smb.include"] = _include_stub
 
-# Now we can import the include submodules
-from dionaea.smb.include import smbfields
-
-import pytest
+# Import smbfields to populate sys.modules (must be after stub setup)
+__import__("dionaea.smb.include.smbfields")  # noqa: E402
 
 
 def test_trans_secondary_request_import():
     """Test that SMB_Trans_Secondary_Request can be imported."""
     from dionaea.smb.include.smbfields import SMB_Trans_Secondary_Request
+
     assert SMB_Trans_Secondary_Request is not None
 
 
@@ -78,18 +77,29 @@ def test_trans_secondary_request_parse():
     # ParamCount=50, ParamOffset=60, ParamDisplacement=0,
     # DataCount=75, DataOffset=120, DataDisplacement=25,
     # ByteCount=125, followed by params and data
-    raw = bytes([
-        0x08,  # WordCount
-        0x64, 0x00,  # TotalParamCount = 100
-        0xc8, 0x00,  # TotalDataCount = 200
-        0x32, 0x00,  # ParamCount = 50
-        0x3c, 0x00,  # ParamOffset = 60
-        0x00, 0x00,  # ParamDisplacement = 0
-        0x4b, 0x00,  # DataCount = 75
-        0x78, 0x00,  # DataOffset = 120
-        0x19, 0x00,  # DataDisplacement = 25
-        0x7d, 0x00,  # ByteCount = 125
-    ])
+    raw = bytes(
+        [
+            0x08,  # WordCount
+            0x64,
+            0x00,  # TotalParamCount = 100
+            0xC8,
+            0x00,  # TotalDataCount = 200
+            0x32,
+            0x00,  # ParamCount = 50
+            0x3C,
+            0x00,  # ParamOffset = 60
+            0x00,
+            0x00,  # ParamDisplacement = 0
+            0x4B,
+            0x00,  # DataCount = 75
+            0x78,
+            0x00,  # DataOffset = 120
+            0x19,
+            0x00,  # DataDisplacement = 25
+            0x7D,
+            0x00,  # ByteCount = 125
+        ]
+    )
     # Add 50 bytes of params (0xAA pattern)
     raw += bytes([0xAA] * 50)
     # Add 75 bytes of data (0xBB pattern)
@@ -125,7 +135,9 @@ def test_trans_secondary_bind():
 
     # Build a complete SMB packet with TRANSACTION_SECONDARY command
     nbt = NBTSession(TYPE=0x00, LENGTH=0)
-    smb_hdr = SMB_Header(Command=0x26, Flags=0x00)  # 0x26 = TRANSACTION_SECONDARY, Flags=0 (request)
+    smb_hdr = SMB_Header(
+        Command=0x26, Flags=0x00
+    )  # 0x26 = TRANSACTION_SECONDARY, Flags=0 (request)
     trans_sec = SMB_Trans_Secondary_Request(
         WordCount=8,
         TotalParamCount=10,
