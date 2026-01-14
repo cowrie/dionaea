@@ -3252,9 +3252,14 @@ class SRVSVC(RPCService):
                 self.Data = []
                 self.Pointer = 0x23456
             elif isinstance(self.__packer, ndrlib.Unpacker):
+                # NDR [unique] pointer - only read referent if pointer is non-null
                 self.Ptr = self.__packer.unpack_pointer()
-                self.EntriesRead = self.__packer.unpack_long()
-                self.Buffer = self.__packer.unpack_pointer()
+                if self.Ptr != 0:
+                    self.EntriesRead = self.__packer.unpack_long()
+                    self.Buffer = self.__packer.unpack_pointer()
+                else:
+                    self.EntriesRead = 0
+                    self.Buffer = 0
 
         def pack(self):
             if isinstance(self.__packer, ndrlib.Packer):
@@ -3283,9 +3288,14 @@ class SRVSVC(RPCService):
                 self.Data = {}
                 self.Pointer = 0x23456
             elif isinstance(self.__packer, ndrlib.Unpacker):
+                # NDR [unique] pointer - only read referent if pointer is non-null
                 self.Ptr = self.__packer.unpack_pointer()
-                self.EntriesRead = self.__packer.unpack_long()
-                self.Buffer = self.__packer.unpack_pointer()
+                if self.Ptr != 0:
+                    self.EntriesRead = self.__packer.unpack_long()
+                    self.Buffer = self.__packer.unpack_pointer()
+                else:
+                    self.EntriesRead = 0
+                    self.Buffer = 0
 
         def pack(self):
             if isinstance(self.__packer, ndrlib.Packer):
@@ -3344,10 +3354,20 @@ class SRVSVC(RPCService):
                 self.Data = {}
                 self.Pointer = 0x23456
             elif isinstance(self.__packer, ndrlib.Unpacker):
+                # NDR [unique] pointer - only read referent if pointer is non-null
                 self.Ctr = self.__packer.unpack_pointer()
-                self.Ptr = self.__packer.unpack_pointer()
-                self.EntriesRead = self.__packer.unpack_long()
-                self.Buffer = self.__packer.unpack_pointer()
+                if self.Ctr != 0:
+                    self.Ptr = self.__packer.unpack_pointer()
+                    if self.Ptr != 0:
+                        self.EntriesRead = self.__packer.unpack_long()
+                        self.Buffer = self.__packer.unpack_pointer()
+                    else:
+                        self.EntriesRead = 0
+                        self.Buffer = 0
+                else:
+                    self.Ptr = 0
+                    self.EntriesRead = 0
+                    self.Buffer = 0
 
         def pack(self):
             if isinstance(self.__packer, ndrlib.Packer):
