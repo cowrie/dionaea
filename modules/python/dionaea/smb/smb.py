@@ -1309,6 +1309,7 @@ class smbd(connection):
             outbuf.CallID = dcep.CallID
             c = 0
             outbuf.CtxItems = [DCERPC_Ack_CtxItem() for i in range(len(dcep.CtxItems))]
+            accepted_uuid = None  # Track which interface we've already accepted
             while c < len(dcep.CtxItems):  # isinstance(tmp, DCERPC_CtxItem):
                 tmp = dcep.CtxItems[c]
                 ctxitem = outbuf.CtxItems[c]
@@ -1327,16 +1328,31 @@ class smbd(connection):
 
                 if pointer_size is not None:
                     if service_uuid.hex in registered_services:
-                        service = registered_services[service_uuid.hex]
-                        smblog.info(
-                            "Found a registered UUID (%s). Accepting Bind for %s (NDR%d)"
-                            % (service_uuid, service.__class__.__name__, pointer_size)
-                        )
-                        self.state["uuid"] = service_uuid.hex
-                        self.state["pointer_size"] = pointer_size
-                        # Copy Transfer Syntax to CtxItem
-                        ctxitem.AckResult = 0
-                        ctxitem.AckReason = 0
+                        # Only accept one transfer syntax per interface (prefer first)
+                        if accepted_uuid == service_uuid.hex:
+                            smblog.debug(
+                                "Rejecting duplicate bind for %s (NDR%d) - already accepted",
+                                service_uuid,
+                                pointer_size,
+                            )
+                            ctxitem.AckResult = 2  # provider_rejection
+                            ctxitem.AckReason = 1  # abstract_syntax_not_supported
+                        else:
+                            service = registered_services[service_uuid.hex]
+                            smblog.info(
+                                "Found a registered UUID (%s). Accepting Bind for %s (NDR%d)"
+                                % (
+                                    service_uuid,
+                                    service.__class__.__name__,
+                                    pointer_size,
+                                )
+                            )
+                            self.state["uuid"] = service_uuid.hex
+                            self.state["pointer_size"] = pointer_size
+                            accepted_uuid = service_uuid.hex
+                            # Copy Transfer Syntax to CtxItem
+                            ctxitem.AckResult = 0
+                            ctxitem.AckReason = 0
                     else:
                         smblog.warning(
                             "Attempt to register %s failed, UUID does not exist or is not implemented",

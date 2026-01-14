@@ -111,11 +111,10 @@ class RPCService:
                     return None
                 except EOFError:
                     rpclog.warning(
-                        "EOFError in %s %s (0x%02x) pointer_size=%d data %s",
+                        "EOFError in %s %s (0x%02x) data %s",
                         service.__class__.__name__,
                         opname,
                         opnum,
-                        _get_pointer_size(con),
                         format(p.StubData),
                     )
                     return None
@@ -3678,11 +3677,6 @@ class SRVSVC(RPCService):
     @classmethod
     def handle_NetShareEnum(cls, con, p):
         x = make_unpacker(con, p.StubData)
-        rpclog.debug(
-            "NetShareEnum: pointer_size=%d data_len=%d",
-            _get_pointer_size(con),
-            len(p.StubData),
-        )
 
         # 3.1.4.8 NetrShareEnum (Opnum 15)
         #
