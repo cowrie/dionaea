@@ -247,9 +247,8 @@ class virustotalhandler(ihandler):
         elif response_code == 1:
             scan_id = j["scan_id"]
             logger.info(
-                "VirusTotal: file %s submitted successfully, scan_id: %s",
+                "VirusTotal: file %s submitted successfully",
                 vtr.sha256hash[:16],
-                scan_id[:16],
             )
             # recycle this entry for the query
             self.cursor.execute(
