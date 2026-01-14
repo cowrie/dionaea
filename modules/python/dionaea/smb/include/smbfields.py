@@ -1694,6 +1694,20 @@ class SMB_Trans2_Response(Packet):
     ]
 
 
+class SMB_Query_Information_Disk_Response(Packet):
+    name = "SMB Query Information Disk Response"
+    smb_cmd = SMB_COM_QUERY_INFORMATION_DISK  # 0x80
+    fields_desc = [
+        ByteField("WordCount", 5),
+        LEShortField("TotalUnits", 0),
+        LEShortField("BlocksPerUnit", 0),
+        LEShortField("BlockSize", 0),
+        LEShortField("FreeUnits", 0),
+        LEShortField("Reserved", 0),
+        LEShortField("ByteCount", 0),
+    ]
+
+
 class SMB_Trans2_Secondary_Request(Packet):
     name = "SMB Trans2 Secondary Request"
     smb_cmd = SMB_COM_TRANSACTION2_SECONDARY  # 0x33

@@ -38,6 +38,7 @@ from .include.smbfields import (
     SMB_COM_NT_CREATE_ANDX,
     SMB_COM_NT_TRANSACT,
     SMB_COM_OPEN_ANDX,
+    SMB_COM_QUERY_INFORMATION_DISK,
     SMB_COM_READ_ANDX,
     SMB_COM_SESSION_SETUP_ANDX,
     SMB_COM_TRANSACTION,
@@ -71,6 +72,7 @@ from .include.smbfields import (
     SMB_Negociate_Protocol_Response,
     SMB_Open_AndX_Request,
     SMB_Open_AndX_Response,
+    SMB_Query_Information_Disk_Response,
     SMB_Read_AndX_Request,
     SMB_Read_AndX_Response,
     SMB_Sessionsetup_AndX_Request2,
@@ -1125,6 +1127,16 @@ class smbd(connection):
         elif Command == SMB_COM_NT_TRANSACT:
             h = p.getlayer(SMB_NT_Trans_Request)
             r = SMB_NT_Trans_Response()
+            rstatus = 0x00000000  # STATUS_SUCCESS
+        elif Command == SMB_COM_QUERY_INFORMATION_DISK:
+            # Return fake disk information (same values as TRANS2_QUERY_FS_SIZE_INFO)
+            # Values fit in 16-bit fields, so use smaller units
+            r = SMB_Query_Information_Disk_Response(
+                TotalUnits=65535,  # ~32GB with 512KB units
+                BlocksPerUnit=1024,  # Sectors per unit
+                BlockSize=512,  # Bytes per sector
+                FreeUnits=32768,  # ~16GB free
+            )
             rstatus = 0x00000000  # STATUS_SUCCESS
         elif Command == SMB_COM_TRANSACTION_SECONDARY:
             h = p.getlayer(SMB_Trans_Secondary_Request)
