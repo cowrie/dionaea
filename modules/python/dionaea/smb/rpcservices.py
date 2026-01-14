@@ -110,7 +110,13 @@ class RPCService:
                     rpclog.warning("Exploit attempt detected: %s" % e)
                     return None
                 except EOFError:
-                    rpclog.warn("EOFError data %s" % format(p.StubData))
+                    rpclog.warning(
+                        "EOFError in %s %s (0x%02x) data %s",
+                        service.__class__.__name__,
+                        opname,
+                        opnum,
+                        format(p.StubData),
+                    )
                     return None
 
                 if data is None:
@@ -155,7 +161,10 @@ class ATSVC(RPCService):
                 pass
             elif isinstance(self.__packer, ndrlib.Unpacker):
                 self.Pointer = p.unpack_pointer()
-                self.Handle = p.unpack_string()
+                if self.Pointer != 0:
+                    self.Handle = p.unpack_string()
+                else:
+                    self.Handle = b""
 
         def pack(self):
             if isinstance(self.__packer, ndrlib.Packer):
@@ -1027,8 +1036,11 @@ class lsarpc(RPCService):
         # );
 
         x = make_unpacker(con, p.StubData)
-        x.unpack_pointer()
-        SystemName = x.unpack_string()
+        system_ptr = x.unpack_pointer()
+        if system_ptr != 0:
+            SystemName = x.unpack_string()
+        else:
+            SystemName = b""
         rpclog.debug("ServerName %s" % SystemName)
 
         lsarpc.LSAPR_OBJECT_ATTRIBUTES(x)
@@ -2087,8 +2099,11 @@ class samr(RPCService):
         #   [in] unsigned long DesiredAccess
         # );
         x = make_unpacker(con, p.StubData)
-        x.unpack_pointer()
-        ServerName = x.unpack_string()
+        server_ptr = x.unpack_pointer()
+        if server_ptr != 0:
+            ServerName = x.unpack_string()
+        else:
+            ServerName = b""
         rpclog.debug("ServerName %s" % ServerName)
         DesiredAccess = x.unpack_long()
         rpclog.debug("DesiredAccess %i" % DesiredAccess)
@@ -2123,8 +2138,11 @@ class samr(RPCService):
         #   [out] SAMPR_HANDLE* ServerHandle
         # );
         x = make_unpacker(con, p.StubData)
-        x.unpack_pointer()
-        ServerName = x.unpack_string()
+        server_ptr = x.unpack_pointer()
+        if server_ptr != 0:
+            ServerName = x.unpack_string()
+        else:
+            ServerName = b""
 
         rpclog.debug("ServerName %s" % ServerName)
         DesiredAccess = x.unpack_long()
@@ -3016,8 +3034,11 @@ class spoolss(RPCService):
         # );
 
         x = make_unpacker(con, p.StubData)
-        x.unpack_pointer()
-        PrinterName = x.unpack_string()
+        printer_ptr = x.unpack_pointer()
+        if printer_ptr != 0:
+            PrinterName = x.unpack_string()
+        else:
+            PrinterName = b""
         logger.debug(f"PrinterName {PrinterName}")
 
         pDatatype = x.unpack_pointer()
@@ -3229,7 +3250,10 @@ class SRVSVC(RPCService):
                 self.Pointer = 0x3A20F2
             elif isinstance(self.__packer, ndrlib.Unpacker):
                 self.Ref = self.__packer.unpack_pointer()
-                self.Handle = self.__packer.unpack_string()
+                if self.Ref != 0:
+                    self.Handle = self.__packer.unpack_string()
+                else:
+                    self.Handle = b""
 
         def pack(self):
             if isinstance(self.__packer, ndrlib.Packer):
@@ -3764,7 +3788,10 @@ class SRVSVC(RPCService):
         # );
         x = make_unpacker(con, p.StubData)
         ref = x.unpack_pointer()
-        server_unc = x.unpack_string()
+        if ref != 0:
+            server_unc = x.unpack_string()
+        else:
+            server_unc = b""
         path = x.unpack_string()
         maxbuf = x.unpack_long()
         prefix = x.unpack_string()
@@ -3802,7 +3829,10 @@ class SRVSVC(RPCService):
         # );
         p = make_unpacker(con, p.StubData)
         ref = p.unpack_pointer()
-        server_unc = p.unpack_string()
+        if ref != 0:
+            server_unc = p.unpack_string()
+        else:
+            server_unc = b""
         path1 = p.unpack_string()
         path2 = p.unpack_string()
         pathtype = p.unpack_long()
@@ -4014,8 +4044,11 @@ class SRVSVC(RPCService):
         # );
 
         p = make_unpacker(con, p.StubData)
-        p.unpack_pointer()
-        ServerName = p.unpack_string()
+        server_ptr = p.unpack_pointer()
+        if server_ptr != 0:
+            ServerName = p.unpack_string()
+        else:
+            ServerName = b""
         Level = p.unpack_long()
         logger.debug(f"ServerName {ServerName} Level {Level}")
 
