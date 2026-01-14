@@ -102,7 +102,13 @@ from .include.smbfields import (
 )
 from .rpcservices import __shares__
 from .include.gssapifields import GSSAPI, SPNEGO, NegTokenTarg
-from .include.ntlmfields import NTLMSSP_Header, NTLM_Negotiate, NTLM_Challenge
+from .include.ntlmfields import (
+    AV_PAIR,
+    NTLM_Challenge,
+    NTLM_Negotiate,
+    NTLMSSP_Header,
+    NTLMSSP_NEGOTIATE_TARGET_INFO,
+)
 from .include.packet import Raw
 from .include.asn1.ber import BER_len_dec, BER_len_enc, BER_identifier_dec
 from .include.asn1.ber import BER_CLASS_APP, BER_CLASS_CON, BER_identifier_enc
@@ -131,6 +137,30 @@ registered_services = {}
 def register_rpc_service(service):
     uuid = service.uuid
     registered_services[uuid] = service
+
+
+def build_ntlm_target_info(domain_name, computer_name):
+    """Build NTLM TargetInfo (AV_PAIRs) for NTLMv2 authentication.
+
+    Returns tuple of (target_name_bytes, target_info_bytes) where:
+    - target_name_bytes: UTF-16LE encoded domain name for TargetName field
+    - target_info_bytes: Concatenated AV_PAIRs for TargetInfo field
+    """
+    # Encode names as UTF-16LE (without BOM)
+    domain_utf16 = domain_name.encode("utf-16-le")
+    computer_utf16 = computer_name.encode("utf-16-le")
+
+    # Build AV_PAIRs
+    # MsvAvNbDomainName (Id=2)
+    av_domain = AV_PAIR(Id=2, Value=domain_utf16)
+    # MsvAvNbComputerName (Id=1)
+    av_computer = AV_PAIR(Id=1, Value=computer_utf16)
+    # MsvAvEOL (Id=0) - end of list
+    av_eol = AV_PAIR(Id=0, Value=b"")
+
+    target_info = av_domain.build() + av_computer.build() + av_eol.build()
+
+    return domain_utf16, target_info
 
 
 class smbd(connection):
@@ -457,16 +487,31 @@ class smbd(connection):
                     if ntlmssp.MessageType == 1:
                         r.Action = 0
                         ntlmnegotiate = ntlmssp.getlayer(NTLM_Negotiate)
+
+                        # Build TargetInfo for NTLMv2 authentication
+                        target_name, target_info = build_ntlm_target_info(
+                            self.config.primary_domain,
+                            self.config.server_name,
+                        )
+
                         rntlmssp = NTLMSSP_Header(MessageType=2)
                         rntlmchallenge = NTLM_Challenge(
                             NegotiateFlags=ntlmnegotiate.NegotiateFlags
+                            | NTLMSSP_NEGOTIATE_TARGET_INFO
                         )
-                        # if ntlmnegotiate.NegotiateFlags & NTLMSSP_REQUEST_TARGET:
-                        # rntlmchallenge.TargetNameFields.Offset = 0x38
-                        # rntlmchallenge.TargetNameFields.Len = 0x1E
-                        # rntlmchallenge.TargetNameFields.MaxLen = 0x1E
+
+                        # Set TargetName fields (payload starts at offset 0x30)
+                        rntlmchallenge.TargetNameFields.Offset = 0x30
+                        rntlmchallenge.TargetNameFields.Len = len(target_name)
+                        rntlmchallenge.TargetNameFields.MaxLen = len(target_name)
+
+                        # Set TargetInfo fields (follows TargetName in payload)
+                        rntlmchallenge.TargetInfoFields.Offset = 0x30 + len(target_name)
+                        rntlmchallenge.TargetInfoFields.Len = len(target_info)
+                        rntlmchallenge.TargetInfoFields.MaxLen = len(target_info)
 
                         rntlmchallenge.ServerChallenge = os.urandom(8)
+                        rntlmchallenge.Payload = target_name + target_info
                         rntlmssp = rntlmssp / rntlmchallenge
                         rntlmssp.show()
                         raw = rntlmssp.build()
@@ -508,18 +553,33 @@ class smbd(connection):
                         if ntlmssp.MessageType == 1:
                             r.Action = 0
                             ntlmnegotiate = ntlmssp.getlayer(NTLM_Negotiate)
+
+                            # Build TargetInfo for NTLMv2 authentication
+                            target_name, target_info = build_ntlm_target_info(
+                                self.config.primary_domain,
+                                self.config.server_name,
+                            )
+
                             rntlmssp = NTLMSSP_Header(MessageType=2)
                             rntlmchallenge = NTLM_Challenge(
                                 NegotiateFlags=ntlmnegotiate.NegotiateFlags
+                                | NTLMSSP_NEGOTIATE_TARGET_INFO
                             )
-                            rntlmchallenge.TargetInfoFields.Offset = (
-                                rntlmchallenge.TargetNameFields.Offset
-                            ) = 0x30
-                            # if ntlmnegotiate.NegotiateFlags & NTLMSSP_REQUEST_TARGET:
-                            # rntlmchallenge.TargetNameFields.Offset = 0x38
-                            # rntlmchallenge.TargetNameFields.Len = 0x1E
-                            # rntlmchallenge.TargetNameFields.MaxLen = 0x1E
+
+                            # Set TargetName fields (payload starts at offset 0x30)
+                            rntlmchallenge.TargetNameFields.Offset = 0x30
+                            rntlmchallenge.TargetNameFields.Len = len(target_name)
+                            rntlmchallenge.TargetNameFields.MaxLen = len(target_name)
+
+                            # Set TargetInfo fields (follows TargetName in payload)
+                            rntlmchallenge.TargetInfoFields.Offset = 0x30 + len(
+                                target_name
+                            )
+                            rntlmchallenge.TargetInfoFields.Len = len(target_info)
+                            rntlmchallenge.TargetInfoFields.MaxLen = len(target_info)
+
                             rntlmchallenge.ServerChallenge = os.urandom(8)
+                            rntlmchallenge.Payload = target_name + target_info
                             rntlmssp = rntlmssp / rntlmchallenge
                             rntlmssp.show()
                             negtokentarg = NegTokenTarg(
@@ -528,7 +588,6 @@ class smbd(connection):
                             negtokentarg.responseToken = rntlmssp.build()
                             negtokentarg.mechListMIC = None
                             raw = negtokentarg.build()
-                            # r.SecurityBlob = b'\xa1' + BER_len_enc(len(raw)) + raw
                             r.SecurityBlob = (
                                 BER_identifier_enc(BER_CLASS_CON, 1, 1)
                                 + BER_len_enc(len(raw))
