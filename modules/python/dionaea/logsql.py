@@ -387,12 +387,12 @@ class logsqlhandler(ihandler):
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS virustotals (
                 virustotal INTEGER PRIMARY KEY,
-                virustotal_md5_hash TEXT NOT NULL,
+                virustotal_sha256_hash TEXT NOT NULL,
                 virustotal_timestamp INTEGER NOT NULL,
                 virustotal_permalink TEXT NOT NULL
             )""")
 
-        for idx in ["md5_hash"]:
+        for idx in ["sha256_hash"]:
             self.cursor.execute(
                 """CREATE INDEX IF NOT EXISTS virustotals_{}_idx
             ON virustotals (virustotal_{})""".format(idx, idx)
@@ -1046,7 +1046,7 @@ class logsqlhandler(ihandler):
             self.dbh.commit()
 
     def handle_incident_dionaea_modules_python_virustotal_report(self, icd):
-        md5 = icd.md5hash
+        sha256 = icd.sha256hash
         with open(icd.path) as f:
             j = json.load(f)
 
@@ -1054,8 +1054,8 @@ class logsqlhandler(ihandler):
             permalink = j["permalink"]
             date = j["scan_date"]
             self.cursor.execute(
-                "INSERT INTO virustotals (virustotal_md5_hash, virustotal_permalink, virustotal_timestamp) VALUES (?,?,strftime('%s',?))",
-                (md5, permalink, date),
+                "INSERT INTO virustotals (virustotal_sha256_hash, virustotal_permalink, virustotal_timestamp) VALUES (?,?,strftime('%s',?))",
+                (sha256, permalink, date),
             )
             self.dbh.commit()
 

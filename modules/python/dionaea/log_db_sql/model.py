@@ -309,6 +309,6 @@ class VirusTotalScan(Base):
     __tablename__ = "virustotal_scan"
 
     id = Column(Integer, primary_key=True)
-    md5_hash = Column(String(255), index=True)
+    sha256_hash = Column(String(64), index=True)
     permalink = Column(String(255))
     timestamp = Column(DateTime)

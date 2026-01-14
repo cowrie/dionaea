@@ -363,7 +363,7 @@ class LogSQLHandler(ihandler):
             self.db_session.commit()
 
     def handle_incident_dionaea_modules_python_virustotal_report(self, icd):
-        md5 = icd.md5hash
+        sha256 = icd.sha256hash
         with open(icd.path) as f:
             j = json.load(f)
 
@@ -372,7 +372,7 @@ class LogSQLHandler(ihandler):
             permalink = j['permalink']
             date = j['scan_date']
             db_virustotal_scan = model.VirusTotalScan(
-                md5_hash=md5,
+                sha256_hash=sha256,
                 permalink=permalink,
                 timestamp=date
             )
