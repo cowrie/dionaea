@@ -151,6 +151,9 @@ def build_ntlm_target_info(domain_name, computer_name):
     - target_name_bytes: UTF-16LE encoded domain name for TargetName field
     - target_info_bytes: Concatenated AV_PAIRs for TargetInfo field
     """
+    import struct
+    import time
+
     # Encode names as UTF-16LE (without BOM)
     domain_utf16 = domain_name.encode("utf-16-le")
     computer_utf16 = computer_name.encode("utf-16-le")
@@ -160,10 +163,20 @@ def build_ntlm_target_info(domain_name, computer_name):
     av_domain = AV_PAIR(Id=2, Value=domain_utf16)
     # MsvAvNbComputerName (Id=1)
     av_computer = AV_PAIR(Id=1, Value=computer_utf16)
+    # MsvAvTimestamp (Id=7) - FILETIME (100ns intervals since Jan 1, 1601)
+    # Convert Unix time to FILETIME
+    unix_time = time.time()
+    filetime = int((unix_time + 11644473600) * 10000000)
+    av_timestamp = AV_PAIR(Id=7, Value=struct.pack("<Q", filetime))
     # MsvAvEOL (Id=0) - end of list
     av_eol = AV_PAIR(Id=0, Value=b"")
 
-    target_info = av_domain.build() + av_computer.build() + av_eol.build()
+    target_info = (
+        av_domain.build()
+        + av_computer.build()
+        + av_timestamp.build()
+        + av_eol.build()
+    )
 
     return domain_utf16, target_info
 
