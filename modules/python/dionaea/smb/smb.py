@@ -174,6 +174,7 @@ class smbd(connection):
         self.trans_data = b""  # SMB_COM_TRANSACTION_SECONDARY accumulated data
         self.trans_total_params = 0  # expected total param count
         self.trans_total_data = 0  # expected total data count
+        self.trans_name = ""  # transaction name from primary TRANSACTION
         self.outbuf = None
         self.fids = {}
         self.printer = b""  # spoolss file "queue"
@@ -805,6 +806,23 @@ class smbd(connection):
                 TransactionName,
             )
 
+            # Check if secondary packets will follow (fragmented transaction)
+            if h.TotalParamCount > h.ParamCount or h.TotalDataCount > h.DataCount:
+                smblog.info(
+                    "SMB Transaction fragmented: params %d/%d, data %d/%d - expecting SECONDARY",
+                    h.ParamCount,
+                    h.TotalParamCount,
+                    h.DataCount,
+                    h.TotalDataCount,
+                )
+                # Store context for SECONDARY packets
+                self.trans_name = TransactionName
+                self.trans_total_params = h.TotalParamCount
+                self.trans_total_data = h.TotalDataCount
+                # Initialize with data from primary packet
+                self.trans_params = bytes(h.Param) if hasattr(h, "Param") else b""
+                self.trans_data = bytes(h.Pad1) if hasattr(h, "Pad1") else b""
+
             if TransactionName == "\\PIPE\\LANMAN":
                 # [MS-RAP].pdf - Remote Administration Protocol
                 rapbuf = bytes(h.Param)
@@ -983,9 +1001,10 @@ class smbd(connection):
         elif Command == SMB_COM_TRANSACTION_SECONDARY:
             h = p.getlayer(SMB_Trans_Secondary_Request)
             smblog.info(
-                "SMB Transaction Secondary from %s:%d - params: %d/%d, data: %d/%d",
+                "SMB Transaction Secondary from %s:%d - name: %s, params: %d/%d, data: %d/%d",
                 self.remote.host,
                 self.remote.port,
+                self.trans_name or "(unknown)",
                 h.ParamCount,
                 h.TotalParamCount,
                 h.DataCount,
@@ -1040,15 +1059,40 @@ class smbd(connection):
                 len(self.trans_params) >= self.trans_total_params
                 and len(self.trans_data) >= self.trans_total_data
             ):
+                # Identify data type
+                data_type = "unknown"
+                if self.trans_data:
+                    if len(self.trans_data) >= 2 and self.trans_data[0] == 0x05:
+                        # DCE/RPC: version=5, version_minor, packet_type
+                        pkt_types = {
+                            0: "request",
+                            2: "response",
+                            11: "bind",
+                            12: "bind_ack",
+                            14: "alter_context",
+                        }
+                        pkt_type = (
+                            self.trans_data[2] if len(self.trans_data) > 2 else -1
+                        )
+                        data_type = (
+                            f"DCE/RPC {pkt_types.get(pkt_type, f'type={pkt_type}')}"
+                        )
+                    elif self.trans_data[:2] == b"MZ":
+                        data_type = "PE executable"
+                    elif self.trans_data[:4] == b"\x7fELF":
+                        data_type = "ELF executable"
+
                 smblog.info(
-                    "Transaction Secondary complete: %d param bytes, %d data bytes",
+                    "Transaction Secondary complete: name=%s, %d param bytes, %d data bytes, type=%s",
+                    self.trans_name or "(unknown)",
                     len(self.trans_params),
                     len(self.trans_data),
+                    data_type,
                 )
                 # Log hex dump for analysis
                 if self.trans_data:
                     smblog.info(
-                        "Transaction data (hex): %s",
+                        "Transaction data (hex, first 256 bytes): %s",
                         self.trans_data[:256].hex(),
                     )
                 # Reset accumulators
@@ -1056,6 +1100,7 @@ class smbd(connection):
                 self.trans_data = b""
                 self.trans_total_params = 0
                 self.trans_total_data = 0
+                self.trans_name = ""
 
             # Send interim response
             r = SMB_Trans_Response_Simple()
