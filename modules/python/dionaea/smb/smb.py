@@ -1236,10 +1236,14 @@ class smbd(connection):
         else:
             cmd_name = SMB_Commands.get(Command, "UNKNOWN")
             smblog.warning("Unsupported SMB command: %s (0x%02x)", cmd_name, Command)
+            # Return error response for unsupported commands
+            r = SMB_Trans_Response_Simple()
+            rstatus = 0xC0000002  # STATUS_NOT_IMPLEMENTED
 
         if r:
             smbh = SMB_Header(Status=rstatus)
-            smbh.Command = r.smb_cmd
+            # For error responses (non-zero status), echo back the original command
+            smbh.Command = Command if rstatus != 0 else r.smb_cmd
             smbh.Flags2 = p.getlayer(SMB_Header).Flags2
             # smbh.Flags2 = p.getlayer(SMB_Header).Flags2 & ~SMB_FLAGS2_EXT_SEC
             smbh.MID = p.getlayer(SMB_Header).MID
