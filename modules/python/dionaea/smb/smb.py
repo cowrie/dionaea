@@ -110,6 +110,7 @@ from .include.ntlmfields import (
     NTLM_Negotiate,
     NTLMSSP_Header,
     NTLMSSP_NEGOTIATE_TARGET_INFO,
+    NTLMSSP_NEGOTIATE_VERSION,
 )
 from .include.packet import Raw
 from .include.asn1.ber import BER_len_dec, BER_len_enc, BER_identifier_dec
@@ -496,19 +497,26 @@ class smbd(connection):
                             self.config.server_name,
                         )
 
+                        neg_flags = (
+                            ntlmnegotiate.NegotiateFlags | NTLMSSP_NEGOTIATE_TARGET_INFO
+                        )
                         rntlmssp = NTLMSSP_Header(MessageType=2)
-                        rntlmchallenge = NTLM_Challenge(
-                            NegotiateFlags=ntlmnegotiate.NegotiateFlags
-                            | NTLMSSP_NEGOTIATE_TARGET_INFO
+                        rntlmchallenge = NTLM_Challenge(NegotiateFlags=neg_flags)
+
+                        # Calculate payload offset (0x38 with Version, 0x30 without)
+                        payload_offset = (
+                            0x38 if neg_flags & NTLMSSP_NEGOTIATE_VERSION else 0x30
                         )
 
-                        # Set TargetName fields (payload starts at offset 0x30)
-                        rntlmchallenge.TargetNameFields.Offset = 0x30
+                        # Set TargetName fields
+                        rntlmchallenge.TargetNameFields.Offset = payload_offset
                         rntlmchallenge.TargetNameFields.Len = len(target_name)
                         rntlmchallenge.TargetNameFields.MaxLen = len(target_name)
 
                         # Set TargetInfo fields (follows TargetName in payload)
-                        rntlmchallenge.TargetInfoFields.Offset = 0x30 + len(target_name)
+                        rntlmchallenge.TargetInfoFields.Offset = payload_offset + len(
+                            target_name
+                        )
                         rntlmchallenge.TargetInfoFields.Len = len(target_info)
                         rntlmchallenge.TargetInfoFields.MaxLen = len(target_info)
 
@@ -562,20 +570,26 @@ class smbd(connection):
                                 self.config.server_name,
                             )
 
-                            rntlmssp = NTLMSSP_Header(MessageType=2)
-                            rntlmchallenge = NTLM_Challenge(
-                                NegotiateFlags=ntlmnegotiate.NegotiateFlags
+                            neg_flags = (
+                                ntlmnegotiate.NegotiateFlags
                                 | NTLMSSP_NEGOTIATE_TARGET_INFO
                             )
+                            rntlmssp = NTLMSSP_Header(MessageType=2)
+                            rntlmchallenge = NTLM_Challenge(NegotiateFlags=neg_flags)
 
-                            # Set TargetName fields (payload starts at offset 0x30)
-                            rntlmchallenge.TargetNameFields.Offset = 0x30
+                            # Calculate payload offset (0x38 with Version, 0x30 without)
+                            payload_offset = (
+                                0x38 if neg_flags & NTLMSSP_NEGOTIATE_VERSION else 0x30
+                            )
+
+                            # Set TargetName fields
+                            rntlmchallenge.TargetNameFields.Offset = payload_offset
                             rntlmchallenge.TargetNameFields.Len = len(target_name)
                             rntlmchallenge.TargetNameFields.MaxLen = len(target_name)
 
                             # Set TargetInfo fields (follows TargetName in payload)
-                            rntlmchallenge.TargetInfoFields.Offset = 0x30 + len(
-                                target_name
+                            rntlmchallenge.TargetInfoFields.Offset = (
+                                payload_offset + len(target_name)
                             )
                             rntlmchallenge.TargetInfoFields.Len = len(target_info)
                             rntlmchallenge.TargetInfoFields.MaxLen = len(target_info)
