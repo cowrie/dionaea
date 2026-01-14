@@ -79,8 +79,10 @@ from .include.smbfields import (
     SMB_Sessionsetup_ESEC_AndX_Response,
     SMB_Trans2_Commands,
     SMB_TRANS2_FIND_FIRST2,
+    SMB_TRANS2_QUERY_FS_INFORMATION,
     SMB_TRANS2_SESSION_SETUP,
     SMB_Trans2_FIND_FIRST2_Response,
+    SMB_Trans2_QUERY_FS_INFO_Response,
     SMB_Trans2_Request,
     SMB_Trans2_Response,
     SMB_Trans2_Secondary_Request,
@@ -1036,6 +1038,59 @@ class smbd(connection):
                     rstatus = 0xC0000002  # STATUS_NOT_IMPLEMENTED
             elif h.Setup[0] == SMB_TRANS2_FIND_FIRST2:
                 r = SMB_Trans2_FIND_FIRST2_Response()
+            elif h.Setup[0] == SMB_TRANS2_QUERY_FS_INFORMATION:
+                # Get the information level from Params (first 2 bytes)
+                info_level = 0
+                if len(h.Param) >= 2:
+                    info_level = h.Param[0] | (h.Param[1] << 8)
+
+                smblog.debug(
+                    "TRANS2_QUERY_FS_INFORMATION: level=0x%04x from %s:%d",
+                    info_level,
+                    self.remote.host,
+                    self.remote.port,
+                )
+
+                if info_level == 0x0103:  # SMB_QUERY_FS_SIZE_INFO
+                    # FileFsSizeInformation structure (24 bytes)
+                    # TotalAllocationUnits (8), TotalFreeAllocationUnits (8),
+                    # SectorsPerAllocationUnit (4), BytesPerSector (4)
+                    data = struct.pack(
+                        "<QQII",
+                        1024 * 1024,  # TotalAllocationUnits (1TB with 1MB units)
+                        512 * 1024,  # TotalFreeAllocationUnits (512GB free)
+                        8,  # SectorsPerAllocationUnit
+                        512,  # BytesPerSector
+                    )
+                    r = SMB_Trans2_QUERY_FS_INFO_Response(Data=data)
+                elif info_level == 0x0105:  # SMB_QUERY_FS_ATTRIBUTE_INFO
+                    # FileFsAttributeInformation structure
+                    # FileSystemAttributes (4), MaxFileNameLength (4),
+                    # FileSystemNameLength (4), FileSystemName (variable)
+                    fs_name = "NTFS".encode("utf-16-le")
+                    data = struct.pack("<III", 0x0000000F, 255, len(fs_name)) + fs_name
+                    r = SMB_Trans2_QUERY_FS_INFO_Response(Data=data)
+                elif info_level == 0x0102:  # SMB_QUERY_FS_VOLUME_INFO
+                    # FileFsVolumeInformation structure
+                    # VolumeCreationTime (8), VolumeSerialNumber (4),
+                    # VolumeLabelLength (4), SupportsObjects (1), Reserved (1),
+                    # VolumeLabel (variable)
+                    # TODO: make volume label configurable
+                    vol_label = self.config.server_name.encode("utf-16-le")
+                    data = (
+                        struct.pack("<QIIBB", 0, 0x12345678, len(vol_label), 0, 0)
+                        + vol_label
+                    )
+                    r = SMB_Trans2_QUERY_FS_INFO_Response(Data=data)
+                else:
+                    smblog.warning(
+                        "Unsupported FS info level: 0x%04x from %s:%d",
+                        info_level,
+                        self.remote.host,
+                        self.remote.port,
+                    )
+                    r = SMB_Trans2_Response()
+                    rstatus = 0xC0000002  # STATUS_NOT_IMPLEMENTED
             else:
                 subcmd = h.Setup[0]
                 subcmd_name = SMB_Trans2_Commands.get(subcmd, "UNKNOWN")

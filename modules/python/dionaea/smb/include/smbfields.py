@@ -1661,6 +1661,30 @@ class SMB_Trans2_FIND_FIRST2_Response(Packet):
     ]
 
 
+class SMB_Trans2_QUERY_FS_INFO_Response(Packet):
+    name = "SMB Trans2 QUERY_FS_INFORMATION Response"
+    smb_cmd = SMB_COM_TRANSACTION2  # 0x32
+    fields_desc = [
+        ByteField("WordCount", 10),
+        LEShortField("TotalParamCount", 0),
+        LEShortField("TotalDataCount", 0),
+        LEShortField("Reserved1", 0),
+        LEShortField("ParamCount", 0),
+        LEShortField("ParamOffset", 56),
+        LEShortField("ParamDisplacement", 0),
+        FieldLenField("DataCount", None, fmt="<H", length_of="Data"),
+        LEShortField("DataOffset", 56),
+        LEShortField("DataDisplacement", 0),
+        ByteField("SetupCount", 0),
+        ByteField("Reserved2", 0),
+        FieldLenField(
+            "ByteCount", None, fmt="<H", length_of="Data", adjust=lambda pkt, x: x + 1
+        ),
+        ByteField("Pad1", 0),
+        StrLenField("Data", b"", length_from=lambda pkt: pkt.DataCount),
+    ]
+
+
 class SMB_Trans2_Response(Packet):
     name = "SMB Trans2 Response"
     smb_cmd = SMB_COM_TRANSACTION2  # 0x32
