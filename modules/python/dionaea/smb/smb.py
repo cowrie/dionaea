@@ -525,8 +525,12 @@ class smbd(connection):
                         rntlmchallenge.ServerChallenge = os.urandom(8)
                         rntlmchallenge.Payload = target_name + target_info
                         rntlmssp = rntlmssp / rntlmchallenge
-                        rntlmssp.show()
                         raw = rntlmssp.build()
+                        smblog.debug(
+                            "NTLM Challenge (raw): %d bytes, hex=%s",
+                            len(raw),
+                            raw.hex(),
+                        )
                         r.SecurityBlob = raw
                         rstatus = 0xC0000016  # STATUS_MORE_PROCESSING_REQUIRED
                 elif sb.startswith(b"\x04\x04") or sb.startswith(b"\x05\x04"):
@@ -599,12 +603,17 @@ class smbd(connection):
                             rntlmchallenge.ServerChallenge = os.urandom(8)
                             rntlmchallenge.Payload = target_name + target_info
                             rntlmssp = rntlmssp / rntlmchallenge
-                            rntlmssp.show()
+                            ntlm_raw = rntlmssp.build()
+                            smblog.debug(
+                                "NTLM Challenge: %d bytes, hex=%s",
+                                len(ntlm_raw),
+                                ntlm_raw.hex(),
+                            )
                             # MS-SPNG: Server's negTokenTarg should only include
                             # negResult and responseToken, not supportedMech
                             negtokentarg = NegTokenTarg(negResult=1)
                             negtokentarg.supportedMech = None
-                            negtokentarg.responseToken = rntlmssp.build()
+                            negtokentarg.responseToken = ntlm_raw
                             negtokentarg.mechListMIC = None
                             raw = negtokentarg.build()
                             r.SecurityBlob = (
