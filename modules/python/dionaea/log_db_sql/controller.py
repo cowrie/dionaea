@@ -14,7 +14,7 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 from dionaea.core import ihandler
 from dionaea.log_db_sql import model
 
-logger = logging.getLogger('log_db_sql')
+logger = logging.getLogger("log_db_sql")
 logger.setLevel(logging.DEBUG)
 
 
@@ -32,13 +32,11 @@ class LogSQLHandler(ihandler):
         ihandler.__init__(self, self.path)
         # mapping socket -> attackid
 
-        engine = create_engine(self._config.get("url"), echo=False, convert_unicode=True)
+        engine = create_engine(
+            self._config.get("url"), echo=False, convert_unicode=True
+        )
         self.db_session = scoped_session(
-            sessionmaker(
-                autocommit=False,
-                autoflush=False,
-                bind=engine
-            )
+            sessionmaker(autocommit=False, autoflush=False, bind=engine)
         )
         model.Base.query = self.db_session.query_property()
         model.Base.metadata.create_all(bind=engine)
@@ -58,7 +56,7 @@ class LogSQLHandler(ihandler):
             local_port=con.local.port,
             remote_host=con.remote.host,
             remote_port=con.remote.port,
-            remote_hostname=con.remote.hostname
+            remote_hostname=con.remote.hostname,
         )
         connection.root = connection.id
 
@@ -66,13 +64,9 @@ class LogSQLHandler(ihandler):
         self.db_session.commit()
 
         # Old trigger
-        self.db_session.query(
-            model.Connection
-        ).filter(
+        self.db_session.query(model.Connection).filter(
             model.Connection.id == connection.id and model.Connection.root is None
-        ).update({
-            "root": connection.id
-        })
+        ).update({"root": connection.id})
         self.db_session.commit()
 
         attackid = connection.id
@@ -85,69 +79,124 @@ class LogSQLHandler(ihandler):
             # - update the connection_root and connection_parent for all connections which had the pending
             # - update the connection_root for all connections which had the 'childid' as connection_root
             for i in self.pending[con]:
-                logger.debug(f"Updating connection root/parent: attackid={attackid} connection={i}")
-                self.db_session.query(
-                    model.Connection
-                ).filter(
+                logger.debug(
+                    f"Updating connection root/parent: attackid={attackid} connection={i}"
+                )
+                self.db_session.query(model.Connection).filter(
                     model.Connection.id == i
-                ).update({
-                    "root": attackid,
-                    "parent": attackid
-                })
-                self.db_session.query(
-                    model.Connection
-                ).filter(
+                ).update({"root": attackid, "parent": attackid})
+                self.db_session.query(model.Connection).filter(
                     model.Connection.root == i
-                ).update({
-                    "root": attackid
-                })
+                ).update({"root": attackid})
             self.db_session.commit()
         return attackid
 
     def handle_incident_dionaea_connection_tcp_listen(self, icd):
-        attackid = self.connection_insert(icd, 'listen')
+        attackid = self.connection_insert(icd, "listen")
         con = icd.con
-        logger.info("listen connection on %s:%i (id=%i)", con.remote.host, con.remote.port, attackid)
+        logger.info(
+            "listen connection on %s:%i (id=%i)",
+            con.remote.host,
+            con.remote.port,
+            attackid,
+        )
 
     def handle_incident_dionaea_connection_tls_listen(self, icd):
-        attackid = self.connection_insert(icd, 'listen')
+        attackid = self.connection_insert(icd, "listen")
         con = icd.con
-        logger.info("listen connection on %s:%i (id=%i)", con.remote.host, con.remote.port, attackid)
+        logger.info(
+            "listen connection on %s:%i (id=%i)",
+            con.remote.host,
+            con.remote.port,
+            attackid,
+        )
 
     def handle_incident_dionaea_connection_tcp_connect(self, icd):
-        attackid = self.connection_insert(icd, 'connect')
+        attackid = self.connection_insert(icd, "connect")
         con = icd.con
-        logger.info("connect connection to %s/%s:%i from %s:%i (id=%i)", con.remote.host, con.remote.hostname, con.remote.port, con.local.host, con.local.port, attackid)
+        logger.info(
+            "connect connection to %s/%s:%i from %s:%i (id=%i)",
+            con.remote.host,
+            con.remote.hostname,
+            con.remote.port,
+            con.local.host,
+            con.local.port,
+            attackid,
+        )
 
     def handle_incident_dionaea_connection_tls_connect(self, icd):
-        attackid = self.connection_insert(icd, 'connect')
+        attackid = self.connection_insert(icd, "connect")
         con = icd.con
-        logger.info("connect connection to %s/%s:%i from %s:%i (id=%i)", con.remote.host, con.remote.hostname, con.remote.port, con.local.host, con.local.port, attackid)
+        logger.info(
+            "connect connection to %s/%s:%i from %s:%i (id=%i)",
+            con.remote.host,
+            con.remote.hostname,
+            con.remote.port,
+            con.local.host,
+            con.local.port,
+            attackid,
+        )
 
     def handle_incident_dionaea_connection_udp_connect(self, icd):
-        attackid = self.connection_insert(icd, 'connect')
+        attackid = self.connection_insert(icd, "connect")
         con = icd.con
-        logger.info("connect connection to %s/%s:%i from %s:%i (id=%i)", con.remote.host, con.remote.hostname, con.remote.port, con.local.host, con.local.port, attackid)
+        logger.info(
+            "connect connection to %s/%s:%i from %s:%i (id=%i)",
+            con.remote.host,
+            con.remote.hostname,
+            con.remote.port,
+            con.local.host,
+            con.local.port,
+            attackid,
+        )
 
     def handle_incident_dionaea_connection_tcp_accept(self, icd):
-        attackid = self.connection_insert(icd, 'accept')
+        attackid = self.connection_insert(icd, "accept")
         con = icd.con
-        logger.info("accepted connection from %s:%i to %s:%i (id=%i)", con.remote.host, con.remote.port, con.local.host, con.local.port, attackid)
+        logger.info(
+            "accepted connection from %s:%i to %s:%i (id=%i)",
+            con.remote.host,
+            con.remote.port,
+            con.local.host,
+            con.local.port,
+            attackid,
+        )
 
     def handle_incident_dionaea_connection_tls_accept(self, icd):
-        attackid = self.connection_insert(icd, 'accept')
+        attackid = self.connection_insert(icd, "accept")
         con = icd.con
-        logger.info("accepted connection from %s:%i to %s:%i (id=%i)", con.remote.host, con.remote.port, con.local.host, con.local.port, attackid)
+        logger.info(
+            "accepted connection from %s:%i to %s:%i (id=%i)",
+            con.remote.host,
+            con.remote.port,
+            con.local.host,
+            con.local.port,
+            attackid,
+        )
 
     def handle_incident_dionaea_connection_tcp_reject(self, icd):
-        attackid = self.connection_insert(icd, 'reject')
+        attackid = self.connection_insert(icd, "reject")
         con = icd.con
-        logger.info("reject connection from %s:%i to %s:%i (id=%i)", con.remote.host, con.remote.port, con.local.host, con.local.port, attackid)
+        logger.info(
+            "reject connection from %s:%i to %s:%i (id=%i)",
+            con.remote.host,
+            con.remote.port,
+            con.local.host,
+            con.local.port,
+            attackid,
+        )
 
     def handle_incident_dionaea_connection_tcp_pending(self, icd):
-        attackid = self.connection_insert(icd, 'pending')
+        attackid = self.connection_insert(icd, "pending")
         con = icd.con
-        logger.info("pending connection from %s:%i to %s:%i (id=%i)", con.remote.host, con.remote.port, con.local.host, con.local.port, attackid)
+        logger.info(
+            "pending connection from %s:%i to %s:%i (id=%i)",
+            con.remote.host,
+            con.remote.port,
+            con.local.host,
+            con.local.port,
+            attackid,
+        )
 
     def handle_incident_dionaea_connection_link_early(self, icd):
         # if we have to link a connection with a connection we do not know yet,
@@ -172,14 +221,9 @@ class LogSQLHandler(ihandler):
             self.attacks[icd.child] = (parentroot, childid)
             logger.info("child has ids %s", str(self.attacks[icd.child]))
             logger.info("child %i parent %i root %i", childid, parentid, parentroot)
-            self.db_session.query(
-                model.Connection
-            ).filter(
+            self.db_session.query(model.Connection).filter(
                 model.Connection.id == childid
-            ).update({
-                "root": parentroot,
-                "parent": parentid
-            })
+            ).update({"root": parentroot, "parent": parentid})
             self.db_session.commit()
 
         if icd.child in self.pending:
@@ -192,13 +236,9 @@ class LogSQLHandler(ihandler):
             else:
                 childid = parentid
 
-            self.db_session.query(
-                model.Connection
-            ).filter(
+            self.db_session.query(model.Connection).filter(
                 model.Connection.root == childid
-            ).update({
-                "root": parentroot
-            })
+            ).update({"root": parentroot})
             self.db_session.commit()
 
     def handle_incident_dionaea_connection_free(self, icd):
@@ -219,10 +259,7 @@ class LogSQLHandler(ihandler):
         attackid = self.attacks[con][1]
         logger.info("emu profile for attackid %i", attackid)
         self.db_session.add(
-            model.EmuProfile(
-                connection_id=attackid,
-                json_data=icd.profile
-            )
+            model.EmuProfile(connection_id=attackid, json_data=icd.profile)
         )
         self.db_session.commit()
 
@@ -232,12 +269,7 @@ class LogSQLHandler(ihandler):
             return
         attackid = self.attacks[con][1]
         logger.info("offer for attackid %i", attackid)
-        self.db_session.add(
-            model.DownloadOffer(
-                connection_id=attackid,
-                url=icd.url
-            )
-        )
+        self.db_session.add(model.DownloadOffer(connection_id=attackid, url=icd.url))
         self.db_session.commit()
 
     def handle_incident_dionaea_download_complete_hash(self, icd):
@@ -248,9 +280,7 @@ class LogSQLHandler(ihandler):
         logger.info("complete for attackid %i", attackid)
         self.db_session.add(
             model.DownloadData(
-                connection_id=attackid,
-                url=icd.url,
-                md5_hash=icd.md5hash
+                connection_id=attackid, url=icd.url, md5_hash=icd.md5hash
             )
         )
         self.db_session.commit()
@@ -262,10 +292,7 @@ class LogSQLHandler(ihandler):
         attackid = self.attacks[con][1]
         logger.info("listen shell for attackid %i", attackid)
         self.db_session.add(
-            model.EmuService(
-                connection_id=attackid,
-                url=f"bindshell://{str(icd.port)}"
-            )
+            model.EmuService(connection_id=attackid, url=f"bindshell://{str(icd.port)}")
         )
         self.db_session.commit()
 
@@ -278,7 +305,7 @@ class LogSQLHandler(ihandler):
         self.db_session.add(
             model.EmuService(
                 connection_id=attackid,
-                url="connectbackshell://" + str(icd.host) + ":" + str(icd.port)
+                url="connectbackshell://" + str(icd.host) + ":" + str(icd.port),
             )
         )
         self.db_session.commit()
@@ -297,7 +324,7 @@ class LogSQLHandler(ihandler):
                     tos=icd.tos,
                     dist=icd.dist,
                     nat=icd.nat,
-                    fw=icd.fw
+                    fw=icd.fw,
                 )
             )
             self.db_session.commit()
@@ -308,9 +335,7 @@ class LogSQLHandler(ihandler):
             attackid = self.attacks[con][1]
             self.db_session.add(
                 model.SmbDCERPCRequest(
-                    connection_id=attackid,
-                    uuid=icd.uuid,
-                    opnum=icd.opnum
+                    connection_id=attackid, uuid=icd.uuid, opnum=icd.opnum
                 )
             )
             self.db_session.commit()
@@ -323,7 +348,7 @@ class LogSQLHandler(ihandler):
                 model.SmbDCERPCBind(
                     connection_id=attackid,
                     uuid=icd.uuid,
-                    transfer_syntax=icd.transfer_syntax
+                    transfer_syntax=icd.transfer_syntax,
                 )
             )
             self.db_session.commit()
@@ -334,9 +359,7 @@ class LogSQLHandler(ihandler):
             attackid = self.attacks[con][1]
             self.db_session.add(
                 model.MSSQLLogin(
-                    connection_id=attackid,
-                    username=icd.username,
-                    password=icd.password
+                    connection_id=attackid, username=icd.username, password=icd.password
                 )
             )
             self.db_session.add(
@@ -344,7 +367,7 @@ class LogSQLHandler(ihandler):
                     connection_id=attackid,
                     hostname=icd.hostname,
                     appname=icd.appname,
-                    cltintname=icd.cltintname
+                    cltintname=icd.cltintname,
                 )
             )
             self.db_session.commit()
@@ -355,9 +378,7 @@ class LogSQLHandler(ihandler):
             attackid = self.attacks[con][1]
             self.db_session.add(
                 model.MSSQLCommand(
-                    connection_id=attackid,
-                    command=icd.cmd,
-                    status=icd.status
+                    connection_id=attackid, command=icd.cmd, status=icd.status
                 )
             )
             self.db_session.commit()
@@ -368,28 +389,24 @@ class LogSQLHandler(ihandler):
             j = json.load(f)
 
         # file was known to virustotal
-        if j['response_code'] == 1:
-            permalink = j['permalink']
-            date = j['scan_date']
+        if j["response_code"] == 1:
+            permalink = j["permalink"]
+            date = j["scan_date"]
             db_virustotal_scan = model.VirusTotalScan(
-                sha256_hash=sha256,
-                permalink=permalink,
-                timestamp=date
+                sha256_hash=sha256, permalink=permalink, timestamp=date
             )
             self.db_session.add(db_virustotal_scan)
 
-            scans = j['scans']
+            scans = j["scans"]
             for av, val in scans.items():
-                res = val['result']
+                res = val["result"]
                 # not detected = '' -> NULL
-                if res == '':
+                if res == "":
                     res = None
 
                 self.db_session.add(
                     model.VirusTotalResult(
-                        scan=db_virustotal_scan,
-                        result=res,
-                        status=av
+                        scan=db_virustotal_scan, result=res, status=av
                     )
                 )
             self.db_session.commit()
@@ -400,9 +417,7 @@ class LogSQLHandler(ihandler):
             attackid = self.attacks[con][1]
             self.db_session.add(
                 model.MySQLLogin(
-                    connection_id=attackid,
-                    username=icd.username,
-                    password=icd.password
+                    connection_id=attackid, username=icd.username, password=icd.password
                 )
             )
             self.db_session.commit()
@@ -415,20 +430,17 @@ class LogSQLHandler(ihandler):
         attackid = self.attacks[con][1]
 
         db_mysql_command = model.MySQLCommand(
-            connection_id=attackid,
-            command=icd.command
+            connection_id=attackid, command=icd.command
         )
         self.db_session.add(db_mysql_command)
 
-        if hasattr(icd, 'args'):
+        if hasattr(icd, "args"):
             args = icd.args
             for i in range(len(args)):
                 arg = args[i]
                 self.db_session.add(
                     model.MySQLCommandArgument(
-                        command=db_mysql_command,
-                        index=i,
-                        value=arg
+                        command=db_mysql_command, index=i, value=arg
                     )
                 )
 
@@ -447,7 +459,7 @@ class LogSQLHandler(ihandler):
                 password=icd.password,
                 clientid=icd.clientid,
                 will_topic=icd.willtopic,
-                will_message=icd.willmessage
+                will_message=icd.willmessage,
             )
         )
         self.db_session.commit()
@@ -462,7 +474,7 @@ class LogSQLHandler(ihandler):
             model.MQTTPublishCommand(
                 connection_id=attackid,
                 topic=icd.publishtopic,
-                message=icd.publishmessage
+                message=icd.publishmessage,
             )
         )
         self.db_session.commit()
@@ -477,7 +489,7 @@ class LogSQLHandler(ihandler):
             model.MQTTSubscribeCommand(
                 connection_id=attackid,
                 messageid=icd.subscribemessageid,
-                topic=icd.subscribetopic
+                topic=icd.subscribetopic,
             )
         )
         self.db_session.commit()
@@ -493,7 +505,7 @@ class LogSQLHandler(ihandler):
                     uri_username=addr["uri"]["user"],
                     uri_password=addr["uri"]["password"],
                     uri_host=addr["uri"]["host"],
-                    uri_port=addr["uri"]["port"]
+                    uri_port=addr["uri"]["port"],
                 )
             )
 
@@ -505,7 +517,7 @@ class LogSQLHandler(ihandler):
                     address_type=c["addrtype"],
                     connection_address=c["connection_address"],
                     ttl=c["ttl"],
-                    number_of_address=c["number_of_addresses"]
+                    number_of_address=c["number_of_addresses"],
                 )
             )
 
@@ -516,7 +528,7 @@ class LogSQLHandler(ihandler):
                     media=c["media"],
                     port=c["port"],
                     number_of_ports=c["number_of_ports"],
-                    protocol=c["proto"]
+                    protocol=c["proto"],
                 )
             )
 
@@ -529,33 +541,34 @@ class LogSQLHandler(ihandler):
                     session_version=o["sess_version"],
                     network_type=o["nettype"],
                     address_type=o["addrtype"],
-                    unicast_address=o["unicast_address"]
+                    unicast_address=o["unicast_address"],
                 )
             )
 
         def calc_allow(a):
-            b = { b'UNKNOWN'  :(1<<0),
-                'ACK'       :(1<<1),
-                'BYE'       :(1<<2),
-                'CANCEL'    :(1<<3),
-                'INFO'      :(1<<4),
-                'INVITE'    :(1<<5),
-                'MESSAGE'   :(1<<6),
-                'NOTIFY'    :(1<<7),
-                'OPTIONS'   :(1<<8),
-                'PRACK'     :(1<<9),
-                'PUBLISH'   :(1<<10),
-                'REFER'     :(1<<11),
-                'REGISTER'  :(1<<12),
-                'SUBSCRIBE' :(1<<13),
-                'UPDATE'    :(1<<14)
-                }
+            b = {
+                b"UNKNOWN": (1 << 0),
+                "ACK": (1 << 1),
+                "BYE": (1 << 2),
+                "CANCEL": (1 << 3),
+                "INFO": (1 << 4),
+                "INVITE": (1 << 5),
+                "MESSAGE": (1 << 6),
+                "NOTIFY": (1 << 7),
+                "OPTIONS": (1 << 8),
+                "PRACK": (1 << 9),
+                "PUBLISH": (1 << 10),
+                "REFER": (1 << 11),
+                "REGISTER": (1 << 12),
+                "SUBSCRIBE": (1 << 13),
+                "UPDATE": (1 << 14),
+            }
             allow = 0
             for i in a:
                 if i in b:
                     allow |= b[i]
                 else:
-                    allow |= b[b'UNKNOWN']
+                    allow |= b[b"UNKNOWN"]
             return allow
 
         con = icd.con
@@ -568,34 +581,34 @@ class LogSQLHandler(ihandler):
             method=icd.method,
             call_id=icd.call_id,
             user_agent=icd.user_agent,
-            allow=calc_allow(icd.allow)
+            allow=calc_allow(icd.allow),
         )
         self.db_session.add(db_sip_command)
 
         for name in ("addr", "to", "contact"):
             add_addr(name, icd.get(name))
 
-        for i in icd.get('from'):
-            add_addr('from', i)
+        for i in icd.get("from"):
+            add_addr("from", i)
 
-        for via in icd.get('via'):
+        for via in icd.get("via"):
             self.db_session.add(
                 model.SipVia(
                     command=db_sip_command,
                     protocol=via["protocol"],
                     address=via["address"],
-                    port=via["port"]
+                    port=via["port"],
                 )
             )
 
         sdp_data = icd.get("sdp")
         if sdp_data is not None:
-            if 'o' in sdp_data:
-                add_sdp_origin(sdp_data['o'])
-            if 'c' in sdp_data:
-                add_sdp_condata(sdp_data['c'])
-            if 'm' in sdp_data:
-                for i in sdp_data['m']:
+            if "o" in sdp_data:
+                add_sdp_origin(sdp_data["o"])
+            if "c" in sdp_data:
+                add_sdp_condata(sdp_data["c"])
+            if "m" in sdp_data:
+                for i in sdp_data["m"]:
                     add_sdp_media(i)
 
         self.db_session.commit()

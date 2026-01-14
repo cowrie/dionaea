@@ -12,7 +12,7 @@ import json
 import uuid
 import sqlite3
 
-logger = logging.getLogger('virustotal')
+logger = logging.getLogger("virustotal")
 logger.setLevel(logging.DEBUG)
 
 
@@ -30,6 +30,7 @@ class vtreport:
         self.sha256hash = sha256hash
         self.file = file
         self.status = status
+
 
 class virustotalhandler(ihandler):
     def __init__(self, path, config=None):
@@ -69,42 +70,54 @@ class virustotalhandler(ihandler):
         # try to comment on files
         # comment on files which were submitted at least 60 seconds ago
         sfs = self.cursor.execute(
-            """SELECT backlogfile, sha256_hash, path FROM backlogfiles WHERE status = 'comment' AND submit_time < strftime("%s",'now')-1*60 LIMIT 1""")
+            """SELECT backlogfile, sha256_hash, path FROM backlogfiles WHERE status = 'comment' AND submit_time < strftime("%s",'now')-1*60 LIMIT 1"""
+        )
         for sf in sfs:
             self.cursor.execute(
-                """UPDATE backlogfiles SET status = 'comment-' WHERE backlogfile = ?""", (sf[0],))
+                """UPDATE backlogfiles SET status = 'comment-' WHERE backlogfile = ?""",
+                (sf[0],),
+            )
             self.dbh.commit()
-            self.make_comment(sf[0], sf[1], sf[2], 'comment')
+            self.make_comment(sf[0], sf[1], sf[2], "comment")
             return
 
         # try to receive reports for files we submitted
         sfs = self.cursor.execute(
-            """SELECT backlogfile, sha256_hash, path FROM backlogfiles WHERE status = 'query' AND submit_time < strftime("%s",'now')-15*60 AND lastcheck_time < strftime("%s",'now')-15*60 LIMIT 1""")
+            """SELECT backlogfile, sha256_hash, path FROM backlogfiles WHERE status = 'query' AND submit_time < strftime("%s",'now')-15*60 AND lastcheck_time < strftime("%s",'now')-15*60 LIMIT 1"""
+        )
         for sf in sfs:
             self.cursor.execute(
-                """UPDATE backlogfiles SET status = 'query-' WHERE backlogfile = ?""", (sf[0],))
+                """UPDATE backlogfiles SET status = 'query-' WHERE backlogfile = ?""",
+                (sf[0],),
+            )
             self.dbh.commit()
-            self.get_file_report(sf[0], sf[1], sf[2], 'query')
+            self.get_file_report(sf[0], sf[1], sf[2], "query")
             return
 
         # submit files not known to virustotal
         sfs = self.cursor.execute(
-            """SELECT backlogfile, sha256_hash, path FROM backlogfiles WHERE status = 'submit' LIMIT 1""")
+            """SELECT backlogfile, sha256_hash, path FROM backlogfiles WHERE status = 'submit' LIMIT 1"""
+        )
         for sf in sfs:
             self.cursor.execute(
-                """UPDATE backlogfiles SET status = 'submit-' WHERE backlogfile = ?""", (sf[0],))
+                """UPDATE backlogfiles SET status = 'submit-' WHERE backlogfile = ?""",
+                (sf[0],),
+            )
             self.dbh.commit()
-            self.scan_file(sf[0], sf[1], sf[2], 'submit')
+            self.scan_file(sf[0], sf[1], sf[2], "submit")
             return
 
         # query new files
         sfs = self.cursor.execute(
-            """SELECT backlogfile, sha256_hash, path FROM backlogfiles WHERE status = 'new' ORDER BY timestamp DESC LIMIT 1""")
+            """SELECT backlogfile, sha256_hash, path FROM backlogfiles WHERE status = 'new' ORDER BY timestamp DESC LIMIT 1"""
+        )
         for sf in sfs:
             self.cursor.execute(
-                """UPDATE backlogfiles SET status = 'new-' WHERE backlogfile = ?""", (sf[0],))
+                """UPDATE backlogfiles SET status = 'new-' WHERE backlogfile = ?""",
+                (sf[0],),
+            )
             self.dbh.commit()
-            self.get_file_report(sf[0], sf[1], sf[2], 'new')
+            self.get_file_report(sf[0], sf[1], sf[2], "new")
             return
 
     def stop(self):
@@ -116,7 +129,9 @@ class virustotalhandler(ihandler):
 
     def handle_incident_dionaea_download_complete_unique(self, icd):
         self.cursor.execute(
-            """INSERT INTO backlogfiles (sha256_hash, path, status, timestamp) VALUES (?,?,?,strftime("%s",'now')) """, (icd.sha256hash, icd.file, 'new'))
+            """INSERT INTO backlogfiles (sha256_hash, path, status, timestamp) VALUES (?,?,?,strftime("%s",'now')) """,
+            (icd.sha256hash, icd.file, "new"),
+        )
 
     def get_file_report(self, backlogfile, sha256_hash, path, status):
         cookie = str(uuid.uuid4())
@@ -136,35 +151,52 @@ class virustotalhandler(ihandler):
 
         cookie = icd._userdata
         vtr = self.cookies[cookie]
-        response_code = j.get('response_code')
-        logger.debug("VirusTotal response_code=%s for %s", response_code, vtr.sha256hash[:16])
+        response_code = j.get("response_code")
+        logger.debug(
+            "VirusTotal response_code=%s for %s", response_code, vtr.sha256hash[:16]
+        )
 
         if response_code == -2:
             logger.warning("VirusTotal API throttle for %s", vtr.sha256hash[:16])
             self.cursor.execute(
-                """UPDATE backlogfiles SET status = ? WHERE backlogfile = ?""", (vtr.status, vtr.backlogfile))
+                """UPDATE backlogfiles SET status = ? WHERE backlogfile = ?""",
+                (vtr.status, vtr.backlogfile),
+            )
             self.dbh.commit()
         elif response_code == -1:
             logger.warning("VirusTotal API key invalid or missing")
         elif response_code == 0:  # file unknown
-            logger.info("VirusTotal: file %s not found, queuing for submission", vtr.sha256hash[:16])
+            logger.info(
+                "VirusTotal: file %s not found, queuing for submission",
+                vtr.sha256hash[:16],
+            )
             # mark for submit
-            if vtr.status == 'new':
+            if vtr.status == "new":
                 self.cursor.execute(
-                    """UPDATE backlogfiles SET status = 'submit', lastcheck_time = strftime("%s",'now') WHERE backlogfile = ?""", (vtr.backlogfile,))
-            elif vtr.status == 'query':
+                    """UPDATE backlogfiles SET status = 'submit', lastcheck_time = strftime("%s",'now') WHERE backlogfile = ?""",
+                    (vtr.backlogfile,),
+                )
+            elif vtr.status == "query":
                 self.cursor.execute(
-                    """UPDATE backlogfiles SET lastcheck_time = strftime("%s",'now') WHERE backlogfile = ?""", (vtr.backlogfile,))
+                    """UPDATE backlogfiles SET lastcheck_time = strftime("%s",'now') WHERE backlogfile = ?""",
+                    (vtr.backlogfile,),
+                )
             self.dbh.commit()
         elif response_code == 1:  # file known
-            positives = j.get('positives', 0)
-            total = j.get('total', 0)
-            logger.info("VirusTotal: file %s known, detection %d/%d", vtr.sha256hash[:16], positives, total)
+            positives = j.get("positives", 0)
+            total = j.get("total", 0)
+            logger.info(
+                "VirusTotal: file %s known, detection %d/%d",
+                vtr.sha256hash[:16],
+                positives,
+                total,
+            )
             self.cursor.execute(
-                """DELETE FROM backlogfiles WHERE backlogfile = ?""", (vtr.backlogfile,) )
+                """DELETE FROM backlogfiles WHERE backlogfile = ?""", (vtr.backlogfile,)
+            )
             self.dbh.commit()
 
-            logger.debug(f"report {j}" )
+            logger.debug(f"report {j}")
 
             i = incident("dionaea.modules.python.virustotal.report")
             i.sha256hash = vtr.sha256hash
@@ -182,11 +214,10 @@ class virustotalhandler(ihandler):
         i = incident("dionaea.upload.request")
         i._url = "https://www.virustotal.com/vtapi/v2/file/scan"
         i.apikey = self.apikey
-        i.set('file://file', path)
+        i.set("file://file", path)
         i._callback = "dionaea.modules.python.virustotal_scan_file"
         i._userdata = cookie
         i.report()
-
 
     def handle_incident_dionaea_modules_python_virustotal_scan_file(self, icd):
         with open(icd.path) as f:
@@ -194,25 +225,45 @@ class virustotalhandler(ihandler):
 
         cookie = icd._userdata
         vtr = self.cookies[cookie]
-        response_code = j.get('response_code')
-        logger.debug("VirusTotal scan_file response_code=%s for %s", response_code, vtr.sha256hash[:16])
+        response_code = j.get("response_code")
+        logger.debug(
+            "VirusTotal scan_file response_code=%s for %s",
+            response_code,
+            vtr.sha256hash[:16],
+        )
 
         if response_code == -2:
-            logger.warning("VirusTotal API throttle during file submission for %s", vtr.sha256hash[:16])
+            logger.warning(
+                "VirusTotal API throttle during file submission for %s",
+                vtr.sha256hash[:16],
+            )
             self.cursor.execute(
-                """UPDATE backlogfiles SET status = ? WHERE backlogfile = ?""", (vtr.status, vtr.backlogfile))
+                """UPDATE backlogfiles SET status = ? WHERE backlogfile = ?""",
+                (vtr.status, vtr.backlogfile),
+            )
             self.dbh.commit()
         elif response_code == -1:
             logger.warning("VirusTotal API key invalid or missing")
         elif response_code == 1:
-            scan_id = j['scan_id']
-            logger.info("VirusTotal: file %s submitted successfully, scan_id: %s", vtr.sha256hash[:16], scan_id[:16])
+            scan_id = j["scan_id"]
+            logger.info(
+                "VirusTotal: file %s submitted successfully, scan_id: %s",
+                vtr.sha256hash[:16],
+                scan_id[:16],
+            )
             # recycle this entry for the query
             self.cursor.execute(
-                """UPDATE backlogfiles SET scan_id = ?, status = 'comment', submit_time = strftime("%s",'now') WHERE backlogfile = ?""", (scan_id, vtr.backlogfile,))
+                """UPDATE backlogfiles SET scan_id = ?, status = 'comment', submit_time = strftime("%s",'now') WHERE backlogfile = ?""",
+                (
+                    scan_id,
+                    vtr.backlogfile,
+                ),
+            )
             self.dbh.commit()
         else:
-            logger.warning("VirusTotal unexpected response during file submission: %s", j)
+            logger.warning(
+                "VirusTotal unexpected response during file submission: %s", j
+            )
         del self.cookies[cookie]
 
     def make_comment(self, backlogfile, sha256_hash, path, status):
@@ -234,20 +285,30 @@ class virustotalhandler(ihandler):
         try:
             with open(icd.path) as f:
                 j = json.load(f)
-            response_code = j.get('response_code')
-            logger.debug("VirusTotal make_comment response_code=%s for %s", response_code, vtr.sha256hash[:16])
+            response_code = j.get("response_code")
+            logger.debug(
+                "VirusTotal make_comment response_code=%s for %s",
+                response_code,
+                vtr.sha256hash[:16],
+            )
 
             if response_code == -2:
-                logger.warning("VirusTotal API throttle during comment for %s", vtr.sha256hash[:16])
+                logger.warning(
+                    "VirusTotal API throttle during comment for %s", vtr.sha256hash[:16]
+                )
                 self.cursor.execute(
-                    """UPDATE backlogfiles SET status = ? WHERE backlogfile = ?""", (vtr.status, vtr.backlogfile))
+                    """UPDATE backlogfiles SET status = ? WHERE backlogfile = ?""",
+                    (vtr.status, vtr.backlogfile),
+                )
                 self.dbh.commit()
             elif response_code == -1:
                 logger.warning("VirusTotal API key invalid or missing")
             elif response_code == 1:
                 logger.info("VirusTotal: comment posted for %s", vtr.sha256hash[:16])
                 self.cursor.execute(
-                    """UPDATE backlogfiles SET status = 'query' WHERE backlogfile = ? """, (vtr.backlogfile, ))
+                    """UPDATE backlogfiles SET status = 'query' WHERE backlogfile = ? """,
+                    (vtr.backlogfile,),
+                )
                 self.dbh.commit()
             else:
                 logger.warning("VirusTotal unexpected response during comment: %s", j)
