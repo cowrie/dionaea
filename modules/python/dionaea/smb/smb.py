@@ -468,7 +468,7 @@ class smbd(connection):
         # elif self.state == STATE_SESSIONSETUP and
         # p.getlayer(SMB_Header).Command == 0x73:
         elif Command == SMB_COM_SESSION_SETUP_ANDX:
-            smblog.info(
+            smblog.debug(
                 "SMB Session Setup from %s:%d",
                 self.remote.host,
                 self.remote.port,
