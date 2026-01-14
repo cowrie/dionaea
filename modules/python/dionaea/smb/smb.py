@@ -43,6 +43,7 @@ from .include.smbfields import (
     SMB_COM_TRANSACTION,
     SMB_COM_TRANSACTION2,
     SMB_COM_TRANSACTION2_SECONDARY,
+    SMB_COM_TRANSACTION_SECONDARY,
     SMB_COM_TREE_CONNECT_ANDX,
     SMB_COM_TREE_DISCONNECT,
     SMB_COM_WRITE,
@@ -86,6 +87,7 @@ from .include.smbfields import (
     SMB_Trans_Request,
     SMB_Trans_Response,
     SMB_Trans_Response_Simple,
+    SMB_Trans_Secondary_Request,
     SMB_Treeconnect_AndX_Request,
     SMB_Treeconnect_AndX_Response,
     SMB_Treeconnect_AndX_Response2,
@@ -168,6 +170,10 @@ class smbd(connection):
         }
         self.buf = b""
         self.buf2 = b""  # ms17-010 SMB_COM_TRANSACTION2
+        self.trans_params = b""  # SMB_COM_TRANSACTION_SECONDARY accumulated params
+        self.trans_data = b""  # SMB_COM_TRANSACTION_SECONDARY accumulated data
+        self.trans_total_params = 0  # expected total param count
+        self.trans_total_data = 0  # expected total data count
         self.outbuf = None
         self.fids = {}
         self.printer = b""  # spoolss file "queue"
@@ -973,6 +979,86 @@ class smbd(connection):
         elif Command == SMB_COM_NT_TRANSACT:
             h = p.getlayer(SMB_NT_Trans_Request)
             r = SMB_NT_Trans_Response()
+            rstatus = 0x00000000  # STATUS_SUCCESS
+        elif Command == SMB_COM_TRANSACTION_SECONDARY:
+            h = p.getlayer(SMB_Trans_Secondary_Request)
+            smblog.info(
+                "SMB Transaction Secondary from %s:%d - params: %d/%d, data: %d/%d",
+                self.remote.host,
+                self.remote.port,
+                h.ParamCount,
+                h.TotalParamCount,
+                h.DataCount,
+                h.TotalDataCount,
+            )
+
+            # Store expected totals from first secondary packet
+            if self.trans_total_params == 0 and self.trans_total_data == 0:
+                self.trans_total_params = h.TotalParamCount
+                self.trans_total_data = h.TotalDataCount
+
+            # Accumulate params at displacement offset
+            if h.ParamCount > 0:
+                disp = h.ParamDisplacement
+                # Extend buffer if needed
+                if disp + h.ParamCount > len(self.trans_params):
+                    self.trans_params = self.trans_params.ljust(
+                        disp + h.ParamCount, b'\x00'
+                    )
+                # Copy data at displacement
+                params_bytes = bytes(h.Params) if hasattr(h, 'Params') else b''
+                self.trans_params = (
+                    self.trans_params[:disp]
+                    + params_bytes[:h.ParamCount]
+                    + self.trans_params[disp + h.ParamCount:]
+                )
+
+            # Accumulate data at displacement offset
+            if h.DataCount > 0:
+                disp = h.DataDisplacement
+                # Extend buffer if needed
+                if disp + h.DataCount > len(self.trans_data):
+                    self.trans_data = self.trans_data.ljust(
+                        disp + h.DataCount, b'\x00'
+                    )
+                # Copy data at displacement
+                data_bytes = bytes(h.Data) if hasattr(h, 'Data') else b''
+                self.trans_data = (
+                    self.trans_data[:disp]
+                    + data_bytes[:h.DataCount]
+                    + self.trans_data[disp + h.DataCount:]
+                )
+
+            smblog.debug(
+                "Transaction Secondary accumulated: params %d/%d, data %d/%d",
+                len(self.trans_params),
+                self.trans_total_params,
+                len(self.trans_data),
+                self.trans_total_data,
+            )
+
+            # Check if complete
+            if (len(self.trans_params) >= self.trans_total_params and
+                    len(self.trans_data) >= self.trans_total_data):
+                smblog.info(
+                    "Transaction Secondary complete: %d param bytes, %d data bytes",
+                    len(self.trans_params),
+                    len(self.trans_data),
+                )
+                # Log hex dump for analysis
+                if self.trans_data:
+                    smblog.info(
+                        "Transaction data (hex): %s",
+                        self.trans_data[:256].hex(),
+                    )
+                # Reset accumulators
+                self.trans_params = b""
+                self.trans_data = b""
+                self.trans_total_params = 0
+                self.trans_total_data = 0
+
+            # Send interim response
+            r = SMB_Trans_Response_Simple()
             rstatus = 0x00000000  # STATUS_SUCCESS
         else:
             cmd_name = SMB_Commands.get(Command, "UNKNOWN")

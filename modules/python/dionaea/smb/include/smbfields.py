@@ -1322,6 +1322,26 @@ class SMB_Trans_Response_Simple(Packet):
         LEShortField("ByteCount",0),
     ]
 
+
+class SMB_Trans_Secondary_Request(Packet):
+    name = "SMB Trans Secondary Request"
+    smb_cmd = SMB_COM_TRANSACTION_SECONDARY  # 0x26
+    fields_desc = [
+        ByteField("WordCount", 8),
+        LEShortField("TotalParamCount", 0),
+        LEShortField("TotalDataCount", 0),
+        LEShortField("ParamCount", 0),
+        LEShortField("ParamOffset", 0),
+        LEShortField("ParamDisplacement", 0),
+        LEShortField("DataCount", 0),
+        LEShortField("DataOffset", 0),
+        LEShortField("DataDisplacement", 0),
+        LEShortField("ByteCount", 0),
+        StrFixedLenField("Params", b"", length_from=lambda pkt: pkt.ParamCount),
+        StrFixedLenField("Data", b"", length_from=lambda pkt: pkt.DataCount),
+    ]
+
+
 # page 45
 class SMB_Trans2_Request(Packet):
     name = "SMB Trans2 Request"
@@ -1775,6 +1795,7 @@ bind_bottom_up(SMB_Header, SMB_Trans_Request,
 bind_bottom_up(SMB_Header, SMB_Trans2_Request,
                Command=lambda x: x==0x32, Flags=lambda x: not x&0x80)
 bind_bottom_up(SMB_Header, SMB_Trans2_Secondary_Request, Command=lambda x: x==0x33, Flags=lambda x: not x&0x80)
+bind_bottom_up(SMB_Header, SMB_Trans_Secondary_Request, Command=lambda x: x==0x26, Flags=lambda x: not x&0x80)
 
 bind_bottom_up(SMB_Header, SMB_Write_AndX_Request,
                Command=lambda x: x==0x2f, Flags=lambda x: not x&0x80)
@@ -1832,6 +1853,7 @@ bind_top_down(SMB_Header, SMB_Read_AndX_Response, Command=0x2e)
 bind_top_down(SMB_Header, SMB_Trans_Request, Command=0x25)
 bind_top_down(SMB_Header, SMB_Trans2_Request, Command=0x32)
 bind_top_down(SMB_Header, SMB_Trans2_Secondary_Request, Command=0x33)
+bind_top_down(SMB_Header, SMB_Trans_Secondary_Request, Command=0x26)
 bind_top_down(SMB_Header, SMB_Open_AndX_Request, Command=0x2d)
 bind_top_down(SMB_Read_AndX_Response, SMB_Data)
 
