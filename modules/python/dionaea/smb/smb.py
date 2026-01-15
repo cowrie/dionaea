@@ -177,15 +177,13 @@ def build_ntlm_target_info(domain_name, computer_name):
     av_timestamp_bytes = av_timestamp.build()
     av_eol_bytes = av_eol.build()
 
-    # DEBUG: Print to stderr
-    import sys
-    print(f"DEBUG AV_PAIR av_domain: {len(av_domain_bytes)} bytes: {av_domain_bytes.hex()}", file=sys.stderr)
-    print(f"DEBUG AV_PAIR av_computer: {len(av_computer_bytes)} bytes: {av_computer_bytes.hex()}", file=sys.stderr)
-    print(f"DEBUG AV_PAIR av_timestamp: {len(av_timestamp_bytes)} bytes: {av_timestamp_bytes.hex()}", file=sys.stderr)
-    print(f"DEBUG AV_PAIR av_eol: {len(av_eol_bytes)} bytes: {av_eol_bytes.hex()}", file=sys.stderr)
+    smblog.info("AV_PAIR av_domain: %d bytes: %s", len(av_domain_bytes), av_domain_bytes.hex())
+    smblog.info("AV_PAIR av_computer: %d bytes: %s", len(av_computer_bytes), av_computer_bytes.hex())
+    smblog.info("AV_PAIR av_timestamp: %d bytes: %s", len(av_timestamp_bytes), av_timestamp_bytes.hex())
+    smblog.info("AV_PAIR av_eol: %d bytes: %s", len(av_eol_bytes), av_eol_bytes.hex())
 
     target_info = av_domain_bytes + av_computer_bytes + av_timestamp_bytes + av_eol_bytes
-    print(f"DEBUG target_info total: {len(target_info)} bytes", file=sys.stderr)
+    smblog.info("target_info total: %d bytes", len(target_info))
 
     return domain_utf16, target_info
 
@@ -626,11 +624,7 @@ class smbd(connection):
                             rntlmchallenge.Payload = target_name + target_info
                             rntlmssp = rntlmssp / rntlmchallenge
                             ntlm_raw = rntlmssp.build()
-                            # DEBUG: Print to stderr to bypass logging
-                            import sys
-                            print(f"DEBUG NTLM Challenge: {len(ntlm_raw)} bytes", file=sys.stderr)
-                            print(f"DEBUG hex: {ntlm_raw.hex()}", file=sys.stderr)
-                            smblog.debug(
+                            smblog.info(
                                 "NTLM Challenge: %d bytes, hex=%s",
                                 len(ntlm_raw),
                                 ntlm_raw.hex(),
