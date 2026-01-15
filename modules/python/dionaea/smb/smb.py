@@ -1116,6 +1116,19 @@ class smbd(connection):
                         + vol_label
                     )
                     r = SMB_Trans2_QUERY_FS_INFO_Response(Data=data)
+                elif info_level == 0x03EF:  # FileFsFullSizeInformation (passthrough)
+                    # TotalAllocationUnits (8), CallerAvailableAllocationUnits (8),
+                    # ActualAvailableAllocationUnits (8), SectorsPerAllocationUnit (4),
+                    # BytesPerSector (4)
+                    data = struct.pack(
+                        "<QQQII",
+                        1024 * 1024,  # TotalAllocationUnits (1TB with 1MB units)
+                        512 * 1024,  # CallerAvailableAllocationUnits (512GB)
+                        512 * 1024,  # ActualAvailableAllocationUnits (512GB)
+                        8,  # SectorsPerAllocationUnit
+                        512,  # BytesPerSector
+                    )
+                    r = SMB_Trans2_QUERY_FS_INFO_Response(Data=data)
                 else:
                     smblog.warning(
                         "Unsupported FS info level: 0x%04x from %s:%d",
