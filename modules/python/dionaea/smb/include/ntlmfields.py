@@ -185,7 +185,7 @@ class AV_PAIR(Packet):
     name = "AV Pair"
     fields_desc = [
         LEShortEnumField("Id",0,AV_Pair_Ids),
-        FieldLenField("Len", 0, fmt='<H', length_of="Value"),
+        FieldLenField("Len", None, fmt='<H', length_of="Value"),
         StrLenField("Value", "", length_from=lambda x:x.Len),
     ]
 
