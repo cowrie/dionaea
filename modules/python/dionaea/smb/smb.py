@@ -1008,7 +1008,20 @@ class smbd(connection):
                     "SMB Transaction \\PIPE\\ setup code: 0x%04x",
                     setup_code,
                 )
-                if setup_code == TRANS_NMPIPE_TRANSACT:
+                if setup_code == TRANS_NMPIPE_PEEK:
+                    # Peek at named pipe - return empty data (no data available)
+                    # Response: NamedPipeState (2), ReadDataAvailable (2),
+                    #           MessageBytesLength (2), MessageLength (2), Data (variable)
+                    r.TotalParamCount = 0
+                    r.TotalDataCount = 6  # State + ReadDataAvailable + MessageBytesLength
+                    r.ParamCount = 0
+                    r.DataCount = 6
+                    r.DataOffset = 56
+                    rdata.ByteCount = 6
+                    # NamedPipeState=0x0003 (connected, read mode message),
+                    # ReadDataAvailable=0, MessageBytesLength=0
+                    rdata.Bytes = struct.pack("<HHH", 0x0003, 0, 0)
+                elif setup_code == TRANS_NMPIPE_TRANSACT:
                     outpacket = self.process_dcerpc_packet(p.getlayer(DCERPC_Header))
 
                     if not outpacket:
