@@ -38,6 +38,7 @@ from .include.smbfields import (
     SMB_COM_NT_CREATE_ANDX,
     SMB_COM_NT_TRANSACT,
     SMB_COM_OPEN_ANDX,
+    SMB_COM_QUERY_INFORMATION,
     SMB_COM_QUERY_INFORMATION_DISK,
     SMB_COM_READ_ANDX,
     SMB_COM_SESSION_SETUP_ANDX,
@@ -1332,6 +1333,10 @@ class smbd(connection):
             # Send interim response
             r = SMB_Trans_Response_Simple()
             rstatus = 0x00000000  # STATUS_SUCCESS
+        elif Command == SMB_COM_QUERY_INFORMATION:
+            # Query file attributes by filename - return file not found
+            r = SMB_Trans_Response_Simple()
+            rstatus = 0xC0000034  # STATUS_OBJECT_NAME_NOT_FOUND
         else:
             cmd_name = SMB_Commands.get(Command, "UNKNOWN")
             smblog.warning("Unsupported SMB command: %s (0x%02x)", cmd_name, Command)
