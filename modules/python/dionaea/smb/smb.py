@@ -830,10 +830,21 @@ class smbd(connection):
                         % (inpacket.FragLen, len(self.buf))
                     )
                     if inpacket.FragLen == len(self.buf):
+                        smblog.debug(
+                            "Processing DCERPC packet: type=%d len=%d data=%s",
+                            inpacket.PacketType,
+                            len(self.buf),
+                            self.buf[:64].hex(),
+                        )
                         outpacket = self.process_dcerpc_packet(self.buf)
                         if outpacket is not None:
                             outpacket.show()
                             self.outbuf = outpacket.build()
+                        else:
+                            smblog.error(
+                                "process_dcerpc_packet returned None for type=%d",
+                                inpacket.PacketType,
+                            )
                         self.buf = b""
         elif Command == SMB_COM_WRITE:
             h = p.getlayer(SMB_Write_Request)
@@ -1432,11 +1443,18 @@ class smbd(connection):
             else:
                 smblog.info("DCERPC Request without pending action")
             if not resp:
+                smblog.error(
+                    "DCERPC Request returned no response: uuid=%s opnum=%d",
+                    self.state.get("uuid", "none"),
+                    dcep.OpNum,
+                )
                 self.state["stop"] = True
             outbuf = resp
         else:
             # unknown DCERPC packet -> logcrit and bail out.
-            smblog.error("unknown DCERPC packet. bailing out.")
+            smblog.error(
+                "unknown DCERPC PacketType %d. bailing out.", dcep.PacketType
+            )
         return outbuf
 
     def handle_timeout_idle(self):
