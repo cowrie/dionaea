@@ -81,7 +81,9 @@ from .include.smbfields import (
     SMB_Sessionsetup_ESEC_AndX_Response,
     SMB_Trans2_Commands,
     SMB_TRANS2_FIND_FIRST2,
+    SMB_TRANS2_QUERY_FILE_INFORMATION,
     SMB_TRANS2_QUERY_FS_INFORMATION,
+    SMB_TRANS2_QUERY_PATH_INFORMATION,
     SMB_TRANS2_SESSION_SETUP,
     SMB_Trans2_FIND_FIRST2_Response,
     SMB_Trans2_QUERY_FS_INFO_Response,
@@ -1147,6 +1149,45 @@ class smbd(connection):
                         self.remote.host,
                         self.remote.port,
                     )
+                    r = SMB_Trans2_Response()
+                    rstatus = 0xC0000002  # STATUS_NOT_IMPLEMENTED
+            elif h.Setup[0] == SMB_TRANS2_QUERY_PATH_INFORMATION:
+                # Param: InformationLevel (2), Reserved (4), FileName (variable)
+                info_level = 0
+                if len(h.Param) >= 2:
+                    info_level = h.Param[0] | (h.Param[1] << 8)
+                smblog.debug(
+                    "TRANS2_QUERY_PATH_INFORMATION: level=0x%04x from %s:%d",
+                    info_level,
+                    self.remote.host,
+                    self.remote.port,
+                )
+                # Return file not found - honeypot doesn't have real files
+                r = SMB_Trans2_Response()
+                rstatus = 0xC0000034  # STATUS_OBJECT_NAME_NOT_FOUND
+            elif h.Setup[0] == SMB_TRANS2_QUERY_FILE_INFORMATION:
+                # Param: FID (2), InformationLevel (2)
+                info_level = 0
+                fid = 0
+                if len(h.Param) >= 4:
+                    fid = h.Param[0] | (h.Param[1] << 8)
+                    info_level = h.Param[2] | (h.Param[3] << 8)
+                smblog.debug(
+                    "TRANS2_QUERY_FILE_INFORMATION: fid=0x%04x level=0x%04x from %s:%d",
+                    fid,
+                    info_level,
+                    self.remote.host,
+                    self.remote.port,
+                )
+                # Return basic info for any file handle
+                if info_level == 0x0102:  # SMB_QUERY_FILE_STANDARD_INFO
+                    # AllocationSize (8), EndOfFile (8), NumberOfLinks (4),
+                    # DeletePending (1), Directory (1)
+                    data = struct.pack("<QQIBB", 0, 0, 1, 0, 0)
+                    r = SMB_Trans2_Response()
+                    r.Param = b"\x00\x00"  # EA error offset
+                    r.Data = data
+                else:
                     r = SMB_Trans2_Response()
                     rstatus = 0xC0000002  # STATUS_NOT_IMPLEMENTED
             else:
