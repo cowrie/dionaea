@@ -1350,6 +1350,28 @@ class smbd(connection):
                         "Transaction data (hex, first 256 bytes): %s",
                         self.trans_data[:256].hex(),
                     )
+                    # Save payload for analysis (e.g., VirusTotal)
+                    dionaea_config = g_dionaea.config().get("dionaea", {})
+                    download_dir = dionaea_config.get("download.dir")
+                    download_suffix = dionaea_config.get("download.suffix", ".tmp")
+                    try:
+                        with tempfile.NamedTemporaryFile(
+                            delete=False,
+                            prefix="smb-trans-",
+                            suffix=download_suffix,
+                            dir=download_dir,
+                        ) as f:
+                            f.write(self.trans_data)
+                            payload_path = f.name
+                        # Report for analysis
+                        icd = incident("dionaea.download.complete")
+                        icd.path = payload_path
+                        icd.url = f"smb://{self.remote.host}/transaction/{self.trans_name or 'unknown'}"
+                        icd.con = self
+                        icd.report()
+                        smblog.info("Saved transaction payload to %s", payload_path)
+                    except Exception as e:
+                        smblog.error("Failed to save transaction payload: %s", e)
                 # Reset accumulators
                 self.trans_params = b""
                 self.trans_data = b""
