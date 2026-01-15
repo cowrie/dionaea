@@ -747,7 +747,21 @@ class smbd(connection):
             r.FID = 0x4000
             while r.FID in self.fids:
                 r.FID += 0x200
-            if h.FileAttributes & (
+
+            # Check if this is a named pipe (for DCERPC)
+            # Named pipes start with \ and have known service names
+            named_pipes = {
+                "srvsvc", "svcctl", "spoolss", "samr", "lsarpc", "netlogon",
+                "wkssvc", "browser", "winreg", "ntsvcs", "eventlog", "epmapper",
+            }
+            pipe_name = req_filename.lstrip("\\/").lower()
+            is_named_pipe = pipe_name in named_pipes
+
+            if is_named_pipe:
+                # Named pipe for DCERPC - don't create temp file
+                smblog.debug("Opening named pipe: %s", req_filename)
+                self.fids[r.FID] = None
+            elif h.FileAttributes & (
                 SMB_FA_HIDDEN | SMB_FA_SYSTEM | SMB_FA_ARCHIVE | SMB_FA_NORMAL
             ):
                 # if a normal file is requested, provide a file
