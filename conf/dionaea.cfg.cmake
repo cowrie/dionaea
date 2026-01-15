@@ -36,7 +36,7 @@ listen.use_ipv4_mapped_ipv6=false
 
 [logging]
 default.filename=@DIONAEA_LOGDIR@/dionaea.log
-default.levels=all
+default.levels=all,-debug
 default.domains=*
 
 errors.filename=@DIONAEA_LOGDIR@/dionaea-errors.log
@@ -96,7 +96,7 @@ sys_paths=default
 service_configs=@DIONAEA_CONFDIR@/services-enabled/*.yaml
 ihandler_configs=@DIONAEA_CONFDIR@/ihandlers-enabled/*.yaml
 # Python module log level: debug, info, warning, error, critical (default: info)
-loglevel=debug
+loglevel=info
 
 [module.pcap]
 any.interface=any
