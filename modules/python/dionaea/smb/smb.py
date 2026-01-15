@@ -172,12 +172,20 @@ def build_ntlm_target_info(domain_name, computer_name):
     # MsvAvEOL (Id=0) - end of list
     av_eol = AV_PAIR(Id=0, Value=b"")
 
-    target_info = (
-        av_domain.build()
-        + av_computer.build()
-        + av_timestamp.build()
-        + av_eol.build()
-    )
+    av_domain_bytes = av_domain.build()
+    av_computer_bytes = av_computer.build()
+    av_timestamp_bytes = av_timestamp.build()
+    av_eol_bytes = av_eol.build()
+
+    # DEBUG: Print to stderr
+    import sys
+    print(f"DEBUG AV_PAIR av_domain: {len(av_domain_bytes)} bytes: {av_domain_bytes.hex()}", file=sys.stderr)
+    print(f"DEBUG AV_PAIR av_computer: {len(av_computer_bytes)} bytes: {av_computer_bytes.hex()}", file=sys.stderr)
+    print(f"DEBUG AV_PAIR av_timestamp: {len(av_timestamp_bytes)} bytes: {av_timestamp_bytes.hex()}", file=sys.stderr)
+    print(f"DEBUG AV_PAIR av_eol: {len(av_eol_bytes)} bytes: {av_eol_bytes.hex()}", file=sys.stderr)
+
+    target_info = av_domain_bytes + av_computer_bytes + av_timestamp_bytes + av_eol_bytes
+    print(f"DEBUG target_info total: {len(target_info)} bytes", file=sys.stderr)
 
     return domain_utf16, target_info
 
@@ -618,6 +626,10 @@ class smbd(connection):
                             rntlmchallenge.Payload = target_name + target_info
                             rntlmssp = rntlmssp / rntlmchallenge
                             ntlm_raw = rntlmssp.build()
+                            # DEBUG: Print to stderr to bypass logging
+                            import sys
+                            print(f"DEBUG NTLM Challenge: {len(ntlm_raw)} bytes", file=sys.stderr)
+                            print(f"DEBUG hex: {ntlm_raw.hex()}", file=sys.stderr)
                             smblog.debug(
                                 "NTLM Challenge: %d bytes, hex=%s",
                                 len(ntlm_raw),
