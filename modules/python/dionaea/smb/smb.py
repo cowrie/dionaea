@@ -715,14 +715,14 @@ class smbd(connection):
         elif Command == SMB_COM_CLOSE:
             r = p.getlayer(SMB_Close)
             if p.FID in self.fids and self.fids[p.FID] is not None:
-                self.fids[p.FID].close()
-                fileobj = self.fids[p.FID]
+                fileobj, filename = self.fids[p.FID]
+                fileobj.close()
                 icd = incident("dionaea.download.complete")
                 icd.path = fileobj.name
-                icd.url = "smb://" + self.remote.host
+                icd.url = f"smb://{self.remote.host}/{filename}"
                 icd.con = self
                 icd.report()
-                os.unlink(self.fids[p.FID].name)
+                os.unlink(fileobj.name)
                 del self.fids[p.FID]
                 r = SMB_Close_Response()
         elif Command == SMB_COM_LOGOFF_ANDX:
@@ -754,13 +754,6 @@ class smbd(connection):
                 dionaea_config = g_dionaea.config().get("dionaea", {})
                 download_dir = dionaea_config.get("download.dir")
                 download_suffix = dionaea_config.get("download.suffix", ".tmp")
-                self.fids[r.FID] = tempfile.NamedTemporaryFile(
-                    delete=False,
-                    prefix="smb-",
-                    suffix=download_suffix,
-                    dir=download_dir,
-                )
-
                 # get pretty filename
                 f, v = h.getfield_and_val("Filename")
                 filename = f.i2repr(h, v)
@@ -769,6 +762,14 @@ class smbd(connection):
                     if filename[j] != "\\" and filename[j] != "/":
                         break
                 filename = filename[j:]
+
+                tmpfile = tempfile.NamedTemporaryFile(
+                    delete=False,
+                    prefix="smb-",
+                    suffix=download_suffix,
+                    dir=download_dir,
+                )
+                self.fids[r.FID] = (tmpfile, filename)
 
                 i = incident("dionaea.download.offer")
                 i.con = self
@@ -791,10 +792,6 @@ class smbd(connection):
             download_dir = dionaea_config.get("download.dir")
             download_suffix = dionaea_config.get("download.suffix", ".tmp")
 
-            self.fids[r.FID] = tempfile.NamedTemporaryFile(
-                delete=False, prefix="smb-", suffix=download_suffix, dir=download_dir
-            )
-
             # get pretty filename
             f, v = h.getfield_and_val("FileName")
             filename = f.i2repr(h, v)
@@ -803,6 +800,11 @@ class smbd(connection):
                 if filename[j] != "\\" and filename[j] != "/":
                     break
             filename = filename[j:]
+
+            tmpfile = tempfile.NamedTemporaryFile(
+                delete=False, prefix="smb-", suffix=download_suffix, dir=download_dir
+            )
+            self.fids[r.FID] = (tmpfile, filename)
 
             i = incident("dionaea.download.offer")
             i.con = self
@@ -817,8 +819,9 @@ class smbd(connection):
             h = p.getlayer(SMB_Write_AndX_Request)
             r.CountLow = h.DataLenLow
             if h.FID in self.fids and self.fids[h.FID] is not None:
-                smblog.warning("WRITE FILE!")
-                self.fids[h.FID].write(h.Data)
+                fileobj, filename = self.fids[h.FID]
+                smblog.warning("WRITE FILE! %s (%d bytes)", filename, len(h.Data))
+                fileobj.write(h.Data)
             else:
                 self.buf += h.Data
                 # self.process_dcerpc_packet(p.getlayer(SMB_Write_AndX_Request).Data)
@@ -851,8 +854,9 @@ class smbd(connection):
         elif Command == SMB_COM_WRITE:
             h = p.getlayer(SMB_Write_Request)
             if h.FID in self.fids and self.fids[h.FID] is not None:
-                smblog.warning("WRITE FILE!")
-                self.fids[h.FID].write(h.Data)
+                fileobj, filename = self.fids[h.FID]
+                smblog.warning("WRITE FILE! %s (%d bytes)", filename, len(h.Data))
+                fileobj.write(h.Data)
             r = SMB_Write_Response(CountOfBytesWritten=h.CountOfBytesToWrite)
         elif Command == SMB_COM_READ_ANDX:
             r = SMB_Read_AndX_Response()
@@ -1510,10 +1514,11 @@ class smbd(connection):
             )
             self._process_doublepulsar_payload()
 
-        for fid in list(self.fids.values()):
-            if fid is not None:
-                fid.close()
-                os.unlink(fid.name)
+        for entry in list(self.fids.values()):
+            if entry is not None:
+                fileobj, filename = entry
+                fileobj.close()
+                os.unlink(fileobj.name)
         self.fids.clear()
         return 0
 
