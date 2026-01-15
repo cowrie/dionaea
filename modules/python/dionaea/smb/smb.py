@@ -128,6 +128,7 @@ TRANSFER_SYNTAX_NAMES = {
 }
 
 smblog = logging.getLogger("SMB")
+smblog.setLevel(logging.DEBUG)
 
 STATE_START = 0
 STATE_SESSIONSETUP = 1
