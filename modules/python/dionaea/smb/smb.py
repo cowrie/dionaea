@@ -934,7 +934,8 @@ class smbd(connection):
             )
 
             # Check if secondary packets will follow (fragmented transaction)
-            if h.TotalParamCount > h.ParamCount or h.TotalDataCount > h.DataCount:
+            is_fragmented = h.TotalParamCount > h.ParamCount or h.TotalDataCount > h.DataCount
+            if is_fragmented:
                 smblog.info(
                     "SMB Transaction fragmented: params %d/%d, data %d/%d - expecting SECONDARY",
                     h.ParamCount,
@@ -949,8 +950,10 @@ class smbd(connection):
                 # Initialize with data from primary packet
                 self.trans_params = bytes(h.Param) if hasattr(h, "Param") else b""
                 self.trans_data = bytes(h.Pad1) if hasattr(h, "Pad1") else b""
-
-            if TransactionName == "\\PIPE\\LANMAN":
+                # Send interim response and wait for SECONDARY packets
+                r = SMB_Trans_Response_Simple()
+                rstatus = 0x00000000  # STATUS_SUCCESS
+            elif TransactionName == "\\PIPE\\LANMAN":
                 # [MS-RAP].pdf - Remote Administration Protocol
                 rapbuf = bytes(h.Param)
                 rap = RAP_Request(rapbuf)
