@@ -596,9 +596,18 @@ class smbd(connection):
                                 self.config.server_name,
                             )
 
+                            smblog.info(
+                                "Client NegotiateFlags: 0x%08x",
+                                ntlmnegotiate.NegotiateFlags,
+                            )
                             neg_flags = (
                                 ntlmnegotiate.NegotiateFlags
                                 | NTLMSSP_NEGOTIATE_TARGET_INFO
+                            )
+                            smblog.info(
+                                "Server neg_flags (after OR): 0x%08x, VERSION=%s",
+                                neg_flags,
+                                bool(neg_flags & NTLMSSP_NEGOTIATE_VERSION),
                             )
                             rntlmssp = NTLMSSP_Header(MessageType=2)
                             rntlmchallenge = NTLM_Challenge(NegotiateFlags=neg_flags)
