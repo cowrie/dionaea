@@ -128,7 +128,6 @@ TRANSFER_SYNTAX_NAMES = {
 }
 
 smblog = logging.getLogger("SMB")
-smblog.setLevel(logging.DEBUG)
 
 STATE_START = 0
 STATE_SESSIONSETUP = 1
@@ -172,18 +171,12 @@ def build_ntlm_target_info(domain_name, computer_name):
     # MsvAvEOL (Id=0) - end of list
     av_eol = AV_PAIR(Id=0, Value=b"")
 
-    av_domain_bytes = av_domain.build()
-    av_computer_bytes = av_computer.build()
-    av_timestamp_bytes = av_timestamp.build()
-    av_eol_bytes = av_eol.build()
-
-    smblog.info("AV_PAIR av_domain: %d bytes: %s", len(av_domain_bytes), av_domain_bytes.hex())
-    smblog.info("AV_PAIR av_computer: %d bytes: %s", len(av_computer_bytes), av_computer_bytes.hex())
-    smblog.info("AV_PAIR av_timestamp: %d bytes: %s", len(av_timestamp_bytes), av_timestamp_bytes.hex())
-    smblog.info("AV_PAIR av_eol: %d bytes: %s", len(av_eol_bytes), av_eol_bytes.hex())
-
-    target_info = av_domain_bytes + av_computer_bytes + av_timestamp_bytes + av_eol_bytes
-    smblog.info("target_info total: %d bytes", len(target_info))
+    target_info = (
+        av_domain.build()
+        + av_computer.build()
+        + av_timestamp.build()
+        + av_eol.build()
+    )
 
     return domain_utf16, target_info
 
@@ -596,18 +589,9 @@ class smbd(connection):
                                 self.config.server_name,
                             )
 
-                            smblog.info(
-                                "Client NegotiateFlags: 0x%08x",
-                                ntlmnegotiate.NegotiateFlags,
-                            )
                             neg_flags = (
                                 ntlmnegotiate.NegotiateFlags
                                 | NTLMSSP_NEGOTIATE_TARGET_INFO
-                            )
-                            smblog.info(
-                                "Server neg_flags (after OR): 0x%08x, VERSION=%s",
-                                neg_flags,
-                                bool(neg_flags & NTLMSSP_NEGOTIATE_VERSION),
                             )
                             rntlmssp = NTLMSSP_Header(MessageType=2)
                             rntlmchallenge = NTLM_Challenge(NegotiateFlags=neg_flags)
@@ -633,11 +617,6 @@ class smbd(connection):
                             rntlmchallenge.Payload = target_name + target_info
                             rntlmssp = rntlmssp / rntlmchallenge
                             ntlm_raw = rntlmssp.build()
-                            smblog.info(
-                                "NTLM Challenge: %d bytes, hex=%s",
-                                len(ntlm_raw),
-                                ntlm_raw.hex(),
-                            )
                             # MS-SPNG: Server's negTokenTarg should only include
                             # negResult and responseToken, not supportedMech
                             negtokentarg = NegTokenTarg(negResult=1)
