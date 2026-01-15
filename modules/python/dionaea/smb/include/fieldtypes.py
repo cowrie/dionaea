@@ -698,6 +698,15 @@ class StrNullField(StrField):
         return RandTermString(RandNum(0,1200),"\x00")
     def size(self, pkt, val):
         return len(self.i2m(pkt,val))
+    def i2repr(self, pkt, x):
+        if x is None:
+            return ''
+        elif isinstance(x, bytes):
+            x = x.decode('ascii', errors='replace')
+        eos = x.find('\0')
+        if eos >= 0:
+            return x[:eos]
+        return x
 
 class UnicodeNullField(StrField):
     # machine representation is bytes
