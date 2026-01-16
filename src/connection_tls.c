@@ -693,7 +693,7 @@ void connection_tls_handshake_again_cb(EV_P_ struct ev_io *w, int revents)
 			break;
 
 		case SSL_ERROR_SSL:
-			g_warning("TLS handshake failed: SSL error (client %s:%s, error: %s, version: %s, state: %s)",
+			g_message("TLS handshake failed: SSL error (client %s:%s, error: %s, version: %s, state: %s)",
 				con->remote.ip_string,
 				con->remote.port_string,
 				con->transport.tls.ssl_error_string,
