@@ -838,6 +838,14 @@ class smbd(connection):
                 smblog.warning("WRITE FILE! %s (%d bytes)", filename, len(h.Data))
                 fileobj.write(h.Data)
             else:
+                smblog.info(
+                    "SMB WriteAndX to pipe from %s:%d - FID: 0x%04x, %d bytes, total buf: %d",
+                    self.remote.host,
+                    self.remote.port,
+                    h.FID,
+                    len(h.Data),
+                    len(self.buf) + len(h.Data),
+                )
                 self.buf += h.Data
                 # self.process_dcerpc_packet(p.getlayer(SMB_Write_AndX_Request).Data)
                 if len(self.buf) >= 10:
@@ -1053,6 +1061,17 @@ class smbd(connection):
             r /= rdata
         elif Command == SMB_COM_TRANSACTION2:
             h = p.getlayer(SMB_Trans2_Request)
+            setup_code = h.Setup[0] if h.Setup else 0
+            smblog.info(
+                "SMB Transaction2 from %s:%d - setup: 0x%04x, params: %d/%d, data: %d/%d",
+                self.remote.host,
+                self.remote.port,
+                setup_code,
+                h.ParamCount,
+                h.TotalParamCount,
+                h.DataCount,
+                h.TotalDataCount,
+            )
             if h.Setup[0] == SMB_TRANS2_SESSION_SETUP:
                 # DoublePulsar v1 (WannaCry): opcodes encoded via calculate_doublepulsar_opcode()
                 # https://zerosum0x0.blogspot.sg/2017/04/doublepulsar-initial-smb-backdoor-ring.html
@@ -1240,10 +1259,28 @@ class smbd(connection):
             r = SMB_Delete_Response()
         elif Command == SMB_COM_TRANSACTION2_SECONDARY:
             h = p.getlayer(SMB_Trans2_Secondary_Request)
-            # TODO: need some extra works
-            pass
+            smblog.info(
+                "SMB Transaction2 Secondary from %s:%d - params: %d/%d, data: %d/%d",
+                self.remote.host,
+                self.remote.port,
+                h.ParamCount,
+                h.TotalParamCount,
+                h.DataCount,
+                h.TotalDataCount,
+            )
+            # TODO: accumulate like TRANSACTION_SECONDARY
         elif Command == SMB_COM_NT_TRANSACT:
             h = p.getlayer(SMB_NT_Trans_Request)
+            smblog.info(
+                "SMB NT Transact from %s:%d - function: 0x%04x, params: %d/%d, data: %d/%d",
+                self.remote.host,
+                self.remote.port,
+                h.Function if hasattr(h, 'Function') else 0,
+                h.ParamCount if hasattr(h, 'ParamCount') else 0,
+                h.TotalParamCount if hasattr(h, 'TotalParamCount') else 0,
+                h.DataCount if hasattr(h, 'DataCount') else 0,
+                h.TotalDataCount if hasattr(h, 'TotalDataCount') else 0,
+            )
             r = SMB_NT_Trans_Response()
             rstatus = 0x00000000  # STATUS_SUCCESS
         elif Command == SMB_COM_QUERY_INFORMATION_DISK:
