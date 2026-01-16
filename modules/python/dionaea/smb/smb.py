@@ -684,11 +684,11 @@ class smbd(connection):
             if Service.startswith("\\\\"):
                 Service = Service[1:]
             Service = Service.split("\\")[-1]
-            if Service[-1] == "\x00":
+            if Service and Service[-1] == "\x00":
                 Service = Service[:-1]
-            if Service[-1] == "$":
+            if Service and Service[-1] == "$":
                 Service = Service[:-1]
-            r.Service = Service + "\x00"
+            r.Service = (Service or "IPC") + "\x00"
 
             # specific for NMAP smb-enum-shares.nse support
             if h.Path == b"nmap-share-test\0":
