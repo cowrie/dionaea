@@ -30,3 +30,16 @@ class TestSQLShow(object):
         con.cursor.execute("show tables")
 
         con.disconnect()
+
+    def test_select_version(self):
+        con = SQLConnection()
+
+        con.cursor.execute("SELECT VERSION()")
+        result = con.cursor.fetchone()
+        assert result is not None
+        assert len(result) == 1
+        # Version should be a non-empty string
+        assert result[0] is not None
+        assert len(result[0]) > 0
+
+        con.disconnect()

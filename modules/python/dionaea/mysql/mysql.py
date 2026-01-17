@@ -30,25 +30,20 @@ from .include.packets import (
 
 from .var import VarHandler
 
-logger = logging.getLogger('mysqld')
+logger = logging.getLogger("mysqld")
 
 re_show_var = re.compile(
     b"show\\s+((?P<global>global)\\s+)?variables(\\s+like\\s+(?P<sep>\"|')(?P<like>.*?)(?P=sep))?",
-    re.I
+    re.I,
 )
 
 re_select_var = re.compile(
-    br"select\s+(?P<full_name>@(?P<global>@)?(?P<name>\w+))(\s+limit\s+\d+)?",
-    re.I
+    rb"select\s+(?P<full_name>@(?P<global>@)?(?P<name>\w+))(\s+limit\s+\d+)?", re.I
 )
 
 
 class mysqld(connection):
-    shared_config_values = [
-        "config",
-        "download_dir",
-        "download_suffix"
-    ]
+    shared_config_values = ["config", "download_dir", "download_suffix"]
     vars = VarHandler()
 
     def __init__(self):
@@ -69,6 +64,7 @@ class mysqld(connection):
         self.download_suffix = dionaea_config.get("download.suffix", ".tmp")
 
         from .var import CFG_VARS
+
         self.vars.load(CFG_VARS)
         vars = config.get("vars")
         if not isinstance(vars, dict):
@@ -83,19 +79,17 @@ class mysqld(connection):
 
     def handle_established(self):
         self.processors()
-        self.state = 'greeting'
+        self.state = "greeting"
         var_version = self.vars.values.get("version")
-        greeting = MySQL_Server_Greeting(
-            ServerVersion="%s\0" % var_version
-        )
+        greeting = MySQL_Server_Greeting(ServerVersion="%s\0" % var_version)
         a = MySQL_Packet_Header(Number=0) / greeting
         a.show()
         self.send(a.build())
-        self._open_db('information_schema')
+        self._open_db("information_schema")
 
     def _open_db(self, Database):
         try:
-            p = self.config[Database]['path']
+            p = self.config[Database]["path"]
             logger.debug(f"Opening database {Database} ({p})")
             self.dbh = sqlite3.connect(p)
             self.cursor = self.dbh.cursor()
@@ -105,7 +99,7 @@ class mysqld(connection):
             return False
 
     def _handle_COM_INIT_DB(self, p):
-        Database = p.Database.decode('utf-8')
+        Database = p.Database.decode("utf-8")
         if self._open_db(Database):
             return MySQL_Result_OK()
         else:
@@ -113,7 +107,7 @@ class mysqld(connection):
 
     def _handle_COM_FIELD_LIST(self, p):
         r = []
-        query = "PRAGMA table_info(%s);" % p.Table.decode('ascii')[:-1]
+        query = "PRAGMA table_info(%s);" % p.Table.decode("ascii")[:-1]
         # FIXME sqlite does not allow ? for PRAGMA? I'm not afraid of SQLi here
         # though.
         result = self.cursor.execute(query)
@@ -121,18 +115,18 @@ class mysqld(connection):
         result = [dict(zip(names, i)) for i in result]
         for res in result:
             x = MySQL_Result_Field(
-                Catalog='def',
+                Catalog="def",
                 Database=self.database,
                 Table=p.Table[:-1],
                 ORGTable=p.Table[:-1],
-                Name=res['name'].encode('ascii'),
-                ORGName=res['name'].encode('ascii'),
+                Name=res["name"].encode("ascii"),
+                ORGName=res["name"].encode("ascii"),
                 CharSet=33,
                 Length=20,
                 Type=FIELD_TYPE_VAR_STRING,
                 Flags=0,  # 0x4203,
                 Decimals=0,
-                Default='0'
+                Default="0",
             )
             r.append(x)
         r.append(MySQL_Result_EOF(ServerStatus=0x002))
@@ -143,7 +137,6 @@ class mysqld(connection):
         query = self.regex_statement.findall(p.Query)
 
         if len(query) > 0 and query[0].lower() == b"select":
-            print("foo")
             r = self._handle_com_query_select(p, query[1:])
 
         elif len(query) > 0 and query[0].lower() == b"show":
@@ -156,47 +149,69 @@ class mysqld(connection):
         if r is True:
             return MySQL_Result_OK(Message="")
 
-        if re.match(b'set ', p.Query, re.I):
+        if re.match(b"set ", p.Query, re.I):
             r = MySQL_Result_OK(Message="#2")
 
-        elif re.match(br'select\s+database\s*\(\s*\)$', p.Query, re.I):
+        elif re.match(rb"select\s+database\s*\(\s*\)$", p.Query, re.I):
             r = [
                 MySQL_Result_Header(FieldCount=1),
                 MySQL_Result_Field(
-                    Catalog='def',
-                    Table=b'',
-                    Name=b'DATABASE()',
-                    Database=b'',
-                    ORGName=b'',
-                    ORGTable=b'',
+                    Catalog="def",
+                    Table=b"",
+                    Name=b"DATABASE()",
+                    Database=b"",
+                    ORGName=b"",
+                    ORGTable=b"",
                     CharSet=33,
                     Length=34,
                     Type=FIELD_TYPE_VAR_STRING,
                     Flags=FLAG_NOT_NULL,
-                    Decimals=0
+                    Decimals=0,
                 ),
                 MySQL_Result_EOF(ServerStatus=0x002),
                 MySQL_Result_Row_Data(ColumnValues=[self.database]),
-                MySQL_Result_EOF(ServerStatus=0x002)
+                MySQL_Result_EOF(ServerStatus=0x002),
             ]
 
-        elif re.match(br"show\s+databases$", p.Query, re.I):
+        elif re.match(rb"select\s+version\s*\(\s*\)$", p.Query, re.I):
+            var_version = self.vars.values.get("version")
             r = [
                 MySQL_Result_Header(FieldCount=1),
                 MySQL_Result_Field(
-                    Catalog='def',
-                    Table=b'SCHEMATA',
-                    Name=b'Database',
-                    Database=b'information_schema',
-                    ORGName=b'SCHEMA_NAME',
-                    ORGTable=b'SCHEMATA',
+                    Catalog="def",
+                    Table=b"",
+                    Name=b"VERSION()",
+                    Database=b"",
+                    ORGName=b"",
+                    ORGTable=b"",
+                    CharSet=33,
+                    Length=24,
+                    Type=FIELD_TYPE_VAR_STRING,
+                    Flags=FLAG_NOT_NULL,
+                    Decimals=0,
+                ),
+                MySQL_Result_EOF(ServerStatus=0x002),
+                MySQL_Result_Row_Data(ColumnValues=[str(var_version)]),
+                MySQL_Result_EOF(ServerStatus=0x002),
+            ]
+
+        elif re.match(rb"show\s+databases$", p.Query, re.I):
+            r = [
+                MySQL_Result_Header(FieldCount=1),
+                MySQL_Result_Field(
+                    Catalog="def",
+                    Table=b"SCHEMATA",
+                    Name=b"Database",
+                    Database=b"information_schema",
+                    ORGName=b"SCHEMA_NAME",
+                    ORGTable=b"SCHEMATA",
                     CharSet=33,
                     Length=192,
                     Type=FIELD_TYPE_VAR_STRING,
                     Flags=FLAG_NOT_NULL,
-                    Decimals=0
+                    Decimals=0,
                 ),
-                MySQL_Result_EOF(ServerStatus=0x002)
+                MySQL_Result_EOF(ServerStatus=0x002),
             ]
 
             for i in self.config.keys():
@@ -205,26 +220,28 @@ class mysqld(connection):
             # r.append(MySQL_Result_Row_Data(ColumnValues=['information_schema']))
             r.append(MySQL_Result_EOF(ServerStatus=0x002))
 
-        elif re.match(br'show\s+tables$', p.Query, re.I):
+        elif re.match(rb"show\s+tables$", p.Query, re.I):
             r = [
                 MySQL_Result_Header(FieldCount=1),
                 MySQL_Result_Field(
-                    Catalog='def',
+                    Catalog="def",
                     Database=self.database.encode("ascii"),
-                    Table=b'TABLE_NAMES',
-                    Name=b'Tables_in_' + self.database.encode("ascii"),
+                    Table=b"TABLE_NAMES",
+                    Name=b"Tables_in_" + self.database.encode("ascii"),
                     ORGName=b"TABLE_NAME",
                     ORGTable=b"TABLE_NAMES",
                     CharSet=33,
                     Length=192,
                     Type=FIELD_TYPE_VAR_STRING,
                     Flags=FLAG_NOT_NULL,
-                    Decimals=0
+                    Decimals=0,
                 ),
-                MySQL_Result_EOF(ServerStatus=0x002)
+                MySQL_Result_EOF(ServerStatus=0x002),
             ]
 
-            result = self.cursor.execute("select tbl_name from sqlite_master where type = 'table'")
+            result = self.cursor.execute(
+                "select tbl_name from sqlite_master where type = 'table'"
+            )
             names = [result.description[x][0] for x in range(len(result.description))]
             result = [dict(zip(names, i)) for i in result]
             for res in result:
@@ -232,28 +249,29 @@ class mysqld(connection):
                 r.append(x)
             r.append(MySQL_Result_EOF(ServerStatus=0x002))
 
-        elif re.match(b'attach', p.Query, re.I):
-            return MySQL_Result_Error(Message="#1064 - You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use")
+        elif re.match(b"attach", p.Query, re.I):
+            return MySQL_Result_Error(
+                Message="#1064 - You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use"
+            )
 
         else:
             p.show()
             try:
-                query = p.Query.decode('utf-8')
-                print(query)
+                query = p.Query.decode("utf-8")
                 result = self.cursor.execute(query)
-                print(result)
                 if result.description is None:
                     r = MySQL_Result_OK()
                 else:
-                    names = [result.description[x][0] for x in range(len(result.description))]
-                    print(result)
+                    names = [
+                        result.description[x][0] for x in range(len(result.description))
+                    ]
                     result = [dict(zip(names, i)) for i in result]
                     r = [MySQL_Result_Header(FieldCount=len(names))]
                     for name in names:
                         r.append(
                             MySQL_Result_Field(
-                                #Catalog='def',
-                                Table=b'',
+                                # Catalog='def',
+                                Table=b"",
                                 ORGTable=b"",
                                 Database=b"",
                                 Name=name,
@@ -261,14 +279,16 @@ class mysqld(connection):
                                 Length=255,
                                 Type=FIELD_TYPE_VAR_STRING,
                                 Flags=FLAG_NOT_NULL,
-                                Decimals=0
+                                Decimals=0,
                             )
                         )
                     r.append(MySQL_Result_EOF(ServerStatus=0x002))
                     for res in result:
-                        x = MySQL_Result_Row_Data(ColumnValues=[res[name] for name in names])
+                        x = MySQL_Result_Row_Data(
+                            ColumnValues=[res[name] for name in names]
+                        )
                         # x.show()
-                        r.append(x),
+                        (r.append(x),)
                     r.append(MySQL_Result_EOF(ServerStatus=0x002))
             except Exception as e:
                 logger.warn("SQL ERROR %s" % e)
@@ -286,8 +306,10 @@ class mysqld(connection):
         if len(query) == 0:
             return False
 
-        regex_function = re.compile(br"(?P<name>[A-Za-z0-9_.]+)\((?P<args>.*?)\)+")
-        regex_url = re.compile(br"(?P<url>(http|ftp|https)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?)")
+        regex_function = re.compile(rb"(?P<name>[A-Za-z0-9_.]+)\((?P<args>.*?)\)+")
+        regex_url = re.compile(
+            rb"(?P<url>(http|ftp|https)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?)"
+        )
 
         m = re_select_var.match(p.Query)
         if m:
@@ -296,25 +318,28 @@ class mysqld(connection):
             var_full_name = m.group("full_name").decode("ascii")
             var = self.vars.values.get(var_name)
             if var is None:
-                return [MySQL_Result_Error(Message="ERROR 1193 (HY000): Unknown system variable '%s'" % var_name)]
+                return [
+                    MySQL_Result_Error(
+                        Message="ERROR 1193 (HY000): Unknown system variable '%s'"
+                        % var_name
+                    )
+                ]
 
             r.append(MySQL_Result_Header(FieldCount=1))
             r.append(
                 MySQL_Result_Field(
-                    Catalog='def',
+                    Catalog="def",
                     Name=var_full_name,
                     CharSet=33,
                     Length=75,
                     Type=FIELD_TYPE_VAR_STRING,
                     Flags=FLAG_NOT_NULL,
-                    Decimals=0
+                    Decimals=0,
                 )
             )
             r.append(MySQL_Result_EOF(ServerStatus=0x002))
 
-            r.append(
-                MySQL_Result_Row_Data(ColumnValues=["%s\0" % var])
-            )
+            r.append(MySQL_Result_Row_Data(ColumnValues=["%s\0" % var]))
             r.append(MySQL_Result_EOF(ServerStatus=0x002))
             return r
 
@@ -334,7 +359,9 @@ class mysqld(connection):
             try:
                 data = bytearray.fromhex(data.decode("ascii"))
             except (UnicodeDecodeError, ValueError):
-                logger.warning("Unable to decode hex string %r", query[0][2:], exc_info=True)
+                logger.warning(
+                    "Unable to decode hex string %r", query[0][2:], exc_info=True
+                )
                 return False
 
             self._report_raw_data(data)
@@ -352,7 +379,9 @@ class mysqld(connection):
             try:
                 data = bytearray.fromhex(query[0][2:].decode("ascii"))
             except UnicodeDecodeError:
-                logger.warning("Unable to decode hex string %r", query[0][2:], exc_info=True)
+                logger.warning(
+                    "Unable to decode hex string %r", query[0][2:], exc_info=True
+                )
                 return False
 
             self._report_raw_data(data)
@@ -384,24 +413,24 @@ class mysqld(connection):
             r.append(MySQL_Result_Header(FieldCount=2))
             r.append(
                 MySQL_Result_Field(
-                    Catalog='def',
+                    Catalog="def",
                     Name="Variable_name",
                     CharSet=33,
                     Length=75,
                     Type=FIELD_TYPE_VAR_STRING,
                     Flags=FLAG_NOT_NULL,
-                    Decimals=0
+                    Decimals=0,
                 )
             )
             r.append(
                 MySQL_Result_Field(
-                    Catalog='def',
+                    Catalog="def",
                     Name="Value",
                     CharSet=33,
                     Length=75,
                     Type=FIELD_TYPE_VAR_STRING,
                     Flags=FLAG_NOT_NULL,
-                    Decimals=0
+                    Decimals=0,
                 )
             )
             r.append(MySQL_Result_EOF(ServerStatus=0x002))
@@ -416,7 +445,7 @@ class mysqld(connection):
                 if var_name and not var_name.match(name.encode("ascii")):
                     continue
                 r.append(
-                    MySQL_Result_Row_Data(ColumnValues=[name + '\0', "%s\0" % var])
+                    MySQL_Result_Row_Data(ColumnValues=[name + "\0", "%s\0" % var])
                 )
 
             r.append(MySQL_Result_EOF(ServerStatus=0x002))
@@ -432,8 +461,8 @@ class mysqld(connection):
         fp_tmp = tempfile.NamedTemporaryFile(
             delete=False,
             dir=self.download_dir,
-            prefix='mysql-',
-            suffix=self.download_suffix
+            prefix="mysql-",
+            suffix=self.download_suffix,
         )
 
         fp_tmp.write(data)
@@ -447,27 +476,31 @@ class mysqld(connection):
         icd.report()
         os.unlink(fp_tmp.name)
 
-    def handle_io_in(self,data):
+    def handle_io_in(self, data):
         offset = 0
         while len(data) - offset >= 4:
-            h = MySQL_Packet_Header(data[offset:offset+4])
+            h = MySQL_Packet_Header(data[offset : offset + 4])
             r = p = None
-            if len(data)-offset < h.Length + 4:
+            if len(data) - offset < h.Length + 4:
                 break
 
-            if self.state == 'greeting':
-                self.state = 'online'
+            if self.state == "greeting":
+                self.state = "online"
                 try:
-                    p = MySQL_Client_Authentication(data[offset+4:offset+4+h.Length])
+                    p = MySQL_Client_Authentication(
+                        data[offset + 4 : offset + 4 + h.Length]
+                    )
                 except Exception as e:
                     logger.warning("Failed to parse MySQL authentication packet: %s", e)
                     return len(data)
-                if p.DatabaseName != b'\x00':
+                if p.DatabaseName != b"\x00":
                     Database = p.DatabaseName[:-1]
                     if isinstance(Database, str):
-                        Database = Database.encode('ascii')
+                        Database = Database.encode("ascii")
                     if self._open_db(Database):
-                        r = MySQL_Result_Error(Message="Could not open Database %s" % Database)
+                        r = MySQL_Result_Error(
+                            Message="Could not open Database %s" % Database
+                        )
                     else:
                         r = MySQL_Result_OK()
                 else:
@@ -479,9 +512,9 @@ class mysqld(connection):
                 i.password = ""
                 i.report()
 
-            elif self.state == 'online':
+            elif self.state == "online":
                 try:
-                    p = MySQL_Command_Header(data[offset+4:offset+4+h.Length])
+                    p = MySQL_Command_Header(data[offset + 4 : offset + 4 + h.Length])
                     cmd = MySQL_Commands[p.Command]
                 except Exception as e:
                     logger.warning("Failed to parse MySQL command packet: %s", e)
@@ -510,10 +543,10 @@ class mysqld(connection):
             if r is not None:
                 if not isinstance(r, list):
                     r = [r]
-                buf = b''
+                buf = b""
                 for i in range(len(r)):
                     rp = r[i]
-                    rp = MySQL_Packet_Header(Number=h.Number+1+i) / rp
+                    rp = MySQL_Packet_Header(Number=h.Number + 1 + i) / rp
                     rp.show()
                     buf += rp.build()
                 self.send(buf)
