@@ -175,10 +175,7 @@ def build_ntlm_target_info(domain_name, computer_name):
     av_eol = AV_PAIR(Id=0, Value=b"")
 
     target_info = (
-        av_domain.build()
-        + av_computer.build()
-        + av_timestamp.build()
-        + av_eol.build()
+        av_domain.build() + av_computer.build() + av_timestamp.build() + av_eol.build()
     )
 
     return domain_utf16, target_info
@@ -738,7 +735,7 @@ class smbd(connection):
             # Log the file/pipe being opened
             f, v = h.getfield_and_val("Filename")
             req_filename = f.i2repr(h, v).rstrip("\x00")
-            smblog.info(
+            smblog.debug(
                 "SMB NT Create from %s:%d - file: %s",
                 self.remote.host,
                 self.remote.port,
@@ -751,8 +748,19 @@ class smbd(connection):
             # Check if this is a named pipe (for DCERPC)
             # Named pipes start with \ and have known service names
             named_pipes = {
-                "srvsvc", "svcctl", "spoolss", "samr", "lsarpc", "netlogon",
-                "wkssvc", "browser", "winreg", "ntsvcs", "eventlog", "epmapper",
+                "srvsvc",
+                "svcctl",
+                "spoolss",
+                "samr",
+                "lsarpc",
+                "netlogon",
+                "wkssvc",
+                "browser",
+                "winreg",
+                "ntsvcs",
+                "eventlog",
+                "epmapper",
+                "remcom_communicaton",
             }
             pipe_name = req_filename.lstrip("\\/").lower()
             is_named_pipe = pipe_name in named_pipes
@@ -790,7 +798,7 @@ class smbd(connection):
                 i.con = self
                 i.url = f"smb://{self.remote.host}/{filename}"
                 i.report()
-                smblog.info("OPEN FILE! %s" % filename)
+                smblog.info("Capturing file write: %s", filename)
 
             elif h.FileAttributes & SMB_FA_DIRECTORY:
                 pass
@@ -835,16 +843,25 @@ class smbd(connection):
             r.CountLow = h.DataLenLow
             if h.FID in self.fids and self.fids[h.FID] is not None:
                 fileobj, filename = self.fids[h.FID]
-                smblog.warning("WRITE FILE! %s (%d bytes)", filename, len(h.Data))
+                data_preview = h.Data[:64].hex() if h.Data else ""
+                smblog.info(
+                    "File write from %s:%d - %s (%d bytes): %s",
+                    self.remote.host,
+                    self.remote.port,
+                    filename,
+                    len(h.Data),
+                    data_preview,
+                )
                 fileobj.write(h.Data)
             else:
+                data_preview = h.Data[:64].hex() if h.Data else ""
                 smblog.info(
-                    "SMB WriteAndX to pipe from %s:%d - FID: 0x%04x, %d bytes, total buf: %d",
+                    "Pipe write from %s:%d - FID: 0x%04x (%d bytes): %s",
                     self.remote.host,
                     self.remote.port,
                     h.FID,
                     len(h.Data),
-                    len(self.buf) + len(h.Data),
+                    data_preview,
                 )
                 self.buf += h.Data
                 # self.process_dcerpc_packet(p.getlayer(SMB_Write_AndX_Request).Data)
@@ -878,7 +895,15 @@ class smbd(connection):
             h = p.getlayer(SMB_Write_Request)
             if h.FID in self.fids and self.fids[h.FID] is not None:
                 fileobj, filename = self.fids[h.FID]
-                smblog.warning("WRITE FILE! %s (%d bytes)", filename, len(h.Data))
+                data_preview = h.Data[:64].hex() if h.Data else ""
+                smblog.info(
+                    "File write from %s:%d - %s (%d bytes): %s",
+                    self.remote.host,
+                    self.remote.port,
+                    filename,
+                    len(h.Data),
+                    data_preview,
+                )
                 fileobj.write(h.Data)
             r = SMB_Write_Response(CountOfBytesWritten=h.CountOfBytesToWrite)
         elif Command == SMB_COM_READ_ANDX:
@@ -942,7 +967,9 @@ class smbd(connection):
             )
 
             # Check if secondary packets will follow (fragmented transaction)
-            is_fragmented = h.TotalParamCount > h.ParamCount or h.TotalDataCount > h.DataCount
+            is_fragmented = (
+                h.TotalParamCount > h.ParamCount or h.TotalDataCount > h.DataCount
+            )
             if is_fragmented:
                 smblog.info(
                     "SMB Transaction fragmented: params %d/%d, data %d/%d - expecting SECONDARY",
@@ -1024,7 +1051,9 @@ class smbd(connection):
                     # Response: NamedPipeState (2), ReadDataAvailable (2),
                     #           MessageBytesLength (2), MessageLength (2), Data (variable)
                     r.TotalParamCount = 0
-                    r.TotalDataCount = 6  # State + ReadDataAvailable + MessageBytesLength
+                    r.TotalDataCount = (
+                        6  # State + ReadDataAvailable + MessageBytesLength
+                    )
                     r.ParamCount = 0
                     r.DataCount = 6
                     r.DataOffset = 56
@@ -1062,16 +1091,19 @@ class smbd(connection):
         elif Command == SMB_COM_TRANSACTION2:
             h = p.getlayer(SMB_Trans2_Request)
             setup_code = h.Setup[0] if h.Setup else 0
-            smblog.info(
-                "SMB Transaction2 from %s:%d - setup: 0x%04x, params: %d/%d, data: %d/%d",
-                self.remote.host,
-                self.remote.port,
-                setup_code,
-                h.ParamCount,
-                h.TotalParamCount,
-                h.DataCount,
-                h.TotalDataCount,
-            )
+            # Skip generic logging for SMB_TRANS2_SESSION_SETUP (DoublePulsar)
+            # since that path has its own specific logging
+            if setup_code != SMB_TRANS2_SESSION_SETUP:
+                smblog.info(
+                    "SMB Transaction2 from %s:%d - setup: 0x%04x, params: %d/%d, data: %d/%d",
+                    self.remote.host,
+                    self.remote.port,
+                    setup_code,
+                    h.ParamCount,
+                    h.TotalParamCount,
+                    h.DataCount,
+                    h.TotalDataCount,
+                )
             if h.Setup[0] == SMB_TRANS2_SESSION_SETUP:
                 # DoublePulsar v1 (WannaCry): opcodes encoded via calculate_doublepulsar_opcode()
                 # https://zerosum0x0.blogspot.sg/2017/04/doublepulsar-initial-smb-backdoor-ring.html
@@ -1275,11 +1307,11 @@ class smbd(connection):
                 "SMB NT Transact from %s:%d - function: 0x%04x, params: %d/%d, data: %d/%d",
                 self.remote.host,
                 self.remote.port,
-                h.Function if hasattr(h, 'Function') else 0,
-                h.ParamCount if hasattr(h, 'ParamCount') else 0,
-                h.TotalParamCount if hasattr(h, 'TotalParamCount') else 0,
-                h.DataCount if hasattr(h, 'DataCount') else 0,
-                h.TotalDataCount if hasattr(h, 'TotalDataCount') else 0,
+                h.Function if hasattr(h, "Function") else 0,
+                h.ParamCount if hasattr(h, "ParamCount") else 0,
+                h.TotalParamCount if hasattr(h, "TotalParamCount") else 0,
+                h.DataCount if hasattr(h, "DataCount") else 0,
+                h.TotalDataCount if hasattr(h, "TotalDataCount") else 0,
             )
             r = SMB_NT_Trans_Response()
             rstatus = 0x00000000  # STATUS_SUCCESS
@@ -1591,9 +1623,7 @@ class smbd(connection):
             outbuf = resp
         else:
             # unknown DCERPC packet -> logcrit and bail out.
-            smblog.error(
-                "unknown DCERPC PacketType %d. bailing out.", dcep.PacketType
-            )
+            smblog.error("unknown DCERPC PacketType %d. bailing out.", dcep.PacketType)
         return outbuf
 
     def handle_timeout_idle(self):
