@@ -737,7 +737,7 @@ void connection_tls_handshake_again_timeout_cb(EV_P_ struct ev_timer *w, int rev
 		connection_connect_next_addr(con);
 		break;
 	case connection_type_accept:
-		g_warning("TLS handshake timeout (inbound from %s:%s, version: %s, state: %s)",
+		g_message("TLS handshake timeout (inbound from %s:%s, version: %s, state: %s)",
 			con->remote.ip_string,
 			con->remote.port_string,
 			SSL_get_version(con->transport.tls.ssl),
