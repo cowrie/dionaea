@@ -10,13 +10,8 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
-# The whole logic is taken from tftpy - http://tftpy.sourceforge.net/
-# tftpy is licensed using CNRI Python License which is claimed to be incompatible with the GPL
-# http://www.gnu.org/philosophy/license-list.html
-#
-# Nevertheless, the tftpy author Michael P. Soulier
-# gave us a non exclusive permission to use his code in
-# our gpl project
+# Based on tftpy by Michael P. Soulier - https://github.com/msoulier/tftpy
+# tftpy is MIT licensed (GPL-compatible)
 
 import tempfile
 import struct
