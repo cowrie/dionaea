@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import logging
 from urllib.parse import urlparse
@@ -179,7 +179,7 @@ class LogJsonHandler(ihandler):
             "src_hostname": self._prepare_value(con.remote.hostname),
             "src_ip": con.remote.host,
             "src_port": con.remote.port,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
         self.attacks[con] = data
 
