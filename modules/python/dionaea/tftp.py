@@ -8,10 +8,9 @@
 # SPDX-FileCopyrightText: 2009-2011 Markus Koetter
 # SPDX-FileCopyrightText: 2015-2016 PhiBo (DinoTools)
 #
-# SPDX-License-Identifier: GPL-2.0-or-later
+# SPDX-License-Identifier: MIT
 #
 # Based on tftpy by Michael P. Soulier - https://github.com/msoulier/tftpy
-# tftpy is MIT licensed (GPL-compatible)
 
 import tempfile
 import struct
