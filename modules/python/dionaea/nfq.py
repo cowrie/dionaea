@@ -161,7 +161,7 @@ class nfqhandler(ihandler):
 
             # avoid connecting yourself
             if False and is_local_addr(rhost):
-                logger.warn("avoid self connect")
+                logger.warning("avoid self connect")
                 return
 
             # throttle incoming SYN's
@@ -186,11 +186,11 @@ class nfqhandler(ihandler):
 
             total = sum([ x[1] for x in self.window])
             if total > self.throttle_total:
-                logger.warn("throttle total %i %s" % (total,rhost))
+                logger.warning("throttle total %i %s" % (total,rhost))
                 icd.nfaction = self.throttle_nfaction
                 return
             if self.window[nmt][1] > self.throttle_slot:
-                logger.warn("throttle slot %i %s" %
+                logger.warning("throttle slot %i %s" %
                             (self.window[nmt][1], rhost) )
                 icd.nfaction = self.throttle_nfaction
                 return

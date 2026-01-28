@@ -248,7 +248,7 @@ class LogSQLHandler(ihandler):
             del self.attacks[con]
             logger.info("attackid %i is done", attackid)
         else:
-            logger.warn("no attackid for %s:%s", con.local.host, con.local.port)
+            logger.warning("no attackid for %s:%s", con.local.host, con.local.port)
         if con in self.pending:
             del self.pending[con]
 

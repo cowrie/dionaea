@@ -202,7 +202,7 @@ class FTPd(connection):
         # try:
         #     data = data.decode()
         # except UnicodeDecodeError:
-        #     logger.warn("error decoding")
+        #     logger.warning("error decoding")
         #     logger.debug("io_in" + data)
 
         logger.debug(data)
@@ -311,7 +311,7 @@ class FTPd(connection):
         port = addr[4] << 8 | addr[5]
         logger.debug("PORT cmd for port %i" % port)
         if self.remote.host != ip and "::ffff:" + self.remote.host != ip:
-            logger.warn("Potential FTP Bounce Scan detected")
+            logger.warning("Potential FTP Bounce Scan detected")
             return None
         self.dtp = FTPDataConnect(ip, port, self)
         return None
@@ -360,7 +360,7 @@ class FTPd(connection):
                     self.reply("file_status_ok_open_data_cnx")
                     self.dtp.send_file(name)
                 else:
-                    logger.warn(
+                    logger.warning(
                         "dtp state %s %s:%i <-> %s:%i!",
                         self.dtp.status,
                         self.dtp.remote.host,
@@ -369,7 +369,7 @@ class FTPd(connection):
                         self.dtp.local.port
                     )
             else:
-                logger.warn(
+                logger.warning(
                     "no dtp on %s:%i <-> %s:%i!",
                     self.dtp.remote.host,
                     self.dtp.remote.port,
@@ -398,7 +398,7 @@ class FTPd(connection):
                 self.reply("file_status_ok_open_data_cnx")
                 self.dtp.recv_file(file)
             else:
-                logger.warn(
+                logger.warning(
                     "dtp state %s %s:%i <-> %s:%i!",
                     self.dtp.status,
                     self.dtp.remote.host,
@@ -407,7 +407,7 @@ class FTPd(connection):
                     self.dtp.local.port
                 )
         else:
-            logger.warn(
+            logger.warning(
                 "no dtp on %s:%i <-> %s:%i!",
                 self.dtp.remote.host,
                 self.dtp.remote.port,
@@ -436,7 +436,7 @@ class FTPd(connection):
                     self.reply("file_status_ok_open_data_cnx")
                     self.dtp.send_list(name, len(name)+1)
                 else:
-                    logger.warn(
+                    logger.warning(
                         "dtp state %s %s:%i <-> %s:%i!",
                         self.dtp.status,
                         self.dtp.remote.host,
@@ -445,7 +445,7 @@ class FTPd(connection):
                         self.dtp.local.port
                     )
             else:
-                logger.warn(
+                logger.warning(
                     "no dtp on %s:%i <-> %s:%i!",
                     self.dtp.remote.host,
                     self.dtp.remote.port,

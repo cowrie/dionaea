@@ -234,7 +234,7 @@ class LogJsonHandler(ihandler):
                     handler.submit(data)
             del self.attacks[con]
         else:
-            logger.warn(f"no attack data for {con.local.host}:{con.local.port}")
+            logger.warning(f"no attack data for {con.local.host}:{con.local.port}")
 
     def handle_incident_dionaea_modules_python_ftp_command(self, icd):
         con = icd.con

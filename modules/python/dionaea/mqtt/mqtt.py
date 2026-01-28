@@ -60,7 +60,7 @@ class mqttd(connection):
 					logger.debug(f"MQTT Control Packet Type {self.pendingPacketType}")
 
 				if len(data) == 0:
-					logger.warn("Bad MQTT Packet, Length = 0")
+					logger.warning("Bad MQTT Packet, Length = 0")
 
 			except Exception:
 				t = traceback.format_exc()
@@ -212,7 +212,7 @@ class mqttd(connection):
 				r.PacketIdentifier = packetidentifier
 				r.HeaderFlags = MQTT_CONTROLMESSAGE_TYPE_PUBLISHCOM
 		else:
-			logger.warn(f"Unknown Packet Type for MQTT {PacketType}")
+			logger.warning(f"Unknown Packet Type for MQTT {PacketType}")
 
 		return r
 

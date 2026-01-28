@@ -47,7 +47,7 @@ class pptpd(connection):
                 else:
                     logger.warning("Unexpected control message type %d", message_type)
             except Exception as e:
-                logger.warn("Failed to parse PPTP control message: %s", e)
+                logger.warning("Failed to parse PPTP control message: %s", e)
         return len(data)
 
     def apply_config(self, config):
@@ -71,7 +71,7 @@ class pptpd(connection):
                 return len(data)
             p.show()
             if p.Length == 0:
-                logger.warn("Bad PPTP Packet, Length = 0")
+                logger.warning("Bad PPTP Packet, Length = 0")
                 return len(data)
 
             i = incident("dionaea.modules.python.pptp.connect")

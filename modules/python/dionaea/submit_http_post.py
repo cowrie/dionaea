@@ -36,7 +36,7 @@ class SubmitHTTPPost(ihandler):
         for name, to in self.tos.items():
             urls = to.get("urls")
             if urls is None or len(urls) == 0:
-                logger.warn("your configuration lacks urls to submit to %s", name)
+                logger.warning("your configuration lacks urls to submit to %s", name)
                 continue
 
             for url in urls:

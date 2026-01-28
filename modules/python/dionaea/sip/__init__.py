@@ -812,7 +812,7 @@ class SipSession(connection):
 
         # ToDo: check for request-uri?
         if not msg.headers_exist([b"to", b"from", b"call-id", b"cseq"]):
-            logger.warn("REGISTER, header missing")
+            logger.warning("REGISTER, header missing")
             # ToDo: return error
             return
 

@@ -291,8 +291,8 @@ class mysqld(connection):
                         (r.append(x),)
                     r.append(MySQL_Result_EOF(ServerStatus=0x002))
             except Exception as e:
-                logger.warn("SQL ERROR %s" % e)
-                logger.warn("SQL ERROR in %s" % p.Query)
+                logger.warning("SQL ERROR %s" % e)
+                logger.warning("SQL ERROR in %s" % p.Query)
                 r = MySQL_Result_Error(Message="Learn SQL!")
         return r
 

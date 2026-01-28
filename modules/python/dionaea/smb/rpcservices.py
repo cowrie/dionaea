@@ -3916,7 +3916,7 @@ class SRVSVC(RPCService):
                 data = __shares__[NetName]
                 s.Data = {NetName: data}
             else:
-                rpclog.warn(
+                rpclog.warning(
                     "FIXME: this code has to be written, lame workaround for now"
                 )
                 data = __shares__["C$"]

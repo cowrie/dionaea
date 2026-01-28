@@ -250,7 +250,7 @@ class hpclient(connection):
         return 1
 
     def handle_error(self, err):
-        logger.warn(str(err))
+        logger.warning(str(err))
         self._reset_connection_state()
         return 1
 
@@ -267,7 +267,7 @@ class hpfeedihandler(ihandler):
         try:
             reconnect_timeout = float(reconnect_timeout)
         except (TypeError, ValueError):
-            logger.warn("Unable to convert value '%s' for reconnect timeout to float" % reconnect_timeout)
+            logger.warning("Unable to convert value '%s' for reconnect timeout to float" % reconnect_timeout)
             reconnect_timeout = self.default_reconnect_timeout
 
         port = config.get("port")
@@ -276,7 +276,7 @@ class hpfeedihandler(ihandler):
         try:
             port = int(port)
         except (TypeError, ValueError):
-            logger.warn("Unable to convert value '%s' for port to int" % port)
+            logger.warning("Unable to convert value '%s' for port to int" % port)
             port = self.default_port
 
         self.client = hpclient(
@@ -333,7 +333,7 @@ class hpfeedihandler(ihandler):
                 local_port=con.local.port
             )
         except Exception as e:
-            logger.warn(f'exception when publishing: {e}')
+            logger.warning(f'exception when publishing: {e}')
 
     def handle_incident(self, i):
         pass
@@ -400,7 +400,7 @@ class hpfeedihandler(ihandler):
         try:
             self.client.sendfile(i.file)
         except Exception as e:
-            logger.warn(f'exception when publishing: {e}')
+            logger.warning(f'exception when publishing: {e}')
 
     def handle_incident_dionaea_download_complete_again(self, i):
         if not hasattr(i, 'con') or not self.client.connected:
@@ -421,7 +421,7 @@ class hpfeedihandler(ihandler):
                 url=i.url
             )
         except Exception as e:
-            logger.warn(f'exception when publishing: {e}')
+            logger.warning(f'exception when publishing: {e}')
 
     def handle_incident_dionaea_modules_python_smb_dcerpc_request(self, i):
         if not hasattr(i, 'con') or not self.client.connected:
@@ -438,7 +438,7 @@ class hpfeedihandler(ihandler):
                 dport=str(i.con.local.port)
             )
         except Exception as e:
-            logger.warn(f'exception when publishing: {e}')
+            logger.warning(f'exception when publishing: {e}')
 
     def handle_incident_dionaea_module_emu_profile(self, icd):
         if not hasattr(icd, 'con') or not self.client.connected:
@@ -447,7 +447,7 @@ class hpfeedihandler(ihandler):
         try:
             self.client.publish(SCPROFCHAN, profile=icd.profile)
         except Exception as e:
-            logger.warn(f'exception when publishing: {e}')
+            logger.warning(f'exception when publishing: {e}')
 
     def _dynip_resolve(self):
         i = incident("dionaea.upload.request")

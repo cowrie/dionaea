@@ -76,7 +76,7 @@ class FTPCtrl(connection):
                     self.cmd("RETR " + self.ftp.file)
                     self.state = "RETR"
                 else:
-                    logger.warn("PORT command failed")
+                    logger.warning("PORT command failed")
             elif self.state == "RETR":
                 if (c > 200 and c < 300)  and s != b"-":
                     self.cmd("QUIT")

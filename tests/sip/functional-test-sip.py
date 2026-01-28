@@ -300,7 +300,7 @@ def runFunctionalTest2():
 
 	data = c.recv()
 	assert data.split('\n', 1)[0] == "SIP/2.0 401 Unauthorized"
-	logger.warn("Received 401 Unauthorized")
+	logger.warning("Received 401 Unauthorized")
 
 	r, n = authenticate(data)
 	for i in range(2):

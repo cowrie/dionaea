@@ -75,4 +75,4 @@ class s3handler(ihandler):
             logger.info(f"File uploaded to S3 bucket: {icd.sha256hash}")
 
         except Exception as e:
-            logger.warn(f"S3 exception: {e}")
+            logger.warning(f"S3 exception: {e}")
