@@ -1,8 +1,6 @@
 dionaea - catches bugs
 ======================
 
-[![Build Status](https://ci.dinotools.org/job/dionaea-master/badge/icon)](https://ci.dinotools.org/job/dionaea-master/)
-
 Dionaea is meant to be a nepenthes successor, embedding Python as
 scripting language, using libemu to detect shellcodes, supporting
 IPv6 and TLS.
