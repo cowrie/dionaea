@@ -130,6 +130,105 @@ TRANSFER_SYNTAX_NAMES = {
     NDR64_UUID: "NDR64",
 }
 
+# DCE/RPC byte order constants
+DCERPC_BYTE_ORDER_LE = 0x10  # Little-endian
+DCERPC_BYTE_ORDER_BE = 0x00  # Big-endian
+
+
+def _swap16(value):
+    """Swap bytes in a 16-bit value (convert between LE and BE)."""
+    return ((value & 0xFF) << 8) | ((value >> 8) & 0xFF)
+
+
+def _swap32(value):
+    """Swap bytes in a 32-bit value (convert between LE and BE)."""
+    return (
+        ((value & 0xFF) << 24) |
+        ((value & 0xFF00) << 8) |
+        ((value >> 8) & 0xFF00) |
+        ((value >> 24) & 0xFF)
+    )
+
+
+def dcerpc_is_big_endian(data_representation):
+    """Check if DCE/RPC packet uses big-endian byte order."""
+    return (data_representation & 0xFF) == DCERPC_BYTE_ORDER_BE
+
+
+def parse_dcerpc_uuid(uuid_bytes, big_endian):
+    """Parse UUID bytes according to DCE/RPC byte order."""
+    if big_endian:
+        return UUID(bytes=uuid_bytes)
+    else:
+        return UUID(bytes_le=uuid_bytes)
+
+
+def normalize_dcerpc_packet(dcep):
+    """Normalize a DCE/RPC packet to little-endian field values.
+
+    DCE/RPC packets can be sent in big-endian or little-endian format,
+    indicated by the DataRepresentation field. Since our packet parser
+    assumes little-endian, we need to swap bytes for big-endian packets.
+
+    Returns True if the packet was big-endian and normalized.
+    """
+    # DataRepresentation byte 0 indicates byte order
+    # The field itself is parsed as LE, but byte 0 is always the order indicator
+    data_rep = dcep.DataRepresentation
+    if not dcerpc_is_big_endian(data_rep):
+        return False
+
+    # Packet is big-endian - normalize header fields
+    # Note: DataRepresentation itself doesn't need swapping (we only use byte 0)
+    dcep.FragLen = _swap16(dcep.FragLen)
+    dcep.AuthLen = _swap16(dcep.AuthLen)
+    dcep.CallID = _swap32(dcep.CallID)
+
+    # Normalize payload based on packet type
+    if dcep.PacketType == 11:  # bind
+        _normalize_dcerpc_bind(dcep)
+    elif dcep.PacketType == 0:  # request
+        _normalize_dcerpc_request(dcep)
+
+    return True
+
+
+def _normalize_dcerpc_bind(dcep):
+    """Normalize DCERPC_Bind payload fields for big-endian packets."""
+    try:
+        bind = dcep.payload
+        bind.MaxTransmitFrag = _swap16(bind.MaxTransmitFrag)
+        bind.MaxReceiveFrag = _swap16(bind.MaxReceiveFrag)
+        bind.AssocGroup = _swap32(bind.AssocGroup)
+
+        # Normalize each context item
+        if hasattr(bind, 'CtxItems') and bind.CtxItems:
+            for ctx in bind.CtxItems:
+                _normalize_dcerpc_ctxitem(ctx)
+    except Exception:
+        pass  # Malformed packet, ignore normalization errors
+
+
+def _normalize_dcerpc_ctxitem(ctx):
+    """Normalize DCERPC_CtxItem fields for big-endian packets."""
+    ctx.ContextID = _swap16(ctx.ContextID)
+    ctx.InterfaceVer = _swap16(ctx.InterfaceVer)
+    ctx.InterfaceVerMinor = _swap16(ctx.InterfaceVerMinor)
+    ctx.TransferSyntaxVersion = _swap32(ctx.TransferSyntaxVersion)
+    # UUID fields are handled separately by parse_dcerpc_uuid
+
+
+def _normalize_dcerpc_request(dcep):
+    """Normalize DCERPC_Request payload fields for big-endian packets."""
+    try:
+        req = dcep.payload
+        req.AllocHint = _swap32(req.AllocHint)
+        req.ContextID = _swap16(req.ContextID)
+        req.OpNum = _swap16(req.OpNum)
+    except Exception:
+        pass  # Malformed packet, ignore normalization errors
+
+
 smblog = logging.getLogger("SMB")
 
 STATE_START = 0
@@ -1498,6 +1597,11 @@ class smbd(connection):
         else:
             dcep = buf
 
+        # Normalize big-endian packets to little-endian field values
+        is_big_endian = normalize_dcerpc_packet(dcep)
+        if is_big_endian:
+            smblog.debug("Normalized big-endian DCE/RPC packet")
+
         outbuf = None
 
         smblog.debug("data")
@@ -1526,8 +1630,8 @@ class smbd(connection):
             while c < len(dcep.CtxItems):  # isinstance(tmp, DCERPC_CtxItem):
                 tmp = dcep.CtxItems[c]
                 ctxitem = outbuf.CtxItems[c]
-                service_uuid = UUID(bytes_le=tmp.UUID)
-                transfersyntax_uuid = UUID(bytes_le=tmp.TransferSyntax)
+                service_uuid = parse_dcerpc_uuid(tmp.UUID, is_big_endian)
+                transfersyntax_uuid = parse_dcerpc_uuid(tmp.TransferSyntax, is_big_endian)
                 ctxitem.TransferSyntax = tmp.TransferSyntax  # [:16]
                 ctxitem.TransferSyntaxVersion = tmp.TransferSyntaxVersion
                 # Check for supported transfer syntaxes (NDR32 or NDR64)

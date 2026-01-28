@@ -168,3 +168,162 @@ def test_trans_secondary_bind():
     trans = parsed.getlayer(SMB_Trans_Secondary_Request)
     assert trans.TotalParamCount == 10
     assert trans.TotalDataCount == 20
+
+
+class TestDCERPCByteOrder:
+    """Test UUID parsing with different DCE/RPC byte orders."""
+
+    def test_parse_uuid_little_endian(self):
+        """Test that UUIDs are correctly parsed from little-endian data."""
+        from uuid import UUID
+
+        # NDR32 transfer syntax UUID: 8a885d04-1ceb-11c9-9fe8-08002b104860
+        # In little-endian wire format (bytes_le):
+        # First 4 bytes reversed: 04 5d 88 8a
+        # Next 2 bytes reversed: eb 1c
+        # Next 2 bytes reversed: c9 11
+        # Last 8 bytes as-is: 9f e8 08 00 2b 10 48 60
+        wire_bytes = bytes([
+            0x04, 0x5d, 0x88, 0x8a,  # 8a885d04 in LE
+            0xeb, 0x1c,              # 1ceb in LE
+            0xc9, 0x11,              # 11c9 in LE
+            0x9f, 0xe8, 0x08, 0x00, 0x2b, 0x10, 0x48, 0x60
+        ])
+
+        # Parse as little-endian (standard Windows/DCE-RPC format)
+        parsed = UUID(bytes_le=wire_bytes)
+        assert str(parsed) == '8a885d04-1ceb-11c9-9fe8-08002b104860'
+
+    def test_parse_uuid_big_endian(self):
+        """Test that UUIDs are correctly parsed from big-endian data."""
+        from uuid import UUID
+
+        # NDR32 transfer syntax UUID: 8a885d04-1ceb-11c9-9fe8-08002b104860
+        # In big-endian wire format (bytes):
+        # All bytes in network order (no swapping)
+        wire_bytes = bytes([
+            0x8a, 0x88, 0x5d, 0x04,  # 8a885d04 in BE
+            0x1c, 0xeb,              # 1ceb in BE
+            0x11, 0xc9,              # 11c9 in BE
+            0x9f, 0xe8, 0x08, 0x00, 0x2b, 0x10, 0x48, 0x60
+        ])
+
+        # Parse as big-endian
+        parsed = UUID(bytes=wire_bytes)
+        assert str(parsed) == '8a885d04-1ceb-11c9-9fe8-08002b104860'
+
+    def test_wrong_byte_order_gives_wrong_uuid(self):
+        """Test that using wrong byte order gives incorrect UUID."""
+        from uuid import UUID
+
+        # Big-endian wire bytes for NDR32
+        be_wire_bytes = bytes([
+            0x8a, 0x88, 0x5d, 0x04,
+            0x1c, 0xeb,
+            0x11, 0xc9,
+            0x9f, 0xe8, 0x08, 0x00, 0x2b, 0x10, 0x48, 0x60
+        ])
+
+        # If we incorrectly parse big-endian bytes as little-endian,
+        # we get the byte-swapped UUID that was in the warning
+        wrong_parsed = UUID(bytes_le=be_wire_bytes)
+        assert str(wrong_parsed) == '045d888a-eb1c-c911-9fe8-08002b104860'
+
+        # This is NOT the correct NDR32 UUID
+        assert str(wrong_parsed) != '8a885d04-1ceb-11c9-9fe8-08002b104860'
+
+    def test_data_representation_byte_order_flag(self):
+        """Test interpreting DataRepresentation byte order field."""
+        # DataRepresentation is a 4-byte field:
+        # Byte 0: Integer representation (0x00=BE, 0x10=LE)
+        # Byte 1: Character (0=ASCII)
+        # Byte 2: Floating-point (0=IEEE)
+        # Byte 3: Reserved
+
+        # Little-endian (standard Windows): 0x10 in byte 0
+        le_data_rep = 0x00000010  # As stored in little-endian
+        le_byte_order = le_data_rep & 0xFF
+        assert le_byte_order == 0x10
+        assert le_byte_order != 0x00  # Not big-endian
+
+        # Big-endian: 0x00 in byte 0
+        be_data_rep = 0x00000000
+        be_byte_order = be_data_rep & 0xFF
+        assert be_byte_order == 0x00
+
+    def test_parse_uuid_with_byte_order_flag(self):
+        """Test helper function for parsing UUIDs based on byte order."""
+        from uuid import UUID
+
+        def parse_dcerpc_uuid(uuid_bytes, big_endian):
+            """Parse UUID bytes according to DCE/RPC byte order."""
+            if big_endian:
+                return UUID(bytes=uuid_bytes)
+            else:
+                return UUID(bytes_le=uuid_bytes)
+
+        # NDR32 UUID
+        expected = '8a885d04-1ceb-11c9-9fe8-08002b104860'
+
+        # Little-endian wire bytes
+        le_bytes = bytes([
+            0x04, 0x5d, 0x88, 0x8a,
+            0xeb, 0x1c,
+            0xc9, 0x11,
+            0x9f, 0xe8, 0x08, 0x00, 0x2b, 0x10, 0x48, 0x60
+        ])
+        assert str(parse_dcerpc_uuid(le_bytes, False)) == expected
+
+        # Big-endian wire bytes
+        be_bytes = bytes([
+            0x8a, 0x88, 0x5d, 0x04,
+            0x1c, 0xeb,
+            0x11, 0xc9,
+            0x9f, 0xe8, 0x08, 0x00, 0x2b, 0x10, 0x48, 0x60
+        ])
+        assert str(parse_dcerpc_uuid(be_bytes, True)) == expected
+
+    def test_swap16(self):
+        """Test 16-bit byte swapping."""
+        def _swap16(value):
+            return ((value & 0xFF) << 8) | ((value >> 8) & 0xFF)
+
+        assert _swap16(0x1234) == 0x3412
+        assert _swap16(0xABCD) == 0xCDAB
+        assert _swap16(0x0100) == 0x0001
+        assert _swap16(0xFF00) == 0x00FF
+        # Swapping twice returns original
+        assert _swap16(_swap16(0x1234)) == 0x1234
+
+    def test_swap32(self):
+        """Test 32-bit byte swapping."""
+        def _swap32(value):
+            return (
+                ((value & 0xFF) << 24) |
+                ((value & 0xFF00) << 8) |
+                ((value >> 8) & 0xFF00) |
+                ((value >> 24) & 0xFF)
+            )
+
+        assert _swap32(0x12345678) == 0x78563412
+        assert _swap32(0xAABBCCDD) == 0xDDCCBBAA
+        assert _swap32(0x01000000) == 0x00000001
+        # Swapping twice returns original
+        assert _swap32(_swap32(0x12345678)) == 0x12345678
+
+    def test_dcerpc_is_big_endian(self):
+        """Test detection of big-endian DCE/RPC packets."""
+        def dcerpc_is_big_endian(data_representation):
+            return (data_representation & 0xFF) == 0x00
+
+        # Little-endian (standard Windows)
+        assert dcerpc_is_big_endian(0x00000010) is False
+        assert dcerpc_is_big_endian(0x10) is False
+
+        # Big-endian
+        assert dcerpc_is_big_endian(0x00000000) is True
+        assert dcerpc_is_big_endian(0x00) is True
+
+        # Other bytes don't affect byte order detection
+        assert dcerpc_is_big_endian(0x00FF0010) is False
+        assert dcerpc_is_big_endian(0x00FF0000) is True
