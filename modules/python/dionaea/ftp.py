@@ -371,10 +371,10 @@ class FTPd(connection):
             else:
                 logger.warning(
                     "no dtp on %s:%i <-> %s:%i!",
-                    self.dtp.remote.host,
-                    self.dtp.remote.port,
-                    self.dtp.local.host,
-                    self.dtp.local.port
+                    self.remote.host,
+                    self.remote.port,
+                    self.local.host,
+                    self.local.port
                 )
         else:
             self.reply("file_not_found", filename=p)
@@ -409,10 +409,10 @@ class FTPd(connection):
         else:
             logger.warning(
                 "no dtp on %s:%i <-> %s:%i!",
-                self.dtp.remote.host,
-                self.dtp.remote.port,
-                self.dtp.local.host,
-                self.dtp.local.port
+                self.remote.host,
+                self.remote.port,
+                self.local.host,
+                self.local.port
             )
 
     def ftp_TYPE(self, t):
@@ -447,10 +447,10 @@ class FTPd(connection):
             else:
                 logger.warning(
                     "no dtp on %s:%i <-> %s:%i!",
-                    self.dtp.remote.host,
-                    self.dtp.remote.port,
-                    self.dtp.local.host,
-                    self.dtp.local.port
+                    self.remote.host,
+                    self.remote.port,
+                    self.local.host,
+                    self.local.port
                 )
         else:
             self.reply("permission_denied", path=p)
