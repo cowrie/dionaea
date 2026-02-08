@@ -460,7 +460,7 @@ void connection_dtls_io_out_cb(struct ev_loop *loop, struct ev_io *w, int revent
 	{
 		if( !ev_is_active(&con->events.io_out) )
 		{
-			ev_io_init(&con->events.io_out, connection_udp_io_out_cb, con->socket, EV_WRITE);
+			ev_io_init(&con->events.io_out, connection_dtls_io_out_cb, fd, EV_WRITE);
 			ev_io_start(EV_A_ &con->events.io_out);
 		}
 	} else
