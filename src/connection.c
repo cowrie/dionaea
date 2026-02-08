@@ -669,6 +669,45 @@ void connection_free_cb(EV_P_ struct ev_timer *w, int revents, bool report_incid
 		con->transport.tls.ctx = NULL;
 		break;
 
+	case connection_transport_udp:
+		{
+			GList *elem;
+			while( (elem = g_list_first(con->transport.udp.io_out)) != NULL )
+			{
+				struct udp_packet *packet = elem->data;
+				g_string_free(packet->data, TRUE);
+				g_free(packet);
+				con->transport.udp.io_out = g_list_delete_link(con->transport.udp.io_out, elem);
+			}
+			if( con->type == connection_type_listen && con->transport.udp.type.server.peers != NULL )
+				g_hash_table_destroy(con->transport.udp.type.server.peers);
+		}
+		break;
+
+	case connection_transport_dtls:
+		{
+			GList *elem;
+			while( (elem = g_list_first(con->transport.dtls.io_out)) != NULL )
+			{
+				struct udp_packet *packet = elem->data;
+				g_string_free(packet->data, TRUE);
+				g_free(packet);
+				con->transport.dtls.io_out = g_list_delete_link(con->transport.dtls.io_out, elem);
+			}
+
+			if( con->transport.dtls.ssl != NULL )
+				SSL_free(con->transport.dtls.ssl);
+			con->transport.dtls.ssl = NULL;
+
+			if( con->type == connection_type_listen && con->transport.dtls.ctx != NULL )
+				SSL_CTX_free(con->transport.dtls.ctx);
+			con->transport.dtls.ctx = NULL;
+
+			if( con->type == connection_type_listen && con->transport.dtls.type.server.peers != NULL )
+				g_hash_table_destroy(con->transport.dtls.type.server.peers);
+		}
+		break;
+
 	default:
 		break;
 	}
