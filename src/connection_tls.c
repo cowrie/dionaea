@@ -552,8 +552,14 @@ void connection_tls_accept_cb (EV_P_ struct ev_io *w, int revents)
 		accepted->socket = accepted_socket;
 		accepted->data = con->data;
 
-		connection_node_set_local(accepted);
-		connection_node_set_remote(accepted);
+		if( connection_node_set_local(accepted) == false || connection_node_set_remote(accepted) == false )
+		{
+			g_debug("accepting TLS connection failed, closing connection");
+			(void)close(accepted->socket);
+			accepted->socket = -1;
+			connection_free_cb(loop, &accepted->events.free, 0, false);
+			continue;
+		}
 
 		g_debug("accept() %i local:'%s' remote:'%s'", accepted->socket, accepted->local.node_string,  accepted->remote.node_string);
 		connection_set_nonblocking(accepted);
