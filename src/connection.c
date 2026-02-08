@@ -2205,7 +2205,7 @@ const char *connection_strerror(enum connection_error error)
 		"could not resolve domain" , /* ECONNOSUCHDOMAIN */
 		"too many connections" , /* ECONMANY */
 	};
-	if( error >= ECONMANY )
+	if( error > ECONMANY )
 		return NULL;
 
 	return myerrormsgs[error];

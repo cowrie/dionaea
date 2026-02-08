@@ -444,7 +444,7 @@ ctypedef enum:
 	ECONDNSTIMEOUT   = 0,
 	ECONUNREACH      = 1,
 	ECONNOSUCHDOMAIN = 2,
-	ECONMANY         = 4
+	ECONMANY         = 3
 
 cdef class connection:
 	"""the connection"""
