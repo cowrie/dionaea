@@ -1510,7 +1510,7 @@ void connection_handshake_timeout_set(struct connection *con, double timeout_int
 	switch( con->trans )
 	{
 	case connection_transport_tls:
-		ev_timer_init(&con->events.handshake_timeout, NULL, 0., timeout_interval_ms);
+		ev_timer_init(&con->events.handshake_timeout, connection_tls_handshake_again_timeout_cb, 0., timeout_interval_ms);
 		break;
 
 	default:
