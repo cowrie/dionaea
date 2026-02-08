@@ -69,6 +69,8 @@ CAP_INFOLEVEL_PASSTHRU = 0x2000
 CAP_LARGE_READX = 0x4000
 # The server supports large SMB_COM_WRITE_ANDX (up to 64k)
 CAP_LARGE_WRITEX = 0x8000
+# The server supports lightweight I/O control and FSCTL via NT_TRANSACT_IOCTL
+CAP_LWIO = 0x00010000
 # The server supports CIFS Extensions for UNIX. (See Appendix D for more
 # detail)
 CAP_UNIX = 0x00800000
@@ -97,6 +99,7 @@ SMB_Negotiate_Capabilities = {
     CAP_INFOLEVEL_PASSTHRU: "INFOLEVEL_PASSTHRU",
     CAP_LARGE_READX: "LARGE_READX",
     CAP_LARGE_WRITEX: "LARGE_WRITEX",
+    CAP_LWIO: "LWIO",
     CAP_UNIX: "UNIX",
     CAP_RESERVED: "RESERVED",
     CAP_BULK_TRANSFER: "BULK_TRANSFER",
@@ -763,7 +766,7 @@ class SMB_Negociate_Protocol_Response(Packet):
         LEIntField("MaxBufferS", 4096),
         LEIntField("MaxRawBuffer", 65536),
         LEIntField("SessionKey", 0),
-        FlagsField("Capabilities", 0x8000E3FD, -32, SMB_Negotiate_Capabilities),
+        FlagsField("Capabilities", 0x8001E3FC, -32, SMB_Negotiate_Capabilities),
         NTTimeField("SystemTime", datetime.datetime.now()),
         ShortField("SystemTimeZone", 0xC4FF),
         ByteField("KeyLength", 0),

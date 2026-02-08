@@ -22,8 +22,8 @@ class SmbConfig:
         if config is None:
             config = {}
 
-        self.native_os: str = "Windows 5.1"
-        self.native_lan_manager: str = "Windows 2000 LAN Manager"
+        self.native_os: str = "Windows Server 2012 R2 Standard 9600"
+        self.native_lan_manager: str = "Windows Server 2012 R2 Standard 6.3"
         self.oem_domain_name: str = "WORKGROUP"
         self.os_type: int = 2
         self.os_arch: int = 64
