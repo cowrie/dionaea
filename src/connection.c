@@ -88,8 +88,8 @@ struct connection *connection_new(enum connection_transport type)
 //		SSL_CTX_set_timeout(con->transport.ssl.ctx, 60);
 		break;
 	case connection_transport_dtls:
-		con->transport.tls.meth = DTLS_method();
-		con->transport.tls.ctx = SSL_CTX_new((SSL_METHOD *)con->transport.tls.meth);
+		con->transport.dtls.meth = DTLS_method();
+		con->transport.dtls.ctx = SSL_CTX_new((SSL_METHOD *)con->transport.dtls.meth);
 		break;
 	case connection_transport_udp:
 	case connection_transport_io:
