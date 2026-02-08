@@ -1070,7 +1070,7 @@ void connection_reconnect(struct connection *con)
 {
 	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 
-	if( con->socket > 0 )
+	if( con->socket != -1 )
 	{
 		(void)close(con->socket);
 		con->socket = -1;
