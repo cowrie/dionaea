@@ -345,7 +345,8 @@ void connection_dtls_drain_bio(struct connection *con)
 	{
 		g_warning("need to flush the bio");
 		unsigned char buf[64*1024];
-		uint32_t size = BIO_read(con->transport.dtls.writing, buf, sizeof(buf));
+		int size = BIO_read(con->transport.dtls.writing, buf, sizeof(buf));
+		if( size > 0 )
 		{
 			struct udp_packet *packet = g_malloc0(sizeof(struct udp_packet));
 			packet->data = g_string_new_len((void *)buf, size);
