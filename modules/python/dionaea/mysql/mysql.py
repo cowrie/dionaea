@@ -7,6 +7,7 @@
 
 import logging
 import os
+import random
 import re
 import sqlite3
 import tempfile
@@ -81,7 +82,15 @@ class mysqld(connection):
         self.processors()
         self.state = "greeting"
         var_version = self.vars.values.get("version")
-        greeting = MySQL_Server_Greeting(ServerVersion="%s\0" % var_version)
+        scramble = bytes(random.randint(1, 255) for _ in range(8))
+        salt = bytes(random.randint(1, 255) for _ in range(12))
+        thread_id = random.randint(1, 0xFFFFFFFF)
+        greeting = MySQL_Server_Greeting(
+            ServerVersion="%s\0" % var_version,
+            ThreadID=thread_id,
+            ScrambleBuffer=scramble,
+            Salt=salt,
+        )
         a = MySQL_Packet_Header(Number=0) / greeting
         a.show()
         self.send(a.build())
