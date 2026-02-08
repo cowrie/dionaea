@@ -1449,7 +1449,7 @@ void connection_listen_timeout_set(struct connection *con, double timeout_interv
 	}
 
 	if( con->type == connection_type_listen && timeout_interval_ms >= 0. )
-		ev_timer_again(CL, &con->events.sustain_timeout);
+		ev_timer_again(CL, &con->events.listen_timeout);
 }
 
 void connection_listen_timeout_cb(struct ev_loop *loop, struct ev_timer *w, int revents)
