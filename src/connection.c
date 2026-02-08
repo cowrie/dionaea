@@ -1987,6 +1987,9 @@ static int cmp_ip_address_stringp(const void *p1, const void *p2)
 	int domain1,domain2;
 	socklen_t sizeof_sa1, sizeof_sa2;
 
+	memset(&sa1, 0, sizeof(sa1));
+	memset(&sa2, 0, sizeof(sa2));
+
 	parse_addr(*(const char **)p1, NULL, 0, &sa1, &domain1, &sizeof_sa1);
 	parse_addr(*(const char **)p2, NULL, 0, &sa2, &domain2, &sizeof_sa2);
 
@@ -1994,12 +1997,13 @@ static int cmp_ip_address_stringp(const void *p1, const void *p2)
 	{
 		void *a = addr_offset(&sa1);
 		void *b = addr_offset(&sa2);
+		size_t addr_len = domain1 == PF_INET6 ? sizeof(struct in6_addr) : sizeof(struct in_addr);
 
 		if( domain1 == PF_INET6 )
 		{
 			if( ipv6_addr_v4mapped(a) &&
 				ipv6_addr_v4mapped(b) )
-				return -memcmp(a, b, sizeof_sa1);
+				return -memcmp(a, b, addr_len);
 
 			if( ipv6_addr_v4mapped(a) )
 				return 1;
@@ -2008,7 +2012,7 @@ static int cmp_ip_address_stringp(const void *p1, const void *p2)
 				return -1;
 		}
 
-		return -memcmp(a, b, sizeof_sa1);
+		return -memcmp(a, b, addr_len);
 
 	} else
 		if( domain1 > domain2 )	// domain1 is ipv6
@@ -2016,7 +2020,7 @@ static int cmp_ip_address_stringp(const void *p1, const void *p2)
 		struct sockaddr_in6 *a = (struct sockaddr_in6 *)&sa1;
 		struct sockaddr_in *b  = (struct sockaddr_in *)&sa2;
 		if( ipv6_addr_v4mapped(&a->sin6_addr) )
-			return -memcmp(&a->sin6_addr.s6_addr32[3], &b->sin_addr.s_addr, sizeof_sa2);
+			return -memcmp(&a->sin6_addr.s6_addr32[3], &b->sin_addr.s_addr, sizeof(struct in_addr));
 
 		return -1;
 	} else				 // domain2 is ipv6
@@ -2024,7 +2028,7 @@ static int cmp_ip_address_stringp(const void *p1, const void *p2)
 		struct sockaddr_in6 *a = (struct sockaddr_in6 *)&sa2;
 		struct sockaddr_in *b  = (struct sockaddr_in *)&sa1;
 		if( ipv6_addr_v4mapped(&a->sin6_addr) )
-			return memcmp(&a->sin6_addr.s6_addr32[3], &b->sin_addr.s_addr, sizeof_sa2);
+			return memcmp(&a->sin6_addr.s6_addr32[3], &b->sin_addr.s_addr, sizeof(struct in_addr));
 
 		return 1;
 	}
