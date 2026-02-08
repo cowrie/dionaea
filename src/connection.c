@@ -761,8 +761,9 @@ void connection_free_report_cb(EV_P_ struct ev_timer *w, int revents)
 void connection_set_nonblocking(struct connection *con)
 {
 	int flags = fcntl(con->socket, F_GETFL, 0);
-	flags |= O_NONBLOCK;
-	fcntl(con->socket, F_SETFL, flags);
+	if( flags == -1 )
+		return;
+	fcntl(con->socket, F_SETFL, flags | O_NONBLOCK);
 }
 
 /**
@@ -774,8 +775,9 @@ void connection_set_blocking(struct connection *con)
 {
 	g_debug(__PRETTY_FUNCTION__);
 	int flags = fcntl(con->socket, F_GETFL, 0);
-	flags &= ~O_NONBLOCK;
-	fcntl(con->socket, F_SETFL, flags);
+	if( flags == -1 )
+		return;
+	fcntl(con->socket, F_SETFL, flags & ~O_NONBLOCK);
 }
 
 
