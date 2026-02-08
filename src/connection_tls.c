@@ -100,13 +100,13 @@ void connection_tls_io_out_cb(EV_P_ struct ev_io *w, int revents)
 {
 	(void)revents;
 	struct connection *con = NULL;
-	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 
 	if( w->events == EV_READ )
 		con = CONOFF_IO_IN(w);
 	else
 		con	= CONOFF_IO_OUT(w);
 
+	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 
 	if( con->transport.tls.io_out_again->len == 0 )
 	{
@@ -262,12 +262,13 @@ void connection_tls_shutdown_cb(EV_P_ struct ev_io *w, int revents)
 {
 	(void)revents;
 	struct connection *con = NULL;
-	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 
 	if( w->events == EV_READ )
 		con = CONOFF_IO_IN(w);
 	else
 		con	= CONOFF_IO_OUT(w);
+
+	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 
 	if( con->type == connection_type_listen )
 	{
