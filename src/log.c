@@ -221,6 +221,7 @@ void logger_stdout_log(const gchar *log_domain,
 	printf("[%04d-%02d-%02dT%02d:%02d:%02d.%03dZ] %s-%s: %s\n",
 		   t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec, millis,
 		   log_domain, level, message);
+	fflush(stdout);
 #endif
 }
 
