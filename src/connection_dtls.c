@@ -410,7 +410,8 @@ void connection_dtls_io_in_cb(struct ev_loop *loop, struct ev_io *w, int revents
 			peer = con;
 		}else
 		{
-			g_critical("Invalid connection for DTLS");
+			g_critical("Invalid connection type for DTLS");
+			continue;
 		}
 		BIO_write(peer->transport.dtls.reading, buf, (int)ret);
 
