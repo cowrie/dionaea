@@ -504,8 +504,8 @@ void connection_tls_io_in_cb(EV_P_ struct ev_io *w, int revents)
                     processors_io_in(con, con->transport.tls.io_in->str, (int)con->transport.tls.io_in->len);
                 }
 
-		con->protocol.io_in(con, con->protocol.ctx, (unsigned char *)con->transport.tls.io_in->str, con->transport.tls.io_in->len);
-		con->transport.tls.io_in->len = 0;
+		unsigned int consumed = con->protocol.io_in(con, con->protocol.ctx, (unsigned char *)con->transport.tls.io_in->str, con->transport.tls.io_in->len);
+		g_string_erase(con->transport.tls.io_in, 0, (gssize)consumed);
 
 		if( (con->transport.tls.io_out->len > 0 || con->transport.tls.io_out_again->len > 0 ) &&
 			!ev_is_active(&con->events.io_out) )
