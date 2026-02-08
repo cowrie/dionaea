@@ -340,7 +340,7 @@ void connection_udp_io_out_cb(EV_P_ struct ev_io *w, int revents)
 	{
 		if( !ev_is_active(&con->events.io_out) )
 		{
-			ev_io_init(&con->events.io_out, connection_udp_io_out_cb, con->socket, EV_WRITE);
+			ev_io_init(&con->events.io_out, connection_udp_io_out_cb, fd, EV_WRITE);
 			ev_io_start(EV_A_ &con->events.io_out);
 		}
 	} else
