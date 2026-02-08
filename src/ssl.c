@@ -100,7 +100,7 @@ bool mkcert(SSL_CTX *ctx)
 
 	value = g_key_file_get_string(g_dionaea->config, "dionaea", "ssl.default.c", &error);
 	if (value == NULL) {
-		value = g_strdup("DE");
+		value = g_strdup("US");
 	}
 	g_clear_error(&error);
 	X509_NAME_add_entry_by_txt(name, "C", MBSTRING_ASC, (const unsigned char *)value, -1, -1, 0);
@@ -108,7 +108,7 @@ bool mkcert(SSL_CTX *ctx)
 
 	value = g_key_file_get_string(g_dionaea->config, "dionaea", "ssl.default.cn", &error);
 	if (value == NULL) {
-		value = g_strdup("Nepenthes Development Team");
+		value = g_strdup("localhost");
 	}
 	g_clear_error(&error);
 	X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, (const unsigned char*)value, -1, -1, 0);
@@ -116,7 +116,7 @@ bool mkcert(SSL_CTX *ctx)
 
 	value = g_key_file_get_string(g_dionaea->config, "dionaea", "ssl.default.o", &error);
 	if (value == NULL) {
-		value = g_strdup("dionaea.carnivore.it");
+		value = g_strdup("Server");
 	}
 	g_clear_error(&error);
 	X509_NAME_add_entry_by_txt(name, "O", MBSTRING_ASC, (const unsigned char*)value, -1, -1, 0);
@@ -124,7 +124,7 @@ bool mkcert(SSL_CTX *ctx)
 
 	value = g_key_file_get_string(g_dionaea->config, "dionaea", "ssl.default.ou", &error);
 	if (value == NULL) {
-		value = g_strdup("anv");
+		value = g_strdup("IT");
 	}
 	g_clear_error(&error);
 	X509_NAME_add_entry_by_txt(name, "OU", MBSTRING_ASC, (const unsigned char*)value, -1, -1, 0);
