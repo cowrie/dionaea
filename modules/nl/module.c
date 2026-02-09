@@ -216,7 +216,6 @@ static void nl_obj_input(struct nl_object *obj, void *arg)
 					incident_free(i);
 				}
 				g_hash_table_remove(nla->addrs, buf);
-				g_free(saddr);
 			}
 		}
 	}
