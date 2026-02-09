@@ -259,10 +259,15 @@ struct tempfile *tempdownload_new(char *prefix)
 void tempfile_close(struct tempfile *tf)
 {
 	if( tf->fh != NULL )
+	{
+		/* fclose() also closes the underlying fd from fdopen(),
+		 * so we must not call close(tf->fd) separately */
 		(void)fclose(tf->fh);
-
-	if( tf->fd != -1 )
+	}
+	else if( tf->fd != -1 )
+	{
 		(void)close(tf->fd);
+	}
 
 	tf->fd = -1;
 	tf->fh = NULL;
