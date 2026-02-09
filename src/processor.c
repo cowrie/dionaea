@@ -570,7 +570,7 @@ void *proc_unicode_ctx_new(void *cfg)
 
 void proc_unicode_ctx_free(void *ctx)
 {
-	free(ctx);
+	g_free(ctx);
 }
 
 void proc_unicode_on_io_in(struct connection *con, struct processor_data *pd)
