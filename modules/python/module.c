@@ -214,8 +214,8 @@ static bool hupy(void)
 				g_critical("Reloading module %s failed", i->name);
 				module = i->module;
 			} else {
-				Py_DECREF(module);
-				i->module = module;
+				Py_DECREF(i->module);  /* release old module reference */
+				i->module = module;    /* keep new reference from ReloadModule */
 			}
 			func = PyObject_GetAttrString(module, "new");
 			if( func != NULL ) {
@@ -247,10 +247,9 @@ static bool hupy(void)
 				//free(module_name);
 				continue;
 			}
-			Py_DECREF(module);
 			i = g_malloc0(sizeof(struct import));
 			i->name = g_strdup(*module_name);
-			i->module = module;
+			i->module = module;  /* transfer ownership of the reference */
 			g_hash_table_insert(runtime.imports, i->name, i);
 
 			PyObject *func = PyObject_GetAttrString(module, "new");
@@ -438,10 +437,9 @@ static bool new(struct dionaea *dionaea)
 			PyErr_Print();
 			g_error("Import failed %s", *module_name);
 		}
-		Py_DECREF(module);
 		struct import *i = g_malloc0(sizeof(struct import));
 		i->name = g_strdup(*module_name);
-		i->module = module;
+		i->module = module;  /* transfer ownership of the reference */
 		g_hash_table_insert(runtime.imports, i->name, i);
 		PyObject *func = PyObject_GetAttrString(module, "new");
 		if( func != NULL ) {
