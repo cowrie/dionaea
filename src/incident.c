@@ -395,7 +395,7 @@ bool incident_value_none_get(struct incident *e, const char *name)
 bool incident_keys_get(struct incident *e, char ***keys)
 {
 	guint c = g_hash_table_size(e->data);
-	char **kexs = g_malloc0((c+5)*sizeof(char **));
+	char **kexs = g_malloc0((c+5)*sizeof(char *));
 	int i=0;
 	GHashTableIter iter;
 	gpointer key, value;
