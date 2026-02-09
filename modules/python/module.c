@@ -815,7 +815,7 @@ PyObject *py_config_string_list(gchar *group, gchar *key)
 	values = g_key_file_get_string_list(g_dionaea->config, group, key, &num, &error);
 	g_clear_error(&error);
 	if (values == NULL) {
-		return Py_None;
+		Py_RETURN_NONE;
 	}
 	PyGILState_STATE gil_state = PyGILState_Ensure();
 	obj_values = PyList_New(0);
