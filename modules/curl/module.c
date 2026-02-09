@@ -373,16 +373,18 @@ static int curl_progressfunction_cb (void *p, curl_off_t dltotal, curl_off_t dln
 /* CURLOPT_DEBUGFUNCTION */
 static int curl_debugfunction_cb(CURL *easy, curl_infotype type, char *data, size_t size, void *userp)
 {
-	(void)size; (void)userp;
+	(void)userp;
 	struct session *session = NULL;
 	curl_easy_getinfo(easy, CURLINFO_PRIVATE, (char **)&session);
 	switch( type )
 	{
 	case CURLINFO_TEXT:
 		{
-			char *text = g_strdup(data);
+			if( size == 0 )
+				break;
+			char *text = g_strndup(data, size);
 			size_t len = strlen(text);
-			if( text[len-1] == '\n' )
+			if( len > 0 && text[len-1] == '\n' )
 				text[len-1] = '\0';
 			g_debug("%s: %s", session->url, text);
 			g_free(text);
