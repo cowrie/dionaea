@@ -737,6 +737,7 @@ void *proc_filter_cfg(gchar *group_name)
 		cfg->allow = g_list_append(cfg->allow, rule);
 		k = g_strjoin(".", "config", "allow", l->data, "protocols", NULL);
 		values = g_key_file_get_string_list(g_dionaea->config, group_name, k, &len, &error);
+		g_free(k);
 		if(error == NULL) {
 			for(value = values; *value; value++) {
 				rule->protocols = g_list_append(rule->protocols, *value);
@@ -748,6 +749,7 @@ void *proc_filter_cfg(gchar *group_name)
 
 		k = g_strjoin(".", "config", "allow", l->data, "types", NULL);
 		values = g_key_file_get_string_list(g_dionaea->config, group_name, k, &len, &error);
+		g_free(k);
 		if(error == NULL) {
 			for(value = values; *value; value++) {
 				rule->types = g_list_append(rule->types, *value);
@@ -763,6 +765,7 @@ void *proc_filter_cfg(gchar *group_name)
 		cfg->deny = g_list_append(cfg->deny, rule);
 		k = g_strjoin(".", "config", "deny", l->data, "protocols", NULL);
 		values = g_key_file_get_string_list(g_dionaea->config, group_name, k, &len, &error);
+		g_free(k);
 		if(error == NULL) {
 			for(value = values; *value; value++) {
 				rule->protocols = g_list_append(rule->protocols, *value);
@@ -774,6 +777,7 @@ void *proc_filter_cfg(gchar *group_name)
 
 		k = g_strjoin(".", "config", "deny", l->data, "types", NULL);
 		values = g_key_file_get_string_list(g_dionaea->config, group_name, k, &len, &error);
+		g_free(k);
 		if(error == NULL) {
 			for(value = values; *value; value++) {
 				rule->types = g_list_append(rule->types, *value);
