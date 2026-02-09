@@ -32,8 +32,8 @@ struct node_info
 	struct
 	{
 		char **resolved_addresses;
-		uint8_t resolved_address_count;
-		uint8_t current_address;
+		uint16_t resolved_address_count;
+		uint16_t current_address;
 
 		struct dns_query *a;
 		struct dns_query *aaaa;
