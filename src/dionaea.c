@@ -37,8 +37,6 @@
 #include <openssl/ssl.h>
 
 #include "config.h"
-
-#include "config.h"
 #include "dionaea.h"
 #include "connection.h"
 #include "dns.h"
