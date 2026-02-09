@@ -667,8 +667,11 @@ opt->stdOUT.filter);
 	d->modules = g_malloc0(sizeof(struct modules));
   gsize num;
   gchar **names = g_key_file_get_string_list(g_dionaea->config, "dionaea", "modules", &num, &error);
-	//if( lcfgx_get_map(g_dionaea->config.root, &n, "modules") == LCFGX_PATH_FOUND_TYPE_OK )
+	g_clear_error(&error);
+	if( names != NULL )
 		modules_load(names);
+	else
+		g_warning("No modules configured");
 	//else
 	//	g_warning("dionaea is useless without modules");
 
@@ -697,8 +700,8 @@ opt->stdOUT.filter);
 	d->processors->tree = g_node_new(NULL);
 	gchar **proc_names, **proc_name;
 	proc_names = g_key_file_get_string_list(g_dionaea->config, "dionaea", "processors", &num, &error);
-	// ToDo: check error
-	for (proc_name = proc_names; *proc_name; proc_name++) {
+	g_clear_error(&error);
+	for (proc_name = proc_names; proc_names != NULL && *proc_name; proc_name++) {
 		processors_tree_create(d->processors->tree, *proc_name);
 		g_debug("processor: %s", *proc_name);
 	}
