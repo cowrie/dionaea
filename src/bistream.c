@@ -235,7 +235,7 @@ uint32_t sizeof_stream_chunks(GList *stream_chunks)
 	GList *it;
 	uint32_t size = 0;
 	for( it = g_list_first(stream_chunks); it != NULL; it = g_list_next(it) )
-		size += ((struct stream_chunk *)it)->data->len;
+		size += ((struct stream_chunk *)it->data)->data->len;
 	return size;
 }
 
