@@ -502,8 +502,7 @@ void proc_streamdumper_on_io(struct connection *con, struct processor_data *pd, 
 	}
 
 	char *cdata = data;
-	char xdata[(size_t)size * 4];
-	memset(xdata, 0, (size_t)size * 4);
+	char *xdata = g_malloc0((size_t)size * 4);
 	char conv[] = "0123456789abcdef";
 	int writesize = 0;
 	for( int i=0; i<size;i++ )
@@ -519,11 +518,13 @@ void proc_streamdumper_on_io(struct connection *con, struct processor_data *pd, 
 			xdata[writesize++] = conv[((cdata[i] & 0xff) & 0x0F)];
 		}
 	}
-	if( fwrite(xdata, 1, writesize, ctx->file->fh) != writesize )
+	if( fwrite(xdata, 1, writesize, ctx->file->fh) != (size_t)writesize )
 	{
 		g_warning("Could not write data %s",  strerror(errno));
+		g_free(xdata);
 		return;
 	}
+	g_free(xdata);
 }
 
 
