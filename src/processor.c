@@ -336,6 +336,12 @@ void *proc_streamdumper_cfg_new(gchar *group_name)
 	gchar *path;
 	GError *error = NULL;
 	path = g_key_file_get_string(g_dionaea->config, group_name, "config.path", &error);
+	g_clear_error(&error);
+	if( path == NULL ) {
+		g_error("streamdumper config [%s] missing required 'config.path'", group_name);
+		g_free(cfg);
+		return NULL;
+	}
 
 	// test the path ...
 	char test[256];
