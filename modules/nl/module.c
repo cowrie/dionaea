@@ -162,8 +162,10 @@ static void nl_obj_input(struct nl_object *obj, void *arg)
 		{
 			g_critical("LINK DEL %s %i", iface, ifindex);
 			struct link_addr *nla = g_hash_table_lookup(nl_runtime.link_addr_cache, &ifindex);
-			g_hash_table_remove(nl_runtime.link_addr_cache, &ifindex);
-			link_addr_free(nla);
+			if( nla != NULL ) {
+				g_hash_table_remove(nl_runtime.link_addr_cache, &ifindex);
+				link_addr_free(nla);
+			}
 		}
 	}else
 	if( o->ce_msgtype == RTM_NEWADDR  || o->ce_msgtype == RTM_DELADDR )
