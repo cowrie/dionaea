@@ -209,6 +209,13 @@ static bool pcap_prepare(void)
 		key = g_strjoin(".", parts[0], "interface", NULL);
 		dev->name = g_key_file_get_string(g_dionaea->config, "module.pcap", key, &error);
 		g_free(key);
+		g_clear_error(&error);
+		if( dev->name == NULL ) {
+			g_warning("pcap device config missing interface name");
+			g_free(dev);
+			g_strfreev(parts);
+			continue;
+		}
 		g_debug("Preparing interface '%s'", dev->name);
 
 		if( (dev->pcap = pcap_open_live(dev->name, 80, 1, 50, errbuf)) == NULL ) {
