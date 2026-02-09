@@ -88,8 +88,8 @@ struct connection *connection_new(enum connection_transport type)
 //		SSL_CTX_set_timeout(con->transport.ssl.ctx, 60);
 		break;
 	case connection_transport_dtls:
-		con->transport.tls.meth = DTLS_method();
-		con->transport.tls.ctx = SSL_CTX_new((SSL_METHOD *)con->transport.tls.meth);
+		con->transport.dtls.meth = DTLS_method();
+		con->transport.dtls.ctx = SSL_CTX_new((SSL_METHOD *)con->transport.dtls.meth);
 		break;
 	case connection_transport_udp:
 	case connection_transport_io:
@@ -669,6 +669,45 @@ void connection_free_cb(EV_P_ struct ev_timer *w, int revents, bool report_incid
 		con->transport.tls.ctx = NULL;
 		break;
 
+	case connection_transport_udp:
+		{
+			GList *elem;
+			while( (elem = g_list_first(con->transport.udp.io_out)) != NULL )
+			{
+				struct udp_packet *packet = elem->data;
+				g_string_free(packet->data, TRUE);
+				g_free(packet);
+				con->transport.udp.io_out = g_list_delete_link(con->transport.udp.io_out, elem);
+			}
+			if( con->type == connection_type_listen && con->transport.udp.type.server.peers != NULL )
+				g_hash_table_destroy(con->transport.udp.type.server.peers);
+		}
+		break;
+
+	case connection_transport_dtls:
+		{
+			GList *elem;
+			while( (elem = g_list_first(con->transport.dtls.io_out)) != NULL )
+			{
+				struct udp_packet *packet = elem->data;
+				g_string_free(packet->data, TRUE);
+				g_free(packet);
+				con->transport.dtls.io_out = g_list_delete_link(con->transport.dtls.io_out, elem);
+			}
+
+			if( con->transport.dtls.ssl != NULL )
+				SSL_free(con->transport.dtls.ssl);
+			con->transport.dtls.ssl = NULL;
+
+			if( con->type == connection_type_listen && con->transport.dtls.ctx != NULL )
+				SSL_CTX_free(con->transport.dtls.ctx);
+			con->transport.dtls.ctx = NULL;
+
+			if( con->type == connection_type_listen && con->transport.dtls.type.server.peers != NULL )
+				g_hash_table_destroy(con->transport.dtls.type.server.peers);
+		}
+		break;
+
 	default:
 		break;
 	}
@@ -722,8 +761,9 @@ void connection_free_report_cb(EV_P_ struct ev_timer *w, int revents)
 void connection_set_nonblocking(struct connection *con)
 {
 	int flags = fcntl(con->socket, F_GETFL, 0);
-	flags |= O_NONBLOCK;
-	fcntl(con->socket, F_SETFL, flags);
+	if( flags == -1 )
+		return;
+	fcntl(con->socket, F_SETFL, flags | O_NONBLOCK);
 }
 
 /**
@@ -735,8 +775,9 @@ void connection_set_blocking(struct connection *con)
 {
 	g_debug(__PRETTY_FUNCTION__);
 	int flags = fcntl(con->socket, F_GETFL, 0);
-	flags &= ~O_NONBLOCK;
-	fcntl(con->socket, F_SETFL, flags);
+	if( flags == -1 )
+		return;
+	fcntl(con->socket, F_SETFL, flags & ~O_NONBLOCK);
 }
 
 
@@ -1070,7 +1111,7 @@ void connection_reconnect(struct connection *con)
 {
 	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 
-	if( con->socket > 0 )
+	if( con->socket != -1 )
 	{
 		(void)close(con->socket);
 		con->socket = -1;
@@ -1449,7 +1490,7 @@ void connection_listen_timeout_set(struct connection *con, double timeout_interv
 	}
 
 	if( con->type == connection_type_listen && timeout_interval_ms >= 0. )
-		ev_timer_again(CL, &con->events.sustain_timeout);
+		ev_timer_again(CL, &con->events.listen_timeout);
 }
 
 void connection_listen_timeout_cb(struct ev_loop *loop, struct ev_timer *w, int revents)
@@ -1510,7 +1551,7 @@ void connection_handshake_timeout_set(struct connection *con, double timeout_int
 	switch( con->trans )
 	{
 	case connection_transport_tls:
-		ev_timer_init(&con->events.handshake_timeout, NULL, 0., timeout_interval_ms);
+		ev_timer_init(&con->events.handshake_timeout, connection_tls_handshake_again_timeout_cb, 0., timeout_interval_ms);
 		break;
 
 	default:
@@ -1946,6 +1987,9 @@ static int cmp_ip_address_stringp(const void *p1, const void *p2)
 	int domain1,domain2;
 	socklen_t sizeof_sa1, sizeof_sa2;
 
+	memset(&sa1, 0, sizeof(sa1));
+	memset(&sa2, 0, sizeof(sa2));
+
 	parse_addr(*(const char **)p1, NULL, 0, &sa1, &domain1, &sizeof_sa1);
 	parse_addr(*(const char **)p2, NULL, 0, &sa2, &domain2, &sizeof_sa2);
 
@@ -1953,12 +1997,13 @@ static int cmp_ip_address_stringp(const void *p1, const void *p2)
 	{
 		void *a = addr_offset(&sa1);
 		void *b = addr_offset(&sa2);
+		size_t addr_len = domain1 == PF_INET6 ? sizeof(struct in6_addr) : sizeof(struct in_addr);
 
 		if( domain1 == PF_INET6 )
 		{
 			if( ipv6_addr_v4mapped(a) &&
 				ipv6_addr_v4mapped(b) )
-				return -memcmp(a, b, sizeof_sa1);
+				return -memcmp(a, b, addr_len);
 
 			if( ipv6_addr_v4mapped(a) )
 				return 1;
@@ -1967,7 +2012,7 @@ static int cmp_ip_address_stringp(const void *p1, const void *p2)
 				return -1;
 		}
 
-		return -memcmp(a, b, sizeof_sa1);
+		return -memcmp(a, b, addr_len);
 
 	} else
 		if( domain1 > domain2 )	// domain1 is ipv6
@@ -1975,7 +2020,7 @@ static int cmp_ip_address_stringp(const void *p1, const void *p2)
 		struct sockaddr_in6 *a = (struct sockaddr_in6 *)&sa1;
 		struct sockaddr_in *b  = (struct sockaddr_in *)&sa2;
 		if( ipv6_addr_v4mapped(&a->sin6_addr) )
-			return -memcmp(&a->sin6_addr.s6_addr32[3], &b->sin_addr.s_addr, sizeof_sa2);
+			return -memcmp(&a->sin6_addr.s6_addr32[3], &b->sin_addr.s_addr, sizeof(struct in_addr));
 
 		return -1;
 	} else				 // domain2 is ipv6
@@ -1983,7 +2028,7 @@ static int cmp_ip_address_stringp(const void *p1, const void *p2)
 		struct sockaddr_in6 *a = (struct sockaddr_in6 *)&sa2;
 		struct sockaddr_in *b  = (struct sockaddr_in *)&sa1;
 		if( ipv6_addr_v4mapped(&a->sin6_addr) )
-			return memcmp(&a->sin6_addr.s6_addr32[3], &b->sin_addr.s_addr, sizeof_sa2);
+			return memcmp(&a->sin6_addr.s6_addr32[3], &b->sin_addr.s_addr, sizeof(struct in_addr));
 
 		return 1;
 	}
@@ -2205,7 +2250,7 @@ const char *connection_strerror(enum connection_error error)
 		"could not resolve domain" , /* ECONNOSUCHDOMAIN */
 		"too many connections" , /* ECONMANY */
 	};
-	if( error >= ECONMANY )
+	if( error > ECONMANY )
 		return NULL;
 
 	return myerrormsgs[error];

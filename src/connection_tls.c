@@ -100,13 +100,13 @@ void connection_tls_io_out_cb(EV_P_ struct ev_io *w, int revents)
 {
 	(void)revents;
 	struct connection *con = NULL;
-	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 
 	if( w->events == EV_READ )
 		con = CONOFF_IO_IN(w);
 	else
 		con	= CONOFF_IO_OUT(w);
 
+	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 
 	if( con->transport.tls.io_out_again->len == 0 )
 	{
@@ -262,12 +262,13 @@ void connection_tls_shutdown_cb(EV_P_ struct ev_io *w, int revents)
 {
 	(void)revents;
 	struct connection *con = NULL;
-	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 
 	if( w->events == EV_READ )
 		con = CONOFF_IO_IN(w);
 	else
 		con	= CONOFF_IO_OUT(w);
+
+	g_debug("%s con %p",__PRETTY_FUNCTION__, con);
 
 	if( con->type == connection_type_listen )
 	{
@@ -504,8 +505,8 @@ void connection_tls_io_in_cb(EV_P_ struct ev_io *w, int revents)
                     processors_io_in(con, con->transport.tls.io_in->str, (int)con->transport.tls.io_in->len);
                 }
 
-		con->protocol.io_in(con, con->protocol.ctx, (unsigned char *)con->transport.tls.io_in->str, con->transport.tls.io_in->len);
-		con->transport.tls.io_in->len = 0;
+		unsigned int consumed = con->protocol.io_in(con, con->protocol.ctx, (unsigned char *)con->transport.tls.io_in->str, con->transport.tls.io_in->len);
+		g_string_erase(con->transport.tls.io_in, 0, (gssize)consumed);
 
 		if( (con->transport.tls.io_out->len > 0 || con->transport.tls.io_out_again->len > 0 ) &&
 			!ev_is_active(&con->events.io_out) )
@@ -551,8 +552,14 @@ void connection_tls_accept_cb (EV_P_ struct ev_io *w, int revents)
 		accepted->socket = accepted_socket;
 		accepted->data = con->data;
 
-		connection_node_set_local(accepted);
-		connection_node_set_remote(accepted);
+		if( connection_node_set_local(accepted) == false || connection_node_set_remote(accepted) == false )
+		{
+			g_debug("accepting TLS connection failed, closing connection");
+			(void)close(accepted->socket);
+			accepted->socket = -1;
+			connection_free_cb(loop, &accepted->events.free, 0, false);
+			continue;
+		}
 
 		g_debug("accept() %i local:'%s' remote:'%s'", accepted->socket, accepted->local.node_string,  accepted->remote.node_string);
 		connection_set_nonblocking(accepted);

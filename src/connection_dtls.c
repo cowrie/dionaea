@@ -345,7 +345,8 @@ void connection_dtls_drain_bio(struct connection *con)
 	{
 		g_warning("need to flush the bio");
 		unsigned char buf[64*1024];
-		uint32_t size = BIO_read(con->transport.dtls.writing, buf, sizeof(buf));
+		int size = BIO_read(con->transport.dtls.writing, buf, sizeof(buf));
+		if( size > 0 )
 		{
 			struct udp_packet *packet = g_malloc0(sizeof(struct udp_packet));
 			packet->data = g_string_new_len((void *)buf, size);
@@ -409,7 +410,8 @@ void connection_dtls_io_in_cb(struct ev_loop *loop, struct ev_io *w, int revents
 			peer = con;
 		}else
 		{
-			g_critical("Invalid connection for DTLS");
+			g_critical("Invalid connection type for DTLS");
+			continue;
 		}
 		BIO_write(peer->transport.dtls.reading, buf, (int)ret);
 
@@ -460,7 +462,7 @@ void connection_dtls_io_out_cb(struct ev_loop *loop, struct ev_io *w, int revent
 	{
 		if( !ev_is_active(&con->events.io_out) )
 		{
-			ev_io_init(&con->events.io_out, connection_udp_io_out_cb, con->socket, EV_WRITE);
+			ev_io_init(&con->events.io_out, connection_dtls_io_out_cb, fd, EV_WRITE);
 			ev_io_start(EV_A_ &con->events.io_out);
 		}
 	} else
