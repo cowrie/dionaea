@@ -41,7 +41,7 @@ struct module *module_new(const char *name, const char *module_path)
 	gpointer initfn;
 	if( g_module_symbol(module, "module_init", &initfn) == false )
 	{
-		g_warning("could not find module_init in module (%s)", strerror(errno));
+		g_warning("could not find module_init in module (%s)", g_module_error());
 		g_module_close(module);
 		return NULL;
 	}
