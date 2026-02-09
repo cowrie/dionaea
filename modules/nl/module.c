@@ -263,8 +263,12 @@ static void cache_lookup_cb(struct nl_object *obj, void *arg)
 static void nl_ihandler_cb(struct incident *i, void *ctx)
 {
 	g_debug("%s i %p ctx %p", __PRETTY_FUNCTION__, i, ctx);
-	struct connection *con;
-	incident_value_con_get(i, "con", &con);
+	struct connection *con = NULL;
+	if( !incident_value_con_get(i, "con", &con) || con == NULL )
+	{
+		g_warning("nl_ihandler_cb: could not get connection from incident");
+		return;
+	}
 
 	char *remote = con->remote.ip_string;
 	char *local = con->local.ip_string;
