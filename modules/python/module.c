@@ -152,8 +152,8 @@ static void python_mkshell_ihandler_cb(struct incident *i, void *ctx)
 			PyErr_Print();
 			g_error("Import failed %s", name);
 		}
-		Py_DECREF(module);
 		PyObject *func = PyObject_GetAttrString(module, "remoteshell");
+		Py_DECREF(module);
 		PyObject *arglist = Py_BuildValue("()");
 		PyObject *r = PyObject_CallObject(func, arglist);
 		Py_DECREF(arglist);
@@ -188,8 +188,11 @@ static bool hupy(void)
 	gchar **module_name;
 
 	module_names = g_key_file_get_string_list(g_dionaea->config, "module.python", "imports", &num, &error);
-
-	// ToDo: check error
+	g_clear_error(&error);
+	if( module_names == NULL ) {
+		g_warning("No python imports configured");
+		return;
+	}
 	for (module_name = module_names; *module_name; module_name++) {
 		struct import *i;
 		if( (i = g_hash_table_lookup(runtime.imports, module_name)) != NULL ) {
@@ -214,8 +217,8 @@ static bool hupy(void)
 				g_critical("Reloading module %s failed", i->name);
 				module = i->module;
 			} else {
-				Py_DECREF(module);
-				i->module = module;
+				Py_DECREF(i->module);  /* release old module reference */
+				i->module = module;    /* keep new reference from ReloadModule */
 			}
 			func = PyObject_GetAttrString(module, "new");
 			if( func != NULL ) {
@@ -247,10 +250,9 @@ static bool hupy(void)
 				//free(module_name);
 				continue;
 			}
-			Py_DECREF(module);
 			i = g_malloc0(sizeof(struct import));
 			i->name = g_strdup(*module_name);
-			i->module = module;
+			i->module = module;  /* transfer ownership of the reference */
 			g_hash_table_insert(runtime.imports, i->name, i);
 
 			PyObject *func = PyObject_GetAttrString(module, "new");
@@ -408,8 +410,8 @@ static bool new(struct dionaea *dionaea)
 	gsize num;
 	gchar **sys_path;
 	sys_paths = g_key_file_get_string_list(g_dionaea->config, "module.python", "sys_paths", &num, &error);
-
-	for (sys_path = sys_paths; *sys_path; sys_path++) {
+	g_clear_error(&error);
+	for (sys_path = sys_paths; sys_paths != NULL && *sys_path; sys_path++) {
 		int written;
 		if( strcmp(*sys_path, "default") == 0 ) {
 			written = snprintf(relpath, sizeof(relpath), "sys.path.insert(%i, '%s')", i, DIONAEA_PYTHON_SITELIBDIR);
@@ -432,16 +434,16 @@ static bool new(struct dionaea *dionaea)
 	gchar **module_names;
 	gchar **module_name;
 	module_names = g_key_file_get_string_list(g_dionaea->config, "module.python", "imports", &num, &error);
-	for (module_name = module_names; *module_name; module_name++) {
+	g_clear_error(&error);
+	for (module_name = module_names; module_names != NULL && *module_name; module_name++) {
 		PyObject *module = PyImport_ImportModule(*module_name);
 		if( module == NULL ) {
 			PyErr_Print();
 			g_error("Import failed %s", *module_name);
 		}
-		Py_DECREF(module);
 		struct import *i = g_malloc0(sizeof(struct import));
 		i->name = g_strdup(*module_name);
-		i->module = module;
+		i->module = module;  /* transfer ownership of the reference */
 		g_hash_table_insert(runtime.imports, i->name, i);
 		PyObject *func = PyObject_GetAttrString(module, "new");
 		if( func != NULL ) {
@@ -617,7 +619,7 @@ PyObject *pygetifaddrs(PyObject *self, PyObject *args)
 	}
 
 	struct ifaddrs *ifaces[count];
-	memset(ifaces, 0, count*sizeof(struct ifaces *));
+	memset(ifaces, 0, count*sizeof(struct ifaddrs *));
 
 	for( count=0,iface=head; iface != NULL; iface=iface->ifa_next )
 		ifaces[count++] = iface;
@@ -797,7 +799,12 @@ PyObject *py_config_string(gchar *group, gchar *key)
 	PyObject *obj_value;
 
 	value = g_key_file_get_string(g_dionaea->config, group, key, &error);
+	g_clear_error(&error);
+	if (value == NULL) {
+		Py_RETURN_NONE;
+	}
 	obj_value = PyUnicode_FromString(value);
+	g_free(value);
 
 	return obj_value;
 }
@@ -812,7 +819,7 @@ PyObject *py_config_string_list(gchar *group, gchar *key)
 	values = g_key_file_get_string_list(g_dionaea->config, group, key, &num, &error);
 	g_clear_error(&error);
 	if (values == NULL) {
-		return Py_None;
+		Py_RETURN_NONE;
 	}
 	PyGILState_STATE gil_state = PyGILState_Ensure();
 	obj_values = PyList_New(0);

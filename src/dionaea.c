@@ -37,8 +37,6 @@
 #include <openssl/ssl.h>
 
 #include "config.h"
-
-#include "config.h"
 #include "dionaea.h"
 #include "connection.h"
 #include "dns.h"
@@ -364,11 +362,6 @@ void show_version(struct version *ver)
 	ver->compiler.name = MY_COMPILER;
 	ver->compiler.version = __VERSION__;
 
-	ver->info.node = g_strdup(sysinfo.nodename);
-	ver->info.sys = g_strdup(sysinfo.sysname);
-	ver->info.machine = g_strdup(sysinfo.machine);
-	ver->info.release = g_strdup(sysinfo.release);
-
 	printf("Dionaea Version %s\n", ver->dionaea.version);
 	printf("Compiled on %s/%s at %s with %s %s\n",
 		   ver->compiler.os,
@@ -379,18 +372,23 @@ void show_version(struct version *ver)
 
 	if( i == 0 )
 	{
+		ver->info.node = g_strdup(sysinfo.nodename);
+		ver->info.sys = g_strdup(sysinfo.sysname);
+		ver->info.machine = g_strdup(sysinfo.machine);
+		ver->info.release = g_strdup(sysinfo.release);
+
 		printf("Started on %s running %s/%s release %s\n",
 			   ver->info.node,
 			   ver->info.sys,
 			   ver->info.machine,
 			   ver->info.release
 			  );
-	}
 
-	g_free(ver->info.node);
-	g_free(ver->info.sys);
-	g_free(ver->info.machine);
-	g_free(ver->info.release);
+		g_free(ver->info.node);
+		g_free(ver->info.sys);
+		g_free(ver->info.machine);
+		g_free(ver->info.release);
+	}
 }
 
 void show_help(bool defaults)
@@ -466,19 +464,35 @@ int logger_load(struct options *opt)
     key = g_strjoin(".", parts[0], "filename", NULL);
     file = g_key_file_get_string(g_dionaea->config, "logging", key, &error);
     g_free(key);
+    g_clear_error(&error);
 
     key = g_strjoin(".", parts[0], "domains", NULL);
     domains = g_key_file_get_string(g_dionaea->config, "logging", key, &error);
     g_free(key);
+    g_clear_error(&error);
 
     key = g_strjoin(".", parts[0], "levels", NULL);
     levels = g_key_file_get_string(g_dionaea->config, "logging", key, &error);
     g_free(key);
+    g_clear_error(&error);
+
+    if( file == NULL || domains == NULL || levels == NULL ) {
+      g_warning("Incomplete logging config for handle '%s'", parts[0]);
+      g_free(file);
+      g_free(domains);
+      g_free(levels);
+      g_strfreev(parts);
+      continue;
+    }
 
     g_debug("Logfile (handle %s) %s %s %s", parts[0], file, domains, levels);
 
     struct log_filter *lf = log_filter_new(domains, levels);
     if( lf == NULL ) {
+      g_free(file);
+      g_free(domains);
+      g_free(levels);
+      g_strfreev(parts);
       return -1;
     }
 
@@ -669,8 +683,11 @@ opt->stdOUT.filter);
 	d->modules = g_malloc0(sizeof(struct modules));
   gsize num;
   gchar **names = g_key_file_get_string_list(g_dionaea->config, "dionaea", "modules", &num, &error);
-	//if( lcfgx_get_map(g_dionaea->config.root, &n, "modules") == LCFGX_PATH_FOUND_TYPE_OK )
+	g_clear_error(&error);
+	if( names != NULL )
 		modules_load(names);
+	else
+		g_warning("No modules configured");
 	//else
 	//	g_warning("dionaea is useless without modules");
 
@@ -699,8 +716,8 @@ opt->stdOUT.filter);
 	d->processors->tree = g_node_new(NULL);
 	gchar **proc_names, **proc_name;
 	proc_names = g_key_file_get_string_list(g_dionaea->config, "dionaea", "processors", &num, &error);
-	// ToDo: check error
-	for (proc_name = proc_names; *proc_name; proc_name++) {
+	g_clear_error(&error);
+	for (proc_name = proc_names; proc_names != NULL && *proc_name; proc_name++) {
 		processors_tree_create(d->processors->tree, *proc_name);
 		g_debug("processor: %s", *proc_name);
 	}
@@ -723,7 +740,7 @@ opt->stdOUT.filter);
 	if( opt->root != NULL )
 	{
 		/* change working dir to the new root directory and chroot */
-		if ( chdir(opt->root) != 0 && chroot(opt->root) != 0 )
+		if ( chdir(opt->root) != 0 || chroot(opt->root) != 0 )
 		{
 			g_error("Could not chroot(\"%s\") (%s)", opt->root, strerror(errno));
 		} else

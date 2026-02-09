@@ -41,7 +41,8 @@ struct module *module_new(const char *name, const char *module_path)
 	gpointer initfn;
 	if( g_module_symbol(module, "module_init", &initfn) == false )
 	{
-		g_warning("could not find module_init in module (%s)", strerror(errno));
+		g_warning("could not find module_init in module (%s)", g_module_error());
+		g_module_close(module);
 		return NULL;
 	}
 
@@ -95,7 +96,7 @@ void modules_load(gchar **names)
   for (name = names; *name; name++) {
 
 		gchar module_path[1024];
-		if( g_snprintf(module_path, 1023, DIONAEA_MODDIR"/%s.so", *name) == -1 )
+		if( g_snprintf(module_path, 1023, DIONAEA_MODDIR"/%s.so", *name) >= 1023 )
 			return;
 
 		g_message("loading module %s (%s)", *name, module_path);

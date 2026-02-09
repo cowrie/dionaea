@@ -205,16 +205,26 @@ static bool pcap_prepare(void)
 			g_strfreev(parts);
 			continue;
 		}
-		// TODO: Check malloc() return value - could be NULL
-		struct pcap_device *dev = malloc(sizeof(struct pcap_device));
+		struct pcap_device *dev = g_malloc0(sizeof(struct pcap_device));
 		key = g_strjoin(".", parts[0], "interface", NULL);
 		dev->name = g_key_file_get_string(g_dionaea->config, "module.pcap", key, &error);
 		g_free(key);
+		g_clear_error(&error);
+		if( dev->name == NULL ) {
+			g_warning("pcap device config missing interface name");
+			g_free(dev);
+			g_strfreev(parts);
+			continue;
+		}
 		g_debug("Preparing interface '%s'", dev->name);
 
 		if( (dev->pcap = pcap_open_live(dev->name, 80, 1, 50, errbuf)) == NULL ) {
 			g_warning("Could not open raw listener on device %s '%s'", dev->name, errbuf);
-			free(dev);
+			g_free(dev->name);
+			g_free(dev);
+			g_strfreev(parts);
+			g_strfreev(keys);
+			pcap_freealldevs(alldevsp);
 			return false;
 		}
 
@@ -256,18 +266,20 @@ static bool pcap_prepare(void)
 					break;
 
 				default:
-					break;
 					g_debug("\t\tAF_ not supported %i",addr->addr->sa_family);
+					break;
 				}
 				g_debug(" ");
 			}
 		}
 
+		if( bpf_filter_string_addition->len > 3 ) {
 #ifdef HAVE_PCAP_IPV6_TCP
-		g_string_append_printf(bpf_filter_string, "%s", bpf_filter_string_addition->str+3);
+			g_string_append_printf(bpf_filter_string, "%s", bpf_filter_string_addition->str+3);
 #else
-		g_string_append_printf(bpf_filter_string, "tcp[tcpflags] & tcp-rst != 0 and tcp[4:4] = 0  and ( %s )", bpf_filter_string_addition->str+3);
+			g_string_append_printf(bpf_filter_string, "tcp[tcpflags] & tcp-rst != 0 and tcp[4:4] = 0  and ( %s )", bpf_filter_string_addition->str+3);
 #endif
+		}
 
 		struct bpf_program filter;
 
@@ -276,20 +288,41 @@ static bool pcap_prepare(void)
 		if( pcap_compile(dev->pcap, &filter,  (char *)bpf_filter_string->str, 0, 0) == -1 )
 		{
 			g_warning("pcap_compile failed for %s: %s.", dev->name, pcap_geterr(dev->pcap));
-			free(dev);
+			pcap_close(dev->pcap);
+			g_free(dev->name);
+			g_free(dev);
+			g_string_free(bpf_filter_string, TRUE);
+			g_string_free(bpf_filter_string_addition, TRUE);
+			g_strfreev(parts);
+			g_strfreev(keys);
+			pcap_freealldevs(alldevsp);
 			return false;
 		}
 
 		if( pcap_setfilter(dev->pcap, &filter) == -1 )
 		{
 			g_warning("pcap_setfilter failed for %s: %s", dev->name, pcap_geterr(dev->pcap));
-			free(dev);
+			pcap_close(dev->pcap);
+			g_free(dev->name);
+			g_free(dev);
+			g_string_free(bpf_filter_string, TRUE);
+			g_string_free(bpf_filter_string_addition, TRUE);
+			g_strfreev(parts);
+			g_strfreev(keys);
+			pcap_freealldevs(alldevsp);
 			return false;
 		}
 		if( pcap_setnonblock(dev->pcap, 1, errbuf) == -1 )
 		{
 			g_warning("pcap_setnonblock failed for %s: %s.", dev->name, errbuf);
-			free(dev);
+			pcap_close(dev->pcap);
+			g_free(dev->name);
+			g_free(dev);
+			g_string_free(bpf_filter_string, TRUE);
+			g_string_free(bpf_filter_string_addition, TRUE);
+			g_strfreev(parts);
+			g_strfreev(keys);
+			pcap_freealldevs(alldevsp);
 			return false;
 		}
 
@@ -299,7 +332,14 @@ static bool pcap_prepare(void)
 		if( i == -1 )
 		{
 			g_warning("pcap_getnonblock failed for %s: %s", dev->name, errbuf);
-			free(dev);
+			pcap_close(dev->pcap);
+			g_free(dev->name);
+			g_free(dev);
+			g_string_free(bpf_filter_string, TRUE);
+			g_string_free(bpf_filter_string_addition, TRUE);
+			g_strfreev(parts);
+			g_strfreev(keys);
+			pcap_freealldevs(alldevsp);
 			return false;
 		} else
 		{
@@ -323,7 +363,14 @@ static bool pcap_prepare(void)
 			g_warning("linktype  %s %s not supported",
 					  pcap_datalink_val_to_name(dev->linktype),
 					  pcap_datalink_val_to_description(dev->linktype));
-			free(dev);
+			pcap_close(dev->pcap);
+			g_free(dev->name);
+			g_free(dev);
+			g_string_free(bpf_filter_string, TRUE);
+			g_string_free(bpf_filter_string_addition, TRUE);
+			g_strfreev(parts);
+			g_strfreev(keys);
+			pcap_freealldevs(alldevsp);
 			return false;
 		}
 		g_string_free(bpf_filter_string, TRUE);

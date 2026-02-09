@@ -162,8 +162,10 @@ static void nl_obj_input(struct nl_object *obj, void *arg)
 		{
 			g_critical("LINK DEL %s %i", iface, ifindex);
 			struct link_addr *nla = g_hash_table_lookup(nl_runtime.link_addr_cache, &ifindex);
-			g_hash_table_remove(nl_runtime.link_addr_cache, &ifindex);
-			link_addr_free(nla);
+			if( nla != NULL ) {
+				g_hash_table_remove(nl_runtime.link_addr_cache, &ifindex);
+				link_addr_free(nla);
+			}
 		}
 	}else
 	if( o->ce_msgtype == RTM_NEWADDR  || o->ce_msgtype == RTM_DELADDR )
@@ -216,7 +218,6 @@ static void nl_obj_input(struct nl_object *obj, void *arg)
 					incident_free(i);
 				}
 				g_hash_table_remove(nla->addrs, buf);
-				g_free(saddr);
 			}
 		}
 	}
@@ -262,8 +263,12 @@ static void cache_lookup_cb(struct nl_object *obj, void *arg)
 static void nl_ihandler_cb(struct incident *i, void *ctx)
 {
 	g_debug("%s i %p ctx %p", __PRETTY_FUNCTION__, i, ctx);
-	struct connection *con;
-	incident_value_con_get(i, "con", &con);
+	struct connection *con = NULL;
+	if( !incident_value_con_get(i, "con", &con) || con == NULL )
+	{
+		g_warning("nl_ihandler_cb: could not get connection from incident");
+		return;
+	}
 
 	char *remote = con->remote.ip_string;
 	char *local = con->local.ip_string;
@@ -283,21 +288,25 @@ static void nl_ihandler_cb(struct incident *i, void *ctx)
 		struct nl_addr *a;
 
 		if ( ( err = nl_addr_parse(local, AF_UNSPEC, &a)) != 0 )
+		{
 			g_critical("could not parse addr %s (%s)", local, nl_geterror(err));
+			rtnl_addr_put(addr);
+			return;
+		}
 		rtnl_addr_set_local(addr, a);
 		nl_addr_put(a);
 
 		struct rtnl_addr *res = NULL;
 		nl_cache_foreach_filter(nl_runtime.addr_cache, OBJ_CAST(addr), cache_lookup_cb, &res);
+		rtnl_addr_put(addr);
 
 		g_critical("LOCAL RTNL_ADDR %p", res);
 
-	/*	struct nl_dump_params params = {
-			.dp_type = NL_DUMP_LINE,
-			.dp_fd = stdout,
-		};
-		nl_cache_dump_filter(nl_runtime.addr_cache, &params, OBJ_CAST(addr));
-	*/
+		if( res == NULL )
+		{
+			g_warning("could not find local address in cache");
+			return;
+		}
 		ifindex = rtnl_addr_get_ifindex(res);
 	}
 
@@ -308,11 +317,16 @@ static void nl_ihandler_cb(struct incident *i, void *ctx)
 		rtnl_neigh_set_ifindex(neigh, ifindex);
 		struct nl_addr *a;
 		if ( ( err = nl_addr_parse(remote, AF_UNSPEC, &a)) != 0 )
+		{
 			g_critical("could not parse addr %s (%s)", remote, nl_geterror(err));
+			rtnl_neigh_put(neigh);
+			return;
+		}
 		rtnl_neigh_set_dst(neigh, a);
 		nl_addr_put(a);
 
 		nl_cache_foreach_filter(nl_runtime.neigh_cache, OBJ_CAST(neigh), cache_lookup_cb, &res);
+		rtnl_neigh_put(neigh);
 	}
 
 	if( res )

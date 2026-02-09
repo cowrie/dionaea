@@ -326,6 +326,6 @@ void logger_file_log(const gchar *log_domain,
 bool logger_stdout_open(struct logger *l, void *data)
 {
 	(void)data;
-	l->fd = fileno(stdin);
+	l->fd = fileno(stdout);
 	return true;
 }

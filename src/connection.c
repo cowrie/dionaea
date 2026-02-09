@@ -347,8 +347,8 @@ bool connection_bind(struct connection *con, const char *addr, uint16_t port, co
 bool connection_listen(struct connection *con, int len)
 {
 	GError *error = NULL;
-	const char *cert_filename = NULL;
-	const char *key_filename = NULL;
+	gchar *cert_filename = NULL;
+	gchar *key_filename = NULL;
 
 	// Debug: connection_listen called (details in connection_bind)
 
@@ -410,6 +410,8 @@ bool connection_listen(struct connection *con, int len)
 		} else {
 			connection_tls_mkcert(con);
 		}
+		g_free(cert_filename);
+		g_free(key_filename);
 		ev_set_priority(&con->events.io_in, EV_MAXPRI);
 		ev_io_init(&con->events.io_in, connection_tls_accept_cb, con->socket, EV_READ);
 		ev_io_start(CL, &con->events.io_in);

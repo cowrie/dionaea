@@ -160,6 +160,10 @@ bool mkcert(SSL_CTX *ctx)
 	res = true;
 free_all:
 	EVP_PKEY_CTX_free(pctx);
+	if( x != NULL )
+		X509_free(x);
+	if( pk != NULL )
+		EVP_PKEY_free(pk);
 
 	return res;
 }

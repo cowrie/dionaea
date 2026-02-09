@@ -144,9 +144,9 @@ int xmatch_match_cb(void *pattern_p, int offset, void *input_p) {
 	key->len = p;
 
 	for (i=0; i < input->len; i += p)
-		for (j=0; j<p; ++j)
+		for (j=0; j<p && (i+j) < input->len; ++j)
 			// align key to the match so that we can start decoding from input->data[0]
-			input->data[i+j] ^= key->data[j + p - (offset % p)];
+			input->data[i+j] ^= key->data[(j + p - (offset % p)) % p];
 
 	return 0;
 }

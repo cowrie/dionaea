@@ -67,8 +67,11 @@ bool processors_tree_create(GNode *tree, gchar *proc_conf_name)
 		for (proc_next_name = proc_next_names; *proc_next_name; proc_next_name++) {
 			processors_tree_create(me, *proc_next_name);
 		}
+		g_strfreev(proc_next_names);
 	}
 	g_clear_error(&error);
+	g_free(proc_name);
+	g_free(group_name);
 	return true;
 }
 
@@ -336,6 +339,12 @@ void *proc_streamdumper_cfg_new(gchar *group_name)
 	gchar *path;
 	GError *error = NULL;
 	path = g_key_file_get_string(g_dionaea->config, group_name, "config.path", &error);
+	g_clear_error(&error);
+	if( path == NULL ) {
+		g_error("streamdumper config [%s] missing required 'config.path'", group_name);
+		g_free(cfg);
+		return NULL;
+	}
 
 	// test the path ...
 	char test[256];
@@ -502,8 +511,7 @@ void proc_streamdumper_on_io(struct connection *con, struct processor_data *pd, 
 	}
 
 	char *cdata = data;
-	char xdata[(size_t)size * 4];
-	memset(xdata, 0, (size_t)size * 4);
+	char *xdata = g_malloc0((size_t)size * 4);
 	char conv[] = "0123456789abcdef";
 	int writesize = 0;
 	for( int i=0; i<size;i++ )
@@ -519,11 +527,13 @@ void proc_streamdumper_on_io(struct connection *con, struct processor_data *pd, 
 			xdata[writesize++] = conv[((cdata[i] & 0xff) & 0x0F)];
 		}
 	}
-	if( fwrite(xdata, 1, writesize, ctx->file->fh) != writesize )
+	if( fwrite(xdata, 1, writesize, ctx->file->fh) != (size_t)writesize )
 	{
 		g_warning("Could not write data %s",  strerror(errno));
+		g_free(xdata);
 		return;
 	}
+	g_free(xdata);
 }
 
 
@@ -569,7 +579,7 @@ void *proc_unicode_ctx_new(void *cfg)
 
 void proc_unicode_ctx_free(void *ctx)
 {
-	free(ctx);
+	g_free(ctx);
 }
 
 void proc_unicode_on_io_in(struct connection *con, struct processor_data *pd)
@@ -727,6 +737,7 @@ void *proc_filter_cfg(gchar *group_name)
 		cfg->allow = g_list_append(cfg->allow, rule);
 		k = g_strjoin(".", "config", "allow", l->data, "protocols", NULL);
 		values = g_key_file_get_string_list(g_dionaea->config, group_name, k, &len, &error);
+		g_free(k);
 		if(error == NULL) {
 			for(value = values; *value; value++) {
 				rule->protocols = g_list_append(rule->protocols, *value);
@@ -738,6 +749,7 @@ void *proc_filter_cfg(gchar *group_name)
 
 		k = g_strjoin(".", "config", "allow", l->data, "types", NULL);
 		values = g_key_file_get_string_list(g_dionaea->config, group_name, k, &len, &error);
+		g_free(k);
 		if(error == NULL) {
 			for(value = values; *value; value++) {
 				rule->types = g_list_append(rule->types, *value);
@@ -753,6 +765,7 @@ void *proc_filter_cfg(gchar *group_name)
 		cfg->deny = g_list_append(cfg->deny, rule);
 		k = g_strjoin(".", "config", "deny", l->data, "protocols", NULL);
 		values = g_key_file_get_string_list(g_dionaea->config, group_name, k, &len, &error);
+		g_free(k);
 		if(error == NULL) {
 			for(value = values; *value; value++) {
 				rule->protocols = g_list_append(rule->protocols, *value);
@@ -764,6 +777,7 @@ void *proc_filter_cfg(gchar *group_name)
 
 		k = g_strjoin(".", "config", "deny", l->data, "types", NULL);
 		values = g_key_file_get_string_list(g_dionaea->config, group_name, k, &len, &error);
+		g_free(k);
 		if(error == NULL) {
 			for(value = values; *value; value++) {
 				rule->types = g_list_append(rule->types, *value);

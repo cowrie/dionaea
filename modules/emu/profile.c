@@ -42,9 +42,12 @@
 
 char *indents(int i)
 {
-	static char indents[255];
+	static char indents[256];
 	memset(indents, ' ', 255);
-	indents[i*4] = '\0';
+	int pos = i * 4;
+	if( pos < 0 || pos > 254 )
+		pos = 254;
+	indents[pos] = '\0';
 	return indents;
 }
 
@@ -103,6 +106,8 @@ static int json_escape_str(GString *target, char *str)
 
 static int json_escape_bytea(GString *target, unsigned char *str, unsigned int size)
 {
+	if( size == 0 )
+		return 0;
 	int pos = 0, start_offset = 0;
 	unsigned char c;
 	do

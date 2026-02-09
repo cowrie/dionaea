@@ -32,20 +32,20 @@ bool node_info_set(struct node_info *node, struct sockaddr_storage *sa)
 
 	if( sa->ss_family == PF_INET6 )
 	{
-		struct sockaddr_in6 *si6 = (struct sockaddr_in6 *)&node->addr;
+		struct sockaddr_in6 *si6 = (struct sockaddr_in6 *)sa;
 		node->port = si6->sin6_port;
 		addroff = &si6->sin6_addr;
 	} else
 		if( sa->ss_family == PF_INET )
 	{
-		struct sockaddr_in *si = (struct sockaddr_in *)&node->addr;
+		struct sockaddr_in *si = (struct sockaddr_in *)sa;
 		node->port = si->sin_port;
 		addroff = &si->sin_addr;
 	} else
 	{
 		if( sa->ss_family == PF_UNIX )
 		{
-			struct sockaddr_un *su = (struct sockaddr_un *)&node->addr;
+			struct sockaddr_un *su = (struct sockaddr_un *)sa;
 			addroff = &su->sun_path;
 		} else
 
@@ -66,25 +66,28 @@ bool node_info_set(struct node_info *node, struct sockaddr_storage *sa)
 	{
 		if( ipv6_addr_linklocal(&((struct sockaddr_in6 *)sa)->sin6_addr) )
 		{
-			snprintf(node->node_string,NODE_STRLEN,"[%s%s%s]:%i",node->ip_string,
+			snprintf(node->node_string,sizeof(node->node_string),"[%s%s%s]:%i",node->ip_string,
 					 node->iface_scope[0]?"%":"",node->iface_scope[0]?node->iface_scope:"",
 					 ntohs(node->port));
 		} else
 		{
-			snprintf(node->node_string,NODE_STRLEN,"[%s]:%i",node->ip_string,
+			snprintf(node->node_string,sizeof(node->node_string),"[%s]:%i",node->ip_string,
 					 ntohs(node->port));
 		}
 	} else
 		if( sa->ss_family == PF_INET )
 	{
-		snprintf(node->node_string,NODE_STRLEN,"%s:%i",node->ip_string, ntohs(node->port));
+		snprintf(node->node_string,sizeof(node->node_string),"%s:%i",node->ip_string, ntohs(node->port));
 	} else
 		if( sa->ss_family == PF_UNIX )
 	{
-		snprintf(node->node_string,NODE_STRLEN,"%s",node->ip_string);
+		snprintf(node->node_string,sizeof(node->node_string),"%s",node->ip_string);
 	}
 
-	snprintf(node->port_string,PORT_STRLEN,"%i", ntohs(node->port));
+	if( sa->ss_family != PF_UNIX )
+		snprintf(node->port_string,sizeof(node->port_string),"%i", ntohs(node->port));
+	else
+		node->port_string[0] = '\0';
 
 	return true;
 }
