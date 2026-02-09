@@ -617,7 +617,7 @@ PyObject *pygetifaddrs(PyObject *self, PyObject *args)
 	}
 
 	struct ifaddrs *ifaces[count];
-	memset(ifaces, 0, count*sizeof(struct ifaces *));
+	memset(ifaces, 0, count*sizeof(struct ifaddrs *));
 
 	for( count=0,iface=head; iface != NULL; iface=iface->ifa_next )
 		ifaces[count++] = iface;
