@@ -220,7 +220,11 @@ static bool pcap_prepare(void)
 
 		if( (dev->pcap = pcap_open_live(dev->name, 80, 1, 50, errbuf)) == NULL ) {
 			g_warning("Could not open raw listener on device %s '%s'", dev->name, errbuf);
+			g_free(dev->name);
 			g_free(dev);
+			g_strfreev(parts);
+			g_strfreev(keys);
+			pcap_freealldevs(alldevsp);
 			return false;
 		}
 
@@ -290,6 +294,8 @@ static bool pcap_prepare(void)
 			g_string_free(bpf_filter_string, TRUE);
 			g_string_free(bpf_filter_string_addition, TRUE);
 			g_strfreev(parts);
+			g_strfreev(keys);
+			pcap_freealldevs(alldevsp);
 			return false;
 		}
 
@@ -302,6 +308,8 @@ static bool pcap_prepare(void)
 			g_string_free(bpf_filter_string, TRUE);
 			g_string_free(bpf_filter_string_addition, TRUE);
 			g_strfreev(parts);
+			g_strfreev(keys);
+			pcap_freealldevs(alldevsp);
 			return false;
 		}
 		if( pcap_setnonblock(dev->pcap, 1, errbuf) == -1 )
@@ -313,6 +321,8 @@ static bool pcap_prepare(void)
 			g_string_free(bpf_filter_string, TRUE);
 			g_string_free(bpf_filter_string_addition, TRUE);
 			g_strfreev(parts);
+			g_strfreev(keys);
+			pcap_freealldevs(alldevsp);
 			return false;
 		}
 
@@ -328,6 +338,8 @@ static bool pcap_prepare(void)
 			g_string_free(bpf_filter_string, TRUE);
 			g_string_free(bpf_filter_string_addition, TRUE);
 			g_strfreev(parts);
+			g_strfreev(keys);
+			pcap_freealldevs(alldevsp);
 			return false;
 		} else
 		{
@@ -351,7 +363,14 @@ static bool pcap_prepare(void)
 			g_warning("linktype  %s %s not supported",
 					  pcap_datalink_val_to_name(dev->linktype),
 					  pcap_datalink_val_to_description(dev->linktype));
+			pcap_close(dev->pcap);
+			g_free(dev->name);
 			g_free(dev);
+			g_string_free(bpf_filter_string, TRUE);
+			g_string_free(bpf_filter_string_addition, TRUE);
+			g_strfreev(parts);
+			g_strfreev(keys);
+			pcap_freealldevs(alldevsp);
 			return false;
 		}
 		g_string_free(bpf_filter_string, TRUE);
