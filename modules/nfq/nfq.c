@@ -235,9 +235,11 @@ static int nfqueue_cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct nf
 
 	id = ntohl(ph->packet_id);
 	uintptr_t cmd = (uintptr_t)nfq_backend;
-	// TODO: Check send() return values - could fail or send partial data
-	send(g_dionaea->pchild->fd, &cmd, sizeof(uintptr_t), 0);
-	send(g_dionaea->pchild->fd, &id, sizeof(id), 0);
-	send(g_dionaea->pchild->fd, &nf, sizeof(nf), 0);
+	if( send(g_dionaea->pchild->fd, &cmd, sizeof(uintptr_t), 0) != sizeof(uintptr_t) ||
+		send(g_dionaea->pchild->fd, &id, sizeof(id), 0) != sizeof(id) ||
+		send(g_dionaea->pchild->fd, &nf, sizeof(nf), 0) != sizeof(nf) )
+	{
+		g_warning("nfq: failed to send verdict to pchild (%s)", strerror(errno));
+	}
 	return 0;
 }
