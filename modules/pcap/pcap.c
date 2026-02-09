@@ -262,18 +262,20 @@ static bool pcap_prepare(void)
 					break;
 
 				default:
-					break;
 					g_debug("\t\tAF_ not supported %i",addr->addr->sa_family);
+					break;
 				}
 				g_debug(" ");
 			}
 		}
 
+		if( bpf_filter_string_addition->len > 3 ) {
 #ifdef HAVE_PCAP_IPV6_TCP
-		g_string_append_printf(bpf_filter_string, "%s", bpf_filter_string_addition->str+3);
+			g_string_append_printf(bpf_filter_string, "%s", bpf_filter_string_addition->str+3);
 #else
-		g_string_append_printf(bpf_filter_string, "tcp[tcpflags] & tcp-rst != 0 and tcp[4:4] = 0  and ( %s )", bpf_filter_string_addition->str+3);
+			g_string_append_printf(bpf_filter_string, "tcp[tcpflags] & tcp-rst != 0 and tcp[4:4] = 0  and ( %s )", bpf_filter_string_addition->str+3);
 #endif
+		}
 
 		struct bpf_program filter;
 
@@ -282,20 +284,35 @@ static bool pcap_prepare(void)
 		if( pcap_compile(dev->pcap, &filter,  (char *)bpf_filter_string->str, 0, 0) == -1 )
 		{
 			g_warning("pcap_compile failed for %s: %s.", dev->name, pcap_geterr(dev->pcap));
+			pcap_close(dev->pcap);
+			g_free(dev->name);
 			g_free(dev);
+			g_string_free(bpf_filter_string, TRUE);
+			g_string_free(bpf_filter_string_addition, TRUE);
+			g_strfreev(parts);
 			return false;
 		}
 
 		if( pcap_setfilter(dev->pcap, &filter) == -1 )
 		{
 			g_warning("pcap_setfilter failed for %s: %s", dev->name, pcap_geterr(dev->pcap));
+			pcap_close(dev->pcap);
+			g_free(dev->name);
 			g_free(dev);
+			g_string_free(bpf_filter_string, TRUE);
+			g_string_free(bpf_filter_string_addition, TRUE);
+			g_strfreev(parts);
 			return false;
 		}
 		if( pcap_setnonblock(dev->pcap, 1, errbuf) == -1 )
 		{
 			g_warning("pcap_setnonblock failed for %s: %s.", dev->name, errbuf);
+			pcap_close(dev->pcap);
+			g_free(dev->name);
 			g_free(dev);
+			g_string_free(bpf_filter_string, TRUE);
+			g_string_free(bpf_filter_string_addition, TRUE);
+			g_strfreev(parts);
 			return false;
 		}
 
@@ -305,7 +322,12 @@ static bool pcap_prepare(void)
 		if( i == -1 )
 		{
 			g_warning("pcap_getnonblock failed for %s: %s", dev->name, errbuf);
+			pcap_close(dev->pcap);
+			g_free(dev->name);
 			g_free(dev);
+			g_string_free(bpf_filter_string, TRUE);
+			g_string_free(bpf_filter_string_addition, TRUE);
+			g_strfreev(parts);
 			return false;
 		} else
 		{
