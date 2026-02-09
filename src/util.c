@@ -234,6 +234,7 @@ struct tempfile *tempfile_new(char *path, char *prefix)
 	if( tf->fd == -1 )
 	{
 		g_warning("could not open path %s (%s)", path, strerror(errno));
+		g_free(tf->path);
 		g_free(tf);
 		return NULL;
 	}
