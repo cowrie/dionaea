@@ -42,9 +42,12 @@
 
 char *indents(int i)
 {
-	static char indents[255];
+	static char indents[256];
 	memset(indents, ' ', 255);
-	indents[i*4] = '\0';
+	int pos = i * 4;
+	if( pos < 0 || pos > 254 )
+		pos = 254;
+	indents[pos] = '\0';
 	return indents;
 }
 
