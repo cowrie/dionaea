@@ -359,6 +359,7 @@ void connection_udp_disconnect(struct connection *con)
 	{
 	case connection_type_accept:
 		g_hash_table_remove(con->transport.udp.type.client.parent->transport.udp.type.server.peers, con);
+		/* fall through */
 	case connection_type_connect:
 	case connection_type_bind:
 		con->protocol.disconnect(con, con->protocol.ctx);
