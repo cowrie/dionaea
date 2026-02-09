@@ -721,7 +721,7 @@ opt->stdOUT.filter);
 	if( opt->root != NULL )
 	{
 		/* change working dir to the new root directory and chroot */
-		if ( chdir(opt->root) != 0 && chroot(opt->root) != 0 )
+		if ( chdir(opt->root) != 0 || chroot(opt->root) != 0 )
 		{
 			g_error("Could not chroot(\"%s\") (%s)", opt->root, strerror(errno));
 		} else
