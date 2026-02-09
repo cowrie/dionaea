@@ -67,8 +67,11 @@ bool processors_tree_create(GNode *tree, gchar *proc_conf_name)
 		for (proc_next_name = proc_next_names; *proc_next_name; proc_next_name++) {
 			processors_tree_create(me, *proc_next_name);
 		}
+		g_strfreev(proc_next_names);
 	}
 	g_clear_error(&error);
+	g_free(proc_name);
+	g_free(group_name);
 	return true;
 }
 
