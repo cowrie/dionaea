@@ -104,7 +104,7 @@ bool nfq_prepare(void)
 		}
 	}
 
-	g_debug("binding to queue '%hd'", nfq_runtime.queuenum);
+	g_debug("binding to queue '%d'", nfq_runtime.queuenum);
 	nfq_runtime.qh = nfq_create_queue(nfq_runtime.h,  nfq_runtime.queuenum, &nfqueue_cb, NULL);
 	if( !nfq_runtime.qh )
 	{
