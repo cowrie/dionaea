@@ -464,19 +464,35 @@ int logger_load(struct options *opt)
     key = g_strjoin(".", parts[0], "filename", NULL);
     file = g_key_file_get_string(g_dionaea->config, "logging", key, &error);
     g_free(key);
+    g_clear_error(&error);
 
     key = g_strjoin(".", parts[0], "domains", NULL);
     domains = g_key_file_get_string(g_dionaea->config, "logging", key, &error);
     g_free(key);
+    g_clear_error(&error);
 
     key = g_strjoin(".", parts[0], "levels", NULL);
     levels = g_key_file_get_string(g_dionaea->config, "logging", key, &error);
     g_free(key);
+    g_clear_error(&error);
+
+    if( file == NULL || domains == NULL || levels == NULL ) {
+      g_warning("Incomplete logging config for handle '%s'", parts[0]);
+      g_free(file);
+      g_free(domains);
+      g_free(levels);
+      g_strfreev(parts);
+      continue;
+    }
 
     g_debug("Logfile (handle %s) %s %s %s", parts[0], file, domains, levels);
 
     struct log_filter *lf = log_filter_new(domains, levels);
     if( lf == NULL ) {
+      g_free(file);
+      g_free(domains);
+      g_free(levels);
+      g_strfreev(parts);
       return -1;
     }
 
