@@ -362,11 +362,6 @@ void show_version(struct version *ver)
 	ver->compiler.name = MY_COMPILER;
 	ver->compiler.version = __VERSION__;
 
-	ver->info.node = g_strdup(sysinfo.nodename);
-	ver->info.sys = g_strdup(sysinfo.sysname);
-	ver->info.machine = g_strdup(sysinfo.machine);
-	ver->info.release = g_strdup(sysinfo.release);
-
 	printf("Dionaea Version %s\n", ver->dionaea.version);
 	printf("Compiled on %s/%s at %s with %s %s\n",
 		   ver->compiler.os,
@@ -377,18 +372,23 @@ void show_version(struct version *ver)
 
 	if( i == 0 )
 	{
+		ver->info.node = g_strdup(sysinfo.nodename);
+		ver->info.sys = g_strdup(sysinfo.sysname);
+		ver->info.machine = g_strdup(sysinfo.machine);
+		ver->info.release = g_strdup(sysinfo.release);
+
 		printf("Started on %s running %s/%s release %s\n",
 			   ver->info.node,
 			   ver->info.sys,
 			   ver->info.machine,
 			   ver->info.release
 			  );
-	}
 
-	g_free(ver->info.node);
-	g_free(ver->info.sys);
-	g_free(ver->info.machine);
-	g_free(ver->info.release);
+		g_free(ver->info.node);
+		g_free(ver->info.sys);
+		g_free(ver->info.machine);
+		g_free(ver->info.release);
+	}
 }
 
 void show_help(bool defaults)
