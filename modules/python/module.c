@@ -152,8 +152,8 @@ static void python_mkshell_ihandler_cb(struct incident *i, void *ctx)
 			PyErr_Print();
 			g_error("Import failed %s", name);
 		}
-		Py_DECREF(module);
 		PyObject *func = PyObject_GetAttrString(module, "remoteshell");
+		Py_DECREF(module);
 		PyObject *arglist = Py_BuildValue("()");
 		PyObject *r = PyObject_CallObject(func, arglist);
 		Py_DECREF(arglist);
