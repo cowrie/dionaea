@@ -231,6 +231,8 @@ void ihandler_free(struct ihandler *i)
 {
 	g_debug("%s i %p", __PRETTY_FUNCTION__, i);
 	g_dionaea->ihandlers->handlers = g_list_remove(g_dionaea->ihandlers->handlers, i);
+	g_free(i->path);
+	g_pattern_spec_free(i->match);
 	g_free(i);
 }
 
