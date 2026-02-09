@@ -211,5 +211,4 @@ int pchild_sent_bind(int sx, struct sockaddr *s, socklen_t size)
 #else
 	return bind(sx,s,size);
 #endif
-	return 0;
 }
