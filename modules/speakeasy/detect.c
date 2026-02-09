@@ -363,12 +363,12 @@ static int detect_shellcode_mips(void *data, int size)
 	// Check both little-endian and big-endian patterns
 	for (int i = 0; i <= size - 24; i += 4) {
 		// Little-endian MIPS
-		uint32_t insn_le = bytes[i] | (bytes[i+1] << 8) |
-		                   (bytes[i+2] << 16) | (bytes[i+3] << 24);
+		uint32_t insn_le = (uint32_t)bytes[i] | ((uint32_t)bytes[i+1] << 8) |
+		                   ((uint32_t)bytes[i+2] << 16) | ((uint32_t)bytes[i+3] << 24);
 
 		// Big-endian MIPS
-		uint32_t insn_be = (bytes[i] << 24) | (bytes[i+1] << 16) |
-		                   (bytes[i+2] << 8) | bytes[i+3];
+		uint32_t insn_be = ((uint32_t)bytes[i] << 24) | ((uint32_t)bytes[i+1] << 16) |
+		                   ((uint32_t)bytes[i+2] << 8) | (uint32_t)bytes[i+3];
 
 		// Pattern 1: BGEZAL $zero, offset (little-endian)
 		// Encoding: 0000 01ss sss1 0001 iiii iiii iiii iiii
