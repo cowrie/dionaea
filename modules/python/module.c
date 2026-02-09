@@ -797,7 +797,12 @@ PyObject *py_config_string(gchar *group, gchar *key)
 	PyObject *obj_value;
 
 	value = g_key_file_get_string(g_dionaea->config, group, key, &error);
+	g_clear_error(&error);
+	if (value == NULL) {
+		Py_RETURN_NONE;
+	}
 	obj_value = PyUnicode_FromString(value);
+	g_free(value);
 
 	return obj_value;
 }
