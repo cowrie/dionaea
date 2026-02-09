@@ -485,7 +485,8 @@ void proc_speakeasy_on_io_in(struct connection *con, struct processor_data *pd)
 
 	// x86-32 uses libemu for emulation-based detection
 	struct emu *e = emu_new();
-	int ret_x86 = emu_shellcode_test_x86(e, streamdata, size);
+	uint16_t scan_size = (size > UINT16_MAX) ? UINT16_MAX : (uint16_t)size;
+	int ret_x86 = emu_shellcode_test_x86(e, streamdata, scan_size);
 	emu_free(e);
 
 	// x86-64 still uses pattern-based detection (TODO: add execution validation)
