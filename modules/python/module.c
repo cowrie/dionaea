@@ -188,8 +188,11 @@ static bool hupy(void)
 	gchar **module_name;
 
 	module_names = g_key_file_get_string_list(g_dionaea->config, "module.python", "imports", &num, &error);
-
-	// ToDo: check error
+	g_clear_error(&error);
+	if( module_names == NULL ) {
+		g_warning("No python imports configured");
+		return;
+	}
 	for (module_name = module_names; *module_name; module_name++) {
 		struct import *i;
 		if( (i = g_hash_table_lookup(runtime.imports, module_name)) != NULL ) {
@@ -407,8 +410,8 @@ static bool new(struct dionaea *dionaea)
 	gsize num;
 	gchar **sys_path;
 	sys_paths = g_key_file_get_string_list(g_dionaea->config, "module.python", "sys_paths", &num, &error);
-
-	for (sys_path = sys_paths; *sys_path; sys_path++) {
+	g_clear_error(&error);
+	for (sys_path = sys_paths; sys_paths != NULL && *sys_path; sys_path++) {
 		int written;
 		if( strcmp(*sys_path, "default") == 0 ) {
 			written = snprintf(relpath, sizeof(relpath), "sys.path.insert(%i, '%s')", i, DIONAEA_PYTHON_SITELIBDIR);
@@ -431,7 +434,8 @@ static bool new(struct dionaea *dionaea)
 	gchar **module_names;
 	gchar **module_name;
 	module_names = g_key_file_get_string_list(g_dionaea->config, "module.python", "imports", &num, &error);
-	for (module_name = module_names; *module_name; module_name++) {
+	g_clear_error(&error);
+	for (module_name = module_names; module_names != NULL && *module_name; module_name++) {
 		PyObject *module = PyImport_ImportModule(*module_name);
 		if( module == NULL ) {
 			PyErr_Print();
