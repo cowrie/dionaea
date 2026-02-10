@@ -72,8 +72,14 @@ bool pchild_init(void)
 		return true;
 	}
 
-	signal(SIGINT, SIG_IGN);
-	signal(SIGHUP, SIG_IGN);
+	{
+		struct sigaction sa_ign;
+		memset(&sa_ign, 0, sizeof(sa_ign));
+		sa_ign.sa_handler = SIG_IGN;
+		sigemptyset(&sa_ign.sa_mask);
+		sigaction(SIGINT, &sa_ign, NULL);
+		sigaction(SIGHUP, &sa_ign, NULL);
+	}
 	setsid();
 
 	/* We're the backend */
