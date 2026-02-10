@@ -153,6 +153,8 @@ int pchild_sent_bind(int sx, struct sockaddr *s, socklen_t size)
 
 	struct sockaddr_storage sa;
 	memset(&sa, 0, sizeof(struct sockaddr_storage));
+	if (size > sizeof(struct sockaddr_storage))
+		size = sizeof(struct sockaddr_storage);
 	memcpy(&sa, s, size);
 
 	socklen_t sizeof_sa = sizeof(struct sockaddr_storage);
