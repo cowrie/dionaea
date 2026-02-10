@@ -341,8 +341,10 @@ static size_t curl_writefunction_cb(void *ptr, size_t size, size_t nmemb, void *
 	struct session *session = (struct session *) data;
 	if( session->type == session_type_download )
 	{
+		if( session->action.download.file == NULL )
+			return 0;
 		g_debug("session %p file %i", session, session->action.download.file->fd);
-		if( write(session->action.download.file->fd, ptr, size*nmemb) != size*nmemb)
+		if( write(session->action.download.file->fd, ptr, size*nmemb) != (ssize_t)(size*nmemb))
 			return 0;
 	}else
 	if( session->type == session_type_upload )
@@ -548,6 +550,17 @@ static void session_download_new(struct incident *i, char *url)
 	curl_easy_setopt(session->easy, CURLOPT_USERAGENT, "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0)");
 
 	session->action.download.file = tempfile_new(curl_runtime.download_dir, "http-");
+	if( session->action.download.file == NULL )
+	{
+		g_warning("session %p: failed to create temp file for download", session);
+		if( con != NULL )
+			connection_unref(con);
+		g_free(session->laddr);
+		g_free(session->url);
+		curl_easy_cleanup(session->easy);
+		g_free(session);
+		return;
+	}
 	session->action.download.ctxcon = con;
 
 	g_debug("session %p file %i path %s", session, session->action.download.file->fd, session->action.download.file->path);

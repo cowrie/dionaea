@@ -81,6 +81,12 @@ struct connection *connection_new(enum connection_transport type)
 	case connection_transport_tls:
 		con->transport.tls.meth = SSLv23_method();
 		con->transport.tls.ctx = SSL_CTX_new((SSL_METHOD *)con->transport.tls.meth);
+		if( con->transport.tls.ctx == NULL )
+		{
+			g_warning("SSL_CTX_new failed for TLS connection");
+			g_free(con);
+			return NULL;
+		}
 		SSL_CTX_set_session_cache_mode(con->transport.tls.ctx, SSL_SESS_CACHE_OFF);
 		con->transport.tls.io_in = g_string_new("");
 		con->transport.tls.io_out = g_string_new("");
@@ -90,6 +96,12 @@ struct connection *connection_new(enum connection_transport type)
 	case connection_transport_dtls:
 		con->transport.dtls.meth = DTLS_method();
 		con->transport.dtls.ctx = SSL_CTX_new((SSL_METHOD *)con->transport.dtls.meth);
+		if( con->transport.dtls.ctx == NULL )
+		{
+			g_warning("SSL_CTX_new failed for DTLS connection");
+			g_free(con);
+			return NULL;
+		}
 		break;
 	case connection_transport_udp:
 	case connection_transport_io:
@@ -666,7 +678,7 @@ void connection_free_cb(EV_P_ struct ev_timer *w, int revents, bool report_incid
 			SSL_free(con->transport.tls.ssl);
 		con->transport.tls.ssl = NULL;
 
-		if( con->type == connection_type_listen &&  con->transport.tls.ctx != NULL )
+		if( (con->type == connection_type_listen || con->type == connection_type_connect) &&  con->transport.tls.ctx != NULL )
 			SSL_CTX_free(con->transport.tls.ctx);
 		con->transport.tls.ctx = NULL;
 		break;
@@ -701,7 +713,7 @@ void connection_free_cb(EV_P_ struct ev_timer *w, int revents, bool report_incid
 				SSL_free(con->transport.dtls.ssl);
 			con->transport.dtls.ssl = NULL;
 
-			if( con->type == connection_type_listen && con->transport.dtls.ctx != NULL )
+			if( (con->type == connection_type_listen || con->type == connection_type_connect) && con->transport.dtls.ctx != NULL )
 				SSL_CTX_free(con->transport.dtls.ctx);
 			con->transport.dtls.ctx = NULL;
 
@@ -2138,6 +2150,8 @@ const char *connection_transport_to_string(enum connection_transport trans)
 		"dtls",
 		"io"
 	};
+	if( trans < 0 || (unsigned)trans >= sizeof(connection_transport_str)/sizeof(connection_transport_str[0]) )
+		return "invalid";
 	return connection_transport_str[trans];
 }
 
@@ -2173,6 +2187,8 @@ const char *connection_type_to_string(enum connection_type type)
 		"connect",
 		"listen",
 	};
+	if( type < 0 || (unsigned)type >= sizeof(connection_type_str)/sizeof(connection_type_str[0]) )
+		return "invalid";
 	return connection_type_str[type];
 }
 
@@ -2206,6 +2222,8 @@ const char *connection_state_to_string(enum connection_state state)
 		"close",
 		"reconnect"
 	};
+	if( state < 0 || (unsigned)state >= sizeof(connection_state_str)/sizeof(connection_state_str[0]) )
+		return "invalid";
 	return connection_state_str[state];
 }
 
