@@ -19,6 +19,7 @@
 #include <sys/utsname.h>
 #include <stdio.h>
 
+#include <signal.h>
 #include <errno.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -829,8 +830,14 @@ opt->stdOUT.filter);
 	ev_signal_init(&d->signals->sighup,  sighup_cb, SIGHUP);
 	ev_signal_start(d->loop, &d->signals->sighup);
 	// NOLINTBEGIN(cert-sig30-c,cert-msc54-cpp): crash handler uses non-async-safe funcs intentionally
-	signal(SIGSEGV, sigsegv_backtrace_cb);
-	signal(SIGABRT, sigsegv_backtrace_cb);
+	{
+		struct sigaction sa_crash;
+		memset(&sa_crash, 0, sizeof(sa_crash));
+		sa_crash.sa_handler = sigsegv_backtrace_cb;
+		sigemptyset(&sa_crash.sa_mask);
+		sigaction(SIGSEGV, &sa_crash, NULL);
+		sigaction(SIGABRT, &sa_crash, NULL);
+	}
 	// NOLINTEND(cert-sig30-c,cert-msc54-cpp)
 
 	/*
@@ -846,7 +853,13 @@ opt->stdOUT.filter);
 	 * Therefore, to make things easy, we simply ignore SIGPIPE
 	 * Given the alternatives I consider ignoring the best option
 	 */
-	signal(SIGPIPE, SIG_IGN);
+	{
+		struct sigaction sa_pipe;
+		memset(&sa_pipe, 0, sizeof(sa_pipe));
+		sa_pipe.sa_handler = SIG_IGN;
+		sigemptyset(&sa_pipe.sa_mask);
+		sigaction(SIGPIPE, &sa_pipe, NULL);
+	}
 
 //	ev_signal_init(&d->signals->sigsegv,  sigsegv_cb, SIGSEGV);
 //	ev_signal_start(d->loop, &d->signals->sigsegv);
