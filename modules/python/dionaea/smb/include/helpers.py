@@ -18,7 +18,7 @@ import warnings
 
 class VolatileValue:
     def __repr__(self):
-        return "<%s>" % self.__class__.__name__
+        return f"<{self.__class__.__name__}>"
     def __getattr__(self, attr):
         if attr == "__setstate__":
             raise AttributeError(attr)
@@ -66,7 +66,7 @@ class Net(Gen):
             for c in range(*self.parsed[2]):
                 for b in range(*self.parsed[1]):
                     for a in range(*self.parsed[0]):
-                        yield "%i.%i.%i.%i" % (a,b,c,d)
+                        yield f"{a}.{b}.{c}.{d}"
     def choice(self):
         ip = []
         for v in self.parsed:
@@ -74,7 +74,7 @@ class Net(Gen):
         return ".".join(ip)
 
     def __repr__(self):
-        return "Net(%r)" % self.repr
+        return f"Net({self.repr!r})"
 
 
 class SetGen(Gen):
@@ -102,7 +102,7 @@ class SetGen(Gen):
             else:
                 yield i
     def __repr__(self):
-        return "<SetGen %s>" % self.set.__repr__()
+        return f"<SetGen {self.set!r}>"
 
 class BasePacket(Gen):
     pass
@@ -114,9 +114,9 @@ def lhex(x):
     if isinstance(x, int):
         return hex(x)
     elif isinstance(x, tuple):
-        return "(%s)" % ", ".join(map(lhex, x))
+        return f"({', '.join(map(lhex, x))})"
     elif isinstance(x, list):
-        return "[%s]" % ", ".join(map(lhex, x))
+        return f"[{', '.join(map(lhex, x))}]"
     else:
         return x
 
@@ -159,7 +159,7 @@ class Enum_metaclass(type):
     def get(self, attr, val=None):
         return self._rdict__.get(attr, val)
     def __repr__(self):
-        return "<%s>" % self.__dict__.get("name", self.__name__)
+        return f"<{self.__dict__.get('name', self.__name__)}>"
 
 
 # Utility functions for MAC address conversion (from scapy)

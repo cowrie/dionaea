@@ -344,7 +344,7 @@ def print_mysql_commands(cursor, connection, indent):
 			mysql_command_arg_index ASC """, (cmd['mysql_command'], ))
         args = resolve_result(r)
         print("({:s})".format(
-            ",".join([ "'%s'" % arg['mysql_command_arg_data'] for arg in args])))
+            ",".join([ f"'{arg['mysql_command_arg_data']}'" for arg in args])))
 
 
 def print_connection(c, indent):

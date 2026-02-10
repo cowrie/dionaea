@@ -90,7 +90,7 @@ class cmdexe:
 
     def cmd_ECHO(self, args):
         out = " ".join(args) + '\n'
-        logger.debug("echo %s" % (out))
+        logger.debug(f"echo {out}")
         return out,None
 
     def cmd_FTP(self, args):
@@ -140,11 +140,11 @@ class cmdexe:
         for i in range(len(lines)):
             line = lines[i]
             logger.debug(f"FTP PARSER STATE {state}")
-            logger.debug("FTP CMD LINE: %s" % (line) )
+            logger.debug(f"FTP CMD LINE: {line}")
             args = line.split()
             if len(args) == 0:
                 continue
-            logger.debug("FTP CMD ARGS: %s" % (args) )
+            logger.debug(f"FTP CMD ARGS: {args}")
             if state == 'NEXT_IS_SOMETHING':
                 if args[0] == 'open':
                     if len(args) == 1:
@@ -181,8 +181,7 @@ class cmdexe:
                             i.con = self
                         elif hasattr(self, 'con') and isinstance(self.con, connection):
                             i.con = self.con
-                        i.url = "ftp://%s:%s@%s:%i/%s" % (
-                            user,passwd,host,port,dfile)
+                        i.url = f"ftp://{user}:{passwd}@{host}:{port}/{dfile}"
                         i.ftpmode = ftpmode
                         i.report()
                 elif args[0] == 'cd':
@@ -228,20 +227,18 @@ class cmdexe:
                     elif hasattr(self, 'con') and isinstance(self.con, connection):
                         i.con = self.con
                     i.ftpmode = ftpmode
-                    i.url = "ftp://%s:%s@%s:%i/%s" % (user,
-                                                      passwd,host,port,dfile)
+                    i.url = f"ftp://{user}:{passwd}@{host}:{port}/{dfile}"
                     i.report()
 
             elif state == 'NEXT_IS_PATH':
                 if len(args) == 1:
                     fpath = args[0]
                     state = 'NEXT_IS_SOMETHING'
-        logger.info("ftp://%s:%s@%s:%i/%s/%s" %
-                    (user,passwd,host,port,fpath,dfile))
+        logger.info(f"ftp://{user}:{passwd}@{host}:{port}/{fpath}/{dfile}")
         return out,None
 
     def cmd_TFTP(self, args):
-        logger.debug("TFTP %s" % (args) )
+        logger.debug(f"TFTP {args}")
         if len(args) != 4:
             logger.warning("TFTP command invalid number of args: expected 4, got %d", len(args))
             return "foo","error, invalid number of args"
@@ -388,7 +385,7 @@ class remoteshell(cmdexe,connection):
 class cmdshellhandler(ihandler):
 
     def __init__(self, path, config=None):
-        logger.debug("%s ready!" % (self.__class__.__name__))
+        logger.debug(f"{self.__class__.__name__} ready!")
         ihandler.__init__(self, path)
 
     def handle_incident(self, icd):

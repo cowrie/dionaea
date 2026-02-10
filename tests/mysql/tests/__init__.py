@@ -7,7 +7,7 @@
 import pymysql
 
 
-class SQLConnection(object):
+class SQLConnection:
     def __init__(self):
         self.cnx = None
         self.cursor = None

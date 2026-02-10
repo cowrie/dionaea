@@ -167,7 +167,7 @@ class Memcache(connection):
             data = data[processed_bytes:]
 
         if self.command is not None:
-            func = getattr(self, "_handle_%s" % self.command.name)
+            func = getattr(self, f"_handle_{self.command.name}")
             processed_bytes = processed_bytes + func(data)
 
         return processed_bytes

@@ -493,10 +493,10 @@ class smbd(connection):
             x.show()
 
         r = self.process(p)
-        smblog.debug("packet: %s" % p.summary())
+        smblog.debug(f"packet: {p.summary()}")
 
         if p.haslayer(Raw):
-            smblog.debug("p.haslayer(Raw): %s" % p.getlayer(Raw).build())
+            smblog.debug(f"p.haslayer(Raw): {p.getlayer(Raw).build()}")
             p.show()
 
         # i = incident("dionaea.module.python.smb.info")
@@ -510,7 +510,7 @@ class smbd(connection):
             return len(data)
 
         if r:
-            smblog.debug("response: %s" % r.summary())
+            smblog.debug(f"response: {r.summary()}")
             r.show()
 
             # i = incident("dionaea.module.python.smb.info")
@@ -526,7 +526,7 @@ class smbd(connection):
             smblog.error("process() returned None.")
 
         if p.haslayer(Raw):
-            smblog.debug("p.haslayer(Raw): %s" % p.getlayer(Raw).build())
+            smblog.debug(f"p.haslayer(Raw): {p.getlayer(Raw).build()}")
             p.show()
             # some rest seems to be not parsed correctly
             # could be start of some other packet, junk, or failed packet dissection
@@ -932,7 +932,7 @@ class smbd(connection):
             i.con = self
             i.url = f"smb://{self.remote.host}/{filename}"
             i.report()
-            smblog.info("OPEN FILE! %s" % filename)
+            smblog.info(f"OPEN FILE! {filename}")
 
         elif Command == SMB_COM_ECHO:
             r = p.getlayer(SMB_Header).payload
@@ -970,8 +970,7 @@ class smbd(connection):
                     smblog.debug("got header")
                     inpacket = DCERPC_Header(self.buf)
                     smblog.debug(
-                        "FragLen %i len(self.buf) %i"
-                        % (inpacket.FragLen, len(self.buf))
+                        f"FragLen {inpacket.FragLen} len(self.buf) {len(self.buf)}"
                     )
                     if inpacket.FragLen == len(self.buf):
                         smblog.debug(
@@ -1020,8 +1019,7 @@ class smbd(connection):
             outbuf = self.outbuf
             outbuflen = len(outbuf)
             smblog.debug(
-                "MaxCountLow %i len(outbuf) %i readcount %i"
-                % (h.MaxCountLow, outbuflen, self.state["readcount"])
+                f"MaxCountLow {h.MaxCountLow} len(outbuf) {outbuflen} readcount {self.state['readcount']}"
             )
             if h.MaxCountLow < outbuflen - self.state["readcount"]:
                 rdata.ByteCount = h.MaxCountLow
@@ -1036,8 +1034,7 @@ class smbd(connection):
             rdata.ByteCount = len(rdata.Bytes) + 1
             r.DataLenLow = len(rdata.Bytes)
             smblog.debug(
-                "readcount %i len(rdata.Bytes) %i"
-                % (self.state["readcount"], len(rdata.Bytes))
+                f"readcount {self.state['readcount']} len(rdata.Bytes) {len(rdata.Bytes)}"
             )
             r /= rdata
 
@@ -1657,12 +1654,7 @@ class smbd(connection):
                         else:
                             service = registered_services[service_uuid.hex]
                             smblog.info(
-                                "Found a registered UUID (%s). Accepting Bind for %s (NDR%d)"
-                                % (
-                                    service_uuid,
-                                    service.__class__.__name__,
-                                    pointer_size,
-                                )
+                                f"Found a registered UUID ({service_uuid}). Accepting Bind for {service.__class__.__name__} (NDR{pointer_size})"
                             )
                             self.state["uuid"] = service_uuid.hex
                             self.state["pointer_size"] = pointer_size
@@ -1783,7 +1775,7 @@ class epmapper(smbd):
             )
             return 0
 
-        smblog.debug("packet: %s" % p.summary())
+        smblog.debug(f"packet: {p.summary()}")
 
         r = self.process_dcerpc_packet(p)
 
@@ -1794,12 +1786,12 @@ class epmapper(smbd):
         if not r or r is None:
             return len(data)
 
-        smblog.debug("response: %s" % r.summary())
+        smblog.debug(f"response: {r.summary()}")
         r.show()
         self.send(r.build())
 
         if p.haslayer(Raw):
-            smblog.debug("p.haslayer(Raw): %s" % p.getlayer(Raw).build())
+            smblog.debug(f"p.haslayer(Raw): {p.getlayer(Raw).build()}")
             p.show()
 
         return len(data)

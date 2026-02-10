@@ -592,7 +592,7 @@ class VarHandler:
             return UInt64
         if name == "uptime":
             return Uptime
-        raise ValueError("Unable to find class to handle %s type" % name)
+        raise ValueError(f"Unable to find class to handle {name} type")
 
     def load(self, vars):
         for var in vars:
@@ -629,7 +629,7 @@ class Float(BaseVar):
         self.value = value
 
     def __str__(self):
-        return "%.6f" % self.value
+        return f"{self.value:.6f}"
 
     def _get_value(self):
         return self._value

@@ -103,7 +103,7 @@ class ASN1Tag(EnumElement):
     def asn1_object(self, val):
         if hasattr(self,"_asn1_obj"):
             return self._asn1_obj(val)
-        raise ASN1_Error("%r does not have any assigned ASN1 object" % self)
+        raise ASN1_Error(f"{self!r} does not have any assigned ASN1 object")
     def register(self, codecnum, codec):
         self._codec[type(codecnum)] = codec
         pass
@@ -300,7 +300,7 @@ class ASN1_COUNTER32(ASN1_INTEGER):
 class ASN1_SEQUENCE(ASN1_Object):
     tag = ASN1_Class_UNIVERSAL.SEQUENCE
     def strshow(self, lvl=0):
-        s = ("  "*lvl)+("# %s:" % self.__class__.__name__)+"\n"
+        s = ("  "*lvl)+f"# {self.__class__.__name__}:"+"\n"
         for o in self.val:
             s += o.strshow(lvl=lvl+1)
         return s
@@ -319,7 +319,7 @@ class ASN1_OID(ASN1_Object):
         return "<{}[{}]>".format(self.__dict__.get("name", self.__class__.__name__), self.val)
     def __oidname__(self):
         #        return '%s'%conf.mib._oidname(self.val)
-        return '%s'%self.val
+        return f'{self.val}'
 
 
 

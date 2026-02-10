@@ -1038,8 +1038,8 @@ class httpd(connection):
             r = []
             displaypath = html.escape(self.header.path)
             r.append('<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">')
-            r.append("<html>\n<title>Directory listing for %s</title>\n" % displaypath)
-            r.append("<body>\n<h2>Directory listing for %s</h2>\n" % displaypath)
+            r.append(f"<html>\n<title>Directory listing for {displaypath}</title>\n")
+            r.append(f"<body>\n<h2>Directory listing for {displaypath}</h2>\n")
             r.append("<hr>\n<ul>\n")
             r.append('<li><a href="../">../</a>\n')
 
@@ -1073,7 +1073,7 @@ class httpd(connection):
             {
                 "connection": "close",
                 "content_length": len(content),
-                "content_type": "text/html; charset=%s" % enc
+                "content_type": f"text/html; charset={enc}"
             }
         )
         self.end_headers()
@@ -1088,7 +1088,7 @@ class httpd(connection):
                 message = self.responses[code][0]
             else:
                 message = ''
-        self.send("%s %d %s\r\n" % ("HTTP/1.1", code, message))
+        self.send(f"HTTP/1.1 {code} {message}\r\n")
 
     def send_error(self, code, message=None):
         if message is None:
@@ -1105,15 +1105,15 @@ class httpd(connection):
 
         if content is None:
             r = []
-            r.append('<?xml version="1.0" encoding="%s"?>\n' % (enc))
+            r.append(f'<?xml version="1.0" encoding="{enc}"?>\n')
             r.append('<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"\n')
             r.append('         "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">\n')
             r.append('<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">\n')
             r.append(' <head>\n')
-            r.append('  <title>%d - %s</title>\n' % (code, message))
+            r.append(f'  <title>{code} - {message}</title>\n')
             r.append(' </head>\n')
             r.append(' <body>\n')
-            r.append('  <h1>%d - %s</h1>\n' % (code, message))
+            r.append(f'  <h1>{code} - {message}</h1>\n')
             r.append(' </body>\n')
             r.append('</html>\n')
             content = ''.join(r)
@@ -1129,7 +1129,7 @@ class httpd(connection):
             {
                 "connection": "close",
                 "content_length": len(content),
-                "content_type": "text/html; charset=%s" % enc
+                "content_type": f"text/html; charset={enc}"
             }
         )
         self.end_headers()

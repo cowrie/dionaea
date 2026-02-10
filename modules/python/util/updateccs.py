@@ -117,7 +117,7 @@ def gencc(card):
 
     if card in cards:
         return credit_card_number(generator, cards[card]['prefix'], cards[card]['length'])
-    raise ValueError("card %s is unknown" % card)
+    raise ValueError(f"card {card} is unknown")
 
 if __name__ == '__main__':
 
@@ -140,4 +140,4 @@ if __name__ == '__main__':
     print(query)
     cursor.execute(query)
     dbh.commit()
-    print("updated the ccs for %i rows" % cursor.rowcount)
+    print(f"updated the ccs for {cursor.rowcount} rows")

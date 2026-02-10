@@ -30,7 +30,7 @@ class Fail2BanHandlerLoader(IHandlerLoader):
 
 class fail2banhandler(ihandler):
     def __init__(self, config: dict[str, Any] | None = None) -> None:
-        logger.debug("%s ready!" % (self.__class__.__name__))
+        logger.debug(f"{self.__class__.__name__} ready!")
         ihandler.__init__(self, "*")
         if config is None:
             config = {}

@@ -39,7 +39,7 @@ def getHeader(data, header):
 
 	return ""
 
-class VoipClient(object):
+class VoipClient:
 	def __init__(self):
 		self.__s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 		self.__s.bind(('', 0))
@@ -75,19 +75,19 @@ class VoipClient(object):
 		sipMsg.append("Via: SIP/2.0/UDP 127.0.0.1")
 		sipMsg.append("From: socketHelper")
 		sipMsg.append("To: 100@localhost")
-		sipMsg.append("Call-ID: {}".format(self.__callId))
-		sipMsg.append("CSeq: {} INVITE".format(self.getCseq()))
+		sipMsg.append(f"Call-ID: {self.__callId}")
+		sipMsg.append(f"CSeq: {self.getCseq()} INVITE")
 		sipMsg.append("Contact: socketHelper")
 		sipMsg.append("Accept: application/sdp")
 		sipMsg.append("Content-Type: application/sdp")
-		sipMsg.append("Content-Length: {}".format(
-			len('\n'.join(sdpMsg))))
+		sipMsg.append(f"Content-Length: {len(chr(10).join(sdpMsg))}")
 
 		if challengeResponse:
-			sipMsg.append('Authorization: Digest username="100", ' + \
-				'realm="100@localhost", uri="sip:100@localhost", ' + \
-				'nonce="{}",'.format(nonce) + \
-				'response="{}"'.format(challengeResponse))
+			sipMsg.append(
+				f'Authorization: Digest username="100", '
+				f'realm="100@localhost", uri="sip:100@localhost", '
+				f'nonce="{nonce}",'
+				f'response="{challengeResponse}"')
 
 		self.send('\n'.join(sipMsg) + "\n\n" + '\n'.join(sdpMsg))
 
@@ -97,8 +97,8 @@ class VoipClient(object):
 		msg.append("Via: SIP/2.0/UDP 127.0.0.1")
 		msg.append("From: socketHelper")
 		msg.append("To: 100@localhost")
-		msg.append("Call-ID: {}".format(self.__callId))
-		msg.append("CSeq: {} OPTIONS".format(self.getCseq()))
+		msg.append(f"Call-ID: {self.__callId}")
+		msg.append(f"CSeq: {self.getCseq()} OPTIONS")
 		msg.append("Contact: socketHelper")
 		self.send('\n'.join(msg))
 
@@ -108,15 +108,16 @@ class VoipClient(object):
 		msg.append("Via: SIP/2.0/UDP 127.0.0.1")
 		msg.append("From: socketHelper")
 		msg.append("To: 100@localhost")
-		msg.append("Call-ID: {}".format(self.__callId))
-		msg.append("CSeq: {} ACK".format(self.getCseq()))
+		msg.append(f"Call-ID: {self.__callId}")
+		msg.append(f"CSeq: {self.getCseq()} ACK")
 		msg.append("Contact: socketHelper")
 
 		if challengeResponse:
-			msg.append('Authorization: Digest username="100", ' + \
-				'realm="100@localhost", uri="sip:100@localhost", ' + \
-				'nonce="{}",'.format(nonce) + \
-				'response="{}"'.format(challengeResponse))
+			msg.append(
+				f'Authorization: Digest username="100", '
+				f'realm="100@localhost", uri="sip:100@localhost", '
+				f'nonce="{nonce}",'
+				f'response="{challengeResponse}"')
 
 		self.send('\n'.join(msg))
 
@@ -126,15 +127,16 @@ class VoipClient(object):
 		msg.append("Via: SIP/2.0/UDP 127.0.0.1")
 		msg.append("From: socketHelper")
 		msg.append("To: 100@localhost")
-		msg.append("Call-ID: {}".format(self.__callId))
-		msg.append("CSeq: {} BYE".format(self.getCseq()))
+		msg.append(f"Call-ID: {self.__callId}")
+		msg.append(f"CSeq: {self.getCseq()} BYE")
 		msg.append("Contact: socketHelper")
 
 		if challengeResponse:
-			msg.append('Authorization: Digest username="100", ' + \
-				'realm="100@localhost", uri="sip:100@localhost", ' + \
-				'nonce="{}",'.format(nonce) + \
-				'response="{}"'.format(challengeResponse))
+			msg.append(
+				f'Authorization: Digest username="100", '
+				f'realm="100@localhost", uri="sip:100@localhost", '
+				f'nonce="{nonce}",'
+				f'response="{challengeResponse}"')
 
 		self.send('\n'.join(msg))
 
@@ -151,7 +153,7 @@ def authenticate(data):
 		if k == "nonce":
 			nonce = v.strip(' \n\r\t"\'')
 	assert nonce
-	logger.debug("Nonce received: {}".format(nonce))
+	logger.debug(f"Nonce received: {nonce}")
 
 	# Create challenge response
 	# The calculation of the expected response is taken from
@@ -161,11 +163,11 @@ def authenticate(data):
 
 	a1 = hash("100:100@localhost:F2DS13G5")
 	a2 = hash("INVITE:sip:100@localhost")
-	challengeResponse = hash("{}:{}:{}".format(a1, nonce, a2))
+	challengeResponse = hash(f"{a1}:{nonce}:{a2}")
 
-	logger.debug("a1: {}".format(a1))
-	logger.debug("a2: {}".format(a2))
-	logger.debug("response: {}".format(challengeResponse))
+	logger.debug(f"a1: {a1}")
+	logger.debug(f"a2: {a2}")
+	logger.debug(f"response: {challengeResponse}")
 
 	return challengeResponse, nonce
 
@@ -212,7 +214,7 @@ def runFunctionalTest1():
 	# Expecting a 200 OK with the server's SDP message
 	data = c.recv().split('\n')
 	assert data[0] == "SIP/2.0 200 OK"
-	assert data[5] == "Call-ID: {}".format(c.getCallId())
+	assert data[5] == f"Call-ID: {c.getCallId()}"
 
 	logger.info("Received 200 OK")
 
@@ -225,7 +227,7 @@ def runFunctionalTest1():
 	assert sdpMedia
 	assert sdpMedia.split(' ')[0] == "audio"
 	rtpPort = int(sdpMedia.split(' ')[1])
-	logger.debug("SDP port: {}".format(rtpPort))
+	logger.debug(f"SDP port: {rtpPort}")
 
 	# Send unauthenticated ACK
 	logger.info("Sending ACK")
@@ -252,7 +254,7 @@ def runFunctionalTest1():
 	sRtp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 	sRtp.bind(('localhost', 30123))
 	sRtp.connect(('localhost', rtpPort))
-	logger.debug("Sending 'Hello World' to :{}".format(rtpPort))
+	logger.debug(f"Sending 'Hello World' to :{rtpPort}")
 	sRtp.sendto(b"Hello World", ('localhost', rtpPort))
 
 	sleep(2)
@@ -281,7 +283,7 @@ def runFunctionalTest1():
 	# Check if stream dump file has been created
 	#for channel in ["in", "out"]:
 	if False:
-		streamFile = glob("var/dionaea/stream_*_*_{}.rtpdump".format(channel))
+		streamFile = glob(f"var/dionaea/stream_*_*_{channel}.rtpdump")
 		assert streamFile
 		assert len(streamFile) > 0
 		streamFile = streamFile[0]

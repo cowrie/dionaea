@@ -34,7 +34,7 @@ class S3HandlerLoader(IHandlerLoader):
 
 class s3handler(ihandler):
     def __init__(self, path: str, config: dict[str, Any] | None = None) -> None:
-        logger.debug("%s ready!" % (self.__class__.__name__))
+        logger.debug(f"{self.__class__.__name__} ready!")
         ihandler.__init__(self, path)
 
         if config is None:

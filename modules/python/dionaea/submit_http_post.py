@@ -52,6 +52,6 @@ class SubmitHTTPPost(ihandler):
 
                 file_fieldname = to.get("file_fieldname")
                 if file_fieldname is not None:
-                    i.set("file://%s" % file_fieldname, icd.file)
+                    i.set(f"file://{file_fieldname}", icd.file)
 
                 i.report()

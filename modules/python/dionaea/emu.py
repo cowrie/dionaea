@@ -26,7 +26,7 @@ class EMUProfileHandlerLoader(IHandlerLoader):
 class emuprofilehandler(ihandler):
 
     def __init__(self, path: str, config: dict[str, Any] | None = None) -> None:
-        logger.debug("%s ready!" % (self.__class__.__name__))
+        logger.debug(f"{self.__class__.__name__} ready!")
         ihandler.__init__(self, path)
 
     def handle_incident(self, icd: incident) -> None:
@@ -39,7 +39,7 @@ class emuprofilehandler(ihandler):
             con = None
         p = json.loads(p)
 #        print(p)
-        logger.info("profiledump %s" % (p))
+        logger.info(f"profiledump {p}")
         state = "NONE"
         host = None
         port = None
@@ -51,7 +51,7 @@ class emuprofilehandler(ihandler):
                     state = "SOCKET"
                 if api['call'] == 'URLDownloadToFile':
                     url = api['args'][1]
-                    logger.debug("download file %s" % (url))
+                    logger.debug(f"download file {url}")
                     i = incident("dionaea.download.offer")
                     i.set("url", url)
                     if con is not None:
@@ -88,7 +88,7 @@ class emuprofilehandler(ihandler):
 
             elif state == "ACCEPT":
                 if api['call'] == 'CreateProcess':
-                    logger.debug("bindshell host %s port %s"  % (host, port) )
+                    logger.debug(f"bindshell host {host} port {port}")
                     i = incident("dionaea.service.shell.listen")
                     assert port is not None  # For mypy
                     i.set("port", int(port))
@@ -98,8 +98,7 @@ class emuprofilehandler(ihandler):
 
             elif state == "CONNECT":
                 if api['call'] == 'CreateProcess':
-                    logger.debug(
-                        "connectbackshell host %s port %s"  % (host, port) )
+                    logger.debug(f"connectbackshell host {host} port {port}")
                     i = incident("dionaea.service.shell.connect")
                     assert port is not None  # For mypy
                     i.set("port", int(port))
@@ -112,8 +111,7 @@ class emuprofilehandler(ihandler):
                 if api['call'] == 'connect':
                     host = api['args'][1]['sin_addr']['s_addr']
                     port = api['args'][1]['sin_port']
-                    logger.debug(
-                        "connectbackshell host %s port %s"  % (host, port) )
+                    logger.debug(f"connectbackshell host {host} port {port}")
                     i = incident("dionaea.service.shell.connect")
                     assert port is not None  # For mypy
                     i.set("port", int(port))

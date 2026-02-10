@@ -37,10 +37,10 @@ if __name__ == '__main__':
             codecs.open(f, 'r', encoding="utf-8-sig"), delimiter=',', quotechar='"')
         table = f[:-4]
         colnames = c.next()
-        print("Using column names %s" % " ".join(colnames))
+        print(f"Using column names {' '.join(colnames)}")
         cols = ','.join(colnames)
         if args.primary_key is not None:
-            cols2 = "%s INTEGER PRIMARY KEY, " % args.primary_key + cols
+            cols2 = f"{args.primary_key} INTEGER PRIMARY KEY, " + cols
         else:
             cols2 = cols
         create_table = "CREATE TABLE {} ( {} )".format(table, cols2)

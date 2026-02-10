@@ -30,7 +30,7 @@ class StoreHandlerLoader(IHandlerLoader):
 
 class storehandler(ihandler):
     def __init__(self, path: str, config: dict[str, Any] | None = None) -> None:
-        logger.debug("%s ready!" % (self.__class__.__name__))
+        logger.debug(f"{self.__class__.__name__} ready!")
         ihandler.__init__(self, path)
 
         dionaea_config = g_dionaea.config().get("dionaea", {})
@@ -63,7 +63,7 @@ class storehandler(ihandler):
         try:
             os.stat(n)
             i = incident("dionaea.download.complete.again")
-            logger.debug("file %s already existed" % sha256)
+            logger.debug(f"file {sha256} already existed")
         except OSError:
             logger.debug(f"saving new file {sha256} to {n}")
             os.link(p, n)
