@@ -26,7 +26,7 @@ class LogSQLHandlerLoader(IHandlerLoader):
 
 class logsqlhandler(ihandler):
     def __init__(self, path, config=None):
-        logger.debug("%s ready!" % (self.__class__.__name__))
+        logger.debug(f"{self.__class__.__name__} ready!")
         self.path = path
         self.filename = config.get("file")
 
@@ -252,7 +252,7 @@ class logsqlhandler(ihandler):
                 logger.debug("... done")
         except Exception as e:
             logger.debug(
-                "Updating emu_services failed, copying old table failed (%s)" % e
+                f"Updating emu_services failed, copying old table failed ({e})"
             )
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
@@ -301,7 +301,7 @@ class logsqlhandler(ihandler):
                 self.cursor.execute("""DROP TABLE downloads_old""")
                 logger.debug("... done")
         except Exception as e:
-            logger.debug("Updating downloads failed, copying old table failed (%s)" % e)
+            logger.debug(f"Updating downloads failed, copying old table failed ({e})")
 
         for idx in ["url", "md5_hash"]:
             self.cursor.execute(
@@ -751,114 +751,63 @@ class logsqlhandler(ihandler):
         attackid = self.connection_insert(icd, "listen")
         con = icd.con
         logger.info(
-            "listen connection on %s:%i (id=%i)"
-            % (con.remote.host, con.remote.port, attackid)
+            f"listen connection on {con.remote.host}:{con.remote.port} (id={attackid})"
         )
 
     def handle_incident_dionaea_connection_tls_listen(self, icd):
         attackid = self.connection_insert(icd, "listen")
         con = icd.con
         logger.info(
-            "listen connection on %s:%i (id=%i)"
-            % (con.remote.host, con.remote.port, attackid)
+            f"listen connection on {con.remote.host}:{con.remote.port} (id={attackid})"
         )
 
     def handle_incident_dionaea_connection_tcp_connect(self, icd):
         attackid = self.connection_insert(icd, "connect")
         con = icd.con
         logger.info(
-            "connect connection to %s:%i from %s:%i (id=%i)"
-            % (
-                con.remote.host,
-                con.remote.port,
-                con.local.host,
-                con.local.port,
-                attackid,
-            )
+            f"connect connection to {con.remote.host}:{con.remote.port} from {con.local.host}:{con.local.port} (id={attackid})"
         )
 
     def handle_incident_dionaea_connection_tls_connect(self, icd):
         attackid = self.connection_insert(icd, "connect")
         con = icd.con
         logger.info(
-            "connect connection to %s:%i from %s:%i (id=%i)"
-            % (
-                con.remote.host,
-                con.remote.port,
-                con.local.host,
-                con.local.port,
-                attackid,
-            )
+            f"connect connection to {con.remote.host}:{con.remote.port} from {con.local.host}:{con.local.port} (id={attackid})"
         )
 
     def handle_incident_dionaea_connection_udp_connect(self, icd):
         attackid = self.connection_insert(icd, "connect")
         con = icd.con
         logger.info(
-            "connect connection to %s:%i from %s:%i (id=%i)"
-            % (
-                con.remote.host,
-                con.remote.port,
-                con.local.host,
-                con.local.port,
-                attackid,
-            )
+            f"connect connection to {con.remote.host}:{con.remote.port} from {con.local.host}:{con.local.port} (id={attackid})"
         )
 
     def handle_incident_dionaea_connection_tcp_accept(self, icd):
         attackid = self.connection_insert(icd, "accept")
         con = icd.con
         logger.info(
-            "created incident id=%i (%s:%i->%s:%i)"
-            % (
-                attackid,
-                con.remote.host,
-                con.remote.port,
-                con.local.host,
-                con.local.port,
-            )
+            f"created incident id={attackid} ({con.remote.host}:{con.remote.port}->{con.local.host}:{con.local.port})"
         )
 
     def handle_incident_dionaea_connection_tls_accept(self, icd):
         attackid = self.connection_insert(icd, "accept")
         con = icd.con
         logger.info(
-            "created incident id=%i (%s:%i->%s:%i)"
-            % (
-                attackid,
-                con.remote.host,
-                con.remote.port,
-                con.local.host,
-                con.local.port,
-            )
+            f"created incident id={attackid} ({con.remote.host}:{con.remote.port}->{con.local.host}:{con.local.port})"
         )
 
     def handle_incident_dionaea_connection_tcp_reject(self, icd):
         attackid = self.connection_insert(icd, "reject")
         con = icd.con
         logger.info(
-            "reject connection from %s:%i to %s:%i (id=%i)"
-            % (
-                con.remote.host,
-                con.remote.port,
-                con.local.host,
-                con.local.port,
-                attackid,
-            )
+            f"reject connection from {con.remote.host}:{con.remote.port} to {con.local.host}:{con.local.port} (id={attackid})"
         )
 
     def handle_incident_dionaea_connection_tcp_pending(self, icd):
         attackid = self.connection_insert(icd, "pending")
         con = icd.con
         logger.info(
-            "pending connection from %s:%i to %s:%i (id=%i)"
-            % (
-                con.remote.host,
-                con.remote.port,
-                con.local.host,
-                con.local.port,
-                attackid,
-            )
+            f"pending connection from {con.remote.host}:{con.remote.port} to {con.local.host}:{con.local.port} (id={attackid})"
         )
 
     def handle_incident_dionaea_connection_link_early(self, icd):
@@ -874,16 +823,16 @@ class logsqlhandler(ihandler):
 
     def handle_incident_dionaea_connection_link(self, icd):
         if icd.parent in self.attacks:
-            logger.info("parent ids %s" % str(self.attacks[icd.parent]))
+            logger.info(f"parent ids {self.attacks[icd.parent]}")
             parentroot, parentid = self.attacks[icd.parent]
             if icd.child in self.attacks:
-                logger.info("child had ids %s" % str(self.attacks[icd.child]))
+                logger.info(f"child had ids {self.attacks[icd.child]}")
                 childroot, childid = self.attacks[icd.child]
             else:
                 childid = parentid
             self.attacks[icd.child] = (parentroot, childid)
-            logger.info("child has ids %s" % str(self.attacks[icd.child]))
-            logger.info("child %i parent %i root %i" % (childid, parentid, parentroot))
+            logger.info(f"child has ids {self.attacks[icd.child]}")
+            logger.info(f"child {childid} parent {parentid} root {parentroot}")
             self.cursor.execute(
                 "UPDATE connections SET connection_root = ?, connection_parent = ? WHERE connection = ?",
                 (parentroot, parentid, childid),
@@ -911,9 +860,9 @@ class logsqlhandler(ihandler):
         if con in self.attacks:
             attackid = self.attacks[con][1]
             del self.attacks[con]
-            logger.debug("attackid %i is done" % attackid)
+            logger.debug(f"attackid {attackid} is done")
         else:
-            logger.debug("no attackid for %s:%s" % (con.local.host, con.local.port))
+            logger.debug(f"no attackid for {con.local.host}:{con.local.port}")
         if con in self.pending:
             del self.pending[con]
 
@@ -922,7 +871,7 @@ class logsqlhandler(ihandler):
         if con not in self.attacks:
             return
         attackid = self.attacks[con][1]
-        logger.info("emu profile for attackid %i" % attackid)
+        logger.info(f"emu profile for attackid {attackid}")
         self.cursor.execute(
             "INSERT INTO emu_profiles (connection, emu_profile_json) VALUES (?,?)",
             (attackid, icd.profile),
@@ -934,7 +883,7 @@ class logsqlhandler(ihandler):
         if con not in self.attacks:
             return
         attackid = self.attacks[con][1]
-        logger.info("offer for attackid %i" % attackid)
+        logger.info(f"offer for attackid {attackid}")
         self.cursor.execute(
             "INSERT INTO offers (connection, offer_url) VALUES (?,?)",
             (attackid, icd.url),
@@ -946,7 +895,7 @@ class logsqlhandler(ihandler):
         if con not in self.attacks:
             return
         attackid = self.attacks[con][1]
-        logger.info("complete for attackid %i" % attackid)
+        logger.info(f"complete for attackid {attackid}")
         self.cursor.execute(
             "INSERT INTO downloads (connection, download_url, download_md5_hash) VALUES (?,?,?)",
             (attackid, icd.url, icd.md5hash),
@@ -958,7 +907,7 @@ class logsqlhandler(ihandler):
         if con not in self.attacks:
             return
         attackid = self.attacks[con][1]
-        logger.info("listen shell for attackid %i" % attackid)
+        logger.info(f"listen shell for attackid {attackid}")
         self.cursor.execute(
             "INSERT INTO emu_services (connection, emu_service_url) VALUES (?,?)",
             (attackid, "bindshell://" + str(icd.port)),
@@ -970,7 +919,7 @@ class logsqlhandler(ihandler):
         if con not in self.attacks:
             return
         attackid = self.attacks[con][1]
-        logger.info("connect shell for attackid %i" % attackid)
+        logger.info(f"connect shell for attackid {attackid}")
         self.cursor.execute(
             "INSERT INTO emu_services (connection, emu_service_url) VALUES (?,?)",
             (attackid, "connectbackshell://" + str(icd.host) + ":" + str(icd.port)),

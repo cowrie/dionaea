@@ -20,7 +20,7 @@ logger.setLevel(logging.DEBUG)
 
 class LogSQLHandler(ihandler):
     def __init__(self, path, config=None):
-        logger.debug("%s ready!" % (self.__class__.__name__))
+        logger.debug(f"{self.__class__.__name__} ready!")
         self.path = path
         self._config = config
         self.db_session = None

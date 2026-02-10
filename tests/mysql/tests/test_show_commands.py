@@ -7,7 +7,7 @@
 from . import SQLConnection
 
 
-class TestSQLShow(object):
+class TestSQLShow:
     def test_select_database(self):
         con = SQLConnection()
 

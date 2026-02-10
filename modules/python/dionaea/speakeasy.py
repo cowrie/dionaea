@@ -31,7 +31,7 @@ class SpeakeasyShellcodeHandler(ihandler):
     """
 
     def __init__(self, path: str, config: dict[str, Any] | None = None) -> None:
-        logger.info("%s initialized" % self.__class__.__name__)
+        logger.info(f"{self.__class__.__name__} initialized")
         ihandler.__init__(self, path)
 
         # Import Speakeasy (lazy import to fail gracefully if not installed)

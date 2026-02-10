@@ -170,7 +170,7 @@ def load_config_from_files(filename_patterns: list[str]) -> list[dict[str, Any]]
                         e.problem  # type: ignore[attr-defined]
                     )
                     if e.context is not None:  # type: ignore[attr-defined]
-                        logger.debug("Parser(context): %s" % e.context)  # type: ignore[attr-defined]
+                        logger.debug(f"Parser(context): {e.context}")  # type: ignore[attr-defined]
                 else:
                     logger.error("Unknown error while parsing config file '%s'", filename)
 

@@ -137,11 +137,7 @@ class LogJsonHandler(ihandler):
                 }
                 conn_id = self._connection_ids.get(v)
                 if conn_id is None:
-                    raw_id = "%r_%d_%r" % (
-                        tmp_data,
-                        id(v),
-                        datetime.now(timezone.utc)
-                    )
+                    raw_id = f"{tmp_data!r}_{id(v)}_{datetime.now(timezone.utc)!r}"
 
                     conn_id = hashlib.sha256(raw_id.encode("ASCII")).hexdigest()
                     self._connection_ids[v] = conn_id

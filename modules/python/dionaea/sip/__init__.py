@@ -68,7 +68,7 @@ class SIPService(ServiceLoader):
 
         daemons = []
         for proto in ("tcp", "tls", "udp"):
-            ports = config.get("%s_ports" % proto)
+            ports = config.get(f"{proto}_ports")
             if ports is None:
                 continue
             for port in ports:
@@ -178,16 +178,14 @@ class RtpUdpStream(connection):
             return
 
         now = datetime.datetime.now()
-        dirname = "%04i-%02i-%02i" % (now.year, now.month, now.day)
+        dirname = f"{now.year:04d}-{now.month:02d}-{now.day:02d}"
         bistream_path = os.path.join(g_dionaea.config()['bistreams']['python']['dir'], dirname)
         if not os.path.exists(bistream_path):
             os.makedirs(bistream_path)
 
         fp = tempfile.NamedTemporaryFile(
             delete = False,
-            prefix = "SipCall-{local_port}-{remote_host}:{remote_port}-".format(
-                local_port = self.local.port, remote_host = self.remote.host,
-                remote_port = self.remote.port),
+            prefix = f"SipCall-{self.local.port}-{self.remote.host}:{self.remote.port}-",
             dir = bistream_path
         )
         fp.write(b"stream = ")

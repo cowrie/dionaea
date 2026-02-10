@@ -57,10 +57,10 @@ class BER_Encoding_Error(ASN1_Encoding_Error):
     def __str__(self):
         s = Exception.__str__(self)
         if isinstance(self.encoded, BERcodec_Object):
-            s += "\n### Already encoded ###\n%s" % self.encoded.strshow()
+            s += f"\n### Already encoded ###\n{self.encoded.strshow()}"
         else:
-            s += "\n### Already encoded ###\n%r" % self.encoded
-        s += "\n### Remaining ###\n%r" % self.remaining
+            s += f"\n### Already encoded ###\n{self.encoded!r}"
+        s += f"\n### Remaining ###\n{self.remaining!r}"
         return s
 
 
@@ -73,10 +73,10 @@ class BER_Decoding_Error(ASN1_Decoding_Error):
     def __str__(self):
         s = Exception.__str__(self)
         if isinstance(self.decoded, BERcodec_Object):
-            s += "\n### Already decoded ###\n%s" % self.decoded.strshow()
+            s += f"\n### Already decoded ###\n{self.decoded.strshow()}"
         else:
-            s += "\n### Already decoded ###\n%r" % self.decoded
-        s += "\n### Remaining ###\n%r" % self.remaining
+            s += f"\n### Already decoded ###\n{self.decoded!r}"
+        s += f"\n### Remaining ###\n{self.remaining!r}"
         return s
 
 
@@ -162,7 +162,7 @@ def BER_len_enc(length, size=0):
         size -= 1
     if len(s) > 127:
         raise BER_Exception(
-            "BER_len_enc: Length too long (%i) to be encoded [%r]" % (len(s), s)
+            f"BER_len_enc: Length too long ({len(s)}) to be encoded [{s!r}]"
         )
     x = struct.pack("B", int(len(s) | 0x80))
     #        logger.debug("x %s s %s" % (x,s))
@@ -180,7 +180,7 @@ def BER_len_dec(s):
     #        print("length %i" % length)
     if len(s) <= length:
         raise BER_Decoding_Error(
-            "BER_len_dec: Got %i bytes while expecting %i" % (len(s) - 1, length),
+            f"BER_len_dec: Got {len(s) - 1} bytes while expecting {length}",
             remaining=s,
         )
     ll = 0
@@ -245,7 +245,7 @@ class BERcodec_Object(metaclass=BERcodec_metaclass):
     def check_string(cls, s):
         if not s:
             raise BER_Decoding_Error(
-                "%s: Got empty object while expecting tag %r" % (cls.__name__, cls.tag),
+                f"{cls.__name__}: Got empty object while expecting tag {cls.tag!r}",
                 remaining=s,
             )
 
@@ -257,8 +257,7 @@ class BERcodec_Object(metaclass=BERcodec_metaclass):
             #            raise BER_BadTag_Decoding_Error("%s: Got tag [%i/%#x] while expecting %r" %
             #                                            (cls.__name__, ord(s[0]), ord(s[0]),cls.tag), remaining=s)
             raise BER_BadTag_Decoding_Error(
-                "%s: Got tag [%i/%#x] while expecting %r"
-                % (cls.__name__, s[0], s[0], cls.tag),
+                f"{cls.__name__}: Got tag [{s[0]}/{s[0]:#x}] while expecting {cls.tag!r}",
                 remaining=s,
             )
 
@@ -269,7 +268,7 @@ class BERcodec_Object(metaclass=BERcodec_metaclass):
         s2 = cls.check_type(s)
         if not s2:
             raise BER_Decoding_Error(
-                "%s: No bytes while expecting a length" % cls.__name__, remaining=s
+                f"{cls.__name__}: No bytes while expecting a length", remaining=s
             )
         return BER_len_dec(s2)
 
@@ -278,7 +277,7 @@ class BERcodec_Object(metaclass=BERcodec_metaclass):
         length, s3 = cls.check_type_get_len(s)
         if len(s3) < length:
             raise BER_Decoding_Error(
-                "%s: Got %i bytes while expecting %i" % (cls.__name__, len(s3), length),
+                f"{cls.__name__}: Got {len(s3)} bytes while expecting {length}",
                 remaining=s,
             )
         return length, s3[:length], s3[length:]

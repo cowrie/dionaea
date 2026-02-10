@@ -34,7 +34,7 @@ class vtreport:
 
 class virustotalhandler(ihandler):
     def __init__(self, path, config=None):
-        logger.debug("%s ready!" % (self.__class__.__name__))
+        logger.debug(f"{self.__class__.__name__} ready!")
         ihandler.__init__(self, path)
         self.apikey = config.get("apikey")
         comment = config.get("comment")

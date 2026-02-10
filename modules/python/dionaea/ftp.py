@@ -191,7 +191,7 @@ class FTPd(connection):
         self.sendline(msg.format(**kwargs))
 
     def handle_origin(self, parent):
-        logger.debug("setting basedir to %s" % parent.basedir)
+        logger.debug(f"setting basedir to {parent.basedir}")
         self.basedir = parent.basedir
 
     def handle_established(self):
@@ -231,7 +231,7 @@ class FTPd(connection):
         return lastsep
 
     def processcmd(self, cmd, args):
-        logger.debug("cmd '%s'" % cmd)
+        logger.debug(f"cmd '{cmd}'")
         arguments = [i.decode('latin-1') for i in args]
 
         i = incident("dionaea.modules.python.ftp.command")
@@ -307,9 +307,9 @@ class FTPd(connection):
             self.dtp.close()
             self.dtp = None
         addr = list(map(int, address.split(',')))
-        ip = '%d.%d.%d.%d' % tuple(addr[:4])
+        ip = f'{addr[0]}.{addr[1]}.{addr[2]}.{addr[3]}'
         port = addr[4] << 8 | addr[5]
-        logger.debug("PORT cmd for port %i" % port)
+        logger.debug(f"PORT cmd for port {port}")
         if self.remote.host != ip and "::ffff:" + self.remote.host != ip:
             logger.warning("Potential FTP Bounce Scan detected")
             return None
@@ -582,7 +582,7 @@ class FTPDataCon(connection):
 
     def send_list(self, p, rm):
         def ls(f, r):
-            logger.debug("stat %s" % f)
+            logger.debug(f"stat {f}")
             name = f[r:]
             s=os.stat(f)
             size = s.st_size
@@ -598,33 +598,18 @@ class FTPDataCon(connection):
 
             def formatDate(mtime):
                 now = time.gmtime()
-                info = {
-                    'month': mtime.tm_mon,
-                    'day': mtime.tm_mday,
-                    'year': mtime.tm_year,
-                    'hour': mtime.tm_hour,
-                    'minute': mtime.tm_min
-                }
                 if now.tm_year != mtime.tm_year:
-                    return '%(month)s %(day)02d %(year)5d' % info
+                    return f'{mtime.tm_mon} {mtime.tm_mday:02d} {mtime.tm_year:5d}'
                 else:
-                    return '%(month)s %(day)02d %(hour)02d:%(minute)02d' % info
+                    return f'{mtime.tm_mon} {mtime.tm_mday:02d} {mtime.tm_hour:02d}:{mtime.tm_min:02d}'
 
-            format = (
-                '%(directory)s%(permissions)s%(hardlinks)4d '
-                '%(owner)-9s %(group)-9s %(size)15d %(date)12s '
-                '%(name)s'
+            dir_char = 'd' if directory else '-'
+            date_str = formatDate(time.gmtime(modified))
+            return (
+                f'{dir_char}{formatMode(permissions)}{hardlinks:4d} '
+                f'{owner:<9} {group:<9} {size:15d} {date_str:>12} '
+                f'{name}'
             )
-            return format % {
-                'directory': directory and 'd' or '-',
-                'permissions': formatMode(permissions),
-                'hardlinks': hardlinks,
-                'owner': owner,
-                'group': group,
-                'size': size,
-                'date': formatDate(time.gmtime(modified)),
-                'name': name
-            }
 
         self.mode = 'list'
         if os.path.isdir(p):
@@ -632,7 +617,7 @@ class FTPDataCon(connection):
         elif os.path.isfile(p):
             self.data = [ls(p)]
 
-        logger.debug("p %s len %i" % (p, len(self.data)) )
+        logger.debug(f"p {p} len {len(self.data)}")
         if len(self.data) > 0:
             self.off = 0
             self.off = self.off + 1

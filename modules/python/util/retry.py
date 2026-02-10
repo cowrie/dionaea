@@ -83,13 +83,13 @@ def main():
             if options.send:
                 r = s.send(i[1])
             if options.verbose:
-                print('send %i of %i bytes' % (r, len(i[1])))
+                print(f'send {r} of {len(i[1])} bytes')
         if i[0] == 'out':
             x = ""
             if options.recv:
                 x = s.recv(len(i[1]))
             if options.verbose:
-                print('recv %i of %i bytes' % ( len(x), len(i[1])) )
+                print(f'recv {len(x)} of {len(i[1])} bytes')
             time.sleep(1)
 
     time.sleep(1)

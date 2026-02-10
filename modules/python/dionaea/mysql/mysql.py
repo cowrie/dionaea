@@ -86,7 +86,7 @@ class mysqld(connection):
         salt = bytes(random.randint(1, 255) for _ in range(12))
         thread_id = random.randint(1, 0xFFFFFFFF)
         greeting = MySQL_Server_Greeting(
-            ServerVersion="%s\0" % var_version,
+            ServerVersion=f"{var_version}\0",
             ThreadID=thread_id,
             ScrambleBuffer=scramble,
             Salt=salt,
@@ -116,7 +116,7 @@ class mysqld(connection):
 
     def _handle_COM_FIELD_LIST(self, p):
         r = []
-        query = "PRAGMA table_info(%s);" % p.Table.decode("ascii")[:-1]
+        query = f"PRAGMA table_info({p.Table.decode('ascii')[:-1]});"
         # FIXME sqlite does not allow ? for PRAGMA? I'm not afraid of SQLi here
         # though.
         result = self.cursor.execute(query)
@@ -300,8 +300,8 @@ class mysqld(connection):
                         (r.append(x),)
                     r.append(MySQL_Result_EOF(ServerStatus=0x002))
             except Exception as e:
-                logger.warning("SQL ERROR %s" % e)
-                logger.warning("SQL ERROR in %s" % p.Query)
+                logger.warning(f"SQL ERROR {e}")
+                logger.warning(f"SQL ERROR in {p.Query}")
                 r = MySQL_Result_Error(Message="Learn SQL!")
         return r
 
@@ -329,8 +329,7 @@ class mysqld(connection):
             if var is None:
                 return [
                     MySQL_Result_Error(
-                        Message="ERROR 1193 (HY000): Unknown system variable '%s'"
-                        % var_name
+                        Message=f"ERROR 1193 (HY000): Unknown system variable '{var_name}'"
                     )
                 ]
 
@@ -348,7 +347,7 @@ class mysqld(connection):
             )
             r.append(MySQL_Result_EOF(ServerStatus=0x002))
 
-            r.append(MySQL_Result_Row_Data(ColumnValues=["%s\0" % var]))
+            r.append(MySQL_Result_Row_Data(ColumnValues=[f"{var}\0"]))
             r.append(MySQL_Result_EOF(ServerStatus=0x002))
             return r
 
@@ -454,7 +453,7 @@ class mysqld(connection):
                 if var_name and not var_name.match(name.encode("ascii")):
                     continue
                 r.append(
-                    MySQL_Result_Row_Data(ColumnValues=[name + "\0", "%s\0" % var])
+                    MySQL_Result_Row_Data(ColumnValues=[name + "\0", f"{var}\0"])
                 )
 
             r.append(MySQL_Result_EOF(ServerStatus=0x002))
@@ -508,7 +507,7 @@ class mysqld(connection):
                         Database = Database.encode("ascii")
                     if self._open_db(Database):
                         r = MySQL_Result_Error(
-                            Message="Could not open Database %s" % Database
+                            Message=f"Could not open Database {Database}"
                         )
                     else:
                         r = MySQL_Result_OK()

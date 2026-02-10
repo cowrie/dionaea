@@ -389,7 +389,7 @@ def get_overview_data(cursor, path_destination, filename_data, protocol):
     )
 
     for t in list(sql.keys()):
-        print("Selecting %s ..." % t)
+        print(f"Selecting {t} ...")
         db_query = sql[t].format(
             time_format="%Y-%m-%d",
             where=where

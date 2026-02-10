@@ -357,7 +357,7 @@ class ASN1F_CHOICE(ASN1F_PACKET):
             #            return packet.Raw(x),"" # XXX return RawASN1 packet ? Raise error
             #            raise ASN1_Error("Decoding Error: choice [%i] not found in %r" % (ord(x[0]), list(self.choice.keys())))
             raise ASN1_Error(
-                "Decoding Error: choice [%i] not found in %s" % (x[0], self.choice))
+                f"Decoding Error: choice [{x[0]}] not found in {self.choice}")
 
 #        z = ASN1F_PACKET.extract_packet(self, self.choice[ord(x[0])], x)
         z = ASN1F_PACKET.extract_packet(self, self.choice[x[0]], x)

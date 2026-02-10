@@ -156,7 +156,7 @@ class upnpd(connection):
 		else:
 			message = ''
 		self.version  = httpversion[-3:].decode('utf-8')
-		self.send("%s/%s %d %s\r\n%s\r\n" % ("HTTP", self.version, code, message, upnp_response))
+		self.send(f"HTTP/{self.version} {code} {message}\r\n{upnp_response}\r\n")
 
 	def handle_timeout_sustain(self):
 		logger.debug("%r handle_timeout_sustain", self)

@@ -7,7 +7,7 @@
 import socket
 
 
-class PrinterConnection(object):
+class PrinterConnection:
     def __init__(self):
         self.connection = None
         self.connect()

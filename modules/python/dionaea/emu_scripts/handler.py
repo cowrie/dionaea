@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-from typing import Any, Pattern
+from typing import Any
 import logging
 import re
 
@@ -20,9 +20,9 @@ class BaseHandler:
             self._config = config
 
         self.min_match_count: int = 0
-        self._regex_detect: list[Pattern[bytes]] = []
+        self._regex_detect: list[re.Pattern[bytes]] = []
 
-        self._regex_url: Pattern[bytes] = re.compile(
+        self._regex_url: re.Pattern[bytes] = re.compile(
             br"(?P<url>(http|ftp|https)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?)"
         )
 
@@ -52,7 +52,7 @@ class RawURL:
         if isinstance(config, dict):
             self._config = config
 
-        self._regex_url: Pattern[bytes] = re.compile(
+        self._regex_url: re.Pattern[bytes] = re.compile(
             br"(?P<url>(http|ftp|https)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?)"
         )
 

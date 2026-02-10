@@ -60,7 +60,7 @@ def stop() -> None:
     global g_handlers
     for handler_loader, ihandlers in g_handlers.items():
         for i in ihandlers:
-            logger.debug("deleting %s" % str(i))
+            logger.debug(f"deleting {i}")
             handler_loader.stop(i)
             del i
     del g_handlers

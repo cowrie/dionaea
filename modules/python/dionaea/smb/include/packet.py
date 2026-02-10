@@ -93,14 +93,12 @@ class Packet(BasePacket, metaclass=Packet_metaclass):
     @classmethod
     def upper_bonds(self):
         for fval,upper in self.payload_guess:
-            print("%-20s  %s" % (upper.__name__, ", ".join("%-12s" %
-                                                           ("%s=%r"%i) for i in fval.items())))
+            print(f"{upper.__name__:<20}  {', '.join(format(f'{k}={v!r}', '<12') for k, v in fval.items())}")
 
     @classmethod
     def lower_bonds(self):
         for lower,fval in self.overload_fields.items():
-            print("%-20s  %s" % (lower.__name__, ", ".join("%-12s" %
-                                                           ("%s=%r"%i) for i in fval.items())))
+            print(f"{lower.__name__:<20}  {', '.join(format(f'{k}={v!r}', '<12') for k, v in fval.items())}")
 
     def __init__(self, _pkt: bytes = b"", _ctx=None, post_transform=None, _internal=0, _underlayer=None, **fields):
         if _ctx:
@@ -174,7 +172,7 @@ class Packet(BasePacket, metaclass=Packet_metaclass):
                 self.__dict__["payload"] = Raw(load=payload)
             else:
                 raise TypeError(
-                    "payload must be either 'Packet' or 'str', not [%s]" % repr(payload))
+                    f"payload must be either 'Packet' or 'str', not [{payload!r}]")
     def remove_payload(self):
         self.payload.remove_underlayer(self)
         self.__dict__["payload"] = NoPayload()
@@ -290,12 +288,7 @@ class Packet(BasePacket, metaclass=Packet_metaclass):
             s += " {}{}{}".format(f.name,
                               "=",
                               val)
-        return "%s%s %s %s%s%s"% ("<",
-                                  self.__class__.__name__,
-                                  s,
-                                  "|",
-                                  repr(self.payload),
-                                  ">")
+        return f"<{self.__class__.__name__} {s} |{self.payload!r}>"
     def __truediv__(self, other):
         if isinstance(other, Packet):
             cloneA = self.copy()
@@ -385,7 +378,7 @@ class Packet(BasePacket, metaclass=Packet_metaclass):
                 raise
             except Exception:
                 if isinstance(cls,type) and issubclass(cls,Packet):
-                    logger.debug("%s dissector failed" % cls.name)
+                    logger.debug(f"{cls.name} dissector failed")
                 else:
                     logger.debug("{}.guess_payload_class() returned [{}]".format(
                         self.__class__.__name__,repr(cls)))
@@ -587,7 +580,7 @@ class Packet(BasePacket, metaclass=Packet_metaclass):
                 lname = lname.__name__
             elif type(lname) is not str:
                 lname = repr(lname)
-            raise IndexError("Layer [%s] not found" % lname)
+            raise IndexError(f"Layer [{lname}] not found")
         return ret
 
     def __delitem__(self, cls):
@@ -619,10 +612,7 @@ class Packet(BasePacket, metaclass=Packet_metaclass):
     def show(self, indent=3, lvl="", label_lvl="", goff=0):
         """Prints a hierarchical view of the packet. "indent" gives the size of indentation for each layer."""
 #        return
-        logger.debug("%s%s %s sizeof(%i) %s " % (label_lvl,
-                                                 "###[",
-                                                 self.name, self.size(),
-                                                 "]###"))
+        logger.debug(f"{label_lvl}###[ {self.name} sizeof({self.size()}) ]### ")
         off=0
         for f in self.fields_desc:
             size = 0
@@ -630,7 +620,7 @@ class Packet(BasePacket, metaclass=Packet_metaclass):
                 continue
             fvalue = self.getfieldval(f.name)
             if isinstance(fvalue, Packet) or (f.islist and f.holds_packets and type(fvalue) is list):
-                logger.debug("%s  \\%-10s\\" % (label_lvl+lvl, f.name))
+                logger.debug(f"{label_lvl}{lvl}  \\{f.name:<10}\\")
                 fvalue_gen = SetGen(fvalue,_iterpacket=0)
                 for fvalue in fvalue_gen:
                     size = fvalue.size()
@@ -638,14 +628,7 @@ class Packet(BasePacket, metaclass=Packet_metaclass):
                         indent=indent, label_lvl=label_lvl+lvl+"   |", goff=goff)
             else:
                 size = f.size(self,fvalue)
-                logger.debug("%s  %-20s%s %-15s sizeof(%3i) off=%3i goff=%3i" % (label_lvl+lvl,
-                                                                                 f.name,
-                                                                                 "=",
-                                                                                 f.i2repr(
-                                                                                     self,fvalue),
-                                                                                 size,
-                                                                                 off,
-                                                                                 goff))
+                logger.debug(f"{label_lvl}{lvl}  {f.name:<20}= {f.i2repr(self, fvalue):<15} sizeof({size:3d}) off={off:3d} goff={goff:3d}")
             off += size
             goff +=size
         self.payload.show(
@@ -691,7 +674,7 @@ A side effect is that, to obtain "{" and "}" characters, you must use
             k = cond.find(":")
             if k < 0:
                 raise Exception(
-                    "Bad condition in format string: [%s] (read sprintf doc!)"%cond)
+                    f"Bad condition in format string: [{cond}] (read sprintf doc!)")
             cond,format = cond[:k],cond[k+1:]
             res = False
             if cond[0] == "!":
@@ -756,7 +739,7 @@ A side effect is that, to obtain "{" and "}" characters, you must use
                         if fld in self.fieldtype:
                             val = self.fieldtype[fld].i2repr(self,val)
                 else:
-                    val = self.payload.sprintf("%%%s%%" % sfclsfld, relax)
+                    val = self.payload.sprintf(f"%{sfclsfld}%", relax)
                     f = "s"
                 s += ("%"+f) % val
 
@@ -808,7 +791,7 @@ A side effect is that, to obtain "{" and "}" characters, you must use
             if isinstance(fv, Packet):
                 fv = fv.command()
             elif fld.islist and fld.holds_packets and type(fv) is list:
-                fv = "[%s]" % ",".join( map(Packet.command, fv))
+                fv = f"[{','.join(map(Packet.command, fv))}]"
             else:
                 fv = repr(fv)
             f.append(f"{fn}={fv}")
@@ -890,7 +873,7 @@ class NoPayload(Packet):
         if relax:
             return "??"
         else:
-            raise Exception("Format not found [%s]"%fmt)
+            raise Exception(f"Format not found [{fmt}]")
     def summary(self, intern=0):
         return 0,"",[]
     def lastlayer(self,layer):

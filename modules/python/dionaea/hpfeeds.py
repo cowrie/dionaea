@@ -267,7 +267,7 @@ class hpfeedihandler(ihandler):
         try:
             reconnect_timeout = float(reconnect_timeout)
         except (TypeError, ValueError):
-            logger.warning("Unable to convert value '%s' for reconnect timeout to float" % reconnect_timeout)
+            logger.warning(f"Unable to convert value '{reconnect_timeout}' for reconnect timeout to float")
             reconnect_timeout = self.default_reconnect_timeout
 
         port = config.get("port")
@@ -276,7 +276,7 @@ class hpfeedihandler(ihandler):
         try:
             port = int(port)
         except (TypeError, ValueError):
-            logger.warning("Unable to convert value '%s' for port to int" % port)
+            logger.warning(f"Unable to convert value '{port}' for port to int")
             port = self.default_port
 
         self.client = hpclient(
@@ -341,56 +341,47 @@ class hpfeedihandler(ihandler):
     def handle_incident_dionaea_connection_tcp_listen(self, icd):
         self.connection_publish(icd, 'listen')
         con=icd.con
-        logger.info("listen connection on %s:%i" %
-            (con.remote.host, con.remote.port))
+        logger.info(f"listen connection on {con.remote.host}:{con.remote.port}")
 
     def handle_incident_dionaea_connection_tls_listen(self, icd):
         self.connection_publish(icd, 'listen')
         con=icd.con
-        logger.info("listen connection on %s:%i" %
-            (con.remote.host, con.remote.port))
+        logger.info(f"listen connection on {con.remote.host}:{con.remote.port}")
 
     def handle_incident_dionaea_connection_tcp_connect(self, icd):
         self.connection_publish(icd, 'connect')
         con=icd.con
-        logger.info("connect connection to %s/%s:%i from %s:%i" %
-            (con.remote.host, con.remote.hostname, con.remote.port, self._ownip(icd), con.local.port))
+        logger.info(f"connect connection to {con.remote.host}/{con.remote.hostname}:{con.remote.port} from {self._ownip(icd)}:{con.local.port}")
 
     def handle_incident_dionaea_connection_tls_connect(self, icd):
         self.connection_publish(icd, 'connect')
         con=icd.con
-        logger.info("connect connection to %s/%s:%i from %s:%i" %
-            (con.remote.host, con.remote.hostname, con.remote.port, self._ownip(icd), con.local.port))
+        logger.info(f"connect connection to {con.remote.host}/{con.remote.hostname}:{con.remote.port} from {self._ownip(icd)}:{con.local.port}")
 
     def handle_incident_dionaea_connection_udp_connect(self, icd):
         self.connection_publish(icd, 'connect')
         con=icd.con
-        logger.info("connect connection to %s/%s:%i from %s:%i" %
-            (con.remote.host, con.remote.hostname, con.remote.port, self._ownip(icd), con.local.port))
+        logger.info(f"connect connection to {con.remote.host}/{con.remote.hostname}:{con.remote.port} from {self._ownip(icd)}:{con.local.port}")
 
     def handle_incident_dionaea_connection_tcp_accept(self, icd):
         self.connection_publish(icd, 'accept')
         con=icd.con
-        logger.info("accepted connection from  %s:%i to %s:%i" %
-            (con.remote.host, con.remote.port, self._ownip(icd), con.local.port))
+        logger.info(f"accepted connection from  {con.remote.host}:{con.remote.port} to {self._ownip(icd)}:{con.local.port}")
 
     def handle_incident_dionaea_connection_tls_accept(self, icd):
         self.connection_publish(icd, 'accept')
         con=icd.con
-        logger.info("accepted connection from %s:%i to %s:%i" %
-            (con.remote.host, con.remote.port, self._ownip(icd), con.local.port))
+        logger.info(f"accepted connection from {con.remote.host}:{con.remote.port} to {self._ownip(icd)}:{con.local.port}")
 
     def handle_incident_dionaea_connection_tcp_reject(self, icd):
         self.connection_publish(icd, 'reject')
         con=icd.con
-        logger.info("reject connection from %s:%i to %s:%i" %
-            (con.remote.host, con.remote.port, self._ownip(icd), con.local.port))
+        logger.info(f"reject connection from {con.remote.host}:{con.remote.port} to {self._ownip(icd)}:{con.local.port}")
 
     def handle_incident_dionaea_connection_tcp_pending(self, icd):
         self.connection_publish(icd, 'pending')
         con=icd.con
-        logger.info("pending connection from %s:%i to %s:%i" %
-            (con.remote.host, con.remote.port, self._ownip(icd), con.local.port))
+        logger.info(f"pending connection from {con.remote.host}:{con.remote.port} to {self._ownip(icd)}:{con.local.port}")
 
     def handle_incident_dionaea_download_complete_unique(self, i):
         self.handle_incident_dionaea_download_complete_again(i)

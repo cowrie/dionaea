@@ -44,7 +44,7 @@ def convert_pjl_command_to_regex(command):
     """
     command_bytes = bytes(command, "utf-8")
     return re.compile(
-        rb"^\@pjl\s+%s\s*(.*)" % command_bytes.replace(b"_", rb"\s+"), re.IGNORECASE
+        rb"^\@pjl\s+" + command_bytes.replace(b"_", rb"\s+") + rb"\s*(.*)", re.IGNORECASE
     )
 
 
@@ -308,7 +308,7 @@ class Printerd(connection):
 
     def reply(self, msg):
         """Sends the given message back to the client."""
-        msg_lf = "%s\n" % msg
+        msg_lf = f"{msg}\n"
         msg_crlf = msg_lf.replace("\n", "\r\n")
 
         logger.debug("sending %s", bytes(msg_crlf, "utf-8"))
@@ -323,11 +323,11 @@ class Printerd(connection):
             raise ServiceConfigError("download_dir not defined")
         if not os.path.isdir(self.download_dir):
             raise ServiceConfigError(
-                "The PCL output directory '%s' is not a directory" % self.download_dir
+                f"The PCL output directory '{self.download_dir}' is not a directory"
             )
         if not os.access(self.download_dir, os.W_OK):
             raise ServiceConfigError(
-                "Unable to write files in '%s'" % self.download_dir
+                f"Unable to write files in '{self.download_dir}'"
             )
 
         self.root = config.get("root")
@@ -336,10 +336,10 @@ class Printerd(connection):
             raise ServiceConfigError("root not defined")
         if not os.path.isdir(self.root):
             raise ServiceConfigError(
-                "The PJL filesystem '%s' is not a directory" % self.root
+                f"The PJL filesystem '{self.root}' is not a directory"
             )
         if not os.access(self.root, os.R_OK):
-            raise ServiceConfigError("Unable to read files in '%s'" % self.root)
+            raise ServiceConfigError(f"Unable to read files in '{self.root}'")
 
         self.pjl_responses.update(config.get("pjl_msgs", {}))
         self.pjl_response_regexes = convert_pjl_responses_to_regex(self.pjl_responses)
@@ -348,7 +348,7 @@ class Printerd(connection):
         self.root = p
 
     def handle_origin(self, parent):
-        logger.debug("setting download_dir to '%s' from parent" % parent.download_dir)
+        logger.debug(f"setting download_dir to '{parent.download_dir}' from parent")
         self.download_dir = parent.download_dir
 
         logger.debug("setting pjl_response_regexes from parent")
@@ -547,31 +547,28 @@ class Printerd(connection):
             self.reply("FILEERROR=1")
             return
 
-        template_file = "%s TYPE=FILE SIZE=%d"
-        template_directory = "%s TYPE=DIR"
-
         if os.path.isfile(actual_path):
             stat = os.stat(actual_path)
             basename = os.path.basename(actual_path)
 
-            self.reply(template_file % (basename, stat.st_size))
+            self.reply(f"{basename} TYPE=FILE SIZE={stat.st_size}")
         elif os.path.isdir(actual_path):
             directory_entries = sorted(os.listdir(actual_path))
 
             files = []
-            directories = [template_directory % "."]
+            directories = [". TYPE=DIR"]
 
             if "/" in path:
-                directories.append(template_directory % "..")
+                directories.append(".. TYPE=DIR")
 
             for entry in directory_entries:
                 entry_path = os.path.join(actual_path, entry)
 
                 if os.path.isfile(entry_path):
                     stat = os.stat(entry_path)
-                    files.append(template_file % (entry, stat.st_size))
+                    files.append(f"{entry} TYPE=FILE SIZE={stat.st_size}")
                 elif os.path.isdir(entry_path):
-                    directories.append(template_directory % entry)
+                    directories.append(f"{entry} TYPE=DIR")
 
             listing = directories + files
             self.reply("\n".join(listing))
@@ -595,7 +592,7 @@ class Printerd(connection):
         Additionally, an incident "dionaea.modules.python.printer.print" will be created.
         """
         if self.pcl_file_handle is None:
-            filename = "print-%d.pcl" % time.time()
+            filename = f"print-{int(time.time())}.pcl"
             path = os.path.join(self.download_dir, filename)
             logger.info("printing to '%s'", path)
             self.pcl_file_handle = open(path, "wb")

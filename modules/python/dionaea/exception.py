@@ -35,9 +35,7 @@ class DionaeaConnectionError(DionaeaError):
 
 class ConnectionDNSTimeout(DionaeaConnectionError):
     def __str__(self) -> str:
-        return "Timeout resolving the hostname/domain: %s" % (
-            self.connection.remote.hostname
-        )
+        return f"Timeout resolving the hostname/domain: {self.connection.remote.hostname}"
 
 
 class ConnectionUnreachable(DionaeaConnectionError):
@@ -46,17 +44,12 @@ class ConnectionUnreachable(DionaeaConnectionError):
         if hostname is None or hostname == "":
             hostname = self.connection.remote.host
 
-        return "Could not connect to host(s): %s:%d" % (
-            hostname,
-            self.connection.remote.port
-        )
+        return f"Could not connect to host(s): {hostname}:{self.connection.remote.port}"
 
 
 class ConnectionNoSuchDomain(DionaeaConnectionError):
     def __str__(self) -> str:
-        return "Could not resolve the domain: %s" % (
-            self.connection.remote.hostname
-        )
+        return f"Could not resolve the domain: {self.connection.remote.hostname}"
 
 
 class ConnectionTooMany(DionaeaConnectionError):
@@ -67,6 +60,4 @@ class ConnectionTooMany(DionaeaConnectionError):
 class ConnectionUnknownError(DionaeaConnectionError):
     def __str__(self) -> str:
         assert self.error_id is not None  # For mypy
-        return "Unknown error occurred: error_id=%d" % (
-            self.error_id
-        )
+        return f"Unknown error occurred: error_id={self.error_id}"

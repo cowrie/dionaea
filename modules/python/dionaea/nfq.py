@@ -50,8 +50,7 @@ def is_local_addr(addr):
 
 class nfqmirrorc(connection):
     def __init__(self, peer=None):
-        logger.debug("nfqmirror connection %s %s" %
-                     ( peer.remote.host, peer.local.host))
+        logger.debug(f"nfqmirror connection {peer.remote.host} {peer.local.host}")
         connection.__init__(self,peer.transport)
         self.bind(peer.local.host,0)
         self.connect(peer.remote.host,peer.local.port)
@@ -106,8 +105,7 @@ class nfqmirrord(connection):
             i.child = self.peer
             i.report()
         else:
-            logger.warning("closing local connection from %s" %
-                           self.remote.host)
+            logger.warning(f"closing local connection from {self.remote.host}")
             self.close()
 
 
@@ -186,12 +184,11 @@ class nfqhandler(ihandler):
 
             total = sum([ x[1] for x in self.window])
             if total > self.throttle_total:
-                logger.warning("throttle total %i %s" % (total,rhost))
+                logger.warning(f"throttle total {total} {rhost}")
                 icd.nfaction = self.throttle_nfaction
                 return
             if self.window[nmt][1] > self.throttle_slot:
-                logger.warning("throttle slot %i %s" %
-                            (self.window[nmt][1], rhost) )
+                logger.warning(f"throttle slot {self.window[nmt][1]} {rhost}")
                 icd.nfaction = self.throttle_nfaction
                 return
 
@@ -206,7 +203,7 @@ class nfqhandler(ihandler):
                 m.close()
                 return
 
-            logger.info("doing nfq on port %i" % con.local.port)
+            logger.info(f"doing nfq on port {con.local.port}")
             self.window[nmt] = [now,self.window[nmt][1]+1]
 
 

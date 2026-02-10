@@ -196,7 +196,7 @@ class PadField:
 
     def addfield(self, pkt, s, val):
         sval = self._fld.addfield(pkt, "", val)
-        return s+sval+struct.pack("%is" % (-len(sval)%self._align), self._padwith)
+        return s+sval+struct.pack(f"{-len(sval) % self._align}s", self._padwith)
 
     def __getattr__(self, attr):
         return getattr(self._fld,attr)
@@ -512,7 +512,7 @@ class StrFixedLenField(StrField):
             length = len(val)
 #        print(length)
 #        print(val)
-        return s+struct.pack("%is"%length,self.i2m(pkt, val))
+        return s+struct.pack(f"{length}s",self.i2m(pkt, val))
     def size(self, pkt, val):
         return self.length_from(pkt)
     def randval(self):
@@ -850,7 +850,7 @@ class BitField(Field):
         w = s[:nb_bytes]
 
         # split the substring byte by byte
-        bytes = struct.unpack('!%dB' % nb_bytes , w)
+        bytes = struct.unpack(f'!{nb_bytes}B' , w)
 
         b = 0
         for c in range(nb_bytes):
