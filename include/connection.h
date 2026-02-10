@@ -9,6 +9,7 @@
 #ifndef HAVE_CONNECTION_H
 #define HAVE_CONNECTION_H
 
+#include <assert.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <stdbool.h>
@@ -195,6 +196,8 @@ struct connection
 				{
 					GHashTable *peers;
 #define DTLS_COOKIE_SECRET_LENGTH 16
+					static_assert(DTLS_COOKIE_SECRET_LENGTH >= 16,
+						"DTLS cookie secret must be at least 16 bytes for security");
 					unsigned char cookie_secret[DTLS_COOKIE_SECRET_LENGTH];
 				}server;
 				struct

@@ -6,6 +6,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <netinet/in.h>
@@ -15,6 +16,11 @@
 #define INET_STRLEN INET6_ADDRSTRLEN
 
 #define NODE_STRLEN (1 + INET_STRLEN + 1 + 1 + IFNAM_STRLEN + 1  + 1 + PORT_STRLEN)
+
+// Validate buffer sizes can hold formatted addresses
+static_assert(INET_STRLEN >= 46, "INET_STRLEN must hold an IPv6 address string");
+static_assert(NODE_STRLEN >= INET_STRLEN + PORT_STRLEN,
+	"NODE_STRLEN must hold at least an address and port");
 
 struct node_info
 {

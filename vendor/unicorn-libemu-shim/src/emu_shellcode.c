@@ -1,6 +1,7 @@
 // ABOUTME: Multi-architecture shellcode detection implementation
 // ABOUTME: Supports x86, ARM32, ARM64 with GetPC scan + execution validation
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
@@ -14,6 +15,11 @@
 #define MAX_EXECUTION_STEPS 256     // Max steps to try executing
 #define SHELLCODE_THRESHOLD 8       // Min steps to consider it shellcode
 #define ARM_EXECUTION_THRESHOLD 128 // ARM needs many more steps - random data often decodes validly
+
+static_assert(SHELLCODE_THRESHOLD < MAX_EXECUTION_STEPS,
+    "detection threshold must be less than max execution steps");
+static_assert(ARM_EXECUTION_THRESHOLD < MAX_EXECUTION_STEPS * 2,
+    "ARM threshold must be reachable within execution limits");
 
 // Structure to track execution results
 struct execution_result {

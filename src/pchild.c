@@ -20,9 +20,14 @@
 #include <sys/uio.h>
 
 
+#include <assert.h>
 #include <glib.h>
 
 #include "config.h"
+
+// Validate that cmsg control buffer is large enough for passing a file descriptor
+static_assert(1024 >= sizeof(struct cmsghdr) + sizeof(int),
+	"control message buffer too small for SCM_RIGHTS");
 #include "dionaea.h"
 #include "pchild.h"
 #include "log.h"
