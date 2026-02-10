@@ -4,9 +4,9 @@
 cmake_minimum_required(VERSION 3.10)
 project(unicorn-libemu-shim C CXX)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD 17)
 
 # Find Unicorn library
 find_package(PkgConfig REQUIRED)

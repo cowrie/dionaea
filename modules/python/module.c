@@ -17,6 +17,8 @@
 #include <dirent.h>
 #include <stddef.h>
 #include <limits.h>
+#include <signal.h>
+#include <string.h>
 
 // set terminal to char mode
 #include <termios.h>
@@ -471,8 +473,14 @@ static bool new(struct dionaea *dionaea)
 	}
 	g_strfreev(module_names);
 
-	if (signal(SIGINT, SIG_DFL) == SIG_ERR) {
-		g_debug("Failed to restore SIGINT handler");
+	{
+		struct sigaction sa_dfl;
+		memset(&sa_dfl, 0, sizeof(sa_dfl));
+		sa_dfl.sa_handler = SIG_DFL;
+		sigemptyset(&sa_dfl.sa_mask);
+		if (sigaction(SIGINT, &sa_dfl, NULL) != 0) {
+			g_debug("Failed to restore SIGINT handler");
+		}
 	}
 
 	if( isatty(STDIN_FILENO) && isatty(STDOUT_FILENO) )

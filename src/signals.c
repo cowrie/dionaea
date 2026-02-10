@@ -10,6 +10,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdnoreturn.h>
 #include <unistd.h>
 #include <ev.h>
 #include <glib.h>
@@ -74,7 +75,7 @@ void sighup_cb(struct ev_loop *loop, struct ev_signal *w, int revents)
 }
 
 
-void sigsegv_backtrace_cb(int sig)
+noreturn void sigsegv_backtrace_cb(int sig)
 {
 	(void)sig;
 #ifdef HAVE_EXECINFO_H

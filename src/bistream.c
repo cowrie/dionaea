@@ -307,6 +307,8 @@ int32_t bistream_get_stream(struct bistream *bs, enum bistream_direction dir, ui
 		if( itsc->stream_offset + itsc->data->len > end )
 			end_offset = end - itsc->stream_offset;
 
+		if (end_offset < start_offset)
+			break;
 		uint32_t size = end_offset - start_offset;
 		g_debug("copy data %p stream_offset %i size %u copy_start %u copy_end %u size %u", itsc,  itsc->stream_offset, (unsigned)itsc->data->len, start_offset, end_offset, size);
 

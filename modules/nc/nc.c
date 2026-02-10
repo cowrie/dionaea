@@ -8,6 +8,7 @@
 
 #include <glib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 
 #include "modules.h"
@@ -64,29 +65,29 @@ static bool nc_new(struct dionaea *d)
 
 			int port = 4711;
 			if( lcfgx_get_string(it, &node, "port") == LCFGX_PATH_FOUND_TYPE_OK )
-				port = atoi(node->value.string.data);
+				port = strtol(node->value.string.data, NULL, 10);
 
 			char *iface = NULL;
 			if( lcfgx_get_string(it, &node, "iface") == LCFGX_PATH_FOUND_TYPE_OK )
 				iface = node->value.string.data;
 
 			if( lcfgx_get_string(it, &node, "throttle.in") == LCFGX_PATH_FOUND_TYPE_OK )
-				connection_throttle_io_in_set(con, atoi(node->value.string.data));
+				connection_throttle_io_in_set(con, strtol(node->value.string.data, NULL, 10));
 			g_message("throttle in %s", (char *)node->value.string.data);
 
 			if( lcfgx_get_string(it, &node, "throttle.out") == LCFGX_PATH_FOUND_TYPE_OK )
-				connection_throttle_io_out_set(con, atoi(node->value.string.data));
+				connection_throttle_io_out_set(con, strtol(node->value.string.data, NULL, 10));
 
 			if( strcmp(v->key, "services" ) == 0 )
 				if( lcfgx_get_string(it, &node, "timeout.listen") == LCFGX_PATH_FOUND_TYPE_OK )
-					connection_listen_timeout_set(con,  atoi(node->value.string.data));
+					connection_listen_timeout_set(con,  strtol(node->value.string.data, NULL, 10));
 
 			if( strcmp(v->key, "clients" ) == 0 )
 				if( lcfgx_get_string(it, &node, "timeout.reconnect") == LCFGX_PATH_FOUND_TYPE_OK )
-					connection_reconnect_timeout_set(con,  atoi(node->value.string.data));
+					connection_reconnect_timeout_set(con,  strtol(node->value.string.data, NULL, 10));
 
 			if( lcfgx_get_string(it, &node, "timeout.connect") == LCFGX_PATH_FOUND_TYPE_OK )
-				connection_idle_timeout_set(con,  atoi(node->value.string.data));
+				connection_idle_timeout_set(con,  strtol(node->value.string.data, NULL, 10));
 
 			if( lcfgx_get_string(it, &node, "proto") == LCFGX_PATH_FOUND_TYPE_OK )
 			{

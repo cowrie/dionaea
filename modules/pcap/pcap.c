@@ -53,7 +53,7 @@ struct pcap_device
 	struct ev_io io_in;
 };
 
-#define PDEVOFF_IO_IN(x)  					((struct pcap_device *)(((void *)x) - offsetof (struct pcap_device, io_in)))
+#define PDEVOFF_IO_IN(x)  					((struct pcap_device *)((char *)(x) - offsetof(struct pcap_device, io_in)))
 
 static struct
 {

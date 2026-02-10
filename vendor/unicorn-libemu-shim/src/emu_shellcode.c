@@ -1,6 +1,7 @@
 // ABOUTME: Multi-architecture shellcode detection implementation
 // ABOUTME: Supports x86, ARM32, ARM64 with GetPC scan + execution validation
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
@@ -14,6 +15,11 @@
 #define MAX_EXECUTION_STEPS 256     // Max steps to try executing
 #define SHELLCODE_THRESHOLD 8       // Min steps to consider it shellcode
 #define ARM_EXECUTION_THRESHOLD 128 // ARM needs many more steps - random data often decodes validly
+
+static_assert(SHELLCODE_THRESHOLD < MAX_EXECUTION_STEPS,
+    "detection threshold must be less than max execution steps");
+static_assert(ARM_EXECUTION_THRESHOLD < MAX_EXECUTION_STEPS * 2,
+    "ARM threshold must be reachable within execution limits");
 
 // Structure to track execution results
 struct execution_result {
@@ -125,6 +131,8 @@ int32_t emu_shellcode_test_x86(struct emu *e, uint8_t *data, uint16_t size)
 
     // Step 1: Scan for GetPC patterns
     uint32_t *getpc_offsets = calloc(size, sizeof(uint32_t));
+    if (!getpc_offsets)
+        return -1;
     uint32_t getpc_count = 0;
 
     uint32_t offset;
@@ -142,6 +150,10 @@ int32_t emu_shellcode_test_x86(struct emu *e, uint8_t *data, uint16_t size)
 
     // Step 2: Try to execute from each GetPC offset
     struct execution_result *results = calloc(getpc_count, sizeof(struct execution_result));
+    if (!results) {
+        free(getpc_offsets);
+        return -1;
+    }
     uint32_t best_offset = 0;
     uint32_t best_steps = 0;
 

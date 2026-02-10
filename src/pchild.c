@@ -16,12 +16,18 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <stdnoreturn.h>
 #include <sys/uio.h>
 
 
+#include <assert.h>
 #include <glib.h>
 
 #include "config.h"
+
+// Validate that cmsg control buffer is large enough for passing a file descriptor
+static_assert(1024 >= sizeof(struct cmsghdr) + sizeof(int),
+	"control message buffer too small for SCM_RIGHTS");
 #include "dionaea.h"
 #include "pchild.h"
 #include "log.h"
@@ -35,7 +41,7 @@ struct pchild *pchild_new()
 	return p;
 }
 
-void pchild_run(int fd)
+noreturn void pchild_run(int fd)
 {
 	pchild_cmd cmd;
 	uintptr_t x;
@@ -72,8 +78,14 @@ bool pchild_init(void)
 		return true;
 	}
 
-	signal(SIGINT, SIG_IGN);
-	signal(SIGHUP, SIG_IGN);
+	{
+		struct sigaction sa_ign;
+		memset(&sa_ign, 0, sizeof(sa_ign));
+		sa_ign.sa_handler = SIG_IGN;
+		sigemptyset(&sa_ign.sa_mask);
+		sigaction(SIGINT, &sa_ign, NULL);
+		sigaction(SIGHUP, &sa_ign, NULL);
+	}
 	setsid();
 
 	/* We're the backend */
@@ -153,6 +165,8 @@ int pchild_sent_bind(int sx, struct sockaddr *s, socklen_t size)
 
 	struct sockaddr_storage sa;
 	memset(&sa, 0, sizeof(struct sockaddr_storage));
+	if (size > sizeof(struct sockaddr_storage))
+		size = sizeof(struct sockaddr_storage);
 	memcpy(&sa, s, size);
 
 	socklen_t sizeof_sa = sizeof(struct sockaddr_storage);
