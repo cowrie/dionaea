@@ -118,6 +118,12 @@ int xmatch_match_cb(void *pattern_p, int offset, void *input_p) {
 
 	g_message("found a match at offset 0x%08x", (unsigned int) input->offset + offset);
 
+	if (offset + pattern->len > input->len) {
+		g_warning("match offset %d + pattern length %zu exceeds input length %zu",
+			offset, pattern->len, input->len);
+		return -1;
+	}
+
 	if ((key->data = malloc(pattern->len)) == NULL) {
 		g_warning("malloc failed: %s.", strerror(errno));
 		return -1;
