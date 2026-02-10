@@ -73,7 +73,7 @@ static char *compute_sha256_hex(const void *data, size_t len)
 	// Convert to hex string
 	char *hex = g_malloc(hash_len * 2 + 1);
 	for (unsigned int i = 0; i < hash_len; i++) {
-		sprintf(hex + i * 2, "%02x", hash[i]);
+		snprintf(hex + i * 2, 3, "%02x", hash[i]);
 	}
 	hex[hash_len * 2] = '\0';
 
