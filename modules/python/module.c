@@ -269,6 +269,7 @@ static bool hupy(void)
 		}
 		//free(name);
 	}
+	g_strfreev(module_names);
 	return true;
 }
 
@@ -400,7 +401,16 @@ static bool new(struct dionaea *dionaea)
 	PyObject *name = PyUnicode_FromString("traceback");
 	runtime.traceback.module = PyImport_Import(name);
 	Py_DECREF(name);
-	runtime.traceback.export_tb = PyObject_GetAttrString(runtime.traceback.module, "extract_tb");
+	if( runtime.traceback.module == NULL )
+	{
+		g_warning("Failed to import Python traceback module");
+		PyErr_Print();
+		runtime.traceback.export_tb = NULL;
+	}
+	else
+	{
+		runtime.traceback.export_tb = PyObject_GetAttrString(runtime.traceback.module, "extract_tb");
+	}
 
 	PyRun_SimpleString("import sys");
 	char relpath[1024];
@@ -426,6 +436,7 @@ static bool new(struct dionaea *dionaea)
 		PyRun_SimpleString(relpath);
 		i++;
 	}
+	g_strfreev(sys_paths);
 	PyRun_SimpleString("from dionaea.core import init_traceables");
 	PyRun_SimpleString("init_traceables()");
 
@@ -458,6 +469,7 @@ static bool new(struct dionaea *dionaea)
 		traceback();
 		//free(name);
 	}
+	g_strfreev(module_names);
 
 	if (signal(SIGINT, SIG_DFL) == SIG_ERR) {
 		g_debug("Failed to restore SIGINT handler");
@@ -618,8 +630,7 @@ PyObject *pygetifaddrs(PyObject *self, PyObject *args)
 		return result;
 	}
 
-	struct ifaddrs *ifaces[count];
-	memset(ifaces, 0, count*sizeof(struct ifaddrs *));
+	struct ifaddrs **ifaces = g_malloc0((size_t)count * sizeof(struct ifaddrs *));
 
 	for( count=0,iface=head; iface != NULL; iface=iface->ifa_next )
 		ifaces[count++] = iface;
@@ -754,6 +765,7 @@ PyObject *pygetifaddrs(PyObject *self, PyObject *args)
 			}
 		}
 	}
+	g_free(ifaces);
 	freeifaddrs(head);
 	return result;
 }

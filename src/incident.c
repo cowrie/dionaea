@@ -139,12 +139,21 @@ static bool is_sensitive_field(const char *name)
 void opaque_data_dump(struct opaque_data *d, int indent)
 {
 	char x[1024];
+
+	/* Clamp indent to prevent buffer overflow */
+	if( indent < 0 )
+		indent = 0;
+	if( indent > 512 )
+		indent = 512;
+
 	memset(x, '\t', indent);
+
+	int remaining = (int)sizeof(x) - indent;
 
 	/* Redact sensitive fields */
 	if( is_sensitive_field(d->name) )
 	{
-		g_snprintf(x+indent, 1023, "%s: [REDACTED]", d->name);
+		g_snprintf(x+indent, remaining, "%s: [REDACTED]", d->name);
 		g_debug("%s", x);
 		return;
 	}
@@ -152,10 +161,10 @@ void opaque_data_dump(struct opaque_data *d, int indent)
 	switch( d->type )
 	{
 	case opaque_type_none:
-		g_snprintf(x+indent, 1023, "%s: (none)", d->name);
+		g_snprintf(x+indent, remaining, "%s: (none)", d->name);
 		break;
 	case opaque_type_int:
-		g_snprintf(x+indent, 1023, "%s: (int) %li", d->name, d->opaque.integer);
+		g_snprintf(x+indent, remaining, "%s: (int) %li", d->name, d->opaque.integer);
 		break;
 	case opaque_type_bytes:
 		{
@@ -167,19 +176,19 @@ void opaque_data_dump(struct opaque_data *d, int indent)
 				g_snprintf(hex_preview + (size_t)i * 2, 3, "%02x",
 				          (unsigned char)d->opaque.string->str[i]);
 			}
-			g_snprintf(x+indent, 1023, "%s: (bytes) %d bytes [%s%s]",
+			g_snprintf(x+indent, remaining, "%s: (bytes) %d bytes [%s%s]",
 			          d->name, data_len, hex_preview,
 			          preview_len < data_len ? "..." : "");
 		}
 		break;
 	case opaque_type_string:
-		g_snprintf(x+indent, 1023, "%s: (string) %.*s", d->name, (int)d->opaque.string->len, d->opaque.string->str);
+		g_snprintf(x+indent, remaining, "%s: (string) %.*s", d->name, (int)d->opaque.string->len, d->opaque.string->str);
 		break;
 	case opaque_type_ptr:
 		if( g_strcmp0(d->name, "con") == 0 && d->opaque.ptr != 0 )
 		{
 			struct connection *con = (struct connection *)d->opaque.ptr;
-			g_snprintf(x+indent, 1023, "%s: %s %s -> %s",
+			g_snprintf(x+indent, remaining, "%s: %s %s -> %s",
 			          d->name,
 			          connection_transport_to_string(con->trans),
 			          con->local.node_string[0] ? con->local.node_string : "?",
@@ -187,11 +196,11 @@ void opaque_data_dump(struct opaque_data *d, int indent)
 		}
 		else
 		{
-			g_snprintf(x+indent, 1023, "%s: (ptr) %p", d->name, (void *)d->opaque.ptr);
+			g_snprintf(x+indent, remaining, "%s: (ptr) %p", d->name, (void *)d->opaque.ptr);
 		}
 		break;
 	case opaque_type_list:
-		g_snprintf(x+indent, 1023, "%s: (list) %p", d->name, (void *)d->opaque.list);
+		g_snprintf(x+indent, remaining, "%s: (list) %p", d->name, (void *)d->opaque.list);
 		g_debug("%s", x);
 		for( GList *it = g_list_first(d->opaque.list); it != NULL; it = g_list_next(it) )
 			opaque_data_dump(it->data, indent+1);
@@ -199,7 +208,7 @@ void opaque_data_dump(struct opaque_data *d, int indent)
 		break;
 	case opaque_type_dict:
 		{
-			g_snprintf(x+indent, 1023, "%s: (dict) %p", d->name, (void *)d->opaque.dict);
+			g_snprintf(x+indent, remaining, "%s: (dict) %p", d->name, (void *)d->opaque.dict);
 			g_debug("%s", x);
 
 			GHashTableIter iter;

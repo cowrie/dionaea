@@ -167,7 +167,7 @@ void logger_stdout_log(const gchar *log_domain,
 					   const gchar *message,
 					   gpointer user_data)
 {
-	const char *level = NULL;
+	const char *level = "unknown";
 
 	if( user_data && log_filter_match(user_data, log_domain, log_level) == false )
 		return;
@@ -274,7 +274,7 @@ void logger_file_log(const gchar *log_domain,
 					 const gchar *message,
 					 gpointer user_data)
 {
-	const char *level = NULL;
+	const char *level = "unknown";
 
 	struct logger_file_data *data = user_data;
 
