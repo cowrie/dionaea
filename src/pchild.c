@@ -16,6 +16,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <stdnoreturn.h>
 #include <sys/uio.h>
 
 
@@ -35,7 +36,7 @@ struct pchild *pchild_new()
 	return p;
 }
 
-void pchild_run(int fd)
+noreturn void pchild_run(int fd)
 {
 	pchild_cmd cmd;
 	uintptr_t x;
