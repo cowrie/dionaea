@@ -125,6 +125,8 @@ int32_t emu_shellcode_test_x86(struct emu *e, uint8_t *data, uint16_t size)
 
     // Step 1: Scan for GetPC patterns
     uint32_t *getpc_offsets = calloc(size, sizeof(uint32_t));
+    if (!getpc_offsets)
+        return -1;
     uint32_t getpc_count = 0;
 
     uint32_t offset;
@@ -142,6 +144,10 @@ int32_t emu_shellcode_test_x86(struct emu *e, uint8_t *data, uint16_t size)
 
     // Step 2: Try to execute from each GetPC offset
     struct execution_result *results = calloc(getpc_count, sizeof(struct execution_result));
+    if (!results) {
+        free(getpc_offsets);
+        return -1;
+    }
     uint32_t best_offset = 0;
     uint32_t best_steps = 0;
 
