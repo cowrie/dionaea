@@ -193,7 +193,7 @@ static bool hupy(void)
 	g_clear_error(&error);
 	if( module_names == NULL ) {
 		g_warning("No python imports configured");
-		return;
+		return false;
 	}
 	for (module_name = module_names; *module_name; module_name++) {
 		struct import *i;
