@@ -28,7 +28,7 @@ project(
     LANGUAGES C
 )
 
-set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 # ToDo: move to source file?
 list(APPEND CMAKE_C_FLAGS "-D_GNU_SOURCE")
