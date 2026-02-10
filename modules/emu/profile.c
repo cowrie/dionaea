@@ -8,6 +8,7 @@
 
 #include <stdint.h>
 #include <ctype.h>
+#include <arpa/inet.h>
 
 #include <emu/emu.h>
 #include <emu/emu_memory.h>
@@ -239,12 +240,16 @@ void json_profile_argument_debug(struct emu_profile_argument *argument, int inde
 		break;
 
 	case render_ip:
-		if( has_name )
-			g_string_append_printf(str, "%*s\"%s\" : \"%s\"", indent*4, " ", argument->argname, inet_ntoa(*(struct in_addr *)&argument->value.tint));
-//			printf("%*s\"%s\" : \"%s\"", indent*4, " ", argument->argname, inet_ntoa(*(struct in_addr *)&argument->value.tint));
-		else
-			g_string_append_printf(str, "%*s\"%s\"", indent*4, " ", inet_ntoa(*(struct in_addr *)&argument->value.tint));
-//			printf("%*s\"%s\"", indent*4, " ", inet_ntoa(*(struct in_addr *)&argument->value.tint));
+		{
+			char ip_buf[INET_ADDRSTRLEN];
+			struct in_addr addr;
+			addr.s_addr = argument->value.tint;
+			inet_ntop(AF_INET, &addr, ip_buf, sizeof(ip_buf));
+			if( has_name )
+				g_string_append_printf(str, "%*s\"%s\" : \"%s\"", indent*4, " ", argument->argname, ip_buf);
+			else
+				g_string_append_printf(str, "%*s\"%s\"", indent*4, " ", ip_buf);
+		}
 
 		break;
 
