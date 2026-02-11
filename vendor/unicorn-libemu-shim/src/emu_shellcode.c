@@ -124,10 +124,8 @@ int32_t emu_shellcode_test_x86(struct emu *e, uint8_t *data, uint32_t size)
         return -1;
 
     // Step 1: Scan for GetPC patterns
-    // Cap candidates to prevent memory/CPU amplification from large untrusted input
-    uint32_t *getpc_offsets = calloc(MAX_GETPC_CANDIDATES, sizeof(uint32_t));
-    if (!getpc_offsets)
-        return -1;
+    // Fixed-size stack array prevents heap allocation from untrusted data size
+    uint32_t getpc_offsets[MAX_GETPC_CANDIDATES];
     uint32_t getpc_count = 0;
 
     uint32_t offset;
@@ -138,10 +136,8 @@ int32_t emu_shellcode_test_x86(struct emu *e, uint8_t *data, uint32_t size)
     }
 
     // No GetPC patterns found - probably not shellcode
-    if (getpc_count == 0) {
-        free(getpc_offsets);
+    if (getpc_count == 0)
         return -1;
-    }
 
     // Step 2: Try to execute from each GetPC offset
     uint32_t best_offset = 0;
@@ -166,8 +162,6 @@ int32_t emu_shellcode_test_x86(struct emu *e, uint8_t *data, uint32_t size)
 
         emu_free(test_emu);
     }
-
-    free(getpc_offsets);
 
     // Step 3: Return best offset if it executed enough steps
     if (best_steps >= SHELLCODE_THRESHOLD)
