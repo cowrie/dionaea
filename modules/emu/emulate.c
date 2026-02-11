@@ -195,8 +195,8 @@ void emulate_ctx_free(void *data)
 	if( ctx->time != NULL )
 		g_timer_destroy(ctx->time);
 
-	emu_free(ctx->emu);
 	emu_env_free(ctx->env);
+	emu_free(ctx->emu);
 	g_mutex_clear(&ctx->mutex);
 	if( ctx->ctxcon != NULL )
 		connection_unref(ctx->ctxcon);
