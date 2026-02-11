@@ -351,7 +351,7 @@ static size_t curl_writefunction_cb(void *ptr, size_t size, size_t nmemb, void *
 			return size*nmemb;
 
 		g_debug("session %p file %i", session, session->action.upload.file->fd);
-		if( write(session->action.upload.file->fd, ptr, size*nmemb) != size*nmemb)
+		if( write(session->action.upload.file->fd, ptr, size*nmemb) != (ssize_t)(size*nmemb))
 			return 0;
 	}
 
