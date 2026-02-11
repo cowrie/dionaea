@@ -197,7 +197,7 @@ static bool hupy(void)
 	}
 	for (module_name = module_names; *module_name; module_name++) {
 		struct import *i;
-		if( (i = g_hash_table_lookup(runtime.imports, module_name)) != NULL ) {
+		if( (i = g_hash_table_lookup(runtime.imports, *module_name)) != NULL ) {
 			g_message("Import %s exists, reloading", *module_name);
 
 			PyObject *func = PyObject_GetAttrString(i->module, "stop");
