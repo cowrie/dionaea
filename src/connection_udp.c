@@ -58,8 +58,8 @@
 
 
 ssize_t recvfromto(int sockfd, void *buf, size_t len, int flags,
-				 const struct sockaddr *fromaddr, socklen_t *fromlen,
-				 const struct sockaddr *toaddr, socklen_t *tolen)
+				 struct sockaddr *fromaddr, socklen_t *fromlen,
+				 struct sockaddr *toaddr, socklen_t *tolen)
 {
 	(void)flags;
 	(void)tolen;
@@ -77,7 +77,7 @@ ssize_t recvfromto(int sockfd, void *buf, size_t len, int flags,
 	iov[0].iov_len = len;
 
 	memset(&msg, 0, sizeof(msg));
-	msg.msg_name = (void *)fromaddr;
+	msg.msg_name = fromaddr;
 	msg.msg_namelen = *fromlen;
 	msg.msg_iov = iov;
 	msg.msg_iovlen = 1;
@@ -122,7 +122,7 @@ ssize_t recvfromto(int sockfd, void *buf, size_t len, int flags,
 	return rlen;
 }
 
-ssize_t sendtofrom(int fd, void *buf, size_t len, int flags, struct sockaddr *to, socklen_t tolen, struct sockaddr *from, socklen_t fromlen)
+ssize_t sendtofrom(int fd, const void *buf, size_t len, int flags, const struct sockaddr *to, socklen_t tolen, const struct sockaddr *from, socklen_t fromlen)
 {
 	(void)fromlen;
 	struct iovec iov[1];
@@ -131,11 +131,11 @@ ssize_t sendtofrom(int fd, void *buf, size_t len, int flags, struct sockaddr *to
 	struct cmsghdr* cmsgptr;
 	cmsgptr = NULL;
 
-	iov[0].iov_base = buf;
+	iov[0].iov_base = (void *)buf;
 	iov[0].iov_len = len;
 
 	memset(&msg, 0, sizeof(msg));
-	msg.msg_name = (void *) to;
+	msg.msg_name = (void *)to;
 	msg.msg_namelen = tolen;
 	msg.msg_iov = iov;
 	msg.msg_iovlen = 1;

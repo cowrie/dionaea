@@ -342,7 +342,7 @@ void connection_tcp_disconnect(struct connection *con);
 void connection_udp_io_in_cb(struct ev_loop *loop, struct ev_io *w, int revents);
 void connection_udp_io_out_cb(struct ev_loop *loop, struct ev_io *w, int revents);
 void connection_udp_disconnect(struct connection *con);
-ssize_t recvfromto(int, void *, size_t, int, const struct sockaddr *, socklen_t *, const struct sockaddr *, socklen_t *);
+ssize_t recvfromto(int, void *, size_t, int, struct sockaddr *, socklen_t *, struct sockaddr *, socklen_t *);
 void _connection_send_packets(struct connection *, int, GList **);
 
 void connection_tls_accept_cb (struct ev_loop *loop, struct ev_io *w, int revents);

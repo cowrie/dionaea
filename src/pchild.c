@@ -34,7 +34,7 @@ static_assert(1024 >= sizeof(struct cmsghdr) + sizeof(int),
 
 #define D_LOG_DOMAIN "pchild"
 
-struct pchild *pchild_new()
+struct pchild *pchild_new(void)
 {
 	struct pchild *p = g_malloc0(sizeof(struct pchild));
 	g_mutex_init(&p->mutex);
@@ -147,7 +147,7 @@ int pchild_recv_bind(int fd)
 	return 0;
 }
 
-int pchild_sent_bind(int sx, struct sockaddr *s, socklen_t size)
+int pchild_sent_bind(int sx, const struct sockaddr *s, socklen_t size)
 {
 #ifdef HAVE_LINUX_SOCKIOS_H
 	g_mutex_lock(&g_dionaea->pchild->mutex);

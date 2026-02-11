@@ -24,7 +24,7 @@ struct pchild
 
 struct pchild *pchild_new(void);
 bool pchild_init(void);
-int pchild_sent_bind(int sx, struct sockaddr *s, socklen_t size);
+int pchild_sent_bind(int sx, const struct sockaddr *s, socklen_t size);
 
 
 /**

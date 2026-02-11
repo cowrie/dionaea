@@ -36,7 +36,7 @@
 #include "connection.h"
 
 
-static int add_ext(X509 *cert, int nid, char *value)
+static int add_ext(X509 *cert, int nid, const char *value)
 {
 	X509_EXTENSION *ex;
 	X509V3_CTX ctx;
