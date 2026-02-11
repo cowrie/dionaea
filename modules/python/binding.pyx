@@ -98,10 +98,10 @@ cdef extern from "../../include/connection.h":
 
 
 
-	char *c_node_info_get_ip_string "node_info_get_ip_string" (c_node_info *node)
-	char *c_node_info_get_port_string "node_info_get_port_string" (c_node_info *node)
+	const_char_ptr c_node_info_get_ip_string "node_info_get_ip_string" (const c_node_info *node)
+	const_char_ptr c_node_info_get_port_string "node_info_get_port_string" (const c_node_info *node)
 	void c_node_info_set_port "node_info_set_port" (c_node_info *, int )
-	void c_node_info_set_addr "node_info_set_addr" (c_node_info *, char *)
+	void c_node_info_set_addr "node_info_set_addr" (c_node_info *, const_char_ptr)
 
 	ctypedef enum c_connection_transport "enum connection_transport":
 		pass
@@ -423,7 +423,7 @@ cdef extern from "modules.h":
 	c_bool c_traceable_sustain_timeout_cb "traceable_sustain_timeout_cb" (c_connection *con, void *context)
 
 cdef extern from "processor.h":
-	ctypedef void (*processor_io)(c_connection *con, c_processor_data *pd, void *data, int size)
+	ctypedef void (*processor_io)(c_connection *con, c_processor_data *pd, const void *data, int size)
 	ctypedef c_bool (*processor_process)(c_connection *con, void *config)
 	ctypedef struct c_processor "struct processor":
 		processor_io io_in
@@ -903,7 +903,7 @@ cdef c_bool handle_timeout_idle_cb(c_connection *con, void *ctx) except * with g
 	return <bint> instance.handle_timeout_idle()
 
 
-cdef void process_io_in(c_connection *con, c_processor_data *pd, void *data, int size) noexcept with gil:
+cdef void process_io_in(c_connection *con, c_processor_data *pd, const void *data, int size) noexcept with gil:
 	cdef connection instance
 	try:
 		bdata = bytesfrom(<char *>data, size)
@@ -918,7 +918,7 @@ cdef void process_io_in(c_connection *con, c_processor_data *pd, void *data, int
 		logging.error("Error in process_io_in", exc_info=True)
 	return
 
-cdef void process_io_out(c_connection *con, c_processor_data *pd, void *data, int size) noexcept with gil:
+cdef void process_io_out(c_connection *con, c_processor_data *pd, const void *data, int size) noexcept with gil:
 	cdef connection instance
 	try:
 		instance = <connection>c_connection_protocol_ctx_get(con)
@@ -1270,7 +1270,7 @@ cdef extern from "../../include/incident.h":
 		ihandler_cb cb
 
 
-	c_ihandler *c_ihandler_new "ihandler_new" (char *, ihandler_cb cb, void *ctx)
+	c_ihandler *c_ihandler_new "ihandler_new" (const_char_ptr, ihandler_cb cb, void *ctx)
 	void c_ihandler_free "ihandler_free" (c_ihandler *)
 
 cdef extern from "module.h":

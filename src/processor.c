@@ -238,7 +238,7 @@ void processors_io_out_thread(void *data, void *userdata)
 	connection_unref(con);
 }
 
-void processor_io_single(struct connection *con,  struct processor_data *pd, void *data, int size, enum bistream_direction direction)
+void processor_io_single(struct connection *con,  struct processor_data *pd, const void *data, int size, enum bistream_direction direction)
 {
 //	g_warning("%s con %p pd %p data %p size %i dir %i", __PRETTY_FUNCTION__, con, pd, data, size, direction);
 
@@ -281,7 +281,7 @@ void processor_io_single(struct connection *con,  struct processor_data *pd, voi
 }
 
 
-void processors_io_in(struct connection *con, void *data, int size)
+void processors_io_in(struct connection *con, const void *data, int size)
 {
 //	g_debug("%s con %p", __PRETTY_FUNCTION__, con);
 	GList *it;
@@ -293,7 +293,7 @@ void processors_io_in(struct connection *con, void *data, int size)
 	}
 }
 
-void processors_io_out(struct connection *con, void *data, int size)
+void processors_io_out(struct connection *con, const void *data, int size)
 {
 //	g_debug("%s con %p", __PRETTY_FUNCTION__, con);
 	GList *it;
@@ -307,8 +307,8 @@ void processors_io_out(struct connection *con, void *data, int size)
 void *proc_streamdumper_cfg_new(gchar *);
 void *proc_streamdumper_ctx_new(void *cfg);
 void proc_streamdumper_ctx_free(void *ctx);
-void proc_streamdumper_on_io_in(struct connection *con, struct processor_data *pd, void *data, int size);
-void proc_streamdumper_on_io_out(struct connection *con, struct processor_data *pd, void *data, int size);
+void proc_streamdumper_on_io_in(struct connection *con, struct processor_data *pd, const void *data, int size);
+void proc_streamdumper_on_io_out(struct connection *con, struct processor_data *pd, const void *data, int size);
 
 struct streamdumper_config
 {
@@ -409,7 +409,7 @@ ssize_t format_timeval(struct timeval *tv, char *buf, size_t sz)
 }
 
 
-void proc_streamdumper_on_io(struct connection *con, struct processor_data *pd, void *data, int size, enum bistream_direction dir)
+void proc_streamdumper_on_io(struct connection *con, struct processor_data *pd, const void *data, int size, enum bistream_direction dir)
 {
 //	g_warning("%s con %p pd %p data %p size %i dir %i", __PRETTY_FUNCTION__, con, pd, data, size, dir);
 	struct streamdumper_ctx *ctx = pd->ctx;
@@ -510,7 +510,7 @@ void proc_streamdumper_on_io(struct connection *con, struct processor_data *pd, 
 		ctx->last_was = dir;
 	}
 
-	char *cdata = data;
+	const char *cdata = data;
 	char *xdata = g_malloc0((size_t)size * 4);
 	char conv[] = "0123456789abcdef";
 	int writesize = 0;
@@ -539,12 +539,12 @@ void proc_streamdumper_on_io(struct connection *con, struct processor_data *pd, 
 
 
 
-void proc_streamdumper_on_io_in(struct connection *con, struct processor_data *pd, void *data, int size)
+void proc_streamdumper_on_io_in(struct connection *con, struct processor_data *pd, const void *data, int size)
 {
 	proc_streamdumper_on_io(con, pd, data, size, bistream_in);
 }
 
-void proc_streamdumper_on_io_out(struct connection *con, struct processor_data *pd, void *data, int size)
+void proc_streamdumper_on_io_out(struct connection *con, struct processor_data *pd, const void *data, int size)
 {
 	proc_streamdumper_on_io(con, pd, data, size, bistream_out);
 }
@@ -609,8 +609,8 @@ void *proc_filter_cfg(gchar *);
 bool proc_filter_accept(struct connection *con, void *config);
 void *proc_filter_ctx_new(void *data);
 void proc_filter_ctx_free(void *ctx);
-void proc_filter_on_io_in(struct connection *con, struct processor_data *pd, void *data, int size);
-void proc_filter_on_io_out(struct connection *con, struct processor_data *pd, void *data, int size);
+void proc_filter_on_io_in(struct connection *con, struct processor_data *pd, const void *data, int size);
+void proc_filter_on_io_out(struct connection *con, struct processor_data *pd, const void *data, int size);
 
 struct processor proc_filter =
 {
@@ -864,7 +864,7 @@ void proc_filter_ctx_free(void *ctx)
 	g_free(ctx);
 }
 
-void proc_filter_on_io(struct connection *con, struct processor_data *pd, void *data, int size, enum bistream_direction direction)
+void proc_filter_on_io(struct connection *con, struct processor_data *pd, const void *data, int size, enum bistream_direction direction)
 {
 //	g_debug("%s con %p pd %p data %p size %i direction %i", __PRETTY_FUNCTION__, con, pd, data, size, direction);
 
@@ -876,13 +876,13 @@ void proc_filter_on_io(struct connection *con, struct processor_data *pd, void *
 	}
 }
 
-void proc_filter_on_io_in(struct connection *con, struct processor_data *pd, void *data, int size)
+void proc_filter_on_io_in(struct connection *con, struct processor_data *pd, const void *data, int size)
 {
 //	g_debug("%s con %p pd %p data %p size %i", __PRETTY_FUNCTION__, con, pd, data, size);
 	proc_filter_on_io(con,pd,data,size,bistream_in);
 }
 
-void proc_filter_on_io_out(struct connection *con, struct processor_data *pd, void *data, int size)
+void proc_filter_on_io_out(struct connection *con, struct processor_data *pd, const void *data, int size)
 {
 //	g_debug("%s con %p pd %p data %p size %i", __PRETTY_FUNCTION__, con, pd, data, size);
 	proc_filter_on_io(con,pd,data,size,bistream_out);

@@ -39,7 +39,7 @@ typedef bool (*processor_process)(struct connection *con, void *config);
 typedef void *(*processor_ctx_new)(void *cfg);
 typedef void (*processor_ctx_free)(void *ctx);
 typedef void (*processor_close)(struct connection *con, struct processor_data *pd);
-typedef void (*processor_io)(struct connection *con, struct processor_data *pd, void *data, int size);
+typedef void (*processor_io)(struct connection *con, struct processor_data *pd, const void *data, int size);
 typedef void (*processor_thread_io)(struct connection *con, struct processor_data *pd);
 
 struct processor
@@ -75,8 +75,8 @@ void processors_tree_dump(GNode *tree, int indent);
 void processors_init(struct connection *con);
 void processors_clear(struct connection *con);
 
-void processors_io_out(struct connection *con, void *data, int size);
-void processors_io_in(struct connection *con, void *data, int size);
+void processors_io_out(struct connection *con, const void *data, int size);
+void processors_io_in(struct connection *con, const void *data, int size);
 struct processor_data *processor_data_new(void);
 void processor_data_free(struct processor_data *pd);
 
