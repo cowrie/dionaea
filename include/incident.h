@@ -27,7 +27,7 @@ struct ihandler
 	void *ctx;
 };
 
-struct ihandler *ihandler_new(char *pattern, ihandler_cb cb, void *ctx);
+struct ihandler *ihandler_new(const char *pattern, ihandler_cb cb, void *ctx);
 void ihandler_free(struct ihandler *i);
 
 enum opaque_data_type

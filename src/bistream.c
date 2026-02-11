@@ -17,7 +17,7 @@
 
 #include "bistream.h"
 
-struct bistream *bistream_new()
+struct bistream *bistream_new(void)
 {
 	struct bistream *bs = g_malloc0(sizeof(struct bistream));
 	enum bistream_direction it;
@@ -54,7 +54,7 @@ void bistream_free(struct bistream *bs)
 	g_free(bs);
 }
 
-struct stream_chunk *stream_chunk_new(void *data, uint32_t size, enum bistream_direction dir)
+struct stream_chunk *stream_chunk_new(const void *data, uint32_t size, enum bistream_direction dir)
 {
 	struct stream_chunk *sc = g_malloc0(sizeof(struct stream_chunk));
 	sc->data = g_string_new_len(data, size);
@@ -62,7 +62,7 @@ struct stream_chunk *stream_chunk_new(void *data, uint32_t size, enum bistream_d
 	return sc;
 }
 
-void bistream_data_add(struct bistream *bs, enum bistream_direction dir, void *data, uint32_t size)
+void bistream_data_add(struct bistream *bs, enum bistream_direction dir, const void *data, uint32_t size)
 {
 	g_debug("%s bs %p dir %i data %p size %i",__PRETTY_FUNCTION__, bs, dir, data, size);
 	GList *lastbistream = g_list_last(bs->stream_sequence);

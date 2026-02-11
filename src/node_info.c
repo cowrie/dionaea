@@ -123,12 +123,12 @@ void node_info_addr_clear(struct node_info *node)
 		g_free(node->hostname);
 }
 
-char *node_info_get_ip_string(struct node_info *node)
+const char *node_info_get_ip_string(const struct node_info *node)
 {
 	return node->ip_string;
 }
 
-char *node_info_get_port_string(struct node_info *node)
+const char *node_info_get_port_string(const struct node_info *node)
 {
 	return node->port_string;
 }
@@ -146,7 +146,7 @@ void node_info_set_port(struct node_info *node, uint16_t port)
 	}
 }
 
-void node_info_set_addr(struct node_info *node, char *addr)
+void node_info_set_addr(struct node_info *node, const char *addr)
 {
 	socklen_t sizeof_sa;
 	if( !parse_addr(addr, node->iface_scope, ntohs(node->port), &node->addr, &node->domain, &sizeof_sa) )

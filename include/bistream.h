@@ -44,7 +44,7 @@ uint32_t sizeof_stream_chunks(GList *stream_chunks);
 struct bistream *bistream_new(void);
 void bistream_free(struct bistream *bs);
 
-void bistream_data_add(struct bistream *bs, enum bistream_direction, void *data, uint32_t size);
+void bistream_data_add(struct bistream *bs, enum bistream_direction dir, const void *data, uint32_t size);
 void bistream_debug(struct bistream *bs);
 
 int32_t bistream_get_stream(struct bistream *bs, enum bistream_direction dir, uint32_t start, int32_t end, void **data);

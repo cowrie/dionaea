@@ -223,7 +223,7 @@ void opaque_data_dump(struct opaque_data *d, int indent)
 	g_debug("%s", x);
 }
 
-struct ihandler *ihandler_new(char *pattern, ihandler_cb cb, void *ctx)
+struct ihandler *ihandler_new(const char *pattern, ihandler_cb cb, void *ctx)
 {
 	g_debug("%s pattern %s cb %p ctx %p", __PRETTY_FUNCTION__, pattern, cb, ctx);
 	struct ihandler *i = g_malloc0(sizeof(struct ihandler));
@@ -240,7 +240,7 @@ void ihandler_free(struct ihandler *i)
 {
 	g_debug("%s i %p", __PRETTY_FUNCTION__, i);
 	g_dionaea->ihandlers->handlers = g_list_remove(g_dionaea->ihandlers->handlers, i);
-	g_free(i->path);
+	g_free((gpointer)i->path);
 	g_pattern_spec_free(i->match);
 	g_free(i);
 }

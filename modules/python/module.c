@@ -59,8 +59,8 @@ struct protocol *trace_proto;
 
 void python_processor_bistream_create(struct connection *con);
 bool python_processor_bistream_accept(struct connection *con, void *config);
-void python_processor_bistream_io_in(struct connection *con, struct processor_data *pd, void *data, int size);
-void python_processor_bistream_io_out(struct connection *con, struct processor_data *pd, void *data, int size);
+void python_processor_bistream_io_in(struct connection *con, struct processor_data *pd, const void *data, int size);
+void python_processor_bistream_io_out(struct connection *con, struct processor_data *pd, const void *data, int size);
 void python_processor_bistream_free(void *data);
 
 struct processor proc_python_bistream =
@@ -1045,13 +1045,13 @@ bool python_processor_bistream_accept(struct connection *con, void *config)
 }
 
 
-void python_processor_bistream_io_in(struct connection *con, struct processor_data *pd, void *data, int size)
+void python_processor_bistream_io_in(struct connection *con, struct processor_data *pd, const void *data, int size)
 {
 	(void)pd;
 	runtime.traceables.processor.io_in(con, NULL, data, size);
 }
 
-void python_processor_bistream_io_out(struct connection *con, struct processor_data *pd, void *data, int size)
+void python_processor_bistream_io_out(struct connection *con, struct processor_data *pd, const void *data, int size)
 {
 	(void)pd;
 	runtime.traceables.processor.io_out(con, NULL, data, size);

@@ -6,6 +6,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
+#include <stdbool.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -79,26 +80,26 @@ void *port_offset(const void *x)
 	return NULL;
 }
 
-int ipv6_addr_any(struct in6_addr const * const a)
+bool ipv6_addr_any(struct in6_addr const * const a)
 {
-	return((a->s6_addr32[0] | a->s6_addr32[1] |
-			a->s6_addr32[2] | a->s6_addr32[3] ) == 0);
+	return (a->s6_addr32[0] | a->s6_addr32[1] |
+			a->s6_addr32[2] | a->s6_addr32[3]) == 0;
 }
 
-int ipv6_addr_loopback(struct in6_addr const * const a)
+bool ipv6_addr_loopback(struct in6_addr const * const a)
 {
-	return((a->s6_addr32[0] | a->s6_addr32[1] |
-			a->s6_addr32[2] | (a->s6_addr32[3] ^ htonl(1))) == 0);
+	return (a->s6_addr32[0] | a->s6_addr32[1] |
+			a->s6_addr32[2] | (a->s6_addr32[3] ^ htonl(1))) == 0;
 }
 
-int ipv6_addr_linklocal(struct in6_addr const * const a)
+bool ipv6_addr_linklocal(struct in6_addr const * const a)
 {
-	return((a->s6_addr32[0] & htonl(0xFFC00000)) == htonl(0xFE800000));
+	return (a->s6_addr32[0] & htonl(0xFFC00000)) == htonl(0xFE800000);
 }
 
-int ipv6_addr_v4mapped(struct in6_addr const * const a)
+bool ipv6_addr_v4mapped(struct in6_addr const * const a)
 {
-	return((a->s6_addr32[0] | a->s6_addr32[1]) == 0 &&
+	return ((a->s6_addr32[0] | a->s6_addr32[1]) == 0 &&
 		   a->s6_addr32[2] == htonl(0x0000ffff));
 }
 
@@ -222,7 +223,7 @@ bool parse_addr(char const * const addr, char const * const iface, uint16_t cons
 	return false;
 }
 
-struct tempfile *tempfile_new(char *path, char *prefix)
+struct tempfile *tempfile_new(const char *path, const char *prefix)
 {
 	struct tempfile *tf = g_malloc0(sizeof(struct tempfile));
 
@@ -243,7 +244,7 @@ struct tempfile *tempfile_new(char *path, char *prefix)
 	return tf;
 }
 
-struct tempfile *tempdownload_new(char *prefix)
+struct tempfile *tempdownload_new(const char *prefix)
 {
 	/* ToDo: replace
   struct lcfgx_tree_node *node;
