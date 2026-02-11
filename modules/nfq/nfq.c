@@ -188,18 +188,31 @@ static int nfqueue_cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct nf
 		return 1;		// from nfqueue source: 0 = ok, >0 = soft error, <0 hard error
 	}
 
+	id = ntohl(ph->packet_id);
+
 	len = nfq_get_payload(nfa, &payload);
 
 	if( len <= 0 )
-		return 0;
+	{
+		nf = NF_DROP;
+		goto send_verdict;
+	}
 
-	if( len <=  sizeof(struct iphdr) )
-		return 0;
+	if( len <= (int)sizeof(struct iphdr) )
+	{
+		nf = NF_DROP;
+		goto send_verdict;
+	}
 
 	struct iphdr * ip = (struct iphdr *) payload;
 	if( ip->version == IPVERSION )
 	{ /* IPv4 */
-		if( len >= ip->ihl * 4 + sizeof(struct tcphdr) )
+		if( ip->ihl < 5 )
+		{
+			nf = NF_DROP;
+			goto send_verdict;
+		}
+		if( len >= ip->ihl * 4 + (int)sizeof(struct tcphdr) )
 		{
 			struct tcphdr * tcp = (struct tcphdr *) (payload + ip->ihl * 4);
 
@@ -233,7 +246,8 @@ static int nfqueue_cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct nf
 		nf = NF_ACCEPT;
 	}
 
-	id = ntohl(ph->packet_id);
+send_verdict:
+	;
 	uintptr_t cmd = (uintptr_t)nfq_backend;
 	if( send(g_dionaea->pchild->fd, &cmd, sizeof(uintptr_t), 0) != sizeof(uintptr_t) ||
 		send(g_dionaea->pchild->fd, &id, sizeof(id), 0) != sizeof(id) ||
