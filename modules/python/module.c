@@ -670,6 +670,7 @@ PyObject *pygetifaddrs(PyObject *self, PyObject *args)
 			pyiface = PyUnicode_FromString(iface->ifa_name);
 			pyafdict = PyDict_New();
 			PyDict_SetItemString (result, iface->ifa_name, pyafdict);
+			Py_DECREF(pyafdict);
 			Py_DECREF(pyiface);
 		}
 
@@ -678,6 +679,7 @@ PyObject *pygetifaddrs(PyObject *self, PyObject *args)
 		{
 			pyaflist = PyList_New(0);
 			PyDict_SetItem(pyafdict, pyaf, pyaflist);
+			Py_DECREF(pyaflist);
 		} else
 		{
 			pyaflist = PyDict_GetItem(pyafdict, pyaf);
