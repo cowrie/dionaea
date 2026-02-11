@@ -72,12 +72,18 @@ def timestr():
 def strpack8(x):
     if isinstance(x, str):
         x = x.encode('latin1')
-    return struct.pack('!B', len(x)%0xff) + x
+    if len(x) > 255:
+        raise BadClient('strpack8: string too long (%d bytes)' % len(x))
+    return struct.pack('!B', len(x)) + x
 
 
 # unpacks a string with 1 byte length field
 def strunpack8(x):
+    if len(x) < 1:
+        raise BadClient('strunpack8: buffer too short for length field')
     length = x[0]
+    if len(x) < 1 + length:
+        raise BadClient('strunpack8: buffer too short (need %d, have %d)' % (1 + length, len(x)))
     return x[1:1+length], x[1+length:]
 
 
