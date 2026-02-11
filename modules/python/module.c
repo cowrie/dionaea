@@ -864,22 +864,30 @@ PyObject *py_config(PyObject *self, PyObject *args)
 	obj2 = PyDict_New();
 	obj_value = py_config_string("dionaea", "listen.mode");
 	PyDict_SetItemString(obj2, "listen.mode", obj_value);
+	Py_XDECREF(obj_value);
 	obj_value = py_config_string_list("dionaea", "listen.interfaces");
 	PyDict_SetItemString(obj2, "listen.interfaces", obj_value);
+	Py_XDECREF(obj_value);
 	obj_value = py_config_string_list("dionaea", "listen.addresses");
 	PyDict_SetItemString(obj2, "listen.addresses", obj_value);
+	Py_XDECREF(obj_value);
 	obj_value = py_config_string("dionaea", "download.dir");
 	PyDict_SetItemString(obj2, "download.dir", obj_value);
+	Py_XDECREF(obj_value);
 
 	PyDict_SetItemString(obj, "dionaea", obj2);
+	Py_DECREF(obj2);
 
 	obj2 = PyDict_New();
 	obj_value = py_config_string_list("module.python", "ihandler_configs");
 	PyDict_SetItemString(obj2, "ihandler_configs", obj_value);
+	Py_XDECREF(obj_value);
 	obj_value = py_config_string_list("module.python", "service_configs");
 	PyDict_SetItemString(obj2, "service_configs", obj_value);
+	Py_XDECREF(obj_value);
 
 	PyDict_SetItemString(obj, "module", obj2);
+	Py_DECREF(obj2);
 
 	return obj;
 }
