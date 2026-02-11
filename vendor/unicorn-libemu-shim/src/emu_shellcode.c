@@ -124,7 +124,7 @@ static uint32_t try_execute(struct emu *e, uint8_t *data, uint32_t size,
  * This is much simpler than libemu's full BFS algorithm but catches
  * 95%+ of shellcode with 10% of the complexity.
  */
-int32_t emu_shellcode_test_x86(struct emu *e, uint8_t *data, uint16_t size)
+int32_t emu_shellcode_test_x86(struct emu *e, uint8_t *data, uint32_t size)
 {
     if (!e || !data || size == 0)
         return -1;

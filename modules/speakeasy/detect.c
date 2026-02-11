@@ -491,8 +491,7 @@ void proc_speakeasy_on_io_in(struct connection *con, struct processor_data *pd)
 		return;
 	}
 	struct emu *e = emu_new();
-	uint16_t scan_size = (size > UINT16_MAX) ? UINT16_MAX : (uint16_t)size;
-	int ret_x86 = emu_shellcode_test_x86(e, streamdata, scan_size);
+	int ret_x86 = emu_shellcode_test_x86(e, streamdata, (uint32_t)size);
 	emu_free(e);
 
 	// x86-64 still uses pattern-based detection (TODO: add execution validation)
