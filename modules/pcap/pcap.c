@@ -257,11 +257,11 @@ static bool pcap_prepare(void)
 					if( addr->addr )
 						g_debug("\t\t\taddr %s", inet_ntop(addr->addr->sa_family, addr_offset(addr->addr), name, 128));
 					if( addr->netmask )
-						g_debug("\t\t\tnetmask %s", inet_ntop(addr->addr->sa_family, addr_offset(addr->addr), name, 128));
+						g_debug("\t\t\tnetmask %s", inet_ntop(addr->netmask->sa_family, addr_offset(addr->netmask), name, 128));
 					if( addr->broadaddr )
-						g_debug("\t\t\tbcast %s", inet_ntop(addr->addr->sa_family, addr_offset(addr->addr), name, 128));
+						g_debug("\t\t\tbcast %s", inet_ntop(addr->broadaddr->sa_family, addr_offset(addr->broadaddr), name, 128));
 					if( addr->dstaddr )
-						g_debug("\t\t\tdstaddr %s", inet_ntop(addr->addr->sa_family, addr_offset(addr->addr), name, 128));
+						g_debug("\t\t\tdstaddr %s", inet_ntop(addr->dstaddr->sa_family, addr_offset(addr->dstaddr), name, 128));
 					g_string_append_printf(bpf_filter_string_addition, "or src host %s ", inet_ntop(addr->addr->sa_family, addr_offset(addr->addr), name, 128));
 					break;
 

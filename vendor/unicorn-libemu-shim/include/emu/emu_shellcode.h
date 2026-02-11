@@ -24,7 +24,7 @@ struct emu;
  *
  * @return Offset of detected shellcode, or -1 if no shellcode found
  */
-int32_t emu_shellcode_test_x86(struct emu *e, uint8_t *data, uint16_t size);
+int32_t emu_shellcode_test_x86(struct emu *e, uint8_t *data, uint32_t size);
 
 /**
  * Tests a buffer for ARM32 shellcode

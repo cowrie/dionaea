@@ -133,7 +133,7 @@ void proc_emu_on_io_in(struct connection *con, struct processor_data *pd)
 #endif
 		ret = emu_shellcode_test(e, streamdata, size);
 		emu_free(e);
-		ctx->offset += size;
+		ctx->offset = offset + size;
 		if( ret >= 0 )
 		{
 			struct incident *ix = incident_new("dionaea.shellcode.detected");

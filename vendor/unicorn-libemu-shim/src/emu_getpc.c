@@ -77,7 +77,7 @@ uint8_t emu_getpc_check_x86(struct emu *e, uint8_t *data, uint32_t size, uint32_
                 return 1;
         }
 
-        return 1;  // Likely CALL pattern even if not confirmed
+        return 0;  // CALL/POP pattern was not confirmed
     }
 
     case 0xd9:  // FPU instruction (FNSTENV)

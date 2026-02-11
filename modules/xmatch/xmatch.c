@@ -192,6 +192,7 @@ void proc_xmatch_on_io_in(struct connection *con, struct processor_data *pd)
 		return;
 	case 0:
 		g_debug("did not find any matches.");
+		g_free(streamdata);
 		return;
 	}
 

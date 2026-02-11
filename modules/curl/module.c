@@ -306,9 +306,7 @@ static int curl_socketfunction_cb(CURL *easy, curl_socket_t s, int action, void 
 	struct session *session;
 	curl_easy_getinfo(easy, CURLINFO_PRIVATE, (char **)&session);
 
-#ifdef DEBUG
 	const char *action_str[]={ "none", "IN", "OUT", "INOUT", "REMOVE"};
-#endif
 
 	g_debug("socket callback: s=%d e=%p what=%s ", s, easy, action_str[action]);
 
@@ -353,7 +351,7 @@ static size_t curl_writefunction_cb(void *ptr, size_t size, size_t nmemb, void *
 			return size*nmemb;
 
 		g_debug("session %p file %i", session, session->action.upload.file->fd);
-		if( write(session->action.upload.file->fd, ptr, size*nmemb) != size*nmemb)
+		if( write(session->action.upload.file->fd, ptr, size*nmemb) != (ssize_t)(size*nmemb))
 			return 0;
 	}
 

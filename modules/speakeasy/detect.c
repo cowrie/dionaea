@@ -48,36 +48,44 @@ void speakeasy_set_shellcode_dir(const char *dir)
 	shellcode_dir = g_strdup(dir);
 }
 
+// SHA256 hex string is always 64 chars + null
+#define SHA256_HEX_SIZE 65
+// Max path: dir + "/shellcode-" + 64 hex chars + ".bin"/".txt" + null
+#define SHELLCODE_PATH_MAX 512
+
 /**
- * Compute SHA256 hash of data and return as hex string
- * Caller must free the returned string with g_free()
+ * Compute SHA256 hash of data and write hex string into caller-provided buffer
+ * Buffer must be at least SHA256_HEX_SIZE (65) bytes
+ * Returns true on success, false on failure
  */
-static char *compute_sha256_hex(const void *data, size_t len)
+static bool compute_sha256_hex(char *hex, size_t hex_size, const void *data, size_t len)
 {
 	unsigned char hash[EVP_MAX_MD_SIZE];
 	unsigned int hash_len;
 
+	if (hex_size < SHA256_HEX_SIZE)
+		return false;
+
 	EVP_MD_CTX *ctx = EVP_MD_CTX_new();
 	if (ctx == NULL) {
-		return NULL;
+		return false;
 	}
 
 	if (EVP_DigestInit_ex(ctx, EVP_sha256(), NULL) != 1 ||
 	    EVP_DigestUpdate(ctx, data, len) != 1 ||
 	    EVP_DigestFinal_ex(ctx, hash, &hash_len) != 1) {
 		EVP_MD_CTX_free(ctx);
-		return NULL;
+		return false;
 	}
 	EVP_MD_CTX_free(ctx);
 
 	// Convert to hex string
-	char *hex = g_malloc(hash_len * 2 + 1);
 	for (unsigned int i = 0; i < hash_len; i++) {
 		snprintf(hex + i * 2, 3, "%02x", hash[i]);
 	}
 	hex[hash_len * 2] = '\0';
 
-	return hex;
+	return true;
 }
 
 /**
@@ -97,23 +105,30 @@ static bool save_shellcode(const void *data, size_t len, int offset,
 		return false;
 	}
 
-	char *sha256 = compute_sha256_hex(data, len);
-	if (sha256 == NULL) {
+	char sha256[SHA256_HEX_SIZE];
+	if (!compute_sha256_hex(sha256, sizeof(sha256), data, len)) {
 		g_warning("Failed to compute SHA256");
 		return false;
 	}
 
-	// Build file paths
-	char *bin_path = g_strdup_printf("%s/shellcode-%s.bin", shellcode_dir, sha256);
-	char *txt_path = g_strdup_printf("%s/shellcode-%s.txt", shellcode_dir, sha256);
+	// Build file paths on stack
+	char bin_path[SHELLCODE_PATH_MAX];
+	char txt_path[SHELLCODE_PATH_MAX];
+	int n = snprintf(bin_path, sizeof(bin_path), "%s/shellcode-%s.bin", shellcode_dir, sha256);
+	if (n < 0 || (size_t)n >= sizeof(bin_path)) {
+		g_warning("Shellcode bin path too long");
+		return false;
+	}
+	n = snprintf(txt_path, sizeof(txt_path), "%s/shellcode-%s.txt", shellcode_dir, sha256);
+	if (n < 0 || (size_t)n >= sizeof(txt_path)) {
+		g_warning("Shellcode txt path too long");
+		return false;
+	}
 
 	// Check if already exists (dedup by hash)
 	struct stat st;
 	if (stat(bin_path, &st) == 0) {
 		g_debug("Shellcode %s already saved", sha256);
-		g_free(sha256);
-		g_free(bin_path);
-		g_free(txt_path);
 		return true;
 	}
 
@@ -121,9 +136,6 @@ static bool save_shellcode(const void *data, size_t len, int offset,
 	FILE *f = fopen(bin_path, "wb");
 	if (f == NULL) {
 		g_warning("Failed to open %s for writing", bin_path);
-		g_free(sha256);
-		g_free(bin_path);
-		g_free(txt_path);
 		return false;
 	}
 	size_t written = fwrite(data, 1, len, f);
@@ -132,9 +144,6 @@ static bool save_shellcode(const void *data, size_t len, int offset,
 	if (written != len) {
 		g_warning("Failed to write shellcode data");
 		unlink(bin_path);
-		g_free(sha256);
-		g_free(bin_path);
-		g_free(txt_path);
 		return false;
 	}
 
@@ -166,9 +175,6 @@ static bool save_shellcode(const void *data, size_t len, int offset,
 
 	g_info("Saved shellcode %s.bin (%zu bytes, %s)", sha256, len, arch);
 
-	g_free(sha256);
-	g_free(bin_path);
-	g_free(txt_path);
 	return true;
 }
 
@@ -484,14 +490,14 @@ void proc_speakeasy_on_io_in(struct connection *con, struct processor_data *pd)
 	// All architectures now use execution-based validation to reduce false positives
 
 	// x86-32 uses libemu for emulation-based detection
-	struct emu *e = emu_new();
 	if( size <= 0 )
 	{
 		g_debug("No data to scan (size=%d)", size);
+		g_free(streamdata);
 		return;
 	}
-	uint16_t scan_size = (size > UINT16_MAX) ? UINT16_MAX : (uint16_t)size;
-	int ret_x86 = emu_shellcode_test_x86(e, streamdata, scan_size);
+	struct emu *e = emu_new();
+	int ret_x86 = emu_shellcode_test_x86(e, streamdata, (uint32_t)size);
 	emu_free(e);
 
 	// x86-64 still uses pattern-based detection (TODO: add execution validation)
