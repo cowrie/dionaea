@@ -15,18 +15,12 @@
 #define MAX_EXECUTION_STEPS 256     // Max steps to try executing
 #define SHELLCODE_THRESHOLD 8       // Min steps to consider it shellcode
 #define ARM_EXECUTION_THRESHOLD 128 // ARM needs many more steps - random data often decodes validly
+#define MAX_GETPC_CANDIDATES 4096   // Cap GetPC scan to prevent memory/CPU amplification
 
 static_assert(SHELLCODE_THRESHOLD < MAX_EXECUTION_STEPS,
     "detection threshold must be less than max execution steps");
 static_assert(ARM_EXECUTION_THRESHOLD < MAX_EXECUTION_STEPS * 2,
     "ARM threshold must be reachable within execution limits");
-
-// Structure to track execution results
-struct execution_result {
-    uint32_t offset;
-    uint32_t steps_executed;
-    bool success;
-};
 
 // Hook callback context for counting steps
 struct step_counter {
@@ -130,13 +124,14 @@ int32_t emu_shellcode_test_x86(struct emu *e, uint8_t *data, uint32_t size)
         return -1;
 
     // Step 1: Scan for GetPC patterns
-    uint32_t *getpc_offsets = calloc(size, sizeof(uint32_t));
+    // Cap candidates to prevent memory/CPU amplification from large untrusted input
+    uint32_t *getpc_offsets = calloc(MAX_GETPC_CANDIDATES, sizeof(uint32_t));
     if (!getpc_offsets)
         return -1;
     uint32_t getpc_count = 0;
 
     uint32_t offset;
-    for (offset = 0; offset < size; offset++) {
+    for (offset = 0; offset < size && getpc_count < MAX_GETPC_CANDIDATES; offset++) {
         if (emu_getpc_check_x86(e, data, size, offset)) {
             getpc_offsets[getpc_count++] = offset;
         }
@@ -149,11 +144,6 @@ int32_t emu_shellcode_test_x86(struct emu *e, uint8_t *data, uint32_t size)
     }
 
     // Step 2: Try to execute from each GetPC offset
-    struct execution_result *results = calloc(getpc_count, sizeof(struct execution_result));
-    if (!results) {
-        free(getpc_offsets);
-        return -1;
-    }
     uint32_t best_offset = 0;
     uint32_t best_steps = 0;
 
@@ -169,10 +159,6 @@ int32_t emu_shellcode_test_x86(struct emu *e, uint8_t *data, uint32_t size)
 
         uint32_t steps = try_execute(test_emu, data, size, offset, MAX_EXECUTION_STEPS);
 
-        results[i].offset = offset;
-        results[i].steps_executed = steps;
-        results[i].success = (steps > 0);
-
         if (steps > best_steps) {
             best_steps = steps;
             best_offset = offset;
@@ -182,7 +168,6 @@ int32_t emu_shellcode_test_x86(struct emu *e, uint8_t *data, uint32_t size)
     }
 
     free(getpc_offsets);
-    free(results);
 
     // Step 3: Return best offset if it executed enough steps
     if (best_steps >= SHELLCODE_THRESHOLD)
