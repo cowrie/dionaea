@@ -1391,10 +1391,10 @@ class smbd(connection):
                 "SMB Transaction2 Secondary from %s:%d - params: %d/%d, data: %d/%d",
                 self.remote.host,
                 self.remote.port,
-                h.ParamCount,
-                h.TotalParamCount,
-                h.DataCount,
-                h.TotalDataCount,
+                h.ParamCount if hasattr(h, "ParamCount") else 0,
+                h.TotalParamCount if hasattr(h, "TotalParamCount") else 0,
+                h.DataCount if hasattr(h, "DataCount") else 0,
+                h.TotalDataCount if hasattr(h, "TotalDataCount") else 0,
             )
             # TODO: accumulate like TRANSACTION_SECONDARY
         elif Command == SMB_COM_NT_TRANSACT:
