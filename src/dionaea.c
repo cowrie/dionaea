@@ -522,6 +522,8 @@ int logger_load(struct options *opt)
 
 int main (int argc, char *argv[])
 {
+	setvbuf(stdout, NULL, _IOLBF, 0);
+
 	GError *error = NULL;
 	struct version v;
 	g_log_set_default_handler(logger_stdout_log, NULL);
