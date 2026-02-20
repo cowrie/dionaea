@@ -825,7 +825,8 @@ cdef int handle_io_in_cb(c_connection *con, void *context, void *data, int size)
 		l = instance.handle_io_in(bdata)
 	except BaseException:
 		logging.error("There was an error in the Python service", exc_info=True)
-		instance.close()
+		if instance.thisptr != NULL:
+			instance.close()
 		return len(bdata)
 	return l
 
@@ -837,7 +838,8 @@ cdef void handle_io_out_cb(c_connection *con, void *context) noexcept with gil:
 		instance.handle_io_out()
 	except BaseException:
 		logging.error("There was an error in the Python service", exc_info=True)
-		instance.close()
+		if instance.thisptr != NULL:
+			instance.close()
 
 cdef c_bool handle_disconnect_cb(c_connection *con, void *context) except * with gil:
 #	print "disconnect_cb"
