@@ -1088,7 +1088,10 @@ class httpd(connection):
                 message = self.responses[code][0]
             else:
                 message = ''
-        self.send(f"HTTP/1.1 {code} {message}\r\n")
+        try:
+            self.send(f"HTTP/1.1 {code} {message}\r\n")
+        except ReferenceError:
+            return
 
     def send_error(self, code, message=None):
         if message is None:
@@ -1140,10 +1143,16 @@ class httpd(connection):
         return f
 
     def send_header(self, key, value):
-        self.send(f"{key}: {value}\r\n")
+        try:
+            self.send(f"{key}: {value}\r\n")
+        except ReferenceError:
+            return
 
     def end_headers(self) -> None:
-        self.send("\r\n")
+        try:
+            self.send("\r\n")
+        except ReferenceError:
+            return
 
     def handle_disconnect(self) -> bool:
         return False
