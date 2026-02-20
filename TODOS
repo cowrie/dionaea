@@ -92,6 +92,10 @@ ssl.letsencrypt.cert_dir=@DIONAEA_STATEDIR@/letsencrypt
 - No external certbot/acme library needed
 - Staging server for testing before production
 
+## Medium Priority (TLS Compatibility)
+
+1. **Add ECDSA certificate support** - Generate an ECDSA certificate alongside the existing RSA one so the honeypot can accept connections from clients that only offer EC-based signature algorithms (Ed448, Ed25519, ECDSA). Currently these clients get "no suitable signature algorithm" and the handshake fails. Changes needed in `ssl.c` (EC key generation), `connection_tls.c` (configure SSL contexts with both certs), and `connection.h` (store EC key/cert).
+
 ## Medium Priority (Code Quality)
 
 1. **Fix bare exception handlers in Python modules** - 26+ occurrences across logsql.py, hpfeeds.py, ftp.py, etc. silently swallow errors. Add logging.
