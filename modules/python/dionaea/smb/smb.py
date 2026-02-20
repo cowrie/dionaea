@@ -86,6 +86,7 @@ from .include.smbfields import (
     SMB_TRANS2_QUERY_FS_INFORMATION,
     SMB_TRANS2_QUERY_PATH_INFORMATION,
     SMB_TRANS2_SESSION_SETUP,
+    SMB_TRANS2_SET_FILE_INFORMATION,
     SMB_Trans2_FIND_FIRST2_Response,
     SMB_Trans2_QUERY_FS_INFO_Response,
     SMB_Trans2_Request,
@@ -1378,6 +1379,23 @@ class smbd(connection):
                 else:
                     r = SMB_Trans2_Response()
                     rstatus = 0xC0000002  # STATUS_NOT_IMPLEMENTED
+            elif h.Setup[0] == SMB_TRANS2_SET_FILE_INFORMATION:
+                # Param: FID (2), InformationLevel (2)
+                info_level = 0
+                fid = 0
+                if len(h.Param) >= 4:
+                    fid = h.Param[0] | (h.Param[1] << 8)
+                    info_level = h.Param[2] | (h.Param[3] << 8)
+                smblog.debug(
+                    "TRANS2_SET_FILE_INFORMATION: fid=0x%04x level=0x%04x from %s:%d",
+                    fid,
+                    info_level,
+                    self.remote.host,
+                    self.remote.port,
+                )
+                # Accept the set operation (honeypot ignores the actual data)
+                r = SMB_Trans2_Response()
+                r.Param = b"\x00\x00"  # EA error offset
             else:
                 subcmd = h.Setup[0]
                 subcmd_name = SMB_Trans2_Commands.get(subcmd, "UNKNOWN")
