@@ -1663,22 +1663,13 @@ class smbd(connection):
                 ctxitem.TransferSyntax = tmp.TransferSyntax  # [:16]
                 ctxitem.TransferSyntaxVersion = tmp.TransferSyntaxVersion
                 # Check for supported transfer syntaxes (NDR32 or NDR64)
-                # Some clients encode the TransferSyntax UUID in the opposite
-                # byte order from the packet's DataRepresentation, so try both.
                 syntax_str = str(transfersyntax_uuid)
                 if syntax_str == NDR32_UUID:
                     pointer_size = 32
                 elif syntax_str == NDR64_UUID:
                     pointer_size = 64
                 else:
-                    alt_uuid = parse_dcerpc_uuid(tmp.TransferSyntax, not is_big_endian)
-                    alt_str = str(alt_uuid)
-                    if alt_str == NDR32_UUID:
-                        pointer_size = 32
-                    elif alt_str == NDR64_UUID:
-                        pointer_size = 64
-                    else:
-                        pointer_size = None
+                    pointer_size = None
 
                 if pointer_size is not None:
                     if service_uuid.hex in registered_services:
