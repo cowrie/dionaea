@@ -439,6 +439,15 @@ class smbd(connection):
         os.unlink(fp.name)
 
     def handle_io_in(self, data: bytes) -> int:
+        # Need at least the NBT header (4 bytes) to determine packet length
+        if len(data) < 4:
+            return 0
+
+        # Parse NBT length from header before full dissection
+        nbt_length = ((data[1] & 0x01) << 16) | (data[2] << 8) | data[3]
+        if len(data) < nbt_length + 4:
+            return 0
+
         try:
             p = NBTSession(data, _ctx=self)
         except Exception as e:
@@ -448,11 +457,7 @@ class smbd(connection):
                 len(data),
                 data[:16].hex() if data else "empty",
             )
-            return len(data)
-
-        if len(data) < (p.LENGTH + 4):
-            # we probably do not have the whole packet yet -> return 0
-            return 0
+            return nbt_length + 4
 
         if p.TYPE == 0x81:
             self.send(NBTSession(TYPE=0x82).build())
