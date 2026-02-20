@@ -755,6 +755,12 @@ class smbd(connection):
                 )
             else:
                 smblog.warning("Unknown Session Setup Type used")
+                r = SMB_Sessionsetup_AndX_Response2(
+                    NativeOS=self.config.native_os + "\0",
+                    NativeLanManager=self.config.native_lan_manager + "\0",
+                    PrimaryDomain=self.config.primary_domain + "\0",
+                )
+                rstatus = 0xC00000BB  # STATUS_NOT_SUPPORTED
 
         elif Command == SMB_COM_TREE_CONNECT_ANDX:
             r = SMB_Treeconnect_AndX_Response()
@@ -1397,6 +1403,8 @@ class smbd(connection):
                 h.TotalDataCount if hasattr(h, "TotalDataCount") else 0,
             )
             # TODO: accumulate like TRANSACTION_SECONDARY
+            r = SMB_Trans_Response_Simple()
+            rstatus = 0x00000000  # STATUS_SUCCESS
         elif Command == SMB_COM_NT_TRANSACT:
             h = p.getlayer(SMB_NT_Trans_Request)
             smblog.info(
