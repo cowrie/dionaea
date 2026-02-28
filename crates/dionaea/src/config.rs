@@ -1,0 +1,502 @@
+// ABOUTME: TOML configuration loading with validation and env var overrides.
+// ABOUTME: Defines the complete config structure for the dionaea daemon.
+
+use crate::error::{Error, Result};
+use serde::Deserialize;
+use std::net::IpAddr;
+use std::path::{Path, PathBuf};
+
+/// Top-level config file structure.
+#[derive(Debug, Deserialize)]
+pub struct Config {
+    /// Core daemon settings.
+    pub dionaea: DionaeaConfig,
+    /// Logging configuration.
+    pub logging: LoggingConfig,
+    /// Module enable/disable flags and settings.
+    pub modules: ModulesConfig,
+}
+
+/// Core daemon settings (listen addresses, limits, security).
+#[derive(Debug, Deserialize)]
+pub struct DionaeaConfig {
+    /// Unix user to run as after privilege drop.
+    #[serde(default = "default_user")]
+    pub user: String,
+    /// Unix group to run as after privilege drop.
+    #[serde(default = "default_group")]
+    pub group: String,
+    /// Network listening configuration.
+    pub listen: ListenConfig,
+    /// Resource limits and rate limiting.
+    #[serde(default)]
+    pub limits: LimitsConfig,
+    /// Admin interface settings (metrics, health).
+    #[serde(default)]
+    pub admin: AdminConfig,
+}
+
+/// How the daemon discovers addresses to listen on.
+#[derive(Debug, Deserialize)]
+pub struct ListenConfig {
+    /// "manual" (use addresses list) or "getifaddrs" (discover from interfaces).
+    #[serde(default = "default_listen_mode")]
+    pub mode: String,
+    /// Explicit addresses to bind when mode is "manual".
+    #[serde(default = "default_addresses")]
+    pub addresses: Vec<IpAddr>,
+    /// Interface names to bind when mode is "getifaddrs".
+    #[serde(default)]
+    pub interfaces: Vec<String>,
+}
+
+/// Resource limits checked at connection accept time.
+#[derive(Debug, Deserialize)]
+pub struct LimitsConfig {
+    /// Reject connections above this percentage of RLIMIT_NOFILE.
+    #[serde(default = "default_max_fds_pct")]
+    pub max_fds_pct: u32,
+    /// Hard cap on concurrent connections.
+    #[serde(default = "default_max_connections_total")]
+    pub max_connections_total: u32,
+    /// Max connections from a single source IP.
+    #[serde(default = "default_max_connections_per_ip")]
+    pub max_connections_per_ip: u32,
+    /// Bounded mpsc channel depth per connection.
+    #[serde(default = "default_send_channel_capacity")]
+    pub send_channel_capacity: usize,
+    /// Bytes per read call (safety cap).
+    #[serde(default = "default_recv_buffer_size")]
+    pub recv_buffer_size: usize,
+}
+
+/// Admin interface (metrics, health check) — separate from honeypot services.
+#[derive(Debug, Deserialize)]
+pub struct AdminConfig {
+    /// Address for admin endpoints. Must differ from honeypot listen addresses.
+    #[serde(default = "default_admin_listen")]
+    pub listen: IpAddr,
+}
+
+/// Logging configuration with multiple targets.
+#[derive(Debug, Deserialize)]
+pub struct LoggingConfig {
+    /// Default log level.
+    #[serde(default = "default_log_level")]
+    pub level: String,
+    /// Log output targets (file, stdout).
+    #[serde(default)]
+    pub targets: Vec<LogTarget>,
+}
+
+/// A single log output target.
+#[derive(Debug, Deserialize)]
+pub struct LogTarget {
+    /// "file" or "stdout".
+    #[serde(rename = "type")]
+    pub target_type: String,
+    /// File path (required for type "file").
+    pub path: Option<PathBuf>,
+    /// "json" or "text".
+    #[serde(default = "default_log_format")]
+    pub format: String,
+    /// Comma-separated level filter (e.g. "info,warning,error").
+    #[serde(default = "default_log_levels")]
+    pub levels: String,
+    /// Domain glob pattern (e.g. "*" for all).
+    #[serde(default = "default_log_domains")]
+    pub domains: String,
+}
+
+/// Module enable/disable and settings.
+#[derive(Debug, Deserialize)]
+pub struct ModulesConfig {
+    /// Python module settings.
+    #[serde(default)]
+    pub python: PythonModuleConfig,
+    /// Enable HTTP download module.
+    #[serde(default = "default_true")]
+    pub download: bool,
+    /// Enable pcap module.
+    #[serde(default)]
+    pub pcap: bool,
+    /// Enable netfilter queue module.
+    #[serde(default)]
+    pub nfq: bool,
+    /// Enable netlink interface monitoring.
+    #[serde(default)]
+    pub netlink: bool,
+}
+
+/// Python module configuration.
+#[derive(Debug, Deserialize)]
+pub struct PythonModuleConfig {
+    /// Python packages to import.
+    #[serde(default = "default_python_imports")]
+    pub imports: Vec<String>,
+    /// Glob patterns for service config files.
+    #[serde(default)]
+    pub service_configs: Vec<String>,
+    /// Glob patterns for ihandler config files.
+    #[serde(default)]
+    pub ihandler_configs: Vec<String>,
+}
+
+// --- Defaults ---
+
+fn default_user() -> String {
+    "dionaea".to_string()
+}
+fn default_group() -> String {
+    "dionaea".to_string()
+}
+fn default_listen_mode() -> String {
+    "manual".to_string()
+}
+fn default_addresses() -> Vec<IpAddr> {
+    vec!["0.0.0.0".parse().expect("valid IP")]
+}
+fn default_max_fds_pct() -> u32 {
+    70
+}
+fn default_max_connections_total() -> u32 {
+    10_000
+}
+fn default_max_connections_per_ip() -> u32 {
+    50
+}
+fn default_send_channel_capacity() -> usize {
+    256
+}
+fn default_recv_buffer_size() -> usize {
+    65536
+}
+fn default_admin_listen() -> IpAddr {
+    "127.0.0.1".parse().expect("valid IP")
+}
+fn default_log_level() -> String {
+    "info".to_string()
+}
+fn default_log_format() -> String {
+    "json".to_string()
+}
+fn default_log_levels() -> String {
+    "info,warning,error,critical".to_string()
+}
+fn default_log_domains() -> String {
+    "*".to_string()
+}
+fn default_true() -> bool {
+    true
+}
+fn default_python_imports() -> Vec<String> {
+    vec!["dionaea".to_string()]
+}
+
+impl Default for LimitsConfig {
+    fn default() -> Self {
+        LimitsConfig {
+            max_fds_pct: default_max_fds_pct(),
+            max_connections_total: default_max_connections_total(),
+            max_connections_per_ip: default_max_connections_per_ip(),
+            send_channel_capacity: default_send_channel_capacity(),
+            recv_buffer_size: default_recv_buffer_size(),
+        }
+    }
+}
+
+impl Default for AdminConfig {
+    fn default() -> Self {
+        AdminConfig {
+            listen: default_admin_listen(),
+        }
+    }
+}
+
+impl Default for LoggingConfig {
+    fn default() -> Self {
+        LoggingConfig {
+            level: default_log_level(),
+            targets: Vec::new(),
+        }
+    }
+}
+
+impl Default for ModulesConfig {
+    fn default() -> Self {
+        ModulesConfig {
+            python: PythonModuleConfig::default(),
+            download: true,
+            pcap: false,
+            nfq: false,
+            netlink: false,
+        }
+    }
+}
+
+impl Default for PythonModuleConfig {
+    fn default() -> Self {
+        PythonModuleConfig {
+            imports: default_python_imports(),
+            service_configs: Vec::new(),
+            ihandler_configs: Vec::new(),
+        }
+    }
+}
+
+/// Load config from a TOML file, applying env var overrides.
+pub fn load(path: &Path) -> Result<Config> {
+    let content = std::fs::read_to_string(path)
+        .map_err(|e| Error::Config(format!("failed to read {}: {e}", path.display())))?;
+    let mut config: Config = toml::from_str(&content)?;
+    apply_env_overrides(&mut config);
+    validate(&config)?;
+    Ok(config)
+}
+
+/// Load config from a TOML string (for testing).
+pub fn load_from_str(content: &str) -> Result<Config> {
+    let mut config: Config = toml::from_str(content)?;
+    apply_env_overrides(&mut config);
+    validate(&config)?;
+    Ok(config)
+}
+
+/// Apply environment variable overrides.
+/// Format: DIONAEA_<SECTION>__<KEY> (double underscore for section separator).
+fn apply_env_overrides(config: &mut Config) {
+    if let Ok(val) = std::env::var("DIONAEA_DIONAEA__LISTEN__MODE") {
+        config.dionaea.listen.mode = val;
+    }
+    if let Ok(val) = std::env::var("DIONAEA_LOGGING__LEVEL") {
+        config.logging.level = val;
+    }
+    if let Ok(val) = std::env::var("DIONAEA_DIONAEA__USER") {
+        config.dionaea.user = val;
+    }
+    if let Ok(val) = std::env::var("DIONAEA_DIONAEA__GROUP") {
+        config.dionaea.group = val;
+    }
+    if let Ok(val) = std::env::var("DIONAEA_DIONAEA__LIMITS__MAX_FDS_PCT") {
+        if let Ok(n) = val.parse() {
+            config.dionaea.limits.max_fds_pct = n;
+        }
+    }
+    if let Ok(val) = std::env::var("DIONAEA_DIONAEA__LIMITS__MAX_CONNECTIONS_TOTAL") {
+        if let Ok(n) = val.parse() {
+            config.dionaea.limits.max_connections_total = n;
+        }
+    }
+    if let Ok(val) = std::env::var("DIONAEA_DIONAEA__LIMITS__MAX_CONNECTIONS_PER_IP") {
+        if let Ok(n) = val.parse() {
+            config.dionaea.limits.max_connections_per_ip = n;
+        }
+    }
+}
+
+/// Validate config consistency.
+fn validate(config: &Config) -> Result<()> {
+    // Listen mode must be "manual" or "getifaddrs"
+    if config.dionaea.listen.mode != "manual" && config.dionaea.listen.mode != "getifaddrs" {
+        return Err(Error::Config(format!(
+            "listen.mode must be 'manual' or 'getifaddrs', got '{}'",
+            config.dionaea.listen.mode
+        )));
+    }
+
+    // Manual mode requires at least one address
+    if config.dionaea.listen.mode == "manual" && config.dionaea.listen.addresses.is_empty() {
+        return Err(Error::Config(
+            "listen.mode is 'manual' but no addresses configured".to_string(),
+        ));
+    }
+
+    // Admin listen must not overlap with honeypot listen addresses
+    for addr in &config.dionaea.listen.addresses {
+        if *addr == config.dionaea.admin.listen {
+            // Allow 0.0.0.0 on honeypot side (wildcard) with 127.0.0.1 admin
+            // Only reject if admin is explicitly set to a honeypot address
+            if !addr.is_unspecified() {
+                return Err(Error::Config(format!(
+                    "admin.listen ({}) must not be the same as a honeypot listen address",
+                    config.dionaea.admin.listen
+                )));
+            }
+        }
+    }
+
+    // FD percentage must be 1-100
+    if config.dionaea.limits.max_fds_pct == 0 || config.dionaea.limits.max_fds_pct > 100 {
+        return Err(Error::Config(format!(
+            "limits.max_fds_pct must be 1-100, got {}",
+            config.dionaea.limits.max_fds_pct
+        )));
+    }
+
+    // Log targets of type "file" must have a path
+    for target in &config.logging.targets {
+        if target.target_type == "file" && target.path.is_none() {
+            return Err(Error::Config(
+                "log target of type 'file' requires a 'path'".to_string(),
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const MINIMAL_CONFIG: &str = r#"
+[dionaea]
+[dionaea.listen]
+mode = "manual"
+addresses = ["0.0.0.0"]
+[logging]
+level = "info"
+[modules]
+"#;
+
+    #[test]
+    fn test_load_minimal_config() {
+        let config = load_from_str(MINIMAL_CONFIG).expect("parse minimal config");
+        assert_eq!(config.dionaea.listen.mode, "manual");
+        assert_eq!(config.dionaea.limits.max_fds_pct, 70);
+        assert_eq!(config.dionaea.limits.max_connections_total, 10_000);
+        assert_eq!(config.logging.level, "info");
+    }
+
+    #[test]
+    fn test_full_config() {
+        let toml = r#"
+[dionaea]
+user = "honeypot"
+group = "honeypot"
+
+[dionaea.listen]
+mode = "getifaddrs"
+interfaces = ["eth0", "eth1"]
+
+[dionaea.limits]
+max_fds_pct = 80
+max_connections_total = 5000
+max_connections_per_ip = 100
+send_channel_capacity = 512
+recv_buffer_size = 32768
+
+[dionaea.admin]
+listen = "127.0.0.1"
+
+[logging]
+level = "debug"
+
+[[logging.targets]]
+type = "file"
+path = "/var/log/dionaea/dionaea.log"
+format = "json"
+levels = "all,-debug"
+domains = "*"
+
+[[logging.targets]]
+type = "stdout"
+format = "text"
+levels = "info,warning,error"
+domains = "*"
+
+[modules]
+download = true
+pcap = false
+
+[modules.python]
+imports = ["dionaea"]
+service_configs = ["/etc/dionaea/services-enabled/*.yaml"]
+ihandler_configs = ["/etc/dionaea/ihandlers-enabled/*.yaml"]
+"#;
+        let config = load_from_str(toml).expect("parse full config");
+        assert_eq!(config.dionaea.user, "honeypot");
+        assert_eq!(config.dionaea.listen.mode, "getifaddrs");
+        assert_eq!(config.dionaea.listen.interfaces, vec!["eth0", "eth1"]);
+        assert_eq!(config.dionaea.limits.max_fds_pct, 80);
+        assert_eq!(config.dionaea.limits.max_connections_total, 5000);
+        assert_eq!(config.logging.targets.len(), 2);
+        assert_eq!(config.logging.targets[0].target_type, "file");
+        assert_eq!(config.logging.targets[1].target_type, "stdout");
+        assert!(config.modules.download);
+        assert!(!config.modules.pcap);
+        assert_eq!(config.modules.python.imports, vec!["dionaea"]);
+    }
+
+    #[test]
+    fn test_config_round_trip_defaults() {
+        let config = load_from_str(MINIMAL_CONFIG).expect("parse");
+        assert_eq!(config.dionaea.user, "dionaea");
+        assert_eq!(config.dionaea.group, "dionaea");
+        assert_eq!(
+            config.dionaea.admin.listen,
+            "127.0.0.1".parse::<IpAddr>().expect("valid IP")
+        );
+        assert_eq!(config.dionaea.limits.recv_buffer_size, 65536);
+        assert_eq!(config.dionaea.limits.send_channel_capacity, 256);
+    }
+
+    #[test]
+    fn test_invalid_listen_mode() {
+        let toml = r#"
+[dionaea]
+[dionaea.listen]
+mode = "invalid"
+[logging]
+[modules]
+"#;
+        let err = load_from_str(toml).unwrap_err();
+        assert!(err.to_string().contains("listen.mode"));
+    }
+
+    #[test]
+    fn test_manual_mode_requires_addresses() {
+        let toml = r#"
+[dionaea]
+[dionaea.listen]
+mode = "manual"
+addresses = []
+[logging]
+[modules]
+"#;
+        let err = load_from_str(toml).unwrap_err();
+        assert!(err.to_string().contains("no addresses"));
+    }
+
+    #[test]
+    fn test_file_target_requires_path() {
+        let toml = r#"
+[dionaea]
+[dionaea.listen]
+mode = "manual"
+addresses = ["0.0.0.0"]
+[logging]
+[[logging.targets]]
+type = "file"
+[modules]
+"#;
+        let err = load_from_str(toml).unwrap_err();
+        assert!(err.to_string().contains("path"));
+    }
+
+    #[test]
+    fn test_invalid_fds_pct() {
+        let toml = r#"
+[dionaea]
+[dionaea.listen]
+mode = "manual"
+addresses = ["0.0.0.0"]
+[dionaea.limits]
+max_fds_pct = 0
+[logging]
+[modules]
+"#;
+        let err = load_from_str(toml).unwrap_err();
+        assert!(err.to_string().contains("max_fds_pct"));
+    }
+}

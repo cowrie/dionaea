@@ -1,0 +1,40 @@
+# ABOUTME: Default configuration for the dionaea honeypot daemon.
+# ABOUTME: See RUSTPLAN.md for config key documentation.
+
+[dionaea]
+user = "dionaea"
+group = "dionaea"
+
+[dionaea.listen]
+mode = "manual"
+addresses = ["0.0.0.0"]
+
+[dionaea.limits]
+max_fds_pct = 70
+max_connections_total = 10000
+max_connections_per_ip = 50
+send_channel_capacity = 256
+recv_buffer_size = 65536
+
+[dionaea.admin]
+listen = "127.0.0.1"
+
+[logging]
+level = "info"
+
+[[logging.targets]]
+type = "stdout"
+format = "text"
+levels = "info,warning,error,critical"
+domains = "*"
+
+[modules]
+download = true
+pcap = false
+nfq = false
+netlink = false
+
+[modules.python]
+imports = ["dionaea"]
+service_configs = []
+ihandler_configs = []

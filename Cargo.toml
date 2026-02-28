@@ -53,7 +53,7 @@ ip_network_table = "0.2"
 reqwest = { version = "0.12", default-features = false, features = ["native-tls"] }
 
 # System/privileges
-nix = { version = "0.30", features = ["socket", "uio", "user", "process", "fs", "net", "resource"] }
+nix = { version = "0.30", features = ["socket", "uio", "user", "process", "fs", "net", "resource", "signal"] }
 
 # Platform-specific (Linux only, behind cfg)
 pcap = "2"
