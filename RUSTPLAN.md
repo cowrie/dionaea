@@ -83,6 +83,7 @@ missing_docs = "warn"
 [workspace.lints.clippy]
 all = { level = "deny", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
+unwrap_used = "deny"
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
 module_name_repetitions = "allow"
@@ -222,6 +223,7 @@ missing_docs = "warn"
 [workspace.lints.clippy]
 all = { level = "deny", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
+unwrap_used = "deny"
 # Pedantic overrides (too noisy for our codebase):
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
@@ -440,16 +442,60 @@ The PyO3 bridge is where Rust's ownership model meets Python's garbage collector
   critical transitions (e.g., `Handshake` → `Established` produces a different type).
 - **`Result<T, Error>` everywhere.** No sentinel values (-1, NULL). Every fallible
   operation returns `Result`. The `?` operator propagates errors cleanly.
+- **Bubble errors up, log at the call site.** Functions return `Result<T, Error>`, not
+  `()` with internal logging. The *caller* decides whether to log, retry, or propagate.
+  This keeps error-handling logic in one place and makes functions composable.
+  Use `.inspect_err(|e| tracing::warn!(...))` when you need to log *and* propagate.
+- **`let`-`else` over `match` for binary cases.** When you only care about one variant:
+  ```rust
+  let Some(conn) = table.get(&id) else { return Err(Error::ConnectionClosed) };
+  ```
+  Use `match` when you handle 3+ variants or need exhaustiveness checking.
+- **Iterator combinators.** `.map()`, `.filter_map()`, `.collect()` over manual loops
+  with `push()`. Build collections functionally, then `.append()` into a mutex-guarded
+  `Vec` — fewer lock acquisitions and more readable:
+  ```rust
+  let results: Vec<_> = items.iter().filter_map(|i| process(i).ok()).collect();
+  guarded_vec.lock().append(&mut results);  // one lock, not N
+  ```
+- **`From`/`Into` for conversions.** `OpaqueData` ↔ `PyObject` conversions use
+  `impl From<OpaqueData> for PyObject` and vice versa. Prefer `impl From<X> for Y`
+  over manual conversion functions — `.into()` is clean at call sites.
+- **`impl Into<String>` for string parameters.** Functions that will own the string
+  should take `impl Into<String>`, not `&str` (forcing `.to_string()` at every call
+  site) or `String` (forcing callers to clone when they have a `&str`).
 - **Builder pattern for config.** Complex types like `SslAcceptor` configuration use
   builders, not 15-argument constructors.
-- **`From`/`Into` for conversions.** `OpaqueData` ↔ `PyObject` conversions use
-  `impl From<OpaqueData> for PyObject` and vice versa.
 - **`Display` for user-facing strings.** `NodeInfo`, `ConnectionState`, `Error` all
   implement `Display` for logging. No manual format string construction.
 - **Newtypes for IDs.** `ConnectionId(u64)` prevents accidentally passing a raw `u64`
   where a connection ID is expected.
 - **Feature flags for optional modules.** Not runtime `if config.enabled` checks.
   Dead code is eliminated at compile time.
+- **No `.unwrap()` in production code.** Use `.expect("reason")` when a `None`/`Err`
+  is genuinely impossible — the message documents *why*. Use `?` to propagate. Use
+  `#[allow(clippy::unwrap_used)]` with a comment only when `.expect()` would be too
+  verbose and the invariant is obvious (e.g., poisoned mutex).
+- **No macros unless unavoidable.** Macros are a different language — LSPs can't parse
+  them, they're hard to debug, and they destroy code locality. Use functions and
+  generics first. The only acceptable macros are derive macros (thiserror, serde,
+  PyO3) and trivial declarative macros for repetitive trait impls. If you're writing
+  a `macro_rules!` that spans more than 10 lines, reconsider.
+- **`// SAFETY:` comments** on every `unsafe` block (if any get `#[allow]`ed) and on
+  every `as` cast that narrows a type (e.g., `u64 as u32`). The comment explains why
+  the invariant holds.
+- **If you're fighting the compiler, you're doing something wrong.** Borrow checker
+  errors are design feedback. Restructure the code rather than reaching for `Arc`,
+  `Mutex`, `clone()`, or `unsafe`. The `ConnectionId` indirection pattern exists
+  specifically because `Arc<Mutex<Connection>>` was a fight we shouldn't have.
+- **Readability over performance.** Rust + LLVM optimizes well. Write clear code first.
+  Only optimize hot paths identified by profiling — and the hot path is almost
+  certainly the Python GIL, not Rust code.
+
+**Dependency hygiene:**
+- Run `cargo outdated` monthly. Small version bumps are easy; catching up after a year
+  of neglect is painful.
+- `cargo audit` runs in CI on every PR. `cargo deny check` validates licenses.
 
 ### Replacing GLib Patterns with Idiomatic Rust
 
