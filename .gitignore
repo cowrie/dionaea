@@ -139,3 +139,6 @@ cython_debug/
 ### Doc
 /doc/build/
 /doc/api/build/
+
+### Rust
+/target/

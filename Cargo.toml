@@ -1,0 +1,77 @@
+# ABOUTME: Workspace root for the Dionaea v2 Rust core.
+# ABOUTME: Defines shared dependencies, lints, and crate membership.
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/dionaea",
+    "crates/shell-detect",
+]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.85"
+license = "GPL-2.0-only"
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# TLS (must use openssl for weak cipher honeypot support)
+openssl = "0.10"
+tokio-openssl = "0.6"
+
+# Python embedding
+pyo3 = { version = "0.28", features = ["auto-initialize"] }
+
+# Logging + observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-appender = "0.2"
+
+# Error handling
+thiserror = "2"
+
+# Config
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+
+# Data structures
+bytes = "1"
+dashmap = "6"
+
+# Crypto
+sha2 = "0.10"
+
+# DNS
+hickory-resolver = { version = "0.25", features = ["tokio"] }
+
+# IP deny list (CIDR prefix matching)
+ip_network_table = "0.2"
+
+# HTTP client (replaces curl module)
+reqwest = { version = "0.12", default-features = false, features = ["native-tls"] }
+
+# System/privileges
+nix = { version = "0.30", features = ["socket", "uio", "user", "process", "fs", "net", "resource"] }
+
+# Platform-specific (Linux only, behind cfg)
+pcap = "2"
+nfq = "0.2"
+rtnetlink = "0.15"
+
+# Testing
+proptest = "1"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+module_name_repetitions = "allow"
+must_use_candidate = "allow"

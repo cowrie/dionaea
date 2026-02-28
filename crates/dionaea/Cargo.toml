@@ -1,0 +1,53 @@
+# ABOUTME: Main dionaea crate - honeypot binary with PyO3 Python bridge.
+# ABOUTME: Contains networking, incident system, and protocol handler integration.
+
+[package]
+name = "dionaea"
+version = "2.0.0-alpha.1"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio = { workspace = true }
+pyo3 = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-appender = { workspace = true }
+serde = { workspace = true }
+toml = { workspace = true }
+bytes = { workspace = true }
+dashmap = { workspace = true }
+nix = { workspace = true }
+
+shell-detect = { path = "../shell-detect" }
+
+# Optional dependencies (behind features)
+openssl = { workspace = true, optional = true }
+tokio-openssl = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+hickory-resolver = { workspace = true, optional = true }
+ip_network_table = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true }
+pcap = { workspace = true, optional = true }
+nfq = { workspace = true, optional = true }
+rtnetlink = { workspace = true, optional = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+
+[features]
+default = ["tls", "dns", "download", "deny-list"]
+tls = ["dep:openssl", "dep:tokio-openssl"]
+dns = ["dep:hickory-resolver"]
+download = ["dep:reqwest", "dep:sha2"]
+deny-list = ["dep:ip_network_table"]
+pcap = ["dep:pcap"]
+nfq = ["dep:nfq"]
+netlink = ["dep:rtnetlink"]
+mgmt-https = ["dep:reqwest"]
+mgmt-dns = []
+
+[lints]
+workspace = true

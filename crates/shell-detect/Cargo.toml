@@ -1,0 +1,15 @@
+# ABOUTME: Standalone shellcode detection via GetPC pattern scanning.
+# ABOUTME: Zero dependencies on the rest of dionaea - could be published independently.
+
+[package]
+name = "shell-detect"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dev-dependencies]
+proptest = { workspace = true }
+
+[lints]
+workspace = true
