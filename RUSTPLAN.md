@@ -231,17 +231,51 @@ binary, we have feature parity.
 - NodeInfo formatting (any valid IP address formats correctly)
 
 **CI pipeline (GitHub Actions):**
+
 ```yaml
-# Runs on every push/PR
+# Job 1: Lint + Unit Tests (runs on every push/PR)
+# Uses actions-rust-lang/setup-rust-toolchain with built-in caching
 - cargo fmt --check
 - cargo clippy -- -D warnings
 - cargo test
-- cargo audit          # vulnerability scanning
-- cargo deny check     # license + dependency policy
-# Integration (after build):
-- Start Rust binary as daemon
-- Run existing pytest suite against it
-- Compare logs against expected incident patterns
+- cargo audit            # Rust vulnerability scanning
+- cargo deny check       # license + dependency policy
+- pip-audit -r python/requirements.txt  # Python vulnerability scanning
+
+# Job 2: Cross-compile + Docker (runs on every push/PR)
+# Build targets: x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu
+# Uses cross-rs/cross for cross-compilation
+- cross build --release --target x86_64-unknown-linux-gnu --features "download,pcap"
+- cross build --release --target aarch64-unknown-linux-gnu --features "download"
+- docker buildx build --platform linux/amd64,linux/arm64 --tag dionaea:$SHA .
+# On main branch: push to registry with semantic version tag + latest
+
+# Job 3: Integration Tests (runs after Job 2)
+# Starts the Rust daemon in a container, runs pytest against it
+- docker run -d --name dionaea-test dionaea:$SHA
+- docker exec dionaea-test /usr/local/bin/dionaea --readycheck  # wait for readiness
+- pip install -r tests/python/requirements.txt
+- pytest tests/python/ -v --timeout=30 --host=localhost
+- docker logs dionaea-test > integration-logs.txt
+- docker stop dionaea-test
+# Upload logs + test results as artifacts
+```
+
+**Build caching:** Rust dependency compilation is the slowest CI step (5-15 minutes from
+scratch). Use `actions-rust-lang/setup-rust-toolchain` which provides built-in `sccache`
+integration and caches the `~/.cargo/registry` and `target/` directories. For cross builds,
+`cross-rs/cross` caches Docker layers.
+
+**Artifact promotion:** CI-passed images are tagged with the git SHA. Merges to `main`
+additionally tag with `latest` and any semver tag. Production deployments reference a
+specific SHA tag, not `latest`.
+
+**Periodic jobs (weekly, not per-PR — these are slow):**
+```yaml
+- cargo +nightly miri test           # UB detection (unit tests only)
+- cargo careful test                  # overflow/alignment checks
+- RUSTFLAGS="-Z sanitizer=thread" cargo test
+- RUSTFLAGS="-Z sanitizer=address" cargo test
 ```
 
 ### Linting & Formatting
@@ -410,6 +444,9 @@ dionaea_timeout_fires_total{type="idle|sustain|handshake"} counter
 dionaea_nfq_throttled_total{} counter
 dionaea_python_callback_duration_seconds{method="handle_io_in"} histogram
 dionaea_errors_total{kind="python_exception"} counter
+dionaea_resources_fd_used gauge
+dionaea_resources_fd_limit gauge
+dionaea_resources_memory_rss gauge
 ```
 
 **Health check:** A `--healthcheck` CLI flag that checks whether the daemon is alive and
@@ -418,6 +455,31 @@ listener, no curl dependency in the container. The daemon writes a heartbeat tim
 the socket; `--healthcheck` connects, reads it, and exits 0 if the timestamp is recent
 (within 2× the heartbeat interval). This avoids exposing any TCP port that an attacker
 could fingerprint as a honeypot indicator.
+
+**Health socket lifecycle:**
+1. On startup, the daemon creates `/var/run/dionaea/` (if not existing) and opens
+   `/var/run/dionaea/health.sock` (removing any stale socket file first).
+2. The heartbeat task writes an RFC3339 timestamp every 10 seconds.
+3. On clean shutdown (step 9 of the shutdown sequence), the daemon removes the socket file.
+4. On crash, the stale socket file remains. The next startup removes it before binding.
+
+**Readiness vs liveness:** The `--healthcheck` flag checks liveness (daemon is running and
+responsive). A `--readycheck` flag additionally verifies at least one service is bound and
+accepting connections — use this for orchestration readiness gates.
+
+**Kubernetes probe configuration:**
+```yaml
+livenessProbe:
+  exec:
+    command: ["/usr/local/bin/dionaea", "--healthcheck"]
+  initialDelaySeconds: 10
+  periodSeconds: 30
+readinessProbe:
+  exec:
+    command: ["/usr/local/bin/dionaea", "--readycheck"]
+  initialDelaySeconds: 5
+  periodSeconds: 10
+```
 
 ### Rust Idioms & Ownership
 
@@ -489,15 +551,8 @@ Connection state is split between two owners to keep the I/O hot path lock-free:
 - **Address sanitizer** (`RUSTFLAGS="-Z sanitizer=address"`): Detects use-after-free in
   FFI code (OpenSSL bindings, PyO3 internals).
 
-**CI tooling summary:**
-```yaml
-# In addition to clippy/test/audit/deny:
-- cargo +nightly miri test           # UB detection (unit tests only)
-- cargo careful test                  # overflow/alignment checks
-# Periodic (weekly, not per-PR — these are slow):
-- RUSTFLAGS="-Z sanitizer=thread" cargo test
-- RUSTFLAGS="-Z sanitizer=address" cargo test
-```
+**CI tooling summary:** Miri, cargo-careful, and sanitizer runs are in the weekly CI
+job (see Testing Strategy §CI pipeline). clippy, test, audit, and deny run per-PR.
 
 **Idiomatic Rust patterns to use:**
 
@@ -951,6 +1006,28 @@ must not be compromised, and must not become a tool for attacking others.
 - Config file may contain credentials (hpfeeds, VirusTotal API keys). File permissions
   must be 0600, owned by the dionaea user. Validate at startup, warn if world-readable.
 
+**File-based secrets:** Any config value that holds a credential supports a `_file` suffix
+variant. The `_file` value is a path; the daemon reads the file contents (trimming trailing
+newline) at startup and uses it as the secret value. This is compatible with Docker secrets
+(`/run/secrets/...`) and Kubernetes secret volumes.
+
+```toml
+# Inline (acceptable for dev, not recommended for production):
+# [hpfeeds]
+# apikey = "deadbeef..."
+
+# File-based (recommended for production):
+[hpfeeds]
+apikey_file = "/run/secrets/hpfeeds_apikey"
+
+[management]
+# client_key = "/etc/dionaea/mgmt-client-key.pem"  # already a file path
+# tsig_key_secret_file = "/run/secrets/tsig_key"    # read secret from file
+```
+
+Config validation rejects having both `apikey` and `apikey_file` set for the same field.
+Secret files must be readable by the dionaea user (validated at startup).
+
 **Supply chain:**
 - `cargo deny` checks licenses and advisories on every CI run.
 - `cargo audit` checks for known CVEs in dependencies.
@@ -1088,6 +1165,7 @@ zero deps on the rest of the system). Could be published independently.
 
 ```
 dionaea-v2/
+├── .dockerignore                    # Excludes target/, .git/, malware/, *.sqlite, tmp/
 ├── Cargo.toml                       # Workspace root
 ├── deny.toml                        # cargo-deny config (licenses, advisories)
 ├── rustfmt.toml                     # Formatting config (see Linting & Formatting)
@@ -1143,6 +1221,7 @@ dionaea-v2/
 │   └── ihandlers/                  # Per-handler YAML configs (read by Python)
 │
 ├── python/                          # Python protocol modules (copied from current repo)
+│   ├── requirements.txt            # Pinned versions for all runtime Python deps
 │   └── dionaea/
 │       ├── __init__.py             # ServiceLoader, IHandlerLoader (minor edits for import path)
 │       ├── smb/                    # All protocol modules unchanged
@@ -2234,7 +2313,19 @@ Use `criterion` or `hyperfine` for benchmarks. Store results for regression trac
 # Stage 1: Build Rust binary
 FROM rust:1.85 AS builder
 WORKDIR /build
+
+# Cache dependency compilation: copy manifests first, build with stub sources
 COPY Cargo.toml Cargo.lock deny.toml ./
+COPY crates/dionaea/Cargo.toml crates/dionaea/Cargo.toml
+COPY crates/shell-detect/Cargo.toml crates/shell-detect/Cargo.toml
+RUN mkdir -p crates/dionaea/src crates/shell-detect/src \
+    && echo 'fn main() {}' > crates/dionaea/src/main.rs \
+    && echo '' > crates/dionaea/src/lib.rs \
+    && echo '' > crates/shell-detect/src/lib.rs \
+    && cargo build --release --features "download,pcap" || true \
+    && rm -rf crates/
+
+# Now copy real source and build (only recompiles our crates, not deps)
 COPY crates/ crates/
 RUN cargo build --release --features "download,pcap"
 
@@ -2243,8 +2334,9 @@ FROM python:3.12-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl3 libpcap0.8 libcap2-bin && rm -rf /var/lib/apt/lists/*
 
-# Install Python deps for protocols
-RUN pip install --no-cache-dir pyyaml speakeasy-emulator
+# Install Python deps for protocols (pinned versions for reproducible builds)
+COPY python/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt
 
 COPY --from=builder /build/target/release/dionaea /usr/local/bin/
 COPY python/ /opt/dionaea/lib/python/
@@ -2265,6 +2357,24 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
 ENTRYPOINT ["/opt/dionaea/entrypoint.sh"]
 ```
 
+**`deploy/entrypoint.sh`:**
+
+```bash
+#!/bin/sh
+set -e
+
+# Create runtime directories (volumes may be empty on first run)
+mkdir -p /var/lib/dionaea/downloads /var/lib/dionaea/bistreams /var/lib/dionaea/shellcode
+mkdir -p /var/log/dionaea
+mkdir -p /var/run/dionaea
+
+# Set ownership (relevant when running as root initially before priv-drop)
+chown -R dionaea:dionaea /var/lib/dionaea /var/log/dionaea /var/run/dionaea
+
+# Forward signals to the daemon process (exec replaces shell, no signal trapping needed)
+exec /usr/local/bin/dionaea -c /etc/dionaea/dionaea.toml "$@"
+```
+
 ### systemd unit
 
 ```ini
@@ -2273,6 +2383,7 @@ ENTRYPOINT ["/opt/dionaea/entrypoint.sh"]
 Description=Dionaea Honeypot
 After=network-online.target
 Wants=network-online.target
+OnFailure=dionaea-notify-failure@%n.service
 
 [Service]
 Type=simple
@@ -2287,7 +2398,7 @@ RestartSec=5
 # Hardening
 ProtectSystem=strict
 ProtectHome=yes
-ReadWritePaths=/var/lib/dionaea /var/log/dionaea
+ReadWritePaths=/var/lib/dionaea /var/log/dionaea /var/run/dionaea
 PrivateTmp=yes
 MemoryMax=512M
 
@@ -2295,10 +2406,101 @@ MemoryMax=512M
 WantedBy=multi-user.target
 ```
 
+### Docker resource limits
+
+The systemd unit has `MemoryMax=512M`. Docker deployments need equivalent limits:
+
+```bash
+docker run -d \
+  --memory=512m --memory-swap=512m \
+  --ulimit nofile=65536:65536 \
+  --name dionaea dionaea:latest
+```
+
+`--ulimit nofile` must be consistent with the config's `max_fds_pct` setting — the FD-based
+rate limiter (Layer 1) uses `RLIMIT_NOFILE` to calculate its threshold. With `nofile=65536`
+and `max_fds_pct=70`, the daemon rejects new connections above ~45K open FDs.
+
+Document recommended resource limits in `deploy/dionaea.toml.example` alongside the config
+they interact with.
+
 ### Log rotation
 
-`tracing-appender` with daily rotation. Alternatively, rely on `logrotate.d` config
-for the JSON log file (send SIGHUP to reopen file handles).
+Use `logrotate.d` for file-based logging (battle-tested, handles edge cases like crash
+during rotation). The daemon reopens log file handles on SIGHUP, which `logrotate` sends
+via its `postrotate` script:
+
+```
+# /etc/logrotate.d/dionaea
+/var/log/dionaea/dionaea.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    postrotate
+        /bin/kill -HUP $(pgrep -x dionaea) 2>/dev/null || true
+    endscript
+}
+```
+
+For Docker, configure the json-file logging driver with rotation:
+```bash
+docker run -d --log-driver json-file --log-opt max-size=100m --log-opt max-file=5 ...
+```
+
+### Operational alerting
+
+The honeypot itself needs monitoring, not just the attacks it captures.
+
+**Process crash notification (systemd):** Add `OnFailure=` to the systemd unit. Create a
+companion unit that sends a notification on failure:
+
+```ini
+# In deploy/dionaea.service [Unit] section:
+OnFailure=dionaea-notify-failure@%n.service
+
+# deploy/dionaea-notify-failure@.service
+[Unit]
+Description=Notify on %i failure
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/dionaea-alert "Unit %i failed on $(hostname)"
+```
+
+The `dionaea-alert` script is deployment-specific (curl to Slack webhook, sendmail, etc.).
+
+**Disk usage:** Monitor `/var/lib/dionaea` (malware downloads + bistreams fill up fast).
+A Prometheus alert rule or a cron job that checks `df` and alerts above 80% usage.
+
+**Management heartbeat:** If the management transport is enabled, the management server
+should alert when a honeypot hasn't reported in within 2× the configured `poll_interval`.
+This catches both transport failures and silent daemon crashes.
+
+**Sample Prometheus alerting rules** (for operators running Prometheus):
+
+```yaml
+groups:
+  - name: dionaea
+    rules:
+      - alert: DionaeaNoConnections
+        expr: dionaea_connections_active == 0
+        for: 1h
+        annotations:
+          summary: "No active connections for 1 hour — is the honeypot still reachable?"
+      - alert: DionaeaHighFdUsage
+        expr: dionaea_resources_fd_used / dionaea_resources_fd_limit > 0.8
+        for: 5m
+        annotations:
+          summary: "FD usage above 80% — approaching connection rejection threshold"
+      - alert: DionaeaHighMemory
+        expr: dionaea_resources_memory_rss > 400 * 1024 * 1024  # 400MB of 512MB limit
+        for: 5m
+        annotations:
+          summary: "Memory usage approaching limit"
+```
 
 ---
 
@@ -2319,7 +2521,6 @@ On SIGTERM or SIGINT:
 9. **Flush logs.** Ensure all tracing subscribers flush pending writes.
 10. **Finalize Python.** Drop all PyO3 references, allow Python interpreter to clean up.
     (PyO3 handles this on process exit; we just ensure no Rust code holds GIL references.)
-11. **Remove PID file.** Clean up.
 
 SIGHUP: Reopen log file handles (for logrotate compatibility). Do NOT reload config
 (config reload is complex and not worth the risk for v1).
@@ -2365,7 +2566,9 @@ Python's `ServiceLoader` and `IHandlerLoader` load them directly. Existing YAML 
 work as-is, modulo any key changes needed for the v2 feature set.
 
 `pyyaml` is needed at runtime: service/ihandler configs use it, and Speakeasy imports it
-internally. The Dockerfile keeps it in the pip install.
+internally. All Python runtime dependencies (direct and transitive) are pinned in
+`python/requirements.txt` for reproducible builds. Generate with
+`pip-compile --generate-hashes` and audit with `pip-audit`.
 
 ---
 
