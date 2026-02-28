@@ -42,14 +42,14 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 tracing-appender = "0.2"
 metrics = "0.24"
-metrics-exporter-prometheus = "0.16"
+metrics-exporter-prometheus = "0.18"
 
 # Error handling
 thiserror = "2"
 
 # Config
 serde = { version = "1", features = ["derive"] }
-toml = "0.8"
+toml = "1"
 
 # Data structures
 bytes = "1"            # BytesMut for zero-copy send buffers
@@ -62,22 +62,30 @@ sha2 = "0.10"          # SHA256 for download/shellcode file naming
 hickory-resolver = { version = "0.25", features = ["tokio-runtime"] }
 
 # HTTP client (replaces curl module)
-reqwest = { version = "0.12", default-features = false, features = ["native-tls"] }
+reqwest = { version = "0.13", default-features = false, features = ["native-tls"] }
 
 # System/privileges
-nix = { version = "0.29", features = ["socket", "uio", "user", "process", "fs", "net", "resource"] }
+nix = { version = "0.31", features = ["socket", "uio", "user", "process", "fs", "net", "resource"] }
 caps = "0.5"           # Linux-only, behind cfg
 
 # Platform-specific (Linux only, behind cfg)
-pcap = "2.3"           # libpcap bindings
+pcap = "2"             # libpcap bindings
 nfq = "0.2"            # netfilter queue (pure Rust, MIT)
-rtnetlink = "0.18"     # netlink interface monitoring
+rtnetlink = "0.20"     # netlink interface monitoring
 
 [workspace.dev-dependencies]
 proptest = "1"
 
 [workspace.lints.rust]
 unsafe_code = "deny"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
 ```
 
 No unicorn-engine dependency in Rust — Speakeasy uses unicorn internally via Python.
@@ -93,7 +101,7 @@ These apply to every phase, not just one.
 ### Error Handling Strategy
 
 ```rust
-// crates/core/src/error.rs
+// crates/dionaea/src/error.rs
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("I/O error: {0}")]
@@ -188,6 +196,45 @@ binary, we have feature parity.
 - Start Rust binary as daemon
 - Run existing pytest suite against it
 - Compare logs against expected incident patterns
+```
+
+### Linting & Formatting
+
+**rustfmt:** Enforce consistent formatting across the workspace. `rustfmt.toml` at workspace
+root:
+
+```toml
+# rustfmt.toml
+edition = "2024"
+```
+
+`cargo fmt --check` runs in CI and blocks merge on formatting violations. No exceptions —
+formatting is never a review discussion.
+
+**clippy:** Workspace-level lint configuration in `Cargo.toml`:
+
+```toml
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+# Pedantic overrides (too noisy for our codebase):
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+```
+
+`cargo clippy -- -D warnings` runs in CI.
+
+**Workspace lint inheritance:** Each crate's `Cargo.toml` inherits workspace lints:
+
+```toml
+# crates/dionaea/Cargo.toml
+[lints]
+workspace = true
 ```
 
 ### Observability
@@ -678,13 +725,13 @@ Dionaea instances are deployed remotely and need centralized management. Two pol
 transport protocols are planned (JSON/HTTPS and DNS-based); the transport choice is deferred.
 The Rust core provides the internal hooks both transports need.
 
-**Architecture:** A `ManagementApi` trait in `core` exposes all management operations.
+**Architecture:** A `ManagementApi` trait exposes all management operations.
 Transport modules (HTTPS poller, DNS poller) are consumers of this trait. The honeypot
 itself never initiates outbound management connections — the transports poll a remote
 server for commands and push status reports.
 
 ```rust
-// crates/core/src/management.rs
+// crates/dionaea/src/management.rs
 
 /// Read-only status snapshot, serializable for any transport.
 #[derive(serde::Serialize)]
@@ -755,13 +802,13 @@ shutdown, reloaded on startup.
 
 **Transport modules are Cargo features:**
 ```toml
-# crates/core/Cargo.toml
+# crates/dionaea/Cargo.toml
 [features]
 mgmt-https = ["dep:reqwest"]   # JSON/HTTPS poll transport
 mgmt-dns = []                  # DNS-based poll transport (no extra deps)
 ```
 
-The transport implementations live in `crates/core/src/management/`:
+The transport implementations live in `crates/dionaea/src/management/`:
 ```
 management/
 ├── mod.rs          # ManagementApi trait, StatusReport, ManagementCommand
@@ -786,20 +833,27 @@ it only makes outbound poll connections. Commands are validated before execution
 
 ## Project Layout
 
+Two crates, not four. The original plan split `core`, `python`, and `dionaea` into
+separate crates. That creates unnecessary indirection: `core` needs to call Python
+(protocol callbacks, incident dispatch) but can't depend on `python` without a circular
+dependency, so it has to use trait objects and callbacks. Nobody will use `core` without
+Python — this is a honeypot that runs Python protocols. Collapsing them eliminates the
+trait-object indirection and simplifies the dependency graph.
+
+`shell-detect` stays separate: it's genuinely standalone (pure byte pattern scanning,
+zero deps on the rest of the system). Could be published independently.
+
 ```
-dionaea-v2/                          # New directory alongside existing code
+dionaea-v2/
 ├── Cargo.toml                       # Workspace root
 ├── deny.toml                        # cargo-deny config (licenses, advisories)
+├── rustfmt.toml                     # Formatting config (see Linting & Formatting)
 ├── crates/
-│   ├── dionaea/                     # Binary crate (entry point)
+│   ├── dionaea/                     # The application (binary + library in one crate)
 │   │   ├── Cargo.toml
 │   │   └── src/
-│   │       └── main.rs             # Init, config, signal handling, event loop
-│   │
-│   ├── core/                        # Core library
-│   │   ├── Cargo.toml
-│   │   └── src/
-│   │       ├── lib.rs
+│   │       ├── main.rs             # Entry point: config, init, signal handling, tokio runtime
+│   │       ├── lib.rs              # Crate root: re-exports for integration tests
 │   │       ├── error.rs            # Error types (thiserror)
 │   │       ├── config.rs           # TOML config loading, validation, env overrides
 │   │       ├── connection/
@@ -808,35 +862,31 @@ dionaea-v2/                          # New directory alongside existing code
 │   │       │   ├── tls.rs          # TLS handshake, encrypted I/O
 │   │       │   ├── udp.rs          # UDP listener, peer table
 │   │       │   ├── throttle.rs     # Bandwidth throttle (token bucket) + byte accounting
-│   │       │   └── limits.rs      # FD limits, per-IP counters, IP deny list
+│   │       │   └── limits.rs       # FD limits, per-IP counters, IP deny list
 │   │       ├── incident.rs         # Incident struct, typed data, dispatch
-│   │       ├── ihandler.rs         # IHandler registry, glob pattern matching
-│   │       ├── protocol.rs         # Protocol trait (the vtable)
+│   │       ├── ihandler.rs         # IHandler registry, wildcard pattern matching
 │   │       ├── processor.rs        # Processor pipeline tree
 │   │       ├── bistream.rs         # Bidirectional stream recording
 │   │       ├── dns.rs              # Async DNS resolution
 │   │       ├── node_info.rs        # Network address info
 │   │       ├── metrics.rs          # Prometheus metrics definitions
+│   │       ├── python/             # PyO3 bridge (module, not separate crate)
+│   │       │   ├── mod.rs          # Python init, module registration
+│   │       │   ├── connection.rs   # #[pyclass] PyConnection
+│   │       │   ├── incident.rs     # #[pyclass] PyIncident
+│   │       │   ├── ihandler.rs     # #[pyclass] PyIHandler
+│   │       │   ├── node_info.rs    # #[pyclass] PyNodeInfo
+│   │       │   ├── stats.rs        # #[pyclass] speed/accounting/timeouts
+│   │       │   ├── dionaea.rs      # #[pyclass] global singleton (config, version)
+│   │       │   ├── convert.rs      # Rust ↔ Python type conversions
+│   │       │   └── loader.rs       # Python module import, ServiceLoader/IHandlerLoader
 │   │       └── management/
-│   │           ├── mod.rs          # ManagementApi trait, StatusReport, commands
+│   │           ├── mod.rs          # ManagementApi, StatusReport, commands
 │   │           ├── state.rs        # Incident ring buffer, IP deny list, queries
 │   │           ├── https.rs        # JSON/HTTPS poll transport (feature-gated)
 │   │           └── dns.rs          # DNS-based poll transport (feature-gated)
 │   │
-│   ├── python/                      # PyO3 Python bridge
-│   │   ├── Cargo.toml
-│   │   └── src/
-│   │       ├── lib.rs
-│   │       ├── connection.rs       # #[pyclass] PyConnection
-│   │       ├── incident.rs         # #[pyclass] PyIncident
-│   │       ├── ihandler.rs         # #[pyclass] PyIHandler
-│   │       ├── node_info.rs        # #[pyclass] PyNodeInfo
-│   │       ├── stats.rs            # #[pyclass] speed/accounting/timeouts
-│   │       ├── dionaea.rs          # #[pyclass] global singleton (config, version)
-│   │       ├── convert.rs          # Rust ↔ Python type conversions
-│   │       └── loader.rs           # Python module import, ServiceLoader/IHandlerLoader
-│   │
-│   └── shell-detect/                # Shellcode detection (standalone, no Python dep)
+│   └── shell-detect/                # Shellcode detection (standalone, zero deps on dionaea)
 │       ├── Cargo.toml
 │       └── src/
 │           ├── lib.rs
@@ -844,27 +894,20 @@ dionaea-v2/                          # New directory alongside existing code
 │           ├── x64.rs              # x86-64 GetPC patterns
 │           └── mips.rs             # MIPS GetPC patterns
 │
-├── conf/                            # Configuration files
-│   ├── dionaea.toml                # Main config (migrated from .cfg)
+├── conf/                            # Default configuration files
+│   ├── dionaea.toml                # Main config
 │   ├── services/                   # Per-service TOML configs
 │   └── ihandlers/                  # Per-handler TOML configs
 │
-├── python/                          # Python protocol modules (COPIED from current)
+├── python/                          # Python protocol modules (copied from current repo)
 │   └── dionaea/
 │       ├── __init__.py             # ServiceLoader, IHandlerLoader (minor edits for TOML)
-│       ├── services.py
-│       ├── ihandlers.py
-│       ├── exception.py
 │       ├── smb/                    # All protocol modules unchanged
 │       ├── http.py
 │       ├── ftp.py
 │       ├── mysql/
-│       ├── tftp.py
 │       ├── sip/
-│       ├── ... (all others)
-│       ├── logsql.py               # Logging handlers unchanged
-│       ├── log_json.py
-│       └── ...
+│       └── ...                     # All other protocol + ihandler modules
 │
 ├── fuzz/                            # cargo-fuzz targets
 │   ├── Cargo.toml
@@ -878,24 +921,24 @@ dionaea-v2/                          # New directory alongside existing code
 │   ├── dionaea.service             # systemd unit
 │   └── dionaea.toml.example        # Annotated example config
 │
-└── tests/                           # Integration tests (Rust)
+└── tests/                           # Integration tests
     ├── common/mod.rs               # Test helpers (start daemon, connect, etc.)
-    ├── test_tcp_echo.rs
-    ├── test_tls_handshake.rs
-    ├── test_incident_dispatch.rs
-    ├── test_python_bridge.rs
+    ├── tcp_echo.rs
+    ├── tls_handshake.rs
+    ├── incident_dispatch.rs
+    ├── python_bridge.rs
     └── python/                      # Existing pytest suite (copied from current)
         ├── conftest.py
         ├── requirements.txt
         └── ... (tftp, ftp, smb, http, mysql tests)
 ```
 
-Infrastructure modules (pcap, nfq, netlink, download) are Cargo features on the `core`
-crate, not a separate crate. They share core types and don't justify separate compilation
-units. Each is behind `#[cfg(feature = "...")]`:
+**Why not more crates?** Optional modules (pcap, nfq, netlink, download, metrics,
+management transports) are Cargo features on the `dionaea` crate, not separate crates.
+They share core types and are too small to justify separate compilation units.
 
 ```toml
-# crates/core/Cargo.toml
+# crates/dionaea/Cargo.toml
 [features]
 default = ["download"]
 pcap = ["dep:pcap"]
@@ -917,8 +960,8 @@ filtering and multiple outputs. Python initializes.
 **Files to create:**
 - Workspace `Cargo.toml` + `deny.toml`
 - `crates/dionaea/Cargo.toml` + `src/main.rs`
-- `crates/core/Cargo.toml` + `src/lib.rs` + `src/error.rs` + `src/config.rs`
-- `crates/python/Cargo.toml` + `src/lib.rs`
+- `crates/dionaea/src/lib.rs` + `src/error.rs` + `src/config.rs`
+- `crates/dionaea/src/python/mod.rs`
 
 **What main.rs does:**
 1. Load and validate TOML config (with env var overrides: `DIONAEA_LISTEN_ADDR`, etc.)
@@ -1029,7 +1072,7 @@ as section separator. Example: `DIONAEA_DIONAEA__LISTEN__MODE=getifaddrs` overri
 **Goal:** Connection struct, state machine, NodeInfo, OpaqueData, Incident, IHandler dispatch.
 No I/O yet — just the types and their state transitions.
 
-### `crates/core/src/connection/mod.rs`
+### `crates/dionaea/src/connection/mod.rs`
 
 ```rust
 pub enum Transport { Tcp, Tls, Udp }
@@ -1067,7 +1110,7 @@ When Python needs connection data, it calls a Rust method that looks up the ID i
 reads the needed fields, and returns them. When a connection closes, it's removed from the
 table; stale IDs return an error to Python.
 
-### `crates/core/src/incident.rs`
+### `crates/dionaea/src/incident.rs`
 
 ```rust
 pub enum OpaqueData {
@@ -1086,7 +1129,7 @@ pub struct Incident {
 }
 ```
 
-### `crates/core/src/ihandler.rs`
+### `crates/dionaea/src/ihandler.rs`
 
 ```rust
 pub struct IHandlerRegistry {
@@ -1121,7 +1164,7 @@ strings and ihandler patterns in the current codebase to confirm behavior matche
 ### DNS resolution
 
 ```rust
-// crates/core/src/dns.rs
+// crates/dionaea/src/dns.rs
 // Wraps hickory-resolver for async A + AAAA lookups.
 // Used by outbound connection.connect() when given a hostname.
 pub async fn resolve(host: &str) -> Result<Vec<IpAddr>, Error> {
@@ -1148,7 +1191,7 @@ because getting the API wrong means Python protocols won't work.
 
 **Classes to implement (maps to binding.pyx):**
 
-### `crates/python/src/connection.rs` — `#[pyclass] PyConnection`
+### `crates/dionaea/src/python/connection.rs` — `#[pyclass] PyConnection`
 
 ```
 Properties (read-only via #[pyo3(get)]):
@@ -1184,7 +1227,7 @@ Protocol callbacks (Python overrides these):
   handle_origin(parent: PyConnection)
 ```
 
-### `crates/python/src/incident.rs` — `#[pyclass] PyIncident`
+### `crates/dionaea/src/python/incident.rs` — `#[pyclass] PyIncident`
 
 ```
 Properties: origin (read-only)
@@ -1194,7 +1237,7 @@ Dynamic attrs: __getattr__, __setattr__ with type dispatch
 Subscript: __getitem__, __setitem__
 ```
 
-### `crates/python/src/ihandler.rs` — `#[pyclass] PyIHandler`
+### `crates/dionaea/src/python/ihandler.rs` — `#[pyclass] PyIHandler`
 
 ```
 Methods: __init__(pattern), start(), stop(), register(), unregister()
@@ -1202,13 +1245,13 @@ Callback: handle_incident(incident)
 Dynamic dispatch: origin dots→underscores for method lookup
 ```
 
-### `crates/python/src/node_info.rs` — `#[pyclass] PyNodeInfo`
+### `crates/dionaea/src/python/node_info.rs` — `#[pyclass] PyNodeInfo`
 
 ```
 Properties: host (r/w), port (r/w), hostname (r/o)
 ```
 
-### `crates/python/src/stats.rs`
+### `crates/dionaea/src/python/stats.rs`
 
 ```
 PyConnectionTimeouts: idle, listen, sustain, handshake, connecting, reconnect (all f64 r/w)
@@ -1217,14 +1260,14 @@ PyConnectionAccounting: bytes (r/o), limit (r/w)
 PyConnectionStats: speed, accounting (nested objects)
 ```
 
-### `crates/python/src/dionaea.rs` — `#[pyclass] PyDionaea`
+### `crates/dionaea/src/python/dionaea.rs` — `#[pyclass] PyDionaea`
 
 ```
 Methods: config() -> dict, getifaddrs() -> dict, version() -> str
 Global singleton exposed as g_dionaea
 ```
 
-### `crates/python/src/convert.rs`
+### `crates/dionaea/src/python/convert.rs`
 
 ```
 Rust ↔ Python conversions:
@@ -1233,7 +1276,7 @@ Rust ↔ Python conversions:
   Vec<OpaqueData> ↔ Python list
 ```
 
-### `crates/python/src/loader.rs`
+### `crates/dionaea/src/python/loader.rs`
 
 Python module loading + service management:
 - Set `sys.path` to include `python/` directory
@@ -1257,7 +1300,7 @@ Python module loading + service management:
 **Goal:** Real network I/O. TCP accept/connect, UDP recv/send, TLS handshake.
 Wire up to Python protocol callbacks.
 
-### `crates/core/src/connection/tcp.rs`
+### `crates/dionaea/src/connection/tcp.rs`
 
 Key functions (async with tokio):
 - `tcp_listen(addr, port)` → TcpListener
@@ -1267,7 +1310,7 @@ Key functions (async with tokio):
 - `tcp_io_out(connection)` → flush send buffer
 - `tcp_disconnect(connection)` → graceful shutdown
 
-### `crates/core/src/connection/tls.rs`
+### `crates/dionaea/src/connection/tls.rs`
 
 - Uses `openssl` crate (`SslAcceptor`, `SslConnector`)
 - `tokio-openssl` for async TLS streams
@@ -1285,7 +1328,7 @@ Key functions (async with tokio):
 - DH parameter loading for old clients (1024, 2048, 3072, 4096, 6144, 8192-bit RFC primes)
 - `SSL_set_dh_auto` as fallback
 
-### `crates/core/src/connection/udp.rs`
+### `crates/dionaea/src/connection/udp.rs`
 
 - `UdpSocket` with peer table (`HashMap<SocketAddr, ConnectionId>`)
 - `recvmsg` via `nix` crate for `IP_PKTINFO` (capture destination IP)
@@ -1293,7 +1336,7 @@ Key functions (async with tokio):
 - Packet queuing for send
 - Platform: `IP_PKTINFO` on Linux, fallback to basic `recvfrom` on macOS
 
-### `crates/core/src/connection/throttle.rs`
+### `crates/dionaea/src/connection/throttle.rs`
 
 Implements all per-connection rate limiting (see "Rate Limiting & Resource Management"
 in Cross-Cutting Concerns for the full design):
@@ -1324,7 +1367,7 @@ Timeouts integrate into the connection task's `tokio::select!` loop.
 
 **Goal:** Processor tree, bistream recording, shellcode detection.
 
-### `crates/core/src/processor.rs`
+### `crates/dionaea/src/processor.rs`
 
 The processor pipeline is a **tree**, not a chain. The current C code uses `GNode` to build
 parent/child relationships configured like:
@@ -1387,7 +1430,7 @@ Children run only if the parent attaches.
 
 Processors that do CPU-heavy work (shellcode detection) run via `tokio::task::spawn_blocking`.
 
-### `crates/core/src/bistream.rs`
+### `crates/dionaea/src/bistream.rs`
 
 ```rust
 pub struct BiStream {
@@ -1433,7 +1476,7 @@ When shellcode detected:
 
 ## Phase 6: Infrastructure Modules (Weeks 10-11)
 
-All behind Cargo features on the `core` crate.
+All behind Cargo features on the `dionaea` crate.
 
 ### `download` feature (replaces curl module)
 
@@ -1730,6 +1773,36 @@ each service/handler needs, but the TOML versions are new files.
 
 `pyyaml` is still needed at runtime: Speakeasy imports it internally. The Dockerfile keeps
 it in the pip install.
+
+---
+
+## Post-v1: Python Modules Worth Porting to Rust
+
+After the core rewrite is stable, some Python modules are good candidates for porting to
+Rust. These are I/O-heavy, rarely change, and would benefit from eliminating GIL
+contention on the hot path.
+
+**Port (high value, stable, I/O-bound):**
+
+| Module | Lines | Why |
+|--------|-------|-----|
+| `logsql.py` | 1,266 | Runs on every incident. SQLite writes via `rusqlite` + `spawn_blocking` eliminate GIL contention on the hottest path. Schema is stable (16 commits over ~2 years, mostly modernization). |
+| `log_json.py` | 283 | JSON serialization + file/HTTP I/O. Simple, rarely changes. `serde_json` + async writes are a natural fit. |
+| `store.py` | 78 | File dedup for downloads. SHA256 + file rename. Trivial to port, pure I/O. |
+| `fail2ban.py` | 63 | Writes log lines. Trivial. |
+
+**Don't port:**
+
+| Module | Why not |
+|--------|---------|
+| Protocol services (smb, http, ftp, etc.) | They're the product — users extend them, they evolve. Python is the right language for rapid protocol prototyping. |
+| External API handlers (virustotal, s3, hpfeeds) | Python's HTTP/API ecosystem is better. These are deploy-specific and change with API updates. |
+| Speakeasy integration | It's a Python library. Wrapping it from Rust adds complexity for no gain. |
+| Tiny loaders (`__init__.py` stubs) | 20-40 lines of Python. Not worth the porting effort. |
+
+**How:** Each ported module becomes a Rust `#[pyclass]` that implements the same
+`IHandlerLoader` interface. Python code can use either the Python or Rust version
+transparently. Port one at a time, validate with the existing pytest suite.
 
 ---
 
