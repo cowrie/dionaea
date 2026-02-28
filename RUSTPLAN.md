@@ -13,7 +13,8 @@ in Rust with PyO3, keeping all Python protocols unchanged.
   Keep Python Speakeasy handler for Windows API emulation (IOC extraction).
   No unicorn-engine dependency in Rust core — Speakeasy already uses unicorn
   internally via Python.
-- Config: TOML for everything (migrate Python YAML configs)
+- Config: TOML for Rust core. Python service/ihandler configs stay YAML (avoids touching
+  every protocol module's config loading code).
 - Privileges: Linux capabilities (CAP_NET_BIND_SERVICE), no pchild fork
 - Modules: Compile-time Cargo features, no dynamic loading
 - TLS: openssl crate (mandatory for weak cipher honeypot support)
@@ -35,7 +36,7 @@ openssl = "0.10"
 tokio-openssl = "0.6"
 
 # Python embedding
-pyo3 = { version = "0.28", features = ["auto-initialize"] }
+pyo3 = { version = "0.23", features = ["auto-initialize"] }  # verify latest stable on crates.io
 
 # Logging + observability
 tracing = "0.1"
@@ -89,6 +90,11 @@ missing_panics_doc = "allow"
 module_name_repetitions = "allow"
 must_use_candidate = "allow"
 ```
+
+**Version verification:** Before creating `Cargo.toml`, verify all crate versions against
+crates.io. Versions above are best estimates — run `cargo check` in Phase 1 to catch
+incompatibilities early. In particular: `pyo3`, `reqwest`, `metrics`, and `nfq` versions
+should be pinned to actual latest stable releases.
 
 No unicorn-engine dependency in Rust — Speakeasy uses unicorn internally via Python.
 GetPC pattern detection is pure Rust (no external deps needed — it's byte pattern scanning).
@@ -159,6 +165,27 @@ The GIL is the single hardest integration problem. Rules:
 
 5. **Python async is out of scope.** All Python protocol code is synchronous (as it is
    today with libev). We don't need `pyo3-asyncio`.
+
+6. **Per-connection callback ordering is guaranteed.** The connection task must `await`
+   each Python callback to completion before processing the next I/O event. This preserves
+   the C behavior where callbacks for a single connection are strictly ordered:
+   `established → io_in → io_in → ... → disconnect`. Without this, a race between
+   `handle_io_in` and `handle_disconnect` can deliver callbacks out of order.
+   The connection task loop enforces this:
+   ```rust
+   loop {
+       tokio::select! {
+           result = socket.read(&mut buf) => {
+               let data = result?;
+               // MUST await before next loop iteration — no concurrent callbacks
+               let consumed = call_python_io_in(&py_handler, &data).await?;
+           }
+           _ = &mut idle_timeout => {
+               call_python_timeout_idle(&py_handler).await?;
+           }
+       }
+   }
+   ```
 
 ### Testing Strategy
 
@@ -263,13 +290,13 @@ the whole thing. `ABOUTME` is greppable across the project.
 3. *Relationship* to other components (if it's part of a larger flow)
 
 ```rust
-/// A single network connection (TCP, TLS, or UDP).
+/// Connection metadata visible to Python and the incident system.
 ///
-/// Connections are created by listeners (accept) or by Python protocol code (connect).
-/// Each connection is owned by the `ConnectionTable` and identified by a `ConnectionId`.
-/// Python code interacts with connections through `PyConnection`, which holds a
-/// `ConnectionId` and looks up the real connection in the table on each call.
-pub struct Connection {
+/// Stored in `ConnectionRegistry` (a `DashMap<ConnectionId, ConnectionMeta>`).
+/// The tokio task owns the I/O state separately (socket, buffers, timeouts).
+/// Python reads metadata through `PyConnection`, which holds a `ConnectionId`
+/// and looks up the entry in the registry on each property access.
+pub struct ConnectionMeta {
     /// Monotonically increasing, never recycled. Python holds copies of this.
     pub id: ConnectionId,
     /// Current lifecycle state. Drives which operations are valid.
@@ -375,33 +402,42 @@ running and at least one service is listening. Used by Docker HEALTHCHECK and or
 
 **Ownership across the Python boundary:**
 
-The PyO3 bridge is where Rust's ownership model meets Python's garbage collector. The rules:
+The PyO3 bridge is where Rust's ownership model meets Python's garbage collector.
+Connection state is split between two owners to keep the I/O hot path lock-free:
 
-1. **Rust owns all connections.** The `ConnectionTable` (a `DashMap<ConnectionId, Connection>`)
-   is the single owner. Python holds `ConnectionId` values (cheap `u64` copies), not
-   references into Rust memory. When Python calls a method on `PyConnection`, the PyO3
-   method looks up the ID in the table. If the connection has been closed and removed,
-   Python gets a clean `RuntimeError("connection closed")`.
+1. **Each connection's tokio task owns its I/O state.** The task directly owns the socket,
+   receive buffer, state machine, and timeout futures. No shared map access is needed
+   for I/O operations — this is the hot path and must be lock-free.
 
-2. **Python owns all protocol handler objects.** The `Py<PyAny>` (Python protocol instance)
+2. **A `ConnectionRegistry` holds metadata for Python access.** A
+   `DashMap<ConnectionId, ConnectionMeta>` stores the fields Python reads via `#[pyo3(get)]`:
+   addresses, transport type, protocol name, stats, timeout configs. The tokio task updates
+   the registry when metadata changes (state transitions, stats). Python reads are lock-free
+   (DashMap read shards). Python never touches I/O state directly.
+
+3. **Python's `send()` goes through a channel, not shared memory.** Each connection has a
+   `tokio::sync::mpsc::UnboundedSender<Bytes>` that Python's `send()` method pushes to.
+   The connection task drains this channel and writes to the socket. No mutex needed.
+
+4. **Python owns all protocol handler objects.** The `Py<PyAny>` (Python protocol instance)
    is stored in a `Py<>` handle associated with the connection ID. PyO3's `Py<>` is
    reference-counted on the Python side and `Send` on the Rust side. When a connection
    closes, we drop the `Py<>` handle, which decrements the Python refcount.
 
-3. **Incident data is copied, not shared.** When an incident is reported from Rust to Python,
+5. **Incident data is copied, not shared.** When an incident is reported from Rust to Python,
    `OpaqueData` values are converted to Python objects (new allocations). When Python sets
    fields on a `PyIncident`, the data is converted to `OpaqueData` (Rust allocation). No
    shared mutable state between languages.
 
-4. **No `Arc<Mutex<T>>` across the Python boundary.** The ConnectionId indirection
+6. **No `Arc<Mutex<T>>` across the Python boundary.** The ConnectionId indirection
    eliminates this. The only locks are:
-   - `ConnectionTable` uses `DashMap` (sharded concurrent map, no global lock)
-   - Per-connection send buffer uses `tokio::sync::Mutex` (held briefly to queue data)
+   - `ConnectionRegistry` uses `DashMap` (sharded concurrent map, no global lock)
+   - Per-connection send uses `mpsc` channel (lock-free)
 
 **What the compiler catches:**
 
 - Lifetime errors: The borrow checker prevents returning references to connection data
-  that might be removed from the table. All returns are owned values or copies.
+  that might be removed from the registry. All returns are owned values or copies.
 - Send/Sync violations: tokio tasks require `Send`. PyO3's `Py<PyAny>` is `Send` but not
   `Sync` — you can move it between threads but can't share it. This correctly models the
   GIL: only one thread can use a Python object at a time.
@@ -516,7 +552,7 @@ native equivalents which are better.
 | `GThreadPool` | Processor thread pool | `tokio::task::spawn_blocking` pool |
 | `GMainLoop` / `libev` | Event loop | `tokio` async runtime |
 | `g_pattern_spec_match` | Glob with `*` matching dots | Simple wildcard: `*` = any chars, `?` = one char |
-| `GRefCount` | Connection ref/unref | `AtomicU32` + `ConnectionTable` ownership |
+| `GRefCount` | Connection ref/unref | `AtomicU32` on `ConnectionMeta` in `ConnectionRegistry` |
 | `GMutex` | Processor pipeline lock | `tokio::sync::Mutex` or `std::sync::Mutex` |
 
 **Key behavioral differences to be aware of:**
@@ -556,7 +592,7 @@ port)` synchronously. The C implementation is fire-and-forget: it queues the con
 libev and returns immediately. The Rust implementation does the same:
 
 1. Python calls `PyConnection::connect(addr, port)` — this is a `#[pymethod]`
-2. The method validates args, creates a new `Connection` in the table, and spawns a
+2. The method validates args, creates a `ConnectionMeta` in the registry, and spawns a
    tokio task to handle the async connect (DNS resolution + TCP connect + optional TLS)
 3. Returns immediately to Python (no GIL blocking on I/O)
 4. When the connection is established, the tokio task calls `handle_established` on the
@@ -568,13 +604,13 @@ block because the underlying event loop is async. Python just triggers the actio
 
 **`ref()` / `unref()` semantics:** In the C code, these increment/decrement a refcount that
 prevents the connection from being freed while a background thread (processor pipeline) holds
-a reference. With the Rust ownership model (ConnectionId + ConnectionTable), `ref()` and
+a reference. With the Rust ownership model (ConnectionId + ConnectionRegistry), `ref()` and
 `unref()` become lightweight pins:
 
-- `ref()`: Increments an `AtomicU32` counter on the Connection entry. While refcount > 0,
+- `ref()`: Increments an `AtomicU32` counter on the `ConnectionMeta` entry. While refcount > 0,
   the connection task delays cleanup even after the connection closes.
 - `unref()`: Decrements the counter. When it reaches 0 and the connection is in `Close`
-  state, the entry is removed from the table.
+  state, the entry is removed from the registry.
 - Both return the current refcount (matching C behavior).
 
 This preserves the contract: processor threads (via `spawn_blocking`) ref before processing,
@@ -608,10 +644,9 @@ limited only by FDs and memory, not task overhead.
 **Buffer management:**
 - Receive buffer: Stack-allocated `[u8; 65536]` per read call (matching current
   `CONNECTION_MAX_RECV_SIZE`). No heap allocation per packet.
-- Send buffer: `bytes::BytesMut` per connection for zero-copy appending. Protocol
-  handlers build response data; the send buffer drains to the socket.
-- Avoid `Vec<u8>` growth/realloc in hot paths. Pre-size send buffers to typical
-  protocol response sizes where known.
+- Send path: Python's `send()` pushes `Bytes` through an `mpsc` channel to the connection
+  task. The task drains the channel and writes to the socket. The task owns a `BytesMut`
+  write buffer for coalescing small writes.
 
 **Python callback overhead minimization:**
 - Batch incident dispatch: acquire GIL once, call all matching handlers, release.
@@ -921,7 +956,7 @@ pub trait ManagementTransport: Send + Sync {
 
 | Hook | Source | Purpose |
 |------|--------|---------|
-| `ConnectionTable::summary()` | connection/mod.rs | Active connection counts, per-protocol, per-IP |
+| `ConnectionRegistry::summary()` | connection/mod.rs | Active connection counts, per-protocol, per-IP |
 | `IHandlerRegistry::recent_incidents()` | ihandler.rs | Ring buffer of recent incidents for reporting |
 | `ServiceRegistry::list()` / `start()` / `stop()` | loader.rs | Service lifecycle control |
 | `metrics::snapshot()` | metrics.rs | Current metric values |
@@ -994,7 +1029,7 @@ dionaea-v2/
 │   │       ├── error.rs            # Error types (thiserror)
 │   │       ├── config.rs           # TOML config loading, validation, env overrides
 │   │       ├── connection/
-│   │       │   ├── mod.rs          # Connection struct, state machine, lifecycle
+│   │       │   ├── mod.rs          # ConnectionMeta, TaskState, state machine, lifecycle
 │   │       │   ├── tcp.rs          # TCP accept, connect, I/O
 │   │       │   ├── tls.rs          # TLS handshake, encrypted I/O
 │   │       │   ├── udp.rs          # UDP listener, peer table
@@ -1032,13 +1067,13 @@ dionaea-v2/
 │           └── mips.rs             # MIPS GetPC patterns
 │
 ├── conf/                            # Default configuration files
-│   ├── dionaea.toml                # Main config
-│   ├── services/                   # Per-service TOML configs
-│   └── ihandlers/                  # Per-handler TOML configs
+│   ├── dionaea.toml                # Main config (TOML, read by Rust)
+│   ├── services/                   # Per-service YAML configs (read by Python)
+│   └── ihandlers/                  # Per-handler YAML configs (read by Python)
 │
 ├── python/                          # Python protocol modules (copied from current repo)
 │   └── dionaea/
-│       ├── __init__.py             # ServiceLoader, IHandlerLoader (minor edits for TOML)
+│       ├── __init__.py             # ServiceLoader, IHandlerLoader (minor edits for import path)
 │       ├── smb/                    # All protocol modules unchanged
 │       ├── http.py
 │       ├── ftp.py
@@ -1089,10 +1124,33 @@ mgmt-dns = []                  # DNS-based poll-based remote management
 
 ---
 
-## Phase 1: Skeleton + Config + Logging (Week 1)
+## Phase 1: PyO3 Proof-of-Concept + Skeleton (Weeks 1-2)
 
-**Goal:** Cargo workspace builds. Config loads and validates. Logging works with domain
-filtering and multiple outputs. Python initializes.
+**Goal:** Validate PyO3 integration (go/no-go gate), then set up workspace, config, and
+logging.
+
+### Days 1-3: PyO3 Proof-of-Concept (Go/No-Go Gate)
+
+Before investing in infrastructure, validate the fundamental premise: can PyO3 replicate
+the Cython binding API closely enough for existing Python protocols to work?
+
+Build a minimal proof-of-concept that:
+- [ ] Define `#[pyclass(subclass)]` `PyConnection` with `handle_io_in` and `send` methods
+- [ ] Subclass it in Python: `class echo(connection): def handle_io_in(self, data): ...`
+- [ ] Call `handle_io_in` from Rust via `spawn_blocking` + `Python::with_gil`
+- [ ] Call `send()` from Python back into Rust
+- [ ] Verify method resolution order works for all `handle_*` callbacks
+- [ ] Verify `#[pyclass(subclass)]` supports Python `__init__` with `super().__init__()` call
+- [ ] Measure `spawn_blocking` + GIL round-trip latency under load:
+  - Target: <100μs P99 per callback
+  - If >100μs P99: design alternative callback dispatch (dedicated Python thread with a
+    queue, matching C's single-threaded model)
+
+**This is a go/no-go gate.** If `#[pyclass(subclass)]` doesn't support the Python protocol
+subclassing pattern, or if callback overhead is prohibitive, the plan needs revision before
+proceeding.
+
+### Days 4-10: Workspace Setup + Config + Logging
 
 **Files to create:**
 - Workspace `Cargo.toml` + `deny.toml`
@@ -1157,8 +1215,8 @@ netlink = false
 
 [modules.python]
 imports = ["dionaea"]
-service_configs = ["/etc/dionaea/services-enabled/*.toml"]
-ihandler_configs = ["/etc/dionaea/ihandlers-enabled/*.toml"]
+service_configs = ["/etc/dionaea/services-enabled/*.yaml"]
+ihandler_configs = ["/etc/dionaea/ihandlers-enabled/*.yaml"]
 
 [dionaea.admin]
 listen = "127.0.0.1"              # admin interface (metrics, health) — separate from honeypot
@@ -1199,15 +1257,17 @@ as section separator. Example: `DIONAEA_DIONAEA__LISTEN__MODE=getifaddrs` overri
 `dionaea.listen.mode`.
 
 **Tests:**
+- PoC: PyO3 subclass test (Python class extends `#[pyclass(subclass)]`, callbacks fire)
+- PoC: spawn_blocking + GIL round-trip latency benchmark (<100μs P99 target)
 - Unit: Config round-trip (struct → TOML → struct), env override merging, validation errors
 - Integration: `cargo run -- -c test.toml` starts and exits cleanly on SIGTERM
 
 ---
 
-## Phase 2: Core Types + Incident System (Weeks 2-3)
+## Phase 2: Core Types + Incident System (Weeks 3-4)
 
-**Goal:** Connection struct, state machine, NodeInfo, OpaqueData, Incident, IHandler dispatch.
-No I/O yet — just the types and their state transitions.
+**Goal:** ConnectionMeta, TaskState, state machine, NodeInfo, OpaqueData, Incident, IHandler
+dispatch. No I/O yet — just the types and their state transitions.
 
 ### `crates/dionaea/src/connection/mod.rs`
 
@@ -1222,7 +1282,8 @@ pub enum ConnectionState {
 
 pub struct ConnectionId(u64);  // Monotonic counter, not recycled
 
-pub struct Connection {
+/// Metadata visible to Python and the incident system. Stored in ConnectionRegistry.
+pub struct ConnectionMeta {
     id: ConnectionId,
     transport: Transport,
     connection_type: ConnectionType,
@@ -1231,21 +1292,56 @@ pub struct Connection {
     remote: NodeInfo,
     stats: ConnectionStats,
     timeouts: ConnectionTimeouts,
-    // Protocol handler is a PyObject held by the python crate,
-    // not stored here. Connection is transport-only.
+}
+
+/// I/O state owned exclusively by the connection's tokio task. Never shared.
+struct TaskState {
+    socket: TcpStream,  // or TlsStream<TcpStream>, or UdpSocket
+    send_rx: mpsc::UnboundedReceiver<Bytes>,  // drained by task, fed by Python send()
+    recv_buf: [u8; 65536],
+    idle_timeout: Pin<Box<Sleep>>,
+    sustain_timeout: Pin<Box<Sleep>>,
+    py_handler: Py<PyAny>,
 }
 ```
 
-**Ownership model:** Connections are owned by a `ConnectionTable` (a `HashMap<ConnectionId,
-Connection>` behind a `tokio::sync::RwLock`). Python and incidents reference connections by
-`ConnectionId`, not by `Arc<Mutex<Connection>>`. This avoids:
-- Deadlocks from nested lock acquisition
-- GIL + Mutex ordering issues
-- Preventing connection cleanup when Python holds a reference
+**Ownership model:** Connection state is split between two owners (see Cross-Cutting Concerns
+§Ownership for the full rationale):
+- **The tokio task** owns I/O state (`TaskState`): socket, buffers, timeouts, Python handler
+  reference. This is the hot path — no locks needed for I/O operations.
+- **The `ConnectionRegistry`** (`DashMap<ConnectionId, ConnectionMeta>`) holds metadata that
+  Python reads via `#[pyo3(get)]`. The task updates the registry on state transitions.
+- **Python's `send()`** pushes data through an `mpsc::UnboundedSender<Bytes>` channel to the
+  task. No shared mutable buffers.
 
-When Python needs connection data, it calls a Rust method that looks up the ID in the table,
-reads the needed fields, and returns them. When a connection closes, it's removed from the
-table; stale IDs return an error to Python.
+Python and incidents reference connections by `ConnectionId`, not by `Arc<Mutex<Connection>>`.
+This avoids deadlocks, GIL + Mutex ordering issues, and lock contention on the I/O hot path.
+Stale IDs (connection already closed) return `RuntimeError("connection closed")` to Python.
+
+### Connection Lifecycle
+
+Methods are only valid in certain states. Calling a method in an invalid state returns an
+error to Python.
+
+| Method | None | Resolve | Connecting | Handshake | Established | Shutdown | Close |
+|--------|------|---------|------------|-----------|-------------|----------|-------|
+| `bind()` | yes | | | | | | |
+| `listen()` | yes* | | | | | | |
+| `connect()` | yes | | | | | | |
+| `send()` | buffer | | buffer | | yes | | error |
+| `close()` | yes | yes | yes | yes | yes | | |
+| `ref()` | yes | yes | yes | yes | yes | yes | yes |
+| `unref()` | yes | yes | yes | yes | yes | yes | yes |
+
+\* `listen()` requires a prior `bind()`.
+
+`__init__("tcp")` creates a `ConnectionMeta` entry in the registry with `state=None` and
+allocates the `mpsc` channel pair. No tokio task is spawned yet. The task is spawned lazily:
+- `listen()` spawns an accept loop task
+- `connect()` spawns a connect + I/O task
+
+`send()` in `None`/`Connecting` state buffers data in the channel. The task drains buffered
+data when it reaches `Established`.
 
 ### `crates/dionaea/src/incident.rs`
 
@@ -1274,7 +1370,7 @@ pub struct IHandlerRegistry {
 }
 
 struct IHandler {
-    pattern: glob::Pattern,
+    pattern: WildcardPattern,  // Custom: '*' matches any chars including dots (not glob crate)
     // Callback is either a Rust function or a Python callable.
     // Python handlers dominate in practice.
 }
@@ -1319,7 +1415,7 @@ pub async fn resolve(host: &str) -> Result<Vec<IpAddr>, Error> {
 
 ---
 
-## Phase 3: PyO3 Bridge (Weeks 4-5)
+## Phase 3: PyO3 Bridge (Weeks 5-6)
 
 **Goal:** Replicate binding.pyx (1,370 lines) as PyO3 classes. This is the hardest phase
 because getting the API wrong means Python protocols won't work.
@@ -1418,7 +1514,7 @@ Rust ↔ Python conversions:
 Python module loading + service management:
 - Set `sys.path` to include `python/` directory
 - Import `dionaea` package → triggers `load_submodules()`
-- Load TOML config files for ihandlers and services
+- Load YAML config files for ihandlers and services (Python reads these, not Rust)
 - Instantiate ServiceLoaders and IHandlerLoaders
 - For each configured service: find matching ServiceLoader, call `start(addr, iface, config)`
 
@@ -1432,7 +1528,7 @@ Python module loading + service management:
 
 ---
 
-## Phase 4: TCP/UDP I/O + TLS (Weeks 6-8)
+## Phase 4: TCP/UDP I/O + TLS (Weeks 7-9)
 
 **Goal:** Real network I/O. TCP accept/connect, UDP recv/send, TLS handshake.
 Wire up to Python protocol callbacks.
@@ -1441,11 +1537,11 @@ Wire up to Python protocol callbacks.
 
 Key functions (async with tokio):
 - `tcp_listen(addr, port)` → TcpListener
-- `tcp_accept(listener)` → new Connection + spawn handler task
-- `tcp_connect(addr, port)` → Connection (with DNS resolution if hostname)
-- `tcp_io_in(connection)` → read, buffer, call protocol.io_in via spawn_blocking
-- `tcp_io_out(connection)` → flush send buffer
-- `tcp_disconnect(connection)` → graceful shutdown
+- `tcp_accept(listener)` → new ConnectionMeta in registry + spawn handler task
+- `tcp_connect(addr, port)` → ConnectionMeta (with DNS resolution if hostname)
+- Handler task I/O loop: read → call `handle_io_in` via `spawn_blocking` (await before
+  next read — see GIL Strategy rule 6) → drain send channel → write
+- `tcp_disconnect(connection)` → graceful shutdown, update registry, remove when refcount=0
 
 ### `crates/dionaea/src/connection/tls.rs`
 
@@ -1500,7 +1596,7 @@ Timeouts integrate into the connection task's `tokio::select!` loop.
 
 ---
 
-## Phase 5: Processor Pipeline + Bistream + Shellcode (Week 9)
+## Phase 5: Processor Pipeline + Bistream + Shellcode (Week 10)
 
 **Goal:** Processor tree, bistream recording, shellcode detection.
 
@@ -1517,12 +1613,14 @@ filter
 ```
 
 ```rust
-pub trait Processor: Send + Sync {
+pub trait Processor: Send {
     fn name(&self) -> &str;
-    fn on_connect(&self, con: &Connection) -> bool;  // should this processor attach?
+    fn on_connect(&self, con: &ConnectionMeta) -> bool;  // should this processor attach?
     fn io_in(&mut self, data: &[u8]) -> ProcessorResult;
     fn io_out(&mut self, data: &[u8]) -> ProcessorResult;
 }
+// No Sync bound: processors are owned by the connection task, not shared.
+// ConnectionMeta (not Connection) because that's what's available for the check.
 
 pub struct ProcessorNode {
     processor: Box<dyn Processor>,
@@ -1611,7 +1709,7 @@ When shellcode detected:
 
 ---
 
-## Phase 6: Infrastructure Modules (Weeks 10-11)
+## Phase 6: Infrastructure Modules (Weeks 11-12)
 
 All behind Cargo features on the `dionaea` crate.
 
@@ -1722,7 +1820,7 @@ nix::unistd::setuid(uid)?;
 
 ---
 
-## Phase 7: Integration Testing + Acceptance (Weeks 12-13)
+## Phase 7: Integration Testing + Acceptance (Weeks 13-14)
 
 By this point, every phase has its own tests. This phase is about **end-to-end acceptance**
 and **feature parity validation** against the C version.
@@ -1774,7 +1872,7 @@ Use `criterion` or `hyperfine` for benchmarks. Store results for regression trac
 
 ---
 
-## Phase 8: Deployment + Packaging (Week 14)
+## Phase 8: Deployment + Packaging (Week 15)
 
 ### Docker image
 
@@ -1878,10 +1976,14 @@ SIGHUP: Reopen log file handles (for logrotate compatibility). Do NOT reload con
 
 ### Minimal changes required:
 
-1. **`__init__.py`**: Replace `yaml.safe_load()` with `tomllib.load()` (3 lines)
-2. **Config files**: Migrate YAML → TOML syntax (format change, not logic)
-3. **Import path**: `from dionaea.core import connection, incident, ihandler, g_dionaea`
+1. **Import path**: `from dionaea.core import connection, incident, ihandler, g_dionaea`
    — same names, but now backed by PyO3 instead of Cython
+2. **`__init__.py`**: Minor edits for the Rust module import path. Config loading stays YAML.
+3. **Rust core config** (`dionaea.toml`): Written fresh in TOML. Not a migration — new file.
+4. **Python service/ihandler configs stay YAML.** The Rust core doesn't read these files —
+   Python's `ServiceLoader` and `IHandlerLoader` load them directly. Existing YAML configs
+   work as-is, modulo any key changes needed for the v2 feature set. This avoids touching
+   every protocol module's config loading code.
 
 ### What does NOT change:
 
@@ -1904,12 +2006,12 @@ Existing data directories are fully compatible with v2:
 
 ### Config files
 
-No migration from existing YAML configs. The TOML service and ihandler configs are written
-fresh as part of the v2 project. The current YAML files serve as reference for what keys
-each service/handler needs, but the TOML versions are new files.
+Python service and ihandler configs stay YAML. The Rust core doesn't read these files —
+Python's `ServiceLoader` and `IHandlerLoader` load them directly. Existing YAML configs
+work as-is, modulo any key changes needed for the v2 feature set.
 
-`pyyaml` is still needed at runtime: Speakeasy imports it internally. The Dockerfile keeps
-it in the pip install.
+`pyyaml` is needed at runtime: service/ihandler configs use it, and Speakeasy imports it
+internally. The Dockerfile keeps it in the pip install.
 
 ---
 
@@ -1969,7 +2071,7 @@ compile on macOS (behind `#[cfg]` where needed) so `cargo check` works locally.
 | TLS weak cipher config is complex | Use openssl crate directly, not rustls. Test against old SSL clients in Phase 4. |
 | TOML config missing required keys | Use current YAML configs as reference. Validate all required keys at startup. |
 | Performance regression vs C | Benchmark in Phase 7. Tokio should match or beat libev for I/O; Python callback overhead is the bottleneck regardless of language. |
-| Arc<Mutex<Connection>> deadlocks | Avoided: use ConnectionId references + ConnectionTable with RwLock. |
+| Arc<Mutex<Connection>> deadlocks | Avoided: use ConnectionId + ConnectionRegistry (DashMap) + mpsc channels. |
 | Panic in protocol handler crashes process | catch_unwind at every task boundary. Test with intentionally-panicking protocol. |
 | Stale ConnectionId after close | Return clear error ("connection closed") to Python. Test explicitly. |
 | Management transport unreachable | Poll loop retries with exponential backoff. Buffer incidents locally (ring buffer). Log but don't crash. |
