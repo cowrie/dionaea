@@ -62,6 +62,9 @@ sha2 = "0.10"          # SHA256 for download/shellcode file naming
 # DNS
 hickory-resolver = { version = "0.25", features = ["tokio-runtime"] }
 
+# IP deny list (CIDR prefix matching)
+ip_network_table = "0.2"
+
 # HTTP client (replaces curl module)
 reqwest = { version = "0.13", default-features = false, features = ["native-tls"] }
 
@@ -132,9 +135,23 @@ pub enum Error {
 // PyO3 handles this via From<PyErr> and Into<PyErr> impls.
 ```
 
-**Panic policy:** `panic = "unwind"` in release. Use `std::panic::catch_unwind` at every
-Python callback boundary and every tokio task entry point. A panic in one connection handler
-must not take down the process. Log the panic, close that connection, continue.
+**Panic policy:** `panic = "unwind"` in release. A panic in one connection handler must not
+take down the process. Log the panic, close that connection, continue.
+
+**`catch_unwind` placement guide:**
+- Wrap the *entire body* of each `spawn_blocking` closure in `catch_unwind`. This catches
+  Rust-side panics that happen outside `Python::with_gil`.
+- Inside `Python::with_gil`, rely on PyO3's internal panic handling — PyO3 catches panics
+  within `with_gil` closures and converts them to `PyErr`, which is the correct behavior.
+  Do NOT nest `catch_unwind` inside `with_gil` (it interferes with GIL state management).
+- At every tokio task entry point (the `async move {}` block in `tokio::spawn`), wrap the
+  entire task body in `catch_unwind` via `AssertUnwindSafe` on the future.
+- `catch_unwind` does NOT catch `std::process::abort()` (some OpenSSL error handlers call
+  abort), stack overflows, or `panic = "abort"`. Ensure no crate overrides the workspace
+  panic setting. For OpenSSL aborts, there is no mitigation — they indicate a fatal
+  internal error.
+- **Required test:** A protocol handler that triggers a Rust panic after GIL release — verify
+  the connection closes cleanly, GIL is released, and the process survives.
 
 **Graceful degradation:** If a service fails to start (port in use, config error), log the
 error and continue starting other services. Only abort if zero services start successfully.
@@ -419,11 +436,16 @@ Connection state is split between two owners to keep the I/O hot path lock-free:
    the registry when metadata changes (state transitions, stats). Python reads are lock-free
    (DashMap read shards). Python never touches I/O state directly.
 
-3. **Python's `send()` goes through a channel, not shared memory.** Each connection has a
-   `tokio::sync::mpsc::UnboundedSender<SendMessage>` that Python's `send()` method pushes to.
-   `SendMessage` carries data (TCP/TLS), datagrams with addresses (UDP), and control messages
-   (timeout/throttle changes from Python property setters). The connection task drains this
-   channel and dispatches each variant. No mutex needed.
+3. **Python's `send()` goes through a bounded channel, not shared memory.** Each connection has a
+   `tokio::sync::mpsc::Sender<SendMessage>` (capacity: 256 messages, configurable) that Python's
+   `send()` method pushes to. `SendMessage` carries data (TCP/TLS), datagrams with addresses
+   (UDP), and control messages (timeout/throttle changes from Python property setters). The
+   connection task drains this channel and dispatches each variant. No mutex needed.
+
+   The channel is bounded to prevent a buggy or malicious protocol handler from calling `send()`
+   in a loop and growing the queue until OOM. When the channel is full, `try_send()` returns
+   `TrySendError::Full` and the Python `send()` method raises an exception. This also bounds
+   per-connection memory: at most 256 × max-message-size bytes queued.
 
 4. **Python owns all protocol handler objects.** The `Py<PyAny>` (Python protocol instance)
    is stored in a `Py<>` handle associated with the connection ID. PyO3's `Py<>` is
@@ -679,23 +701,31 @@ The bottleneck is Python, not syscalls. Keep it simple.
 
 The current C code has a layered rate limiting system. All layers must be preserved.
 
-**Layer 1: Global FD limit (connection accept)**
+**Layer 1: Global connection limits (connection accept)**
 
-Reject new connections when FD usage exceeds a configurable percentage of `RLIMIT_NOFILE`.
+Two checks at accept time, either of which rejects the connection:
+
+1. **FD usage:** Reject when FD usage exceeds a configurable percentage of `RLIMIT_NOFILE`.
+   Default: 70% (matching current C behavior).
+2. **Total connection count:** Reject when active connections exceed `max_connections_total`.
+   Default: 10,000. This prevents OOM from per-connection overhead (Python handler objects,
+   DashMap entries, mpsc channels) when `RLIMIT_NOFILE` is very high.
 
 ```rust
 // Checked in tcp_accept() and tls_accept()
 let fd_limit = resource::getrlimit(Resource::RLIMIT_NOFILE)?.rlim_cur;
-let threshold = fd_limit * config.limits.max_fds_pct / 100;
-if current_fd_count > threshold {
-    tracing::warn!(fd = current_fd_count, limit = threshold, "FD limit reached, rejecting");
-    metrics::counter!("dionaea_connections_rejected_total", "reason" => "fd_limit").increment(1);
+let fd_threshold = fd_limit * config.limits.max_fds_pct / 100;
+let active = registry.len();
+if current_fd_count > fd_threshold || active >= config.limits.max_connections_total {
+    let reason = if current_fd_count > fd_threshold { "fd_limit" } else { "connection_limit" };
+    tracing::warn!(fd = current_fd_count, active, reason, "limit reached, rejecting");
+    metrics::counter!("dionaea_connections_rejected_total", "reason" => reason).increment(1);
     reject_connection(stream, &config.limits.reject_strategy).await;
     continue;
 }
 ```
 
-Default: 70% (matching current C behavior). Configurable in TOML.
+Both configurable in TOML.
 
 **Layer 2: Per-IP connection limit**
 
@@ -725,6 +755,14 @@ reject_strategy = "accept_silence"   # default
 
 Default is `accept_silence` because it requires no per-protocol logic and is indistinguishable
 from a legitimately overloaded service.
+
+**`accept_silence` resource management:** Silent connections must not exhaust resources that
+real connections need. They do NOT count toward the per-IP connection limit (Layer 2) or the
+total connection limit (Layer 1). They are tracked separately in a lightweight set with a
+hard cap (configurable, default: 100 concurrent). Each silent connection auto-closes after
+a timeout (configurable, default: 30 seconds). Implementation: spawn a trivial tokio task
+that sleeps then drops the `TcpStream`. When the silent connection cap is reached, excess
+rejections fall back to `rst` (drop immediately).
 
 **Layer 3: Per-connection bandwidth throttle (token bucket)**
 
@@ -833,17 +871,20 @@ configurable — it's a safety bound, not a tuning knob.
 
 **Layer 8: IP deny list**
 
-A `DashMap<IpAddr, Option<Instant>>` checked at accept time. Entries can have a TTL
-(auto-expire) or be permanent. Managed via management commands or loaded from a
-persistence file on startup.
+An IP prefix table (using `ip_network_table` crate or similar trie) checked at accept time.
+Supports both individual IPs and CIDR blocks (e.g., `10.0.0.0/8`). Entries can have a TTL
+(auto-expire) or be permanent. Managed via management commands or loaded from a persistence
+file on startup. A `DashMap<IpAddr, ...>` cannot do CIDR prefix matching — a trie is required
+to honor CIDR deny entries without expanding them to individual IPs.
 
 **Config section:**
 ```toml
 [dionaea.limits]
 max_fds_pct = 70
+max_connections_total = 10000  # hard cap on concurrent connections (memory safety)
 max_connections_per_ip = 50
+send_channel_capacity = 256   # bounded mpsc channel depth per connection
 recv_buffer_size = 65536       # bytes, per read call
-# max_memory_mb = 0            # 0 = no limit
 
 [dionaea.deny_list]
 persist_file = "/var/lib/dionaea/deny_list.json"
@@ -886,13 +927,15 @@ must not be compromised, and must not become a tool for attacking others.
 - Bistream dumps are named by connection ID — no attacker-controlled paths.
 
 **Anti-relay / SSRF prevention:**
-- The download module (replaces curl) only fetches URLs from `dionaea.download.offer`
-  incidents. These are generated by protocol handlers when an attacker offers a
-  malware URL (e.g., via FTP RETR or SMB write).
-- Before fetching, validate the URL: reject `file://`, `gopher://`, and any scheme
-  other than `http://` or `https://`.
-- Reject private/loopback IPs as download targets (`127.0.0.0/8`, `10.0.0.0/8`,
-  `172.16.0.0/12`, `192.168.0.0/16`, `::1`, `fe80::/10`). Prevents SSRF.
+- **All outbound connections** (`PyConnection::connect()` and the download module) reject
+  private/loopback/link-local IPs by default: `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`,
+  `192.168.0.0/16`, `169.254.0.0/16`, `::1`, `fe80::/10`. This prevents a compromised
+  protocol handler from using `connect()` to reach cloud metadata endpoints, internal
+  services, or create a proxy. Configurable via `[dionaea.security] allow_private_outbound`
+  for deployments that legitimately need LAN access.
+- All outbound connection attempts are logged at INFO level (security-relevant events).
+- The download module additionally restricts URL schemes: reject `file://`, `gopher://`,
+  and any scheme other than `http://` or `https://`.
 - Mirror/NFQ modules check `is_local_addr()` before forwarding traffic.
 
 **Network interface isolation:**
@@ -944,7 +987,7 @@ pub struct StatusReport {
     pub connections: ConnectionSummary,              // active, total, per-protocol, per-source-ip
     pub incidents_since_last_report: Vec<IncidentSummary>,  // origin, timestamp, key fields
     pub alerts: Vec<Alert>,                         // high-priority events (filtered by AlertRules)
-    pub log_tail: Vec<LogEntry>,                    // recent warning+ log lines
+    pub log_tail: Vec<LogEntry>,                    // recent warning+ log lines (redacted)
     pub resources: ResourceStatus,                  // fd_used, fd_limit, memory_rss
     pub errors_since_last_report: Vec<ErrorSummary>,
 }
@@ -966,8 +1009,6 @@ pub enum ManagementCommand {
     Restart,
     /// Request a full status report on next poll
     RequestStatus,
-    /// Update a config value (limited to safe keys)
-    SetConfig { key: String, value: String },
 }
 
 /// Trait that transports implement.
@@ -997,9 +1038,9 @@ pub trait ManagementTransport: Send + Sync {
 (configurable size, default 1000) of recent `IncidentSummary` structs. Each poll drains
 entries added since the last poll. This avoids unbounded memory growth between polls.
 
-**IP deny list:** A `HashSet<IpAddr>` (with optional TTL per entry) checked at connection
-accept time. Management commands can add/remove entries. Persisted to a file on graceful
-shutdown, reloaded on startup.
+**IP deny list:** An IP prefix table (trie) with optional TTL per entry, checked at connection
+accept time. Supports individual IPs and CIDR blocks. Management commands can add/remove
+entries. Persisted to a file on graceful shutdown, reloaded on startup.
 
 **Transport modules are Cargo features:**
 ```toml
@@ -1027,8 +1068,9 @@ management/
 
 **Security:** Management transports authenticate to the server (TLS client certs for
 HTTPS, TSIG/HMAC for DNS). The honeypot never exposes a listening management port —
-it only makes outbound poll connections. Commands are validated before execution
-(e.g., `SetConfig` only allows a whitelist of safe keys).
+it only makes outbound poll connections. There is no generic `SetConfig` command —
+every management operation has a specific command with validated parameters, reducing
+the attack surface if the management server is compromised.
 
 ---
 
@@ -1211,9 +1253,10 @@ interfaces = ["eth0"]
 
 [dionaea.limits]
 max_fds_pct = 70           # reject connections above this % of RLIMIT_NOFILE
+max_connections_total = 10000  # hard cap on concurrent connections (memory safety)
 max_connections_per_ip = 50
+send_channel_capacity = 256   # bounded mpsc channel depth per connection
 recv_buffer_size = 65536   # bytes per read call (safety cap)
-# max_memory_mb = 0        # 0 = no limit
 
 [dionaea.deny_list]
 persist_file = "/var/lib/dionaea/deny_list.json"
@@ -1326,7 +1369,7 @@ pub struct ConnectionMeta {
 /// I/O state owned exclusively by the connection's tokio task. Never shared.
 struct TaskState {
     socket: TcpStream,  // or TlsStream<TcpStream>, or UdpSocket
-    send_rx: mpsc::UnboundedReceiver<SendMessage>,  // drained by task, fed by Python send()
+    send_rx: mpsc::Receiver<SendMessage>,  // drained by task, fed by Python send()
     recv_buf: [u8; 65536],
     idle_timeout: Pin<Box<Sleep>>,
     sustain_timeout: Pin<Box<Sleep>>,
@@ -1341,7 +1384,7 @@ struct TaskState {
 - **The `ConnectionRegistry`** (`DashMap<ConnectionId, ConnectionMeta>`) holds metadata that
   Python reads via `#[pyo3(get)]`. The task updates the registry on state transitions.
 - **Python's `send()`** pushes `SendMessage` variants (data, datagrams, control messages)
-  through an `mpsc::UnboundedSender<SendMessage>` channel to the task. No shared mutable
+  through an `mpsc::Sender<SendMessage>` channel to the task. No shared mutable
   buffers.
 
 Python and incidents reference connections by `ConnectionId`, not by `Arc<Mutex<Connection>>`.
@@ -1467,7 +1510,7 @@ because getting the API wrong means Python protocols won't work.
 #[pyclass(subclass, weakref)]
 pub struct PyConnection {
     id: Option<ConnectionId>,  // None after invalidation
-    send_tx: Option<mpsc::UnboundedSender<SendMessage>>,
+    send_tx: Option<mpsc::Sender<SendMessage>>,
     bistream: Option<Py<PyList>>,  // Set by processor pipeline, None until processors() called
 }
 ```
@@ -1622,7 +1665,7 @@ thread_local! {
 
 /// Called by the accept loop task (inside spawn_blocking + GIL):
 fn factory_create(py: Python<'_>, parent: &Py<PyAny>, con_id: ConnectionId,
-                  send_tx: mpsc::UnboundedSender<SendMessage>) -> PyResult<Py<PyAny>> {
+                  send_tx: mpsc::Sender<SendMessage>) -> PyResult<Py<PyAny>> {
     // Set the thread-local so __init__ knows this is a factory call
     FACTORY_CON_ID.with(|f| f.set(Some(con_id)));
 
@@ -1682,9 +1725,16 @@ impl PyConnection {
 ```
 
 **Connection invalidation on `_garbage`:** When the connection task exits (close or error):
-1. Remove the `ConnectionMeta` from the registry (when refcount = 0)
-2. The next Python access finds the registry entry missing and sets `self.id = None`
-3. All subsequent Python access raises `ReferenceError("the object requested does not exist")`
+1. Mark the `ConnectionMeta` entry as `state = Closed` in the registry (when refcount = 0).
+   Do NOT remove it immediately — a Python callback may still be executing on a
+   `spawn_blocking` thread (this differs from the single-threaded C model where `_garbage`
+   and Python callbacks never execute concurrently).
+2. Defer actual removal from the registry by 5 seconds (a lightweight `tokio::spawn` that
+   sleeps then calls `registry.remove(id)`). This ensures any in-flight Python callback
+   can complete without mid-execution `ReferenceError`.
+3. After removal, the next Python access finds the registry entry missing and sets
+   `self.id = None`. All subsequent access raises
+   `ReferenceError("the object requested does not exist")`.
 
 `handle_disconnect` returning `false` (don't reconnect) sets `self.id = None` immediately,
 matching the current Cython behavior where `thisptr` is set to `NULL` on disconnect.
@@ -1726,8 +1776,8 @@ pub enum SendMessage {
 }
 ```
 
-This means the channel type changes from `mpsc::UnboundedSender<Bytes>` to
-`mpsc::UnboundedSender<SendMessage>`. The connection task drains the channel and
+This means the channel type changes from `mpsc::Sender<Bytes>` to
+`mpsc::Sender<SendMessage>`. The connection task drains the channel and
 dispatches each variant appropriately.
 
 ### Error Callback Exception Mapping
@@ -2065,7 +2115,9 @@ alerts alongside status data. The `StatusReport` struct contains:
 - `alerts`: High-priority events (new unique malware download, shellcode detected,
   authentication attempt with real credentials, service crash/restart)
 - `log_tail`: Configurable number of recent log lines (default: 100, filtered to
-  warning+ severity to keep payload small)
+  warning+ severity to keep payload small). Log entries are scrubbed through the same
+  sensitive-field redaction as regular log output (matching "apikey", "password", "secret",
+  "token") to prevent credential leakage if the management transport is compromised
 
 Alerts are a filtered subset of incidents. An `AlertRule` config determines which
 incident origins trigger alerts:
@@ -2180,7 +2232,7 @@ Use `criterion` or `hyperfine` for benchmarks. Store results for regression trac
 
 ```dockerfile
 # Stage 1: Build Rust binary
-FROM rust:1.83 AS builder
+FROM rust:1.85 AS builder
 WORKDIR /build
 COPY Cargo.toml Cargo.lock deny.toml ./
 COPY crates/ crates/
@@ -2189,7 +2241,7 @@ RUN cargo build --release --features "download,pcap"
 # Stage 2: Runtime
 FROM python:3.12-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libssl3 libpcap0.8 && rm -rf /var/lib/apt/lists/*
+    libssl3 libpcap0.8 libcap2-bin && rm -rf /var/lib/apt/lists/*
 
 # Install Python deps for protocols
 RUN pip install --no-cache-dir pyyaml speakeasy-emulator
