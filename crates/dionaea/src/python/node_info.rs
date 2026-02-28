@@ -9,12 +9,24 @@ use pyo3::prelude::*;
 /// The `host` and `port` properties are read-write; `hostname` is read-only.
 #[pyclass]
 pub struct PyNodeInfo {
-    host: String,
-    port: u16,
-    hostname: String,
+    /// IP address as string.
+    pub host: String,
+    /// Port number.
+    pub port: u16,
+    /// Hostname (empty if unset).
+    pub hostname: String,
 }
 
 impl PyNodeInfo {
+    /// Create a copy from another PyNodeInfo.
+    pub fn from_other(other: &PyNodeInfo) -> Self {
+        PyNodeInfo {
+            host: other.host.clone(),
+            port: other.port,
+            hostname: other.hostname.clone(),
+        }
+    }
+
     /// Create from Rust `NodeInfo`.
     pub fn from_node_info(info: &crate::node_info::NodeInfo) -> Self {
         PyNodeInfo {
@@ -28,7 +40,7 @@ impl PyNodeInfo {
 #[pymethods]
 impl PyNodeInfo {
     #[new]
-    fn new() -> Self {
+    pub fn new() -> Self {
         PyNodeInfo {
             host: "0.0.0.0".to_string(),
             port: 0,

@@ -49,7 +49,7 @@ impl PyConnectionTimeouts {
 #[pymethods]
 impl PyConnectionTimeouts {
     #[new]
-    fn new() -> Self {
+    pub fn new() -> Self {
         PyConnectionTimeouts {
             idle: 120.0,
             sustain: 300.0,
