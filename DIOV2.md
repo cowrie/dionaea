@@ -1020,8 +1020,8 @@ connection.stats → connection_stats
 
 # Incident API
 incident(origin: str) → incident
-incident[key] = value  # __setitem__ with type dispatch
-incident[key] → value  # __getitem__
+incident.key = value   # __setattr__ with type dispatch
+incident.key → value   # __getattr__
 incident.report() → None
 
 # IHandler API

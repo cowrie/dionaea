@@ -416,8 +416,10 @@ Connection state is split between two owners to keep the I/O hot path lock-free:
    (DashMap read shards). Python never touches I/O state directly.
 
 3. **Python's `send()` goes through a channel, not shared memory.** Each connection has a
-   `tokio::sync::mpsc::UnboundedSender<Bytes>` that Python's `send()` method pushes to.
-   The connection task drains this channel and writes to the socket. No mutex needed.
+   `tokio::sync::mpsc::UnboundedSender<SendMessage>` that Python's `send()` method pushes to.
+   `SendMessage` carries data (TCP/TLS), datagrams with addresses (UDP), and control messages
+   (timeout/throttle changes from Python property setters). The connection task drains this
+   channel and dispatches each variant. No mutex needed.
 
 4. **Python owns all protocol handler objects.** The `Py<PyAny>` (Python protocol instance)
    is stored in a `Py<>` handle associated with the connection ID. PyO3's `Py<>` is
@@ -432,7 +434,7 @@ Connection state is split between two owners to keep the I/O hot path lock-free:
 6. **No `Arc<Mutex<T>>` across the Python boundary.** The ConnectionId indirection
    eliminates this. The only locks are:
    - `ConnectionRegistry` uses `DashMap` (sharded concurrent map, no global lock)
-   - Per-connection send uses `mpsc` channel (lock-free)
+   - Per-connection send/control uses `mpsc` channel (lock-free)
 
 **What the compiler catches:**
 
@@ -644,9 +646,11 @@ limited only by FDs and memory, not task overhead.
 **Buffer management:**
 - Receive buffer: Stack-allocated `[u8; 65536]` per read call (matching current
   `CONNECTION_MAX_RECV_SIZE`). No heap allocation per packet.
-- Send path: Python's `send()` pushes `Bytes` through an `mpsc` channel to the connection
-  task. The task drains the channel and writes to the socket. The task owns a `BytesMut`
-  write buffer for coalescing small writes.
+- Send path: Python's `send()` pushes `SendMessage::Data(Bytes)` (TCP/TLS) or
+  `SendMessage::Datagram { data, local, remote }` (UDP) through an `mpsc` channel to the
+  connection task. The task drains the channel, dispatches control messages (timeout/throttle
+  changes), and writes data to the socket. The task owns a `BytesMut` write buffer for
+  coalescing small TCP/TLS writes.
 
 **Python callback overhead minimization:**
 - Batch incident dispatch: acquire GIL once, call all matching handlers, release.
@@ -1297,7 +1301,7 @@ pub struct ConnectionMeta {
 /// I/O state owned exclusively by the connection's tokio task. Never shared.
 struct TaskState {
     socket: TcpStream,  // or TlsStream<TcpStream>, or UdpSocket
-    send_rx: mpsc::UnboundedReceiver<Bytes>,  // drained by task, fed by Python send()
+    send_rx: mpsc::UnboundedReceiver<SendMessage>,  // drained by task, fed by Python send()
     recv_buf: [u8; 65536],
     idle_timeout: Pin<Box<Sleep>>,
     sustain_timeout: Pin<Box<Sleep>>,
@@ -1311,12 +1315,14 @@ struct TaskState {
   reference. This is the hot path — no locks needed for I/O operations.
 - **The `ConnectionRegistry`** (`DashMap<ConnectionId, ConnectionMeta>`) holds metadata that
   Python reads via `#[pyo3(get)]`. The task updates the registry on state transitions.
-- **Python's `send()`** pushes data through an `mpsc::UnboundedSender<Bytes>` channel to the
-  task. No shared mutable buffers.
+- **Python's `send()`** pushes `SendMessage` variants (data, datagrams, control messages)
+  through an `mpsc::UnboundedSender<SendMessage>` channel to the task. No shared mutable
+  buffers.
 
 Python and incidents reference connections by `ConnectionId`, not by `Arc<Mutex<Connection>>`.
 This avoids deadlocks, GIL + Mutex ordering issues, and lock contention on the I/O hot path.
-Stale IDs (connection already closed) return `RuntimeError("connection closed")` to Python.
+Stale IDs (connection already closed) raise `ReferenceError("the object requested does not exist")`
+to Python — matching the current Cython behavior.
 
 ### Connection Lifecycle
 
@@ -1340,8 +1346,8 @@ allocates the `mpsc` channel pair. No tokio task is spawned yet. The task is spa
 - `listen()` spawns an accept loop task
 - `connect()` spawns a connect + I/O task
 
-`send()` in `None`/`Connecting` state buffers data in the channel. The task drains buffered
-data when it reaches `Established`.
+`send()` in `None`/`Connecting` state buffers `SendMessage` variants in the channel. The task
+drains buffered data when it reaches `Established`.
 
 ### `crates/dionaea/src/incident.rs`
 
@@ -1424,28 +1430,41 @@ because getting the API wrong means Python protocols won't work.
 
 **Classes to implement (maps to binding.pyx):**
 
-### `crates/dionaea/src/python/connection.rs` — `#[pyclass] PyConnection`
+### `crates/dionaea/src/python/connection.rs` — `#[pyclass(subclass, weakref)] PyConnection`
 
+```rust
+#[pyclass(subclass, weakref)]
+pub struct PyConnection {
+    id: Option<ConnectionId>,  // None after invalidation
+    send_tx: Option<mpsc::UnboundedSender<SendMessage>>,
+    bistream: Option<Py<PyList>>,  // Set by processor pipeline, None until processors() called
+}
 ```
-Properties (read-only via #[pyo3(get)]):
-  remote: PyNodeInfo
-  local: PyNodeInfo
-  transport: String           # "tcp", "tls", "udp"
-  protocol: String            # protocol name or class name
-  status: String              # state as string
-  timeouts: PyConnectionTimeouts
-  _in: PyConnectionStats      # ingress stats
-  _out: PyConnectionStats     # egress stats
+
+**Class decorators:** `subclass` is required — all Python protocols subclass `connection`.
+`weakref` is required — `connection_new()` returns `weakref.proxy(connection(...))`.
+
+Properties (read via registry lookup, write via channel/registry):
+  remote: PyNodeInfo           # registry lookup; host/port settable (writes back to registry)
+  local: PyNodeInfo            # registry lookup; host/port settable (writes back to registry)
+  transport: String            # "tcp", "tls", "udp" — registry lookup
+  protocol: String             # protocol name or class name — registry lookup
+  status: String               # state as string — registry lookup
+  timeouts: PyConnectionTimeouts  # read/write (see Property Write-Back below)
+  _in: PyConnectionStats       # ingress stats (speed/accounting)
+  _out: PyConnectionStats      # egress stats (speed/accounting)
 
 Methods (#[pymethods]):
   __init__(proto: Option<String>)
+  __hash__() -> u64            # returns self.id.0; required for dict/set storage
+  __richcmp__(other, op) -> bool  # compares by ConnectionId
   bind(addr: String, port: u16, iface: Option<String>) -> PyResult<i32>
   listen(size: Option<i32>) -> PyResult<i32>
   connect(addr: String, port: u16, iface: Option<String>) -> PyResult<()>
   send(data: &[u8], local: Option<(String,u16)>, remote: Option<(String,u16)>) -> PyResult<()>
   close() -> PyResult<()>
   processors() -> PyResult<()>
-  ref_() -> i32               # named ref_ to avoid Rust keyword
+  ref_() -> i32                # named ref_ to avoid Rust keyword
   unref() -> i32
 
 Protocol callbacks (Python overrides these):
@@ -1458,16 +1477,24 @@ Protocol callbacks (Python overrides these):
   handle_timeout_sustain() -> bool
   handle_timeout_listen() -> bool
   handle_origin(parent: PyConnection)
-```
+
+**Connection invalidation:** Every method that accesses the registry checks `self.id.is_some()`
+first. If `None`, raise `ReferenceError("the object requested does not exist")` — matching the
+current Cython behavior exactly. `id` is set to `None` when:
+- `handle_disconnect()` returns `false` (don't reconnect)
+- The connection is freed (refcount reaches 0 after close)
+Python protocols may still hold references to invalidated PyConnection objects (in dicts,
+incident fields, etc.) — they get `ReferenceError` on any access, which is the existing contract.
 
 ### `crates/dionaea/src/python/incident.rs` — `#[pyclass] PyIncident`
 
 ```
 Properties: origin (read-only)
-Methods: __init__(origin), report(), keys()
+Methods: __init__(origin), report(), keys(), set(key, value), get(key)
 Dynamic attrs: __getattr__, __setattr__ with type dispatch
   (int, str, bytes, connection, list, dict, None)
-Subscript: __getitem__, __setitem__
+No __getitem__/__setitem__ — the current Cython code doesn't implement subscript access
+and no Python protocol uses it. All access is attribute-style: incident.con = value.
 ```
 
 ### `crates/dionaea/src/python/ihandler.rs` — `#[pyclass] PyIHandler`
@@ -1475,8 +1502,26 @@ Subscript: __getitem__, __setitem__
 ```
 Methods: __init__(pattern), start(), stop(), register(), unregister()
 Callback: handle_incident(incident)
-Dynamic dispatch: origin dots→underscores for method lookup
+Dynamic dispatch: origin dots→underscores for method lookup (see below)
 ```
+
+**IHandler dispatch pattern (must match exactly):** When an incident arrives, the dispatch
+logic replaces dots with underscores in the origin and looks for a specific method:
+
+```rust
+// In spawn_blocking + Python::with_gil:
+let origin = incident.origin.replace('.', "_");
+let method_name = format!("handle_incident_{origin}");
+match handler.bind(py).getattr(method_name.as_str()) {
+    Ok(method) => method.call1((py_incident,))?,
+    Err(_) => handler.bind(py).call_method1("handle_incident", (py_incident,))?,
+};
+```
+
+Example: incident origin `"dionaea.connection.tcp.accept"` → try
+`handle_incident_dionaea_connection_tcp_accept(incident)` first. If that method doesn't
+exist (AttributeError), fall back to `handle_incident(incident)`. Every ihandler in the
+codebase (logsql, log_json, hpfeeds, etc.) relies on this pattern.
 
 ### `crates/dionaea/src/python/node_info.rs` — `#[pyclass] PyNodeInfo`
 
@@ -1518,12 +1563,219 @@ Python module loading + service management:
 - Instantiate ServiceLoaders and IHandlerLoaders
 - For each configured service: find matching ServiceLoader, call `start(addr, iface, config)`
 
+### Factory Instantiation (Accept Path)
+
+When a listener accepts a new connection, the Rust core must create a **child** Python object
+that is an instance of the **same subclass** as the listener. This is the hardest PyO3 problem
+in the entire project.
+
+**Current Cython behavior (binding.pyx `_factory()`):**
+1. Get the parent (listener's Python protocol instance) from the connection context
+2. Clone the parent's class — `PY_CLONE(parent)` creates a new instance of `type(parent)`
+3. Set `factory = True` on the child (suppresses manual INCREF)
+4. Set the C connection pointer on the child BEFORE calling `__init__`
+5. Call `__init__()` — which sees `thisptr != NULL` and skips `connection_new()`
+6. Call `apply_parent_config(parent)` to copy shared config values
+7. Set the child as the protocol context on the new C connection
+
+**PyO3 implementation:**
+
+The challenge is that `#[new]` (PyO3's `__init__` equivalent) runs as part of object
+construction. We need `__init__` to know it's being factory-created so it doesn't allocate
+a new Rust connection. Use a thread-local flag:
+
+```rust
+thread_local! {
+    static FACTORY_CON_ID: Cell<Option<ConnectionId>> = Cell::new(None);
+}
+
+/// Called by the accept loop task (inside spawn_blocking + GIL):
+fn factory_create(py: Python<'_>, parent: &Py<PyAny>, con_id: ConnectionId,
+                  send_tx: mpsc::UnboundedSender<SendMessage>) -> PyResult<Py<PyAny>> {
+    // Set the thread-local so __init__ knows this is a factory call
+    FACTORY_CON_ID.with(|f| f.set(Some(con_id)));
+
+    // Instantiate the same class as the parent
+    let parent_type = parent.bind(py).get_type();
+    let transport_str = /* get transport string for this connection */;
+    let child = parent_type.call1((transport_str,))?;
+
+    // Clear the thread-local
+    FACTORY_CON_ID.with(|f| f.set(None));
+
+    // Copy shared config from parent
+    if let Ok(method) = child.getattr("apply_parent_config") {
+        let _ = method.call1((parent,));
+    }
+
+    Ok(child.into())
+}
+
+#[pymethods]
+impl PyConnection {
+    #[new]
+    fn new(proto: Option<String>) -> PyResult<Self> {
+        // Check if this is a factory call
+        let factory_id = FACTORY_CON_ID.with(|f| f.take());
+        if let Some(con_id) = factory_id {
+            // Factory path: connection already exists in registry
+            return Ok(PyConnection {
+                id: Some(con_id),
+                send_tx: /* passed through another thread-local or set after construction */,
+                bistream: None,
+            });
+        }
+        // Normal path: Python is creating a new connection
+        // Allocate ConnectionMeta in registry, create mpsc channel
+        // ...
+    }
+}
+```
+
+**`__init__` signature validation:** The current Cython code (binding.pyx line 464) inspects
+`self.__init__` and raises `LoaderError` if any parameter lacks a default value. This prevents
+protocol classes from defining `def __init__(self, required_arg)` which would break factory
+instantiation. Replicate this check in `__init_subclass__` (called automatically when a Python
+class subclasses `connection`):
+
+```rust
+#[pymethods]
+impl PyConnection {
+    #[classmethod]
+    fn __init_subclass__(cls: &Bound<'_, PyType>, _kwargs: &Bound<'_, PyDict>) -> PyResult<()> {
+        // Validate that __init__ has no required args (besides self)
+        // This catches misconfigured protocol classes at import time
+        Ok(())
+    }
+}
+```
+
+**Connection invalidation on `_garbage`:** When the connection task exits (close or error):
+1. Remove the `ConnectionMeta` from the registry (when refcount = 0)
+2. The next Python access finds the registry entry missing and sets `self.id = None`
+3. All subsequent Python access raises `ReferenceError("the object requested does not exist")`
+
+`handle_disconnect` returning `false` (don't reconnect) sets `self.id = None` immediately,
+matching the current Cython behavior where `thisptr` is set to `NULL` on disconnect.
+
+### Property Write-Back Design
+
+Sub-object properties (`remote`, `local`, `timeouts`, `_in`, `_out`) need to read from and
+write back to the connection state. Each sub-object holds a `ConnectionId` and a reference
+to the registry/channel:
+
+**Read path (all sub-objects):** Look up `ConnectionMeta` in the `ConnectionRegistry` by
+`ConnectionId`. DashMap read shards are lock-free. Return the current value.
+
+**Write path (depends on what's being written):**
+
+| Property | Write target | Mechanism |
+|----------|-------------|-----------|
+| `remote.host`, `remote.port` | ConnectionMeta | Direct registry write (DashMap entry) |
+| `local.host`, `local.port` | ConnectionMeta | Direct registry write |
+| `timeouts.idle`, `.sustain`, etc. | TaskState | Send `ControlMessage::SetTimeout { which, value }` through mpsc channel |
+| `_in.speed.limit`, `_out.speed.limit` | TaskState | Send `ControlMessage::SetThrottle { direction, limit }` through mpsc channel |
+| `_in.accounting.limit`, `_out.accounting.limit` | TaskState | Send `ControlMessage::SetAccountingLimit { direction, limit }` through mpsc channel |
+| `_in.speed.bps`, `_in.accounting.bytes` | ConnectionMeta | Read-only; task updates registry periodically |
+
+The mpsc channel carries both data and control messages:
+
+```rust
+pub enum SendMessage {
+    /// TCP/TLS: send data to the remote
+    Data(Bytes),
+    /// UDP: send data to a specific remote, from a specific local address
+    Datagram { data: Bytes, local: SocketAddr, remote: SocketAddr },
+    /// Control: update timeout value
+    SetTimeout { which: TimeoutKind, value: f64 },
+    /// Control: update throttle speed limit
+    SetThrottle { direction: Direction, limit: f64 },
+    /// Control: update accounting byte limit
+    SetAccountingLimit { direction: Direction, limit: u64 },
+}
+```
+
+This means the channel type changes from `mpsc::UnboundedSender<Bytes>` to
+`mpsc::UnboundedSender<SendMessage>`. The connection task drains the channel and
+dispatches each variant appropriately.
+
+### Error Callback Exception Mapping
+
+When the Rust core needs to call `handle_error`, it must create specific Python exception
+instances from `dionaea.exception`. The current Cython code (binding.pyx lines 853-886) maps
+error types to exception classes:
+
+```rust
+fn create_error_exception(
+    py: Python<'_>,
+    err: ConnectionError,
+    connection: &Py<PyAny>,
+) -> PyResult<PyObject> {
+    let exception_mod = py.import("dionaea.exception")?;
+    let (class_name, error_id) = match err {
+        ConnectionError::DnsTimeout => ("ConnectionDNSTimeout", 0),
+        ConnectionError::Unreachable => ("ConnectionUnreachable", 1),
+        ConnectionError::NoSuchDomain => ("ConnectionNoSuchDomain", 2),
+        ConnectionError::TooMany => ("ConnectionTooMany", 3),
+    };
+    let cls = exception_mod.getattr(class_name)?;
+    let kwargs = PyDict::new(py);
+    kwargs.set_item("connection", connection)?;
+    kwargs.set_item("error_id", error_id)?;
+    Ok(cls.call((), Some(&kwargs))?.into())
+}
+```
+
+The `handle_error` callback receives this exception object, not a raw error code.
+
+### Callback Error Recovery
+
+Protocol callback error handling must match the current Cython behavior exactly:
+
+**`handle_io_in` on exception (binding.pyx lines 824-831):**
+1. Log the error with traceback
+2. If the connection is still valid: call `close()` on it
+3. Return `len(data)` — consume all bytes (prevents re-delivery of the same data)
+
+**`handle_established`, `handle_io_out` on exception (binding.pyx lines 814-817, 837-841):**
+1. Log the error with traceback
+2. If the connection is still valid: call `close()` on it
+
+**`handle_disconnect` on exception:**
+1. Log the error
+2. Return `false` (don't reconnect)
+
+**`handle_origin`, timeout callbacks on exception:**
+1. Log the error with traceback
+2. Continue (don't close — the connection may still be usable)
+
+This error recovery is a safety net: a buggy Python protocol handler that raises once won't
+crash the whole system. Without it, a single exception in `handle_io_in` would cause the
+same data to be re-delivered infinitely.
+
+### Bistream Attribute
+
+The processor pipeline adds a `bistream` attribute to connection instances — a Python list of
+`('in', data)` / `('out', data)` tuples. In the current Cython code, `process_process` sets
+`instance.bistream = []` when the processor tree attaches, and `process_io_in`/`process_io_out`
+append chunks.
+
+In PyO3, `PyConnection` stores `bistream: Option<Py<PyList>>`. When `processors()` is called
+and the processor tree attaches, set `self.bistream = Some(PyList::empty(py).into())`. The
+processor's `io_in`/`io_out` callbacks append `('in', data)` or `('out', data)` tuples to
+this list inside `spawn_blocking` + GIL.
+
 **Tests:**
 - Unit: Write a minimal echo.py protocol. Import via PyO3. Verify all properties accessible.
   Verify handle_* callbacks are called.
 - Unit: Create PyIncident, set fields of every type, verify __getattr__/__setattr__ work.
+  Verify __getitem__/__setitem__ are NOT implemented (no subscript access).
 - Unit: Create PyIHandler with pattern, register, create incident, verify dispatch calls
-  the Python handler's method.
+  the Python handler's specific method (dots→underscores), then falls back to handle_incident.
+- Unit: Factory instantiation — create listener, accept child, verify child is same class.
+- Unit: Connection invalidation — close connection, verify ReferenceError on property access.
+- Unit: Error recovery — protocol that raises in handle_io_in, verify connection closes and
+  bytes are consumed.
 - Integration: Full round-trip — load echo.py, start listener, connect, send data, verify echo.
 
 ---
@@ -1537,11 +1789,15 @@ Wire up to Python protocol callbacks.
 
 Key functions (async with tokio):
 - `tcp_listen(addr, port)` → TcpListener
-- `tcp_accept(listener)` → new ConnectionMeta in registry + spawn handler task
+- `tcp_accept(listener)` → factory-instantiate child PyConnection (see Phase 3 §Factory
+  Instantiation), create ConnectionMeta in registry, spawn handler task
 - `tcp_connect(addr, port)` → ConnectionMeta (with DNS resolution if hostname)
 - Handler task I/O loop: read → call `handle_io_in` via `spawn_blocking` (await before
-  next read — see GIL Strategy rule 6) → drain send channel → write
-- `tcp_disconnect(connection)` → graceful shutdown, update registry, remove when refcount=0
+  next read — see GIL Strategy rule 6) → drain `SendMessage` channel → dispatch control
+  messages, write data to socket
+- Callback error recovery: see Phase 3 §Callback Error Recovery for per-callback behavior
+- `tcp_disconnect(connection)` → graceful shutdown, set `PyConnection.id = None` if
+  `handle_disconnect` returns false, update registry, remove when refcount=0
 
 ### `crates/dionaea/src/connection/tls.rs`
 
@@ -2073,7 +2329,7 @@ compile on macOS (behind `#[cfg]` where needed) so `cargo check` works locally.
 | Performance regression vs C | Benchmark in Phase 7. Tokio should match or beat libev for I/O; Python callback overhead is the bottleneck regardless of language. |
 | Arc<Mutex<Connection>> deadlocks | Avoided: use ConnectionId + ConnectionRegistry (DashMap) + mpsc channels. |
 | Panic in protocol handler crashes process | catch_unwind at every task boundary. Test with intentionally-panicking protocol. |
-| Stale ConnectionId after close | Return clear error ("connection closed") to Python. Test explicitly. |
+| Stale ConnectionId after close | Set `id = None`, raise `ReferenceError("the object requested does not exist")` — matches current Cython behavior. Test explicitly. |
 | Management transport unreachable | Poll loop retries with exponential backoff. Buffer incidents locally (ring buffer). Log but don't crash. |
 | Management commands used maliciously | Authenticate all transports (TLS client certs / TSIG). Validate commands against whitelist. No arbitrary code execution. |
 | Log/alert volume overwhelms management server | Rate-limit alerts per rule. Cap log_tail size. Incident buffer is bounded (drops oldest). |
