@@ -94,7 +94,7 @@ impl PyConnection {
     /// Construct the Rust struct. Python subclasses call __init__ via super().
     #[new]
     #[pyo3(signature = (_proto=None))]
-    fn new(_proto: Option<String>) -> Self {
+    pub fn new(_proto: Option<String>) -> Self {
         // Check if this is a factory call (accept path)
         let factory_id = FACTORY_CON_ID.with(|f| f.take());
         let factory_tx = FACTORY_SEND_TX.with(|f| f.take());
@@ -127,7 +127,7 @@ impl PyConnection {
     /// Initialize the connection. Called after __new__.
     /// Python subclasses call `super().__init__(proto)` which reaches here.
     #[pyo3(signature = (proto=None))]
-    fn __init__(&mut self, proto: Option<String>) -> PyResult<()> {
+    pub fn __init__(&mut self, proto: Option<String>) -> PyResult<()> {
         self.transport = proto.unwrap_or_else(|| "tcp".to_string());
 
         // Only create a channel if we don't already have one (from factory)
