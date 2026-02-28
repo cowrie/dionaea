@@ -78,6 +78,7 @@ proptest = "1"
 
 [workspace.lints.rust]
 unsafe_code = "deny"
+missing_docs = "warn"
 
 [workspace.lints.clippy]
 all = { level = "deny", priority = -1 }
@@ -216,6 +217,7 @@ formatting is never a review discussion.
 ```toml
 [workspace.lints.rust]
 unsafe_code = "deny"
+missing_docs = "warn"
 
 [workspace.lints.clippy]
 all = { level = "deny", priority = -1 }
@@ -236,6 +238,95 @@ must_use_candidate = "allow"
 [lints]
 workspace = true
 ```
+
+### Documentation Strategy
+
+The codebase will be maintained and extended by LLMs as well as humans. Documentation
+is optimized for both: concise enough for humans, explicit enough for LLMs that lack
+project-wide context.
+
+**Every file starts with a 2-line ABOUTME comment:**
+
+```rust
+// ABOUTME: Manages the connection lifecycle state machine (None → Established → Close).
+// ABOUTME: Owns the socket, protocol handler reference, and per-connection rate limits.
+```
+
+This gives an LLM (or human) instant context about what a file does without reading
+the whole thing. `ABOUTME` is greppable across the project.
+
+**Every public type and function gets a doc comment** explaining:
+1. *What* it does (one sentence)
+2. *Why* it exists / when to use it (one sentence, if not obvious)
+3. *Relationship* to other components (if it's part of a larger flow)
+
+```rust
+/// A single network connection (TCP, TLS, or UDP).
+///
+/// Connections are created by listeners (accept) or by Python protocol code (connect).
+/// Each connection is owned by the `ConnectionTable` and identified by a `ConnectionId`.
+/// Python code interacts with connections through `PyConnection`, which holds a
+/// `ConnectionId` and looks up the real connection in the table on each call.
+pub struct Connection {
+    /// Monotonically increasing, never recycled. Python holds copies of this.
+    pub id: ConnectionId,
+    /// Current lifecycle state. Drives which operations are valid.
+    pub state: ConnectionState,
+    // ...
+}
+
+/// Transition the connection to a new state.
+///
+/// Returns `Err` if the transition is invalid (e.g., `Close` → `Established`).
+/// On success, fires the appropriate Python callback (e.g., `handle_established`)
+/// via `spawn_blocking`.
+pub async fn transition(&mut self, new_state: ConnectionState) -> Result<(), Error> {
+```
+
+**Non-obvious fields get inline comments:**
+
+```rust
+pub struct Throttle {
+    /// Bytes allowed per second. 0 means unlimited.
+    max_bytes_per_second: f64,
+    /// Bytes consumed in the current interval. Resets when interval elapses.
+    interval_bytes: f64,
+    /// When the current interval started. Used to calculate remaining allowance.
+    interval_start: Instant,
+}
+```
+
+**Module-level doc comments** describe the module's role in the system and point to
+related modules:
+
+```rust
+//! Connection rate limiting and resource management.
+//!
+//! Implements 8 layers of protection (see RUSTPLAN.md "Rate Limiting & Resource
+//! Management" for the full design):
+//! - Layer 1: Global FD limit (`limits.rs`)
+//! - Layer 2: Per-IP connection limit (`limits.rs`)
+//! - Layer 3: Bandwidth throttle (`throttle.rs`)
+//! - Layers 4-8: See individual structs.
+//!
+//! Used by `connection::tcp` and `connection::tls` during accept and I/O.
+```
+
+**Enforce in CI:** Add `warn(missing_docs)` to the workspace lints. This produces
+warnings (not errors) for undocumented public items — a reminder without blocking PRs
+during rapid development. Promote to `deny` once the codebase stabilizes.
+
+```toml
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+```
+
+**What NOT to document:**
+- Don't restate the type signature in prose ("takes a `String` and returns a `bool`")
+- Don't document private helper functions unless the logic is non-obvious
+- Don't write "This struct represents..." — just say what it is
+- Don't add historical context ("added in v2", "replaces the old...")
 
 ### Observability
 
