@@ -3,7 +3,7 @@
 ## Context
 
 Dionaea is a C+Python honeypot (~10K C core, ~35K Python protocols). The C core handles
-event-driven networking (TCP/TLS/UDP/DTLS), module loading, incident dispatch, and stream
+event-driven networking (TCP/TLS/UDP), module loading, incident dispatch, and stream
 processing. Python handles all protocol emulation and logging. We're rewriting the C core
 in Rust with PyO3, keeping all Python protocols unchanged.
 
@@ -16,43 +16,68 @@ in Rust with PyO3, keeping all Python protocols unchanged.
 - Config: TOML for everything (migrate Python YAML configs)
 - Privileges: Linux capabilities (CAP_NET_BIND_SERVICE), no pchild fork
 - Modules: Compile-time Cargo features, no dynamic loading
-- TLS: openssl crate (mandatory for weak cipher honeypot support + DTLS)
+- TLS: openssl crate (mandatory for weak cipher honeypot support)
+- DTLS: Drop entirely. Zero Python protocols or configs reference it. Dead code in C.
+- Remote management: Internal management API with two poll-based transports
+  (JSON/HTTPS and DNS). Transport choice deferred; hooks designed now.
 
 ---
 
-## Dependencies (14 direct crates)
+## Dependencies
 
 ```toml
 [workspace.dependencies]
 # Async runtime
 tokio = { version = "1", features = ["full"] }
 
-# TLS/DTLS (must use openssl for weak cipher honeypot support)
+# TLS (must use openssl for weak cipher honeypot support)
 openssl = "0.10"
 tokio-openssl = "0.6"
 
 # Python embedding
 pyo3 = { version = "0.28", features = ["auto-initialize"] }
 
-# Logging
+# Logging + observability
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-appender = "0.2"
+metrics = "0.24"
+metrics-exporter-prometheus = "0.16"
+
+# Error handling
+thiserror = "2"
 
 # Config
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
 
+# Data structures
+bytes = "1"            # BytesMut for zero-copy send buffers
+dashmap = "6"          # Concurrent HashMap for per-IP tracking
+
+# Crypto
+sha2 = "0.10"          # SHA256 for download/shellcode file naming
+
+# DNS
+hickory-resolver = { version = "0.25", features = ["tokio-runtime"] }
+
 # HTTP client (replaces curl module)
 reqwest = { version = "0.12", default-features = false, features = ["native-tls"] }
 
 # System/privileges
-nix = { version = "0.29", features = ["socket", "uio", "user", "process", "fs", "net"] }
-caps = "0.5"           # Linux-only
+nix = { version = "0.29", features = ["socket", "uio", "user", "process", "fs", "net", "resource"] }
+caps = "0.5"           # Linux-only, behind cfg
 
 # Platform-specific (Linux only, behind cfg)
 pcap = "2.3"           # libpcap bindings
 nfq = "0.2"            # netfilter queue (pure Rust, MIT)
 rtnetlink = "0.18"     # netlink interface monitoring
+
+[workspace.dev-dependencies]
+proptest = "1"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
 ```
 
 No unicorn-engine dependency in Rust — Speakeasy uses unicorn internally via Python.
@@ -61,11 +86,710 @@ Drop libemu and the vendor/unicorn-libemu-shim entirely.
 
 ---
 
+## Cross-Cutting Concerns
+
+These apply to every phase, not just one.
+
+### Error Handling Strategy
+
+```rust
+// crates/core/src/error.rs
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("I/O error: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("TLS error: {0}")]
+    Tls(#[from] openssl::error::ErrorStack),
+
+    #[error("config error: {0}")]
+    Config(String),
+
+    #[error("Python error: {0}")]
+    Python(String),  // Converted from PyErr at the boundary
+
+    #[error("DNS resolution failed for {host}: {source}")]
+    Dns { host: String, source: hickory_resolver::error::ResolveError },
+}
+
+// Python ↔ Rust boundary: PyErr → Error::Python, Error → PyErr
+// PyO3 handles this via From<PyErr> and Into<PyErr> impls.
+```
+
+**Panic policy:** `panic = "unwind"` in release. Use `std::panic::catch_unwind` at every
+Python callback boundary and every tokio task entry point. A panic in one connection handler
+must not take down the process. Log the panic, close that connection, continue.
+
+**Graceful degradation:** If a service fails to start (port in use, config error), log the
+error and continue starting other services. Only abort if zero services start successfully.
+
+### Python GIL Strategy
+
+The GIL is the single hardest integration problem. Rules:
+
+1. **Never hold the GIL on a tokio worker thread.** All Python calls go through
+   `tokio::task::spawn_blocking`, which runs on a dedicated thread pool.
+
+2. **Release the GIL during Rust I/O.** When Python calls `connection.send()` or similar,
+   the PyO3 method acquires the connection lock, queues data, and returns. The actual I/O
+   happens on tokio threads without the GIL.
+
+3. **Callback pattern:** When Rust needs to call Python (handle_io_in, handle_established, etc.):
+   ```rust
+   let result = tokio::task::spawn_blocking(move || {
+       Python::with_gil(|py| {
+           let handler = py_protocol.bind(py);
+           handler.call_method1("handle_io_in", (data,))
+       })
+   }).await?;
+   ```
+
+4. **Batch Python calls.** When dispatching an incident to multiple Python handlers,
+   acquire the GIL once, call all handlers, then release.
+
+5. **Python async is out of scope.** All Python protocol code is synchronous (as it is
+   today with libev). We don't need `pyo3-asyncio`.
+
+### Testing Strategy
+
+Testing is continuous, not a phase. Every phase includes its own tests.
+
+**Unit tests:** Every module has `#[cfg(test)] mod tests` with tests for its core logic.
+State machines, pattern matching, config parsing, type conversions — all unit-tested.
+
+**Integration tests:** `tests/` directory in workspace root. Tests that start a listener,
+connect a client, and verify behavior. Run against the real Rust binary with real Python.
+
+**Existing pytest suite:** The current `tests/` directory has pytest-based integration tests
+for TFTP, FTP, SMB, HTTP, MySQL, EPMAP, NBNS, SNMP. These run against a live daemon via
+network connections. They are the primary acceptance test — if they pass against the Rust
+binary, we have feature parity.
+
+**Fuzz testing:** `cargo-fuzz` targets for every parser that handles untrusted input:
+- Shellcode detection (GetPC byte scanning)
+- TLS handshake parsing (via openssl, but our framing around it)
+- Protocol framing (connection read → buffer → io_in callback length)
+- Config file parsing
+
+**Property-based testing:** `proptest` for:
+- OpaqueData round-trips through Python conversion (Rust → PyObject → Rust)
+- Config serialization round-trips (struct → TOML → struct)
+- NodeInfo formatting (any valid IP address formats correctly)
+
+**CI pipeline (GitHub Actions):**
+```yaml
+# Runs on every push/PR
+- cargo fmt --check
+- cargo clippy -- -D warnings
+- cargo test
+- cargo audit          # vulnerability scanning
+- cargo deny check     # license + dependency policy
+# Integration (after build):
+- Start Rust binary as daemon
+- Run existing pytest suite against it
+- Compare logs against expected incident patterns
+```
+
+### Observability
+
+**Structured logging:** All log output is structured JSON by default (for SIEM ingestion),
+with optional human-readable format for development. Uses `tracing` with `tracing-subscriber`
+JSON layer.
+
+```rust
+// Every connection gets a tracing span
+let span = tracing::info_span!("connection",
+    id = %con_id,
+    remote = %remote_addr,
+    transport = %transport,
+    protocol = %protocol_name,
+);
+// All events within this span automatically include connection context
+```
+
+**Log multiplexer:** Replicate the current C behavior — multiple log targets (file, stdout),
+each with independent domain glob patterns and level filters. Use `tracing-subscriber::Layer`
+composition.
+
+**Metrics (Prometheus):** Exposed on a configurable HTTP port (default: off).
+```
+dionaea_connections_total{transport="tcp",protocol="smb",state="established"} counter
+dionaea_connections_active{transport="tcp"} gauge
+dionaea_connections_rejected_total{reason="fd_limit|per_ip_limit|deny_list"} counter
+dionaea_incidents_total{origin="dionaea.connection.tcp.accept"} counter
+dionaea_bytes_received_total{protocol="http"} counter
+dionaea_bytes_sent_total{protocol="http"} counter
+dionaea_downloads_total{method="ftp"} counter
+dionaea_throttle_sleeps_total{direction="in|out"} counter
+dionaea_accounting_disconnects_total{} counter
+dionaea_timeout_fires_total{type="idle|sustain|handshake"} counter
+dionaea_nfq_throttled_total{} counter
+dionaea_python_callback_duration_seconds{method="handle_io_in"} histogram
+dionaea_errors_total{kind="python_exception"} counter
+```
+
+**Health check:** Optional HTTP endpoint (`/health`) returns 200 when the event loop is
+running and at least one service is listening. Used by Docker HEALTHCHECK and orchestrators.
+
+### Rust Idioms & Ownership
+
+**Ownership across the Python boundary:**
+
+The PyO3 bridge is where Rust's ownership model meets Python's garbage collector. The rules:
+
+1. **Rust owns all connections.** The `ConnectionTable` (a `DashMap<ConnectionId, Connection>`)
+   is the single owner. Python holds `ConnectionId` values (cheap `u64` copies), not
+   references into Rust memory. When Python calls a method on `PyConnection`, the PyO3
+   method looks up the ID in the table. If the connection has been closed and removed,
+   Python gets a clean `RuntimeError("connection closed")`.
+
+2. **Python owns all protocol handler objects.** The `Py<PyAny>` (Python protocol instance)
+   is stored in a `Py<>` handle associated with the connection ID. PyO3's `Py<>` is
+   reference-counted on the Python side and `Send` on the Rust side. When a connection
+   closes, we drop the `Py<>` handle, which decrements the Python refcount.
+
+3. **Incident data is copied, not shared.** When an incident is reported from Rust to Python,
+   `OpaqueData` values are converted to Python objects (new allocations). When Python sets
+   fields on a `PyIncident`, the data is converted to `OpaqueData` (Rust allocation). No
+   shared mutable state between languages.
+
+4. **No `Arc<Mutex<T>>` across the Python boundary.** The ConnectionId indirection
+   eliminates this. The only locks are:
+   - `ConnectionTable` uses `DashMap` (sharded concurrent map, no global lock)
+   - Per-connection send buffer uses `tokio::sync::Mutex` (held briefly to queue data)
+
+**What the compiler catches:**
+
+- Lifetime errors: The borrow checker prevents returning references to connection data
+  that might be removed from the table. All returns are owned values or copies.
+- Send/Sync violations: tokio tasks require `Send`. PyO3's `Py<PyAny>` is `Send` but not
+  `Sync` — you can move it between threads but can't share it. This correctly models the
+  GIL: only one thread can use a Python object at a time.
+- Unused results: `#[must_use]` on `Result` ensures errors are handled, not silently dropped.
+
+**What the compiler doesn't catch — use tools:**
+
+- **Miri** (`cargo +nightly miri test`): Detects undefined behavior in unsafe code. We
+  ban `unsafe` at the workspace level, but Miri can still catch UB in dependencies and
+  in any `unsafe` blocks that get approved via `#[allow(unsafe_code)]` (e.g., if needed
+  for raw FD handling). Run Miri on unit tests in CI.
+
+- **`cargo careful`**: Runs the standard library with extra runtime checks (overflow,
+  alignment). Useful for catching integer overflow in offset calculations (bistream,
+  throttle byte counters).
+
+- **Thread sanitizer** (`RUSTFLAGS="-Z sanitizer=thread" cargo test`): Detects data races.
+  Particularly valuable for the `spawn_blocking` + GIL interaction where Rust and Python
+  share data through `Py<>` handles.
+
+- **Address sanitizer** (`RUSTFLAGS="-Z sanitizer=address"`): Detects use-after-free in
+  FFI code (OpenSSL bindings, PyO3 internals).
+
+**CI tooling summary:**
+```yaml
+# In addition to clippy/test/audit/deny:
+- cargo +nightly miri test           # UB detection (unit tests only)
+- cargo careful test                  # overflow/alignment checks
+# Periodic (weekly, not per-PR — these are slow):
+- RUSTFLAGS="-Z sanitizer=thread" cargo test
+- RUSTFLAGS="-Z sanitizer=address" cargo test
+```
+
+**Idiomatic Rust patterns to use:**
+
+- **Enums for state machines.** `ConnectionState` is an enum, not a bag of booleans.
+  Invalid transitions are compile-time errors if we use the typestate pattern for
+  critical transitions (e.g., `Handshake` → `Established` produces a different type).
+- **`Result<T, Error>` everywhere.** No sentinel values (-1, NULL). Every fallible
+  operation returns `Result`. The `?` operator propagates errors cleanly.
+- **Builder pattern for config.** Complex types like `SslAcceptor` configuration use
+  builders, not 15-argument constructors.
+- **`From`/`Into` for conversions.** `OpaqueData` ↔ `PyObject` conversions use
+  `impl From<OpaqueData> for PyObject` and vice versa.
+- **`Display` for user-facing strings.** `NodeInfo`, `ConnectionState`, `Error` all
+  implement `Display` for logging. No manual format string construction.
+- **Newtypes for IDs.** `ConnectionId(u64)` prevents accidentally passing a raw `u64`
+  where a connection ID is expected.
+- **Feature flags for optional modules.** Not runtime `if config.enabled` checks.
+  Dead code is eliminated at compile time.
+
+### Replacing GLib Patterns with Idiomatic Rust
+
+The C code uses GLib extensively. We do NOT port GLib semantics to Rust — we use Rust's
+native equivalents which are better.
+
+| GLib pattern | C code | Rust replacement |
+|-------------|--------|-----------------|
+| `GHashTable` | Incident data, peer tables | `HashMap` / `DashMap` (concurrent) |
+| `GList` (linked list) | Handler lists, connection lists | `Vec` (contiguous, cache-friendly) |
+| `GNode` (tree) | Processor pipeline | `ProcessorNode` with `Vec<ProcessorNode>` children |
+| `GString` | Growable byte buffers | `Vec<u8>` or `bytes::BytesMut` |
+| `GPatternSpec` (glob matching) | Incident dispatch, log filtering | Custom wildcard matcher (~20 lines) |
+| `g_malloc`/`g_free` | All allocation | Rust's allocator (automatic via ownership) |
+| `g_error`/`g_warning`/`g_debug` | Logging | `tracing::error!`/`warn!`/`debug!` |
+| `GKeyFile` (INI parser) | Main config | `serde` + `toml` crate |
+| `GError` | Error propagation | `thiserror` enum + `Result<T, Error>` |
+| `GThreadPool` | Processor thread pool | `tokio::task::spawn_blocking` pool |
+| `GMainLoop` / `libev` | Event loop | `tokio` async runtime |
+| `g_pattern_spec_match` | Glob with `*` matching dots | Simple wildcard: `*` = any chars, `?` = one char |
+| `GRefCount` | Connection ref/unref | `AtomicU32` + `ConnectionTable` ownership |
+| `GMutex` | Processor pipeline lock | `tokio::sync::Mutex` or `std::sync::Mutex` |
+
+**Key behavioral differences to be aware of:**
+- GLib's `g_error()` aborts the process. Rust's `tracing::error!` just logs. For truly
+  fatal conditions, use `panic!` (caught at task boundaries) or `std::process::exit`.
+- GLib's `GList` is a doubly-linked list. `Vec` is almost always better in Rust (cache
+  locality). Only use `VecDeque` if we need O(1) push_front.
+- GLib's memory functions never return NULL (they abort on OOM). Rust's allocator also
+  aborts by default on OOM (`alloc::oom = abort`). Same behavior, no change needed.
+- GLib's `g_pattern_spec_match` takes a `reversed` parameter for optimization. We don't
+  need this — our patterns are short and matched infrequently.
+
+### Network Model
+
+**IPv4/IPv6 dual-stack:** Each service creates two listeners — one on `0.0.0.0` and one
+on `[::]` with `IPV6_V6ONLY=true`. This matches how most network services work and avoids
+platform-specific dual-stack socket behavior. The current C code supports both address
+families. In `getifaddrs` mode, the interface enumeration returns both IPv4 and IPv6
+addresses; each gets its own listener.
+
+**Interface discovery (`getifaddrs` mode):** When `dionaea.listen.mode = "getifaddrs"`,
+enumerate interfaces via `nix::ifaddrs::getifaddrs()` at startup. Filter by configured
+interface names (if specified). Start one listener per address per service. On Linux
+with the `netlink` feature, subscribe to address change notifications and dynamically
+add/remove listeners. Without `netlink`, re-scan on SIGHUP.
+
+**Interface separation:** Honeypot services and admin services bind to different
+interfaces. Honeypot services (SMB, FTP, HTTP, etc.) bind to the externally-exposed
+interface (configured via `dionaea.listen`). Admin services — metrics exporter, health
+endpoint, and any future local REST API — bind to a separate admin interface (configured
+via `dionaea.admin.listen`, defaults to `127.0.0.1`). This prevents attackers from
+reaching admin endpoints, even if they discover the honeypot's IP. The management
+transports (HTTPS poller, DNS poller) are outbound-only and don't listen at all.
+
+**Outbound connections (`connect()` from Python):** Python calls `connection.connect(addr,
+port)` synchronously. The C implementation is fire-and-forget: it queues the connect in
+libev and returns immediately. The Rust implementation does the same:
+
+1. Python calls `PyConnection::connect(addr, port)` — this is a `#[pymethod]`
+2. The method validates args, creates a new `Connection` in the table, and spawns a
+   tokio task to handle the async connect (DNS resolution + TCP connect + optional TLS)
+3. Returns immediately to Python (no GIL blocking on I/O)
+4. When the connection is established, the tokio task calls `handle_established` on the
+   Python protocol via `spawn_blocking` + GIL
+5. If connect fails, calls `handle_error` instead
+
+This matches the current C event-driven model exactly. The key insight: `connect()` doesn't
+block because the underlying event loop is async. Python just triggers the action.
+
+**`ref()` / `unref()` semantics:** In the C code, these increment/decrement a refcount that
+prevents the connection from being freed while a background thread (processor pipeline) holds
+a reference. With the Rust ownership model (ConnectionId + ConnectionTable), `ref()` and
+`unref()` become lightweight pins:
+
+- `ref()`: Increments an `AtomicU32` counter on the Connection entry. While refcount > 0,
+  the connection task delays cleanup even after the connection closes.
+- `unref()`: Decrements the counter. When it reaches 0 and the connection is in `Close`
+  state, the entry is removed from the table.
+- Both return the current refcount (matching C behavior).
+
+This preserves the contract: processor threads (via `spawn_blocking`) ref before processing,
+unref when done. Python can also hold refs to keep connections accessible for incident
+reporting after disconnect.
+
+### Performance
+
+A honeypot can face thousands of simultaneous connections during port scans and worm
+propagation. The Python GIL is the throughput ceiling — I/O multiplexing in Rust is
+effectively free compared to Python callback overhead. Design around that.
+
+**Tokio runtime configuration:**
+```rust
+tokio::runtime::Builder::new_multi_thread()
+    .worker_threads(num_cpus::get().max(2))  // Match current C behavior (min 2)
+    .max_blocking_threads(64)                 // For Python GIL-holding calls
+    .enable_all()
+    .build()
+```
+
+The `max_blocking_threads` pool is where all Python calls happen (via `spawn_blocking`).
+64 threads is generous — in practice the GIL serializes them, but the pool prevents
+starvation when many connections need Python callbacks simultaneously.
+
+**Task-per-connection model:** Each accepted connection spawns a tokio task. The task owns
+the connection's I/O loop (read → protocol callback → write). This is lightweight — tokio
+tasks are ~300 bytes of overhead, not OS threads. Target: 10K+ concurrent connections
+limited only by FDs and memory, not task overhead.
+
+**Buffer management:**
+- Receive buffer: Stack-allocated `[u8; 65536]` per read call (matching current
+  `CONNECTION_MAX_RECV_SIZE`). No heap allocation per packet.
+- Send buffer: `bytes::BytesMut` per connection for zero-copy appending. Protocol
+  handlers build response data; the send buffer drains to the socket.
+- Avoid `Vec<u8>` growth/realloc in hot paths. Pre-size send buffers to typical
+  protocol response sizes where known.
+
+**Python callback overhead minimization:**
+- Batch incident dispatch: acquire GIL once, call all matching handlers, release.
+- Avoid Python↔Rust round-trips for connection metadata. Cache `transport`, `protocol`,
+  `local`, `remote` as Rust fields; Python reads them via `#[pyo3(get)]` without
+  re-acquiring data from the connection table.
+- `handle_io_in` returns bytes consumed as `usize` — use this to avoid re-copying
+  unconsumed data. Slice the buffer, don't allocate a new one.
+
+**What NOT to optimize:** Don't add zero-copy I/O (splice, sendfile) or io_uring.
+The bottleneck is Python, not syscalls. Keep it simple.
+
+**Benchmarks (tracked per release):**
+- Connections/second: TCP accept → established → close (no protocol)
+- Protocol throughput: bytes/sec through echo protocol (measures Python overhead)
+- Memory per connection: RSS / active connection count
+- GIL contention: `dionaea_python_callback_duration_seconds` histogram P50/P99
+- Baseline target: match or beat C version. If Python is the bottleneck in both,
+  Rust I/O performance is irrelevant — just don't regress.
+
+### Rate Limiting & Resource Management
+
+The current C code has a layered rate limiting system. All layers must be preserved.
+
+**Layer 1: Global FD limit (connection accept)**
+
+Reject new connections when FD usage exceeds a configurable percentage of `RLIMIT_NOFILE`.
+
+```rust
+// Checked in tcp_accept() and tls_accept()
+let fd_limit = resource::getrlimit(Resource::RLIMIT_NOFILE)?.rlim_cur;
+let threshold = fd_limit * config.limits.max_fds_pct / 100;
+if current_fd_count > threshold {
+    tracing::warn!(fd = current_fd_count, limit = threshold, "FD limit reached, rejecting");
+    metrics::counter!("dionaea_connections_rejected_total", "reason" => "fd_limit").increment(1);
+    drop(stream);  // close immediately
+    continue;
+}
+```
+
+Default: 70% (matching current C behavior). Configurable in TOML.
+
+**Layer 2: Per-IP connection limit**
+
+`DashMap<IpAddr, AtomicU32>` tracks active connections per source IP. Checked at accept
+time. When exceeded, reject the **new** connection (don't kill existing ones — they may
+be mid-protocol and generating useful incident data).
+
+Default: 50. Configurable per-protocol if needed.
+
+**Layer 3: Per-connection bandwidth throttle (token bucket)**
+
+Replicates the C token bucket in `connection.c:1812-1926`. Applied per-direction
+(ingress/egress) on each connection.
+
+```rust
+pub struct Throttle {
+    max_bytes_per_second: f64,  // 0 = unlimited
+    interval_bytes: f64,         // bytes transferred in current interval
+    interval_start: Instant,     // start of current 1-second interval
+}
+
+impl Throttle {
+    /// Returns how many bytes may be transferred now.
+    /// Returns 0 if the caller should sleep (minimum 200ms).
+    pub fn available(&mut self) -> usize;
+
+    /// Record that `n` bytes were transferred.
+    pub fn update(&mut self, n: usize);
+}
+```
+
+When `available()` returns 0, the connection task sleeps using `tokio::time::sleep`
+(not thread sleep — this is cooperative, doesn't block the worker).
+
+Protocols set throttle via Python API:
+- HTTP: `self._out.speed.limit = 16*1024` (16 KB/s)
+- UPnP: `self._out.speed.limit = 16*1024` (16 KB/s)
+- Others: unlimited by default
+
+**Layer 4: Per-stream accounting (total byte limits)**
+
+Each direction has a cumulative byte counter with a configurable cap. When exceeded,
+the connection closes.
+
+```rust
+pub struct Accounting {
+    bytes: u64,   // total transferred
+    limit: u64,   // max allowed (0 = unlimited)
+}
+
+impl Accounting {
+    pub fn add(&mut self, n: usize) -> bool; // returns false if limit exceeded
+}
+```
+
+Protocol-specific limits (from current code):
+- Mirror: 100 KB per direction
+- NFQ mirror: 200 KB per direction
+- Command shell: 1 KB inbound
+- SMB: unlimited (commented out in current code)
+
+**Layer 5: Connection timeouts**
+
+Six timeout types, all configurable per-connection from Python:
+
+| Timeout | Default | Fires when |
+|---------|---------|------------|
+| `idle` | protocol-specific | No data for N seconds |
+| `sustain` | protocol-specific | Connection open longer than N seconds |
+| `listen` | protocol-specific | Listening socket open longer than N seconds |
+| `handshake` | 10s | TLS handshake takes longer than N seconds |
+| `connecting` | 5s | Outbound TCP connect takes longer than N seconds |
+| `close` | 10s | Graceful shutdown takes longer than N seconds |
+
+Each timeout is a `tokio::time::Sleep` future integrated into the connection task's
+select loop:
+
+```rust
+tokio::select! {
+    data = socket.read(&mut buf) => { /* handle I/O */ }
+    _ = &mut idle_timeout => { /* call handle_timeout_idle */ }
+    _ = &mut sustain_timeout => { /* call handle_timeout_sustain */ }
+}
+```
+
+`idle` resets on every data transfer. `sustain` never resets (absolute deadline).
+Python callbacks return `bool` — `true` means keep the connection alive (reset idle),
+`false` means close it.
+
+**Layer 6: NFQ SYN throttle (slot-based window)**
+
+Application-level SYN flood protection. A sliding window of time slots, each tracking
+connection count for that second.
+
+```rust
+pub struct NfqThrottle {
+    window: Vec<(u64, u32)>,  // (timestamp, count) per slot
+    window_size: usize,        // default: 30 seconds
+    total_limit: u32,          // max connections across all slots (default: 30)
+    slot_limit: u32,           // max connections per slot (default: 30)
+}
+
+impl NfqThrottle {
+    /// Returns true if this connection should be accepted.
+    pub fn allow(&mut self, now: u64) -> bool;
+}
+```
+
+**Layer 7: Recv buffer cap**
+
+Hard limit of 64 KB per read call (`CONNECTION_MAX_RECV_SIZE`). Prevents a single
+connection from consuming unbounded memory in one read. This is a constant, not
+configurable — it's a safety bound, not a tuning knob.
+
+**Layer 8: IP deny list**
+
+A `DashMap<IpAddr, Option<Instant>>` checked at accept time. Entries can have a TTL
+(auto-expire) or be permanent. Managed via management commands or loaded from a
+persistence file on startup.
+
+**Config section:**
+```toml
+[dionaea.limits]
+max_fds_pct = 70
+max_connections_per_ip = 50
+recv_buffer_size = 65536       # bytes, per read call
+# max_memory_mb = 0            # 0 = no limit
+
+[dionaea.deny_list]
+persist_file = "/var/lib/dionaea/deny_list.json"
+# Preloaded entries:
+# deny = ["192.168.1.100", "10.0.0.0/8"]
+```
+
+### Security
+
+This is a honeypot. It is *designed to be attacked*. Security means: the honeypot
+must not be compromised, and must not become a tool for attacking others.
+
+**Threat model — what attackers can do:**
+1. Send arbitrary bytes to any listening port
+2. Attempt to exploit the protocol parsers
+3. Try to escape the Python sandbox
+4. Use the honeypot as a relay/proxy (SSRF)
+5. Exhaust resources (DoS the honeypot itself)
+6. Attempt to write/read outside designated directories
+7. Target the management channel
+
+**Memory safety (Rust advantage):**
+- No buffer overflows, use-after-free, or double-free in Rust code.
+- `unsafe_code = "deny"` enforced at workspace level.
+- FFI boundaries (OpenSSL, Python) are the remaining attack surface. OpenSSL is
+  wrapped by the `openssl` crate (audited). PyO3 manages Python reference counting.
+- Fuzz all code that processes untrusted input (see Testing Strategy).
+
+**Input validation at boundaries:**
+- All network reads go through a fixed-size buffer (64 KB). No unbounded reads.
+- Protocol callback `handle_io_in` returns bytes consumed. If it returns 0 repeatedly
+  (protocol stuck), increment a counter and close after N consecutive zero-returns
+  (prevents infinite-loop bugs in Python protocol handlers).
+- Timeout on every connection state (see Rate Limiting). No connection can live forever.
+
+**File system containment:**
+- All file writes go through a path validation helper that resolves symlinks and
+  rejects paths outside designated directories (`download_dir`, `bistream_dir`, `log_dir`).
+- Downloads are named by SHA256 hash — no attacker-controlled filenames on disk.
+- Bistream dumps are named by connection ID — no attacker-controlled paths.
+
+**Anti-relay / SSRF prevention:**
+- The download module (replaces curl) only fetches URLs from `dionaea.download.offer`
+  incidents. These are generated by protocol handlers when an attacker offers a
+  malware URL (e.g., via FTP RETR or SMB write).
+- Before fetching, validate the URL: reject `file://`, `gopher://`, and any scheme
+  other than `http://` or `https://`.
+- Reject private/loopback IPs as download targets (`127.0.0.0/8`, `10.0.0.0/8`,
+  `172.16.0.0/12`, `192.168.0.0/16`, `::1`, `fe80::/10`). Prevents SSRF.
+- Mirror/NFQ modules check `is_local_addr()` before forwarding traffic.
+
+**Network interface isolation:**
+- Admin endpoints (metrics, health) bind to `dionaea.admin.listen` (default `127.0.0.1`).
+- Honeypot services bind to `dionaea.listen.addresses` (the exposed interface).
+- Config validation rejects configs where admin and honeypot share the same external address.
+- Management transports are outbound-only (poll a remote server) — no listening port.
+
+**Sensitive data handling:**
+- Incident fields containing "apikey", "password", "secret", "token" are redacted
+  in log output (matching current C behavior).
+- Management channel authenticated (TLS client certs or TSIG).
+- Config file may contain credentials (hpfeeds, VirusTotal API keys). File permissions
+  must be 0600, owned by the dionaea user. Validate at startup, warn if world-readable.
+
+**Supply chain:**
+- `cargo deny` checks licenses and advisories on every CI run.
+- `cargo audit` checks for known CVEs in dependencies.
+- Minimal dependency surface: 14 direct crates (see Dependencies section).
+
+**Audit trail:**
+- Every accepted connection is logged with source IP, port, transport, protocol, timestamp.
+- Every incident is logged with origin and key fields.
+- Logs are append-only (no log truncation or deletion from within the honeypot).
+- Management reports include all incidents since last poll, ensuring centralized
+  visibility even if the honeypot is compromised and local logs are tampered with.
+
+### Remote Management
+
+Dionaea instances are deployed remotely and need centralized management. Two poll-based
+transport protocols are planned (JSON/HTTPS and DNS-based); the transport choice is deferred.
+The Rust core provides the internal hooks both transports need.
+
+**Architecture:** A `ManagementApi` trait in `core` exposes all management operations.
+Transport modules (HTTPS poller, DNS poller) are consumers of this trait. The honeypot
+itself never initiates outbound management connections — the transports poll a remote
+server for commands and push status reports.
+
+```rust
+// crates/core/src/management.rs
+
+/// Read-only status snapshot, serializable for any transport.
+#[derive(serde::Serialize)]
+pub struct StatusReport {
+    pub timestamp: String,                          // RFC3339
+    pub uptime_seconds: u64,
+    pub version: String,
+    pub services: Vec<ServiceStatus>,               // per-service: name, listening addr, state
+    pub connections: ConnectionSummary,              // active, total, per-protocol, per-source-ip
+    pub incidents_since_last_report: Vec<IncidentSummary>,  // origin, timestamp, key fields
+    pub alerts: Vec<Alert>,                         // high-priority events (filtered by AlertRules)
+    pub log_tail: Vec<LogEntry>,                    // recent warning+ log lines
+    pub resources: ResourceStatus,                  // fd_used, fd_limit, memory_rss
+    pub errors_since_last_report: Vec<ErrorSummary>,
+}
+
+/// Commands the management server can send back.
+#[derive(serde::Deserialize)]
+pub enum ManagementCommand {
+    /// Start a service that's configured but not running
+    StartService { name: String },
+    /// Stop a running service (drain connections first)
+    StopService { name: String },
+    /// Block a source IP (add to deny list)
+    BlockIp { addr: IpAddr, duration_secs: Option<u64> },
+    /// Unblock a source IP
+    UnblockIp { addr: IpAddr },
+    /// Change log level at runtime
+    SetLogLevel { level: String },
+    /// Graceful restart (stop all, reload config, start all)
+    Restart,
+    /// Request a full status report on next poll
+    RequestStatus,
+    /// Update a config value (limited to safe keys)
+    SetConfig { key: String, value: String },
+}
+
+/// Trait that transports implement.
+pub trait ManagementTransport: Send + Sync {
+    /// Poll interval (transport-specific, configured per-transport)
+    fn poll_interval(&self) -> Duration;
+
+    /// Push a status report to the management server.
+    /// Returns any pending commands from the server.
+    async fn poll(&self, report: &StatusReport) -> Result<Vec<ManagementCommand>, Error>;
+}
+```
+
+**Hooks into the core (what management needs access to):**
+
+| Hook | Source | Purpose |
+|------|--------|---------|
+| `ConnectionTable::summary()` | connection/mod.rs | Active connection counts, per-protocol, per-IP |
+| `IHandlerRegistry::recent_incidents()` | ihandler.rs | Ring buffer of recent incidents for reporting |
+| `ServiceRegistry::list()` / `start()` / `stop()` | loader.rs | Service lifecycle control |
+| `metrics::snapshot()` | metrics.rs | Current metric values |
+| IP deny list (read/write) | throttle.rs | Block/unblock source IPs |
+| `tracing` level filter (dynamic) | main.rs | Runtime log level changes |
+| Config store (read, limited write) | config.rs | Runtime config updates |
+
+**Ring buffer for incidents:** The `IHandlerRegistry` maintains a bounded ring buffer
+(configurable size, default 1000) of recent `IncidentSummary` structs. Each poll drains
+entries added since the last poll. This avoids unbounded memory growth between polls.
+
+**IP deny list:** A `HashSet<IpAddr>` (with optional TTL per entry) checked at connection
+accept time. Management commands can add/remove entries. Persisted to a file on graceful
+shutdown, reloaded on startup.
+
+**Transport modules are Cargo features:**
+```toml
+# crates/core/Cargo.toml
+[features]
+mgmt-https = ["dep:reqwest"]   # JSON/HTTPS poll transport
+mgmt-dns = []                  # DNS-based poll transport (no extra deps)
+```
+
+The transport implementations live in `crates/core/src/management/`:
+```
+management/
+├── mod.rs          # ManagementApi trait, StatusReport, ManagementCommand
+├── state.rs        # Incident ring buffer, IP deny list, service registry queries
+├── https.rs        # JSON/HTTPS poll transport (behind feature flag)
+└── dns.rs          # DNS-based poll transport (behind feature flag)
+```
+
+**Poll cycle (same for both transports):**
+1. Collect `StatusReport` from internal state
+2. Serialize and send to management server via transport
+3. Receive `Vec<ManagementCommand>` in response
+4. Execute each command, log results
+5. Sleep for `poll_interval`
+
+**Security:** Management transports authenticate to the server (TLS client certs for
+HTTPS, TSIG/HMAC for DNS). The honeypot never exposes a listening management port —
+it only makes outbound poll connections. Commands are validated before execution
+(e.g., `SetConfig` only allows a whitelist of safe keys).
+
+---
+
 ## Project Layout
 
 ```
 dionaea-v2/                          # New directory alongside existing code
 ├── Cargo.toml                       # Workspace root
+├── deny.toml                        # cargo-deny config (licenses, advisories)
 ├── crates/
 │   ├── dionaea/                     # Binary crate (entry point)
 │   │   ├── Cargo.toml
@@ -76,19 +800,28 @@ dionaea-v2/                          # New directory alongside existing code
 │   │   ├── Cargo.toml
 │   │   └── src/
 │   │       ├── lib.rs
-│   │       ├── config.rs           # TOML config loading + serde structs
+│   │       ├── error.rs            # Error types (thiserror)
+│   │       ├── config.rs           # TOML config loading, validation, env overrides
 │   │       ├── connection/
 │   │       │   ├── mod.rs          # Connection struct, state machine, lifecycle
 │   │       │   ├── tcp.rs          # TCP accept, connect, I/O
 │   │       │   ├── tls.rs          # TLS handshake, encrypted I/O
 │   │       │   ├── udp.rs          # UDP listener, peer table
-│   │       │   └── dtls.rs         # DTLS cookie verification, peer management
+│   │       │   ├── throttle.rs     # Bandwidth throttle (token bucket) + byte accounting
+│   │       │   └── limits.rs      # FD limits, per-IP counters, IP deny list
 │   │       ├── incident.rs         # Incident struct, typed data, dispatch
+│   │       ├── ihandler.rs         # IHandler registry, glob pattern matching
 │   │       ├── protocol.rs         # Protocol trait (the vtable)
 │   │       ├── processor.rs        # Processor pipeline tree
 │   │       ├── bistream.rs         # Bidirectional stream recording
+│   │       ├── dns.rs              # Async DNS resolution
 │   │       ├── node_info.rs        # Network address info
-│   │       └── throttle.rs         # Connection rate limiting + accounting
+│   │       ├── metrics.rs          # Prometheus metrics definitions
+│   │       └── management/
+│   │           ├── mod.rs          # ManagementApi trait, StatusReport, commands
+│   │           ├── state.rs        # Incident ring buffer, IP deny list, queries
+│   │           ├── https.rs        # JSON/HTTPS poll transport (feature-gated)
+│   │           └── dns.rs          # DNS-based poll transport (feature-gated)
 │   │
 │   ├── python/                      # PyO3 Python bridge
 │   │   ├── Cargo.toml
@@ -103,14 +836,13 @@ dionaea-v2/                          # New directory alongside existing code
 │   │       ├── convert.rs          # Rust ↔ Python type conversions
 │   │       └── loader.rs           # Python module import, ServiceLoader/IHandlerLoader
 │   │
-│   └── modules/                     # Infrastructure modules (Cargo features)
+│   └── shell-detect/                # Shellcode detection (standalone, no Python dep)
 │       ├── Cargo.toml
 │       └── src/
 │           ├── lib.rs
-│           ├── pcap.rs             # Passive packet sniffing
-│           ├── nfq.rs              # Netfilter queue (Linux)
-│           ├── netlink.rs          # Interface monitoring (Linux)
-│           └── download.rs         # HTTP download/upload (replaces curl)
+│           ├── x86.rs              # x86-32 GetPC patterns
+│           ├── x64.rs              # x86-64 GetPC patterns
+│           └── mips.rs             # MIPS GetPC patterns
 │
 ├── conf/                            # Configuration files
 │   ├── dionaea.toml                # Main config (migrated from .cfg)
@@ -134,39 +866,285 @@ dionaea-v2/                          # New directory alongside existing code
 │       ├── log_json.py
 │       └── ...
 │
-└── tests/                           # Integration tests
-    ├── test_connection.rs
+├── fuzz/                            # cargo-fuzz targets
+│   ├── Cargo.toml
+│   └── fuzz_targets/
+│       ├── shellcode_detect.rs
+│       └── config_parse.rs
+│
+├── deploy/
+│   ├── Dockerfile
+│   ├── entrypoint.sh
+│   ├── dionaea.service             # systemd unit
+│   └── dionaea.toml.example        # Annotated example config
+│
+└── tests/                           # Integration tests (Rust)
+    ├── common/mod.rs               # Test helpers (start daemon, connect, etc.)
+    ├── test_tcp_echo.rs
+    ├── test_tls_handshake.rs
+    ├── test_incident_dispatch.rs
     ├── test_python_bridge.rs
-    └── python/                      # Python protocol tests (copied from current)
+    └── python/                      # Existing pytest suite (copied from current)
+        ├── conftest.py
+        ├── requirements.txt
+        └── ... (tftp, ftp, smb, http, mysql tests)
+```
+
+Infrastructure modules (pcap, nfq, netlink, download) are Cargo features on the `core`
+crate, not a separate crate. They share core types and don't justify separate compilation
+units. Each is behind `#[cfg(feature = "...")]`:
+
+```toml
+# crates/core/Cargo.toml
+[features]
+default = ["download"]
+pcap = ["dep:pcap"]
+nfq = ["dep:nfq"]              # implies target_os = "linux"
+netlink = ["dep:rtnetlink"]    # implies target_os = "linux"
+download = ["dep:reqwest"]
+metrics = ["dep:metrics", "dep:metrics-exporter-prometheus"]
+mgmt-https = ["dep:reqwest"]   # JSON/HTTPS poll-based remote management
+mgmt-dns = []                  # DNS-based poll-based remote management
 ```
 
 ---
 
-## Phase 1: Project Skeleton + PyO3 Hello World (Week 1)
+## Phase 1: Skeleton + Config + Logging (Week 1)
 
-**Goal:** Cargo workspace builds, embeds Python, calls a trivial Python function.
+**Goal:** Cargo workspace builds. Config loads and validates. Logging works with domain
+filtering and multiple outputs. Python initializes.
 
 **Files to create:**
-- `dionaea-v2/Cargo.toml` (workspace)
-- `dionaea-v2/crates/dionaea/Cargo.toml` + `src/main.rs`
-- `dionaea-v2/crates/core/Cargo.toml` + `src/lib.rs`
-- `dionaea-v2/crates/python/Cargo.toml` + `src/lib.rs`
+- Workspace `Cargo.toml` + `deny.toml`
+- `crates/dionaea/Cargo.toml` + `src/main.rs`
+- `crates/core/Cargo.toml` + `src/lib.rs` + `src/error.rs` + `src/config.rs`
+- `crates/python/Cargo.toml` + `src/lib.rs`
 
 **What main.rs does:**
-1. Initialize tracing
-2. Initialize Python via PyO3 (`pyo3::prepare_freethreaded_python()`)
-3. Acquire GIL, import `sys`, print version
-4. Start tokio runtime
-5. Handle SIGINT/SIGTERM for shutdown
+1. Load and validate TOML config (with env var overrides: `DIONAEA_LISTEN_ADDR`, etc.)
+2. Initialize tracing (JSON file logger + optional stdout, domain/level filtering per target)
+3. Initialize Python via PyO3 (`pyo3::prepare_freethreaded_python()`)
+4. Acquire GIL, import `sys`, log version
+5. Start tokio runtime
+6. Register signal handlers (SIGINT, SIGTERM → graceful shutdown; SIGHUP → log reopen)
+7. Ignore SIGPIPE
 
-**Test:** `cargo build && cargo run` prints Python version and exits cleanly on Ctrl-C.
+**Config structure:**
+
+```toml
+[dionaea]
+user = "dionaea"
+group = "dionaea"
+# workdir = "/opt/dionaea"  # optional, defaults to binary location
+
+[dionaea.listen]
+mode = "manual"  # or "getifaddrs"
+addresses = ["0.0.0.0"]
+interfaces = ["eth0"]
+
+[dionaea.limits]
+max_fds_pct = 70           # reject connections above this % of RLIMIT_NOFILE
+max_connections_per_ip = 50
+recv_buffer_size = 65536   # bytes per read call (safety cap)
+# max_memory_mb = 0        # 0 = no limit
+
+[dionaea.deny_list]
+persist_file = "/var/lib/dionaea/deny_list.json"
+# Preloaded entries (optional):
+# deny = ["192.168.1.100"]
+
+[logging]
+level = "info"
+
+[[logging.targets]]
+type = "file"
+path = "/var/log/dionaea/dionaea.log"
+format = "json"            # or "text"
+levels = "all,-debug"
+domains = "*"
+
+[[logging.targets]]
+type = "stdout"
+format = "text"
+levels = "info,warning,error,critical"
+domains = "*"
+
+[modules]
+download = true
+pcap = false
+nfq = false
+netlink = false
+
+[modules.python]
+imports = ["dionaea"]
+service_configs = ["/etc/dionaea/services-enabled/*.toml"]
+ihandler_configs = ["/etc/dionaea/ihandlers-enabled/*.toml"]
+
+[dionaea.admin]
+listen = "127.0.0.1"              # admin interface (metrics, health) — separate from honeypot
+
+# [admin.metrics]
+# enabled = false
+# port = 9090
+
+# [admin.health]
+# enabled = false
+# port = 8080
+
+# [management]
+# transport = "https"          # or "dns"
+# poll_interval_secs = 60
+# server = "https://mgmt.example.com/api/v1/honeypot"
+# # For HTTPS: TLS client cert for authentication
+# client_cert = "/etc/dionaea/mgmt-client.pem"
+# client_key = "/etc/dionaea/mgmt-client-key.pem"
+# # For DNS: TSIG key for authentication
+# # tsig_key_name = "dionaea-mgmt"
+# # tsig_key_secret = "base64..."
+# # dns_server = "mgmt-dns.example.com"
+# incident_buffer_size = 1000  # ring buffer for incident reports
+```
+
+**Config validation (at load time, not runtime):**
+- User/group exist (via `nix::unistd::User::from_name`)
+- Listen addresses parse as valid IPs
+- Admin listen address parses as valid IP, defaults to `127.0.0.1`
+- Admin listen address is NOT the same as a honeypot listen address (prevent accidental exposure)
+- Log file parent directories exist and are writable
+- Service/ihandler config globs resolve to at least one file
+- Port numbers in range
+
+**Env var overrides:** Any config key can be overridden via `DIONAEA_` prefix with `__`
+as section separator. Example: `DIONAEA_DIONAEA__LISTEN__MODE=getifaddrs` overrides
+`dionaea.listen.mode`.
+
+**Tests:**
+- Unit: Config round-trip (struct → TOML → struct), env override merging, validation errors
+- Integration: `cargo run -- -c test.toml` starts and exits cleanly on SIGTERM
 
 ---
 
-## Phase 2: PyO3 Bridge — Python API Surface (Weeks 2-3)
+## Phase 2: Core Types + Incident System (Weeks 2-3)
+
+**Goal:** Connection struct, state machine, NodeInfo, OpaqueData, Incident, IHandler dispatch.
+No I/O yet — just the types and their state transitions.
+
+### `crates/core/src/connection/mod.rs`
+
+```rust
+pub enum Transport { Tcp, Tls, Udp }
+pub enum ConnectionType { Accept, Bind, Connect, Listen }
+
+pub enum ConnectionState {
+    None, Resolve, Connecting, Handshake,
+    Established, Shutdown, Close, Reconnect,
+}
+
+pub struct ConnectionId(u64);  // Monotonic counter, not recycled
+
+pub struct Connection {
+    id: ConnectionId,
+    transport: Transport,
+    connection_type: ConnectionType,
+    state: ConnectionState,
+    local: NodeInfo,
+    remote: NodeInfo,
+    stats: ConnectionStats,
+    timeouts: ConnectionTimeouts,
+    // Protocol handler is a PyObject held by the python crate,
+    // not stored here. Connection is transport-only.
+}
+```
+
+**Ownership model:** Connections are owned by a `ConnectionTable` (a `HashMap<ConnectionId,
+Connection>` behind a `tokio::sync::RwLock`). Python and incidents reference connections by
+`ConnectionId`, not by `Arc<Mutex<Connection>>`. This avoids:
+- Deadlocks from nested lock acquisition
+- GIL + Mutex ordering issues
+- Preventing connection cleanup when Python holds a reference
+
+When Python needs connection data, it calls a Rust method that looks up the ID in the table,
+reads the needed fields, and returns them. When a connection closes, it's removed from the
+table; stale IDs return an error to Python.
+
+### `crates/core/src/incident.rs`
+
+```rust
+pub enum OpaqueData {
+    Int(i64),
+    String(String),
+    Bytes(Vec<u8>),
+    ConnectionRef(ConnectionId),  // ID, not Arc<Mutex<>>
+    List(Vec<OpaqueData>),
+    Dict(HashMap<String, OpaqueData>),
+    None,
+}
+
+pub struct Incident {
+    origin: String,
+    data: HashMap<String, OpaqueData>,
+}
+```
+
+### `crates/core/src/ihandler.rs`
+
+```rust
+pub struct IHandlerRegistry {
+    handlers: Vec<IHandler>,
+}
+
+struct IHandler {
+    pattern: glob::Pattern,
+    // Callback is either a Rust function or a Python callable.
+    // Python handlers dominate in practice.
+}
+
+impl IHandlerRegistry {
+    pub fn dispatch(&self, incident: &Incident) {
+        for handler in &self.handlers {
+            if handler.pattern.matches(&incident.origin) {
+                // Call handler (Python handlers via spawn_blocking + GIL)
+            }
+        }
+    }
+}
+```
+
+Pattern matching: `"dionaea.connection.*"` matches `"dionaea.connection.tcp.accept"`.
+
+**Glob semantics:** GLib's `g_pattern_spec_match` treats `*` as matching **any characters
+including dots**. The Rust `glob` crate is designed for file paths and treats `/` specially.
+Don't use `glob` — implement a simple wildcard matcher directly (just `*` = match anything,
+`?` = match one char). It's ~20 lines of code. Test against the full set of incident origin
+strings and ihandler patterns in the current codebase to confirm behavior matches.
+
+### DNS resolution
+
+```rust
+// crates/core/src/dns.rs
+// Wraps hickory-resolver for async A + AAAA lookups.
+// Used by outbound connection.connect() when given a hostname.
+pub async fn resolve(host: &str) -> Result<Vec<IpAddr>, Error> {
+    // Parallel A + AAAA queries, return first successful
+    // Timeout: 3 seconds (matching current libudns behavior)
+}
+```
+
+**Tests:**
+- Unit: Connection state machine transitions (valid and invalid)
+- Unit: Incident set/get with all OpaqueData variants
+- Unit: IHandler glob pattern matching (exact, wildcard, no-match)
+- Unit: OpaqueData ↔ Python conversion round-trips
+- Proptest: Any OpaqueData value round-trips through Python conversion
+
+---
+
+## Phase 3: PyO3 Bridge (Weeks 4-5)
 
 **Goal:** Replicate binding.pyx (1,370 lines) as PyO3 classes. This is the hardest phase
 because getting the API wrong means Python protocols won't work.
+
+**Key reference file:** `modules/python/binding.pyx` — every line maps to a PyO3 impl.
 
 **Classes to implement (maps to binding.pyx):**
 
@@ -176,7 +1154,7 @@ because getting the API wrong means Python protocols won't work.
 Properties (read-only via #[pyo3(get)]):
   remote: PyNodeInfo
   local: PyNodeInfo
-  transport: String           # "tcp", "tls", "udp", "dtls"
+  transport: String           # "tcp", "tls", "udp"
   protocol: String            # protocol name or class name
   status: String              # state as string
   timeouts: PyConnectionTimeouts
@@ -257,53 +1235,35 @@ Rust ↔ Python conversions:
 
 ### `crates/python/src/loader.rs`
 
-```
-Python module loading:
-  - Set sys.path to include python/ directory
-  - Import dionaea package
-  - Call load_submodules()
-  - Load config from TOML files
-  - Instantiate ServiceLoaders and IHandlerLoaders
-```
+Python module loading + service management:
+- Set `sys.path` to include `python/` directory
+- Import `dionaea` package → triggers `load_submodules()`
+- Load TOML config files for ihandlers and services
+- Instantiate ServiceLoaders and IHandlerLoaders
+- For each configured service: find matching ServiceLoader, call `start(addr, iface, config)`
 
-**Test:** Write a minimal echo.py-style protocol in Python. Import it via PyO3. Verify
-all properties and methods are accessible. Verify handle_* callbacks are called.
-
-**Key reference file:** `modules/python/binding.pyx` — every line maps to a PyO3 impl.
+**Tests:**
+- Unit: Write a minimal echo.py protocol. Import via PyO3. Verify all properties accessible.
+  Verify handle_* callbacks are called.
+- Unit: Create PyIncident, set fields of every type, verify __getattr__/__setattr__ work.
+- Unit: Create PyIHandler with pattern, register, create incident, verify dispatch calls
+  the Python handler's method.
+- Integration: Full round-trip — load echo.py, start listener, connect, send data, verify echo.
 
 ---
 
-## Phase 3: Connection Core (Weeks 4-6)
+## Phase 4: TCP/UDP I/O + TLS (Weeks 6-8)
 
-**Goal:** Connection struct, state machine, TCP/UDP/TLS/DTLS transport handling.
-
-### `crates/core/src/connection/mod.rs`
-
-```rust
-pub enum Transport { Tcp, Tls, Udp, Dtls }
-pub enum ConnectionType { Accept, Bind, Connect, Listen }
-pub enum ConnectionState { None, Resolve, Connecting, Handshake, Established, Shutdown, Close, Reconnect }
-
-pub struct Connection {
-    transport: Transport,
-    connection_type: ConnectionType,
-    state: ConnectionState,
-    local: NodeInfo,
-    remote: NodeInfo,
-    transport_data: TransportData,
-    stats: ConnectionStats,
-    socket: Option<RawFd>,
-    // ... protocol callbacks via PyO3
-}
-```
+**Goal:** Real network I/O. TCP accept/connect, UDP recv/send, TLS handshake.
+Wire up to Python protocol callbacks.
 
 ### `crates/core/src/connection/tcp.rs`
 
 Key functions (async with tokio):
 - `tcp_listen(addr, port)` → TcpListener
-- `tcp_accept(listener)` → new Connection
-- `tcp_connect(addr, port)` → Connection
-- `tcp_io_in(connection)` → read, buffer, call protocol.io_in
+- `tcp_accept(listener)` → new Connection + spawn handler task
+- `tcp_connect(addr, port)` → Connection (with DNS resolution if hostname)
+- `tcp_io_in(connection)` → read, buffer, call protocol.io_in via spawn_blocking
 - `tcp_io_out(connection)` → flush send buffer
 - `tcp_disconnect(connection)` → graceful shutdown
 
@@ -312,175 +1272,127 @@ Key functions (async with tokio):
 - Uses `openssl` crate (`SslAcceptor`, `SslConnector`)
 - `tokio-openssl` for async TLS streams
 - Support weak ciphers via `SslMethod::tls()` + `set_cipher_list()`
-- Self-signed cert generation (`X509Builder`)
-- DH parameter loading for old clients
+- Self-signed cert generation (`X509Builder`) with configurable subject fields:
+  ```toml
+  [ssl.default]
+  c = "US"              # Country
+  cn = "localhost"      # Common Name
+  o = "Server"          # Organization
+  ou = "IT"             # Organizational Unit
+  key_bits = 2048       # RSA key size
+  ```
+  These matter for honeypot deception — making the cert resemble a specific vendor/service.
+- DH parameter loading for old clients (1024, 2048, 3072, 4096, 6144, 8192-bit RFC primes)
+- `SSL_set_dh_auto` as fallback
 
 ### `crates/core/src/connection/udp.rs`
 
-- `UdpSocket` with peer table (`HashMap<SocketAddr, Connection>`)
+- `UdpSocket` with peer table (`HashMap<SocketAddr, ConnectionId>`)
 - `recvmsg` via `nix` crate for `IP_PKTINFO` (capture destination IP)
 - Per-peer connection objects
 - Packet queuing for send
+- Platform: `IP_PKTINFO` on Linux, fallback to basic `recvfrom` on macOS
 
-### `crates/core/src/connection/dtls.rs`
+### `crates/core/src/connection/throttle.rs`
 
-- `openssl::ssl::SslMethod::dtls()` for DTLS
-- Cookie verification (`SslContext::set_cookie_generate_cb`)
-- Memory BIOs for DTLS packet handling
-- Peer table like UDP
+Implements all per-connection rate limiting (see "Rate Limiting & Resource Management"
+in Cross-Cutting Concerns for the full design):
+- `Throttle` struct: token bucket bandwidth limiter (Layer 3)
+- `Accounting` struct: cumulative byte counter with cap (Layer 4)
+- Connection timeout management: idle, sustain, listen, handshake, connecting, close (Layer 5)
+- `ConnectionLimits` struct: global FD check (Layer 1) + per-IP counter (Layer 2)
+- `IpDenyList` struct: blocked IPs with optional TTL (Layer 8)
 
-**Test:** Accept a TCP connection, receive data, call Python protocol's handle_io_in,
-send response via handle_established → connection.send(). Test with netcat.
+Sleep-based backpressure uses `tokio::time::sleep` (cooperative, not blocking).
+Timeouts integrate into the connection task's `tokio::select!` loop.
 
----
-
-## Phase 4: Incident System + Logging (Week 7)
-
-### `crates/core/src/incident.rs`
-
-```rust
-pub enum OpaqueData {
-    Int(i64),
-    String(String),
-    Bytes(Vec<u8>),
-    Connection(Arc<Mutex<Connection>>),
-    List(Vec<OpaqueData>),
-    Dict(HashMap<String, OpaqueData>),
-    None,
-}
-
-pub struct Incident {
-    origin: String,
-    data: HashMap<String, OpaqueData>,
-}
-
-impl Incident {
-    pub fn new(origin: &str) -> Self;
-    pub fn set(&mut self, key: &str, value: OpaqueData);
-    pub fn get(&self, key: &str) -> Option<&OpaqueData>;
-    pub fn report(&self, handlers: &[IHandler]);
-}
-```
-
-### IHandler dispatch
-
-```rust
-pub struct IHandler {
-    pattern: glob::Pattern,   # or simple wildcard matching
-    callback: Box<dyn Fn(&Incident)>,
-}
-
-// Pattern matching: "dionaea.connection.*" matches "dionaea.connection.tcp.accept"
-// Report iterates all handlers, calls matching ones
-```
-
-### Logging setup
-
-- `tracing` with `EnvFilter` for domain-based filtering
-- Targets map to Dionaea domains: `dionaea::connection`, `dionaea::smb`, etc.
-- File output via `tracing-appender`
-- Config-driven: read log targets + levels from TOML
-
-**Test:** Create incident, set fields, report, verify Python ihandler receives it.
+**Tests:**
+- Unit: Throttle token bucket — proptest: any (rate, elapsed_time, bytes_sent) tuple
+  produces correct allowance. Edge cases: rate=0 (unlimited), rate=1, huge burst.
+- Unit: Accounting — bytes accumulate correctly, limit triggers at exact boundary.
+- Unit: Timeout firing — idle resets on activity, sustain never resets.
+- Unit: Per-IP counter — increment on accept, decrement on close, reject above limit.
+- Unit: IP deny list — add/remove, TTL expiry, persistence round-trip.
+- Integration: TCP echo round-trip through Python protocol handler
+- Integration: TLS handshake with strong and weak cipher suites
+- Integration: UDP send/receive with peer table management
+- Fuzz: Feed random bytes to TCP read path, verify no panics
 
 ---
 
-## Phase 5: Python Module Loading + Service Management (Week 8)
+## Phase 5: Processor Pipeline + Bistream + Shellcode (Week 9)
 
-### `crates/python/src/loader.rs`
-
-Replicate the current Python startup sequence:
-
-1. Initialize Python interpreter
-2. Set `sys.path` to include `python/` directory
-3. Import `dionaea` package → triggers `load_submodules()`
-4. Load TOML config files for ihandlers and services
-5. For each IHandlerLoader in registry: call `start(config)` → get ihandler instances
-6. For each configured service:
-   - Find matching ServiceLoader by name
-   - Call `start(addr, iface, config)` → get connection instances
-   - Each connection binds + listens
-
-### Config migration
-
-Current Python uses YAML via `load_config_from_files()` in `__init__.py`.
-Need to modify this function to load TOML instead.
-
-**Changes to Python code (minimal):**
-- `__init__.py`: Replace `yaml.safe_load()` with `tomllib.load()` (Python 3.11+ stdlib)
-  or `tomli` for older Python
-- Config file format changes (YAML → TOML syntax)
-
-**Test:** Load the echo.py and blackhole.py protocols. Start listeners. Accept connections.
-Full round-trip through Python protocol handler.
-
----
-
-## Phase 6: Infrastructure Modules (Weeks 9-10)
-
-### `crates/modules/src/download.rs` (replaces curl module)
-
-- Listen for `dionaea.download.offer` incidents
-- Use `reqwest` for async HTTP download
-- Save to temp file, report `dionaea.download.complete` with hash
-- Upload support via multipart form
-
-### `crates/modules/src/pcap.rs` (Linux/macOS)
-
-- `pcap` crate with `capture-stream` feature for async
-- Open interfaces, compile BPF filters
-- Detect TCP RST with seq=0 → report `dionaea.connection.tcp.reject`
-
-### `crates/modules/src/nfq.rs` (Linux only, `#[cfg(target_os = "linux")]`)
-
-- `nfq` crate (pure Rust, MIT licensed)
-- Capture packets from netfilter queue
-- Create pending connection → report `dionaea.connection.tcp.pending`
-
-### `crates/modules/src/netlink.rs` (Linux only)
-
-- `rtnetlink` crate for interface monitoring
-- Detect address add/remove → report `dionaea.module.nl.addr.new/del`
-- ARP/neighbor cache lookup for MAC addresses
-
-### Privilege dropping (in `crates/dionaea/src/main.rs`)
-
-```rust
-// 1. Bind all service ports while still root
-// 2. Drop capabilities except CAP_NET_BIND_SERVICE
-caps::clear(None, CapSet::Effective)?;
-caps::raise(None, CapSet::Effective, Capability::CAP_NET_BIND_SERVICE)?;
-// 3. Switch to unprivileged user
-nix::unistd::setgid(gid)?;
-nix::unistd::setuid(uid)?;
-```
-
----
-
-## Phase 7: Processor Pipeline + Bistream (Week 11)
+**Goal:** Processor tree, bistream recording, shellcode detection.
 
 ### `crates/core/src/processor.rs`
+
+The processor pipeline is a **tree**, not a chain. The current C code uses `GNode` to build
+parent/child relationships configured like:
+
+```
+filter
+├── speakeasy
+├── streamdumper
+└── emu
+```
 
 ```rust
 pub trait Processor: Send + Sync {
     fn name(&self) -> &str;
-    fn process(&self, con: &Connection) -> bool;  // should this processor run?
-    fn io_in(&self, data: &[u8]) -> ProcessorResult;
-    fn io_out(&self, data: &[u8]) -> ProcessorResult;
+    fn on_connect(&self, con: &Connection) -> bool;  // should this processor attach?
+    fn io_in(&mut self, data: &[u8]) -> ProcessorResult;
+    fn io_out(&mut self, data: &[u8]) -> ProcessorResult;
 }
 
-// Tree of processors per connection
-pub struct ProcessorChain {
-    processors: Vec<Box<dyn Processor>>,
+pub struct ProcessorNode {
+    processor: Box<dyn Processor>,
+    children: Vec<ProcessorNode>,
+}
+
+pub struct ProcessorTree {
+    root: ProcessorNode,
+}
+
+impl ProcessorTree {
+    pub fn from_config(config: &ProcessorConfig) -> Self;
+
+    // Walk tree depth-first, passing data through each processor
+    pub fn process_io_in(&mut self, data: &[u8]) -> ProcessorResult;
 }
 ```
+
+**Processor config (TOML):**
+
+```toml
+# Processor tree: each processor has a name, optional config, and children.
+# Current C config: [processor.filter.child.0] name=speakeasy
+# TOML equivalent:
+
+[[processors]]
+name = "filter"
+config = { protocols = ["ftpd", "smbd", "httpd", "mysqld", "sip", "mssqld", "pptp"] }
+
+  [[processors.children]]
+  name = "shellcode"   # GetPC detection (Rust, replaces speakeasy C module)
+  config = { save_dir = "/var/lib/dionaea/shellcode" }
+
+  [[processors.children]]
+  name = "streamdumper"
+  config = { save_dir = "/var/lib/dionaea/bistreams" }
+```
+
+The filter processor decides per-connection whether to attach (based on protocol name).
+Children run only if the parent attaches.
+```
+
+Processors that do CPU-heavy work (shellcode detection) run via `tokio::task::spawn_blocking`.
 
 ### `crates/core/src/bistream.rs`
 
 ```rust
 pub struct BiStream {
-    sequence: Vec<StreamChunk>,   // master timeline
-    streams: [Vec<StreamChunk>; 2],  // [in, out]
+    sequence: Vec<StreamChunk>,      // master timeline (interleaved)
+    streams: [Vec<StreamChunk>; 2],  // [ingress, egress] separate
 }
 
 pub struct StreamChunk {
@@ -491,110 +1403,294 @@ pub struct StreamChunk {
 }
 ```
 
-### Shellcode detection processor (replaces C speakeasy/detect.c + libemu)
+Stream dumper processor writes bistream to disk (configurable path).
 
-Port the GetPC pattern matching from `modules/speakeasy/detect.c` to Rust:
-- x86-32: Replace `emu_shellcode_test_x86()` (libemu) with pure pattern matching
-  (call $+5; pop, FPU GetPC, jmp+call+pop — same patterns detect.c already uses for x64)
-- x86-64: Port `detect_shellcode_x64()` (~90 lines of byte scanning)
-- MIPS: Port `detect_shellcode_mips()` (~80 lines)
-- ARM: Currently disabled (too many false positives) — skip for now
+### `crates/shell-detect/` — Shellcode detection
+
+Standalone crate (no Python dependency) for GetPC pattern detection:
+- **x86-32:** call $+5; pop, FPU GetPC, jmp+call+pop patterns
+- **x86-64:** Port `detect_shellcode_x64()` (~90 lines of byte scanning)
+- **MIPS:** Port `detect_shellcode_mips()` (~80 lines)
+- ARM: Skip (too many false positives, currently disabled in C code)
 
 When shellcode detected:
-1. Save to disk (SHA256-named .bin + .txt metadata)
-2. Emit `dionaea.shellcode.detected` incident with data, offset, arch, connection
-3. Python Speakeasy handler picks it up for full Windows API emulation
+1. Save to disk (SHA256-named .bin + .txt metadata, using `sha2` crate)
+2. Emit `dionaea.shellcode.detected` incident with fields: data, offset, arch, connection
+3. Python Speakeasy ihandler (registered for `dionaea.shellcode.detected`) receives the
+   incident, loads the saved shellcode file, and runs it through Speakeasy's Windows API
+   emulator for IOC extraction. This is purely incident-driven — no direct Rust↔Speakeasy
+   integration needed.
 
-### Other processor integration
-
-- Stream dumper processor writes bistream to disk
-- Config-driven processor chain
-- Processors run on tokio blocking tasks (not main async loop)
-
----
-
-## Phase 8: Integration Testing (Weeks 12-13)
-
-### Test each protocol module
-
-For each Python protocol, verify:
-1. Service starts and binds correctly
-2. Connections are accepted
-3. Protocol handshake works
-4. Data exchange works (io_in/io_out callbacks)
-5. Incidents are generated and dispatched
-6. Timeouts fire correctly
-7. Connection cleanup works
-
-### Protocols to test (priority order)
-
-1. **echo** — simplest, validates basic callback flow
-2. **blackhole** — validates service loader pattern
-3. **ftp** — moderate complexity, tests active/passive modes
-4. **http** — tests request parsing, Jinja2 templates
-5. **mysql** — tests stateful protocol with auth
-6. **smb** — most complex, tests DCE/RPC
-7. **tftp** — tests UDP transport
-8. **sip** — tests UDP + SDP parsing
-
-### Port existing Python tests
-
-Copy `tests/` directory from current codebase. Run with pytest against new Rust core.
-
-### Performance benchmarks
-
-- Connections/second (TCP accept throughput)
-- Memory usage per connection
-- Throughput (bytes/sec through protocol handler)
-- Compare against C version for regression
+**Tests:**
+- Unit: Processor tree construction from config, depth-first traversal order
+- Unit: BiStream interleaving (alternating in/out chunks)
+- Unit: Shellcode detection against known samples (from current test fixtures)
+- Unit: Shellcode detection against benign data (no false positives)
+- Fuzz: Random bytes → shellcode detector (no panics, reasonable false positive rate)
+- Proptest: Any bistream produces valid offsets (monotonically increasing, no gaps)
 
 ---
 
-## Phase 9: Config Migration + Packaging (Week 14)
+## Phase 6: Infrastructure Modules (Weeks 10-11)
 
-### TOML config structure
+All behind Cargo features on the `core` crate.
+
+### `download` feature (replaces curl module)
+
+- Listen for `dionaea.download.offer` incidents
+- Use `reqwest` for async HTTP download
+- Save to temp file, report `dionaea.download.complete` with SHA256 hash
+- Upload support via multipart form
+- Timeout: configurable (default 30s)
+- Size limit: configurable (default 10MB)
+
+### `pcap` feature (Linux/macOS)
+
+- `pcap` crate with `capture-stream` feature for async
+- Open interfaces, compile BPF filters
+- Detect TCP RST with seq=0 → report `dionaea.connection.tcp.reject`
+
+### `nfq` feature (Linux only, `#[cfg(target_os = "linux")]`)
+
+- `nfq` crate (pure Rust, MIT licensed)
+- Capture packets from netfilter queue
+- Slot-based throttling (matching current Python nfq.py: 30-second window, per-slot limits)
+- Create pending connection → report `dionaea.connection.tcp.pending`
+
+### `netlink` feature (Linux only)
+
+- `rtnetlink` crate for interface monitoring
+- Detect address add/remove → report `dionaea.module.nl.addr.new/del`
+
+### Remote management transports (feature-gated)
+
+Both transports implement `ManagementTransport` trait (see Cross-Cutting Concerns).
+
+**`mgmt-https` feature:**
+- Uses `reqwest` with TLS client certificate authentication
+- POST `StatusReport` as JSON to configured server URL
+- Response body contains `Vec<ManagementCommand>` as JSON
+- Configurable poll interval (default: 60s)
+
+**`mgmt-dns` feature:**
+- Encodes `StatusReport` fields as DNS TXT record queries
+- Receives `ManagementCommand` encoded in DNS responses
+- TSIG/HMAC authentication on queries
+- Configurable poll interval (default: 60s)
+- Lower bandwidth than HTTPS, works through restrictive firewalls
+
+**Log and alert forwarding:** The management poll cycle includes recent log entries and
+alerts alongside status data. The `StatusReport` struct contains:
+- `incidents_since_last_report`: Incident summaries with origin, timestamp, key fields
+- `alerts`: High-priority events (new unique malware download, shellcode detected,
+  authentication attempt with real credentials, service crash/restart)
+- `log_tail`: Configurable number of recent log lines (default: 100, filtered to
+  warning+ severity to keep payload small)
+
+Alerts are a filtered subset of incidents. An `AlertRule` config determines which
+incident origins trigger alerts:
 
 ```toml
-[dionaea]
-user = "dionaea"
-group = "dionaea"
+# In [management] config section
+[[management.alert_rules]]
+pattern = "dionaea.download.complete.unique"   # new malware
+severity = "high"
 
-[dionaea.listen]
-mode = "manual"  # or "getifaddrs"
-addresses = ["0.0.0.0"]
-interfaces = ["eth0"]
+[[management.alert_rules]]
+pattern = "dionaea.shellcode.detected"
+severity = "high"
 
-[logging]
-level = "info"
-
-[logging.file]
-path = "/var/log/dionaea/dionaea.log"
-levels = "all,-debug"
-domains = "*"
-
-[modules]
-enabled = ["python", "pcap", "download"]
-
-[modules.python]
-imports = ["dionaea"]
-service_configs = ["/etc/dionaea/services-enabled/*.toml"]
-ihandler_configs = ["/etc/dionaea/ihandlers-enabled/*.toml"]
+[[management.alert_rules]]
+pattern = "dionaea.connection.*.accept"
+severity = "info"
+# rate_limit: only include first N per poll interval to avoid flooding
+rate_limit = 100
 ```
 
-### Docker image (multi-stage build)
+The management server receives structured incident/alert data and can forward to
+its own alerting pipeline (PagerDuty, Slack, SIEM, etc.). The honeypot itself doesn't
+need to know about those downstream systems.
+
+### Privilege dropping (in `crates/dionaea/src/main.rs`)
+
+```rust
+// 1. Bind all service ports while root (or with CAP_NET_BIND_SERVICE)
+// 2. Set resource limits (RLIMIT_NOFILE, optional RLIMIT_AS)
+// 3. On Linux: drop capabilities except CAP_NET_BIND_SERVICE
+#[cfg(target_os = "linux")]
+{
+    caps::clear(None, CapSet::Effective)?;
+    caps::raise(None, CapSet::Effective, Capability::CAP_NET_BIND_SERVICE)?;
+}
+// 4. Switch to unprivileged user/group
+nix::unistd::setgroups(&[])?;
+nix::unistd::setgid(gid)?;
+nix::unistd::setuid(uid)?;
+// 5. macOS: setregid/setreuid (no setresgid/setresuid)
+```
+
+**Tests:**
+- Unit: Download handler saves file with correct hash
+- Integration: Download a test file via HTTP, verify incident chain
+- Unit: NFQ throttle window math
+- Unit: StatusReport serialization round-trip
+- Unit: ManagementCommand deserialization (all variants)
+- Unit: Incident ring buffer (add, drain, overflow)
+- Unit: Alert rule pattern matching and rate limiting
+- Unit: IP deny list (add, remove, TTL expiry, persistence)
+- Integration: Mock management server, verify poll cycle delivers status + receives commands
+
+---
+
+## Phase 7: Integration Testing + Acceptance (Weeks 12-13)
+
+By this point, every phase has its own tests. This phase is about **end-to-end acceptance**
+and **feature parity validation** against the C version.
+
+### Run existing pytest suite
+
+The current `tests/` directory has integration tests that connect to a live daemon:
+- TFTP (tftpy client)
+- FTP (ftplib)
+- SMB (smbprotocol, impacket)
+- HTTP (requests)
+- MySQL (pymysql)
+- EPMAP (custom RPC client)
+- NBNS (custom UDP)
+- SNMP (custom UDP)
+
+These tests use `conftest.py` fixtures with configurable host/port. Run them against the
+Rust binary:
+
+```bash
+# Start Rust daemon
+./target/release/dionaea -c test.toml &
+# Run existing tests
+cd tests && pip install -r requirements.txt && pytest -v --timeout=30
+```
+
+**Feature parity checklist — one row per protocol:**
+
+| Protocol | Bind | Accept | Handshake | Data Exchange | Incidents | Timeouts | Reconnect |
+|----------|------|--------|-----------|---------------|-----------|----------|-----------|
+| echo     | | | | | | | |
+| blackhole| | | | | | | |
+| ftp      | | | | | | | |
+| http     | | | | | | | |
+| mysql    | | | | | | | |
+| smb      | | | | | | | |
+| tftp     | | | | | | | |
+| sip      | | | | | | | |
+
+### Performance comparison
+
+Benchmark against the C version on the same hardware:
+- Connections/second (TCP accept throughput)
+- Memory per connection (RSS / active connection count)
+- Throughput (bytes/sec through protocol handler)
+- Python callback overhead (Rust→Python→Rust round-trip latency)
+
+Use `criterion` or `hyperfine` for benchmarks. Store results for regression tracking.
+
+---
+
+## Phase 8: Deployment + Packaging (Week 14)
+
+### Docker image
 
 ```dockerfile
-# Stage 1: Build
+# Stage 1: Build Rust binary
 FROM rust:1.83 AS builder
-COPY . .
-RUN cargo build --release
+WORKDIR /build
+COPY Cargo.toml Cargo.lock deny.toml ./
+COPY crates/ crates/
+RUN cargo build --release --features "download,pcap"
 
 # Stage 2: Runtime
 FROM python:3.12-slim
-COPY --from=builder /target/release/dionaea /usr/local/bin/
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libssl3 libpcap0.8 && rm -rf /var/lib/apt/lists/*
+
+# Install Python deps for protocols
+RUN pip install --no-cache-dir pyyaml speakeasy-emulator
+
+COPY --from=builder /build/target/release/dionaea /usr/local/bin/
 COPY python/ /opt/dionaea/lib/python/
 COPY conf/ /etc/dionaea/
+COPY deploy/entrypoint.sh /opt/dionaea/
+
+# Capabilities instead of root
+RUN setcap cap_net_bind_service=+ep /usr/local/bin/dionaea
+
+RUN useradd -r -s /usr/sbin/nologin dionaea
+
+EXPOSE 21 42 80 135 443 445 1433 1723 1883 3306 5060 5061 11211 27017
+VOLUME ["/var/lib/dionaea", "/var/log/dionaea"]
+
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+ENTRYPOINT ["/opt/dionaea/entrypoint.sh"]
 ```
+
+### systemd unit
+
+```ini
+# deploy/dionaea.service
+[Unit]
+Description=Dionaea Honeypot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=dionaea
+Group=dionaea
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+NoNewPrivileges=yes
+ExecStart=/usr/local/bin/dionaea -c /etc/dionaea/dionaea.toml
+Restart=on-failure
+RestartSec=5
+
+# Hardening
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/dionaea /var/log/dionaea
+PrivateTmp=yes
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### Log rotation
+
+`tracing-appender` with daily rotation. Alternatively, rely on `logrotate.d` config
+for the JSON log file (send SIGHUP to reopen file handles).
+
+---
+
+## Graceful Shutdown Sequence
+
+On SIGTERM or SIGINT:
+
+1. **Stop accepting new connections.** Drop all TcpListeners and UdpSockets.
+2. **Send final management report.** If management transport is active, send a
+   "shutting down" status report with all pending incidents/alerts/logs.
+3. **Drain in-flight connections.** Set a deadline (configurable, default 30s).
+   Each active connection gets a chance to finish its current exchange.
+4. **Stop Python services.** Call ServiceLoader `stop()` on each running service.
+5. **Stop Python ihandlers.** Call IHandlerLoader `stop()` on each handler.
+6. **Stop management transport.** Cancel the poll loop.
+7. **Persist IP deny list.** Write current deny list to disk for reload on restart.
+8. **Flush metrics.** Push final metrics to Prometheus endpoint if enabled.
+9. **Flush logs.** Ensure all tracing subscribers flush pending writes.
+10. **Finalize Python.** Drop all PyO3 references, allow Python interpreter to clean up.
+    (PyO3 handles this on process exit; we just ensure no Rust code holds GIL references.)
+11. **Remove PID file.** Clean up.
+
+SIGHUP: Reopen log file handles (for logrotate compatibility). Do NOT reload config
+(config reload is complex and not worth the risk for v1).
 
 ---
 
@@ -612,9 +1708,45 @@ COPY conf/ /etc/dionaea/
 - All protocol handler classes (smb, http, ftp, etc.)
 - All incident handler classes (logsql, log_json, hpfeeds, etc.)
 - ServiceLoader / IHandlerLoader metaclass pattern
-- Timer / SubTimer classes
+- Timer / SubTimer classes (pure Python using `threading.Thread` — no C/Rust dependency)
 - Exception hierarchy
 - handle_* callback signatures
+
+### Data continuity
+
+Existing data directories are fully compatible with v2:
+- **SQLite databases** (logsql.py): Written by Python, not C. Same Python code, same DB.
+- **Downloaded malware** (store.py): SHA256-named files. Same naming in v2.
+- **Bistream dumps**: Named by connection, written by Rust instead of C. New dumps use
+  the same format; old dumps are still readable.
+- **Log files**: Format changes (JSON by default instead of text). Old logs are not
+  migrated — they remain on disk as-is.
+
+### Config files
+
+No migration from existing YAML configs. The TOML service and ihandler configs are written
+fresh as part of the v2 project. The current YAML files serve as reference for what keys
+each service/handler needs, but the TOML versions are new files.
+
+`pyyaml` is still needed at runtime: Speakeasy imports it internally. The Dockerfile keeps
+it in the pip install.
+
+---
+
+## Platform Support
+
+| Feature | Linux | macOS | Note |
+|---------|-------|-------|------|
+| TCP/TLS/UDP | Yes | Yes | Core networking |
+| IP_PKTINFO (UDP source addr) | Yes | Fallback | macOS uses basic recvfrom |
+| Privilege drop (capabilities) | Yes | No | macOS: just setreuid/setregid |
+| NFQ | Yes | No | Kernel feature |
+| Netlink | Yes | No | Kernel feature |
+| Pcap | Yes | Yes | libpcap on both |
+| SIOCINQ | Yes | No | macOS: hardcoded 16KB buffer |
+
+macOS is the development platform; Linux is the deployment target. All features must
+compile on macOS (behind `#[cfg]` where needed) so `cargo check` works locally.
 
 ---
 
@@ -622,26 +1754,43 @@ COPY conf/ /etc/dionaea/
 
 | Risk | Mitigation |
 |------|------------|
-| PyO3 API doesn't match Cython exactly | Phase 2 first — validate against real protocols before building core |
-| TLS weak cipher config is complex | Use openssl crate directly, not rustls. Test against old SSL clients early |
-| DTLS via openssl crate is poorly documented | Prototype DTLS in Phase 3 before committing to this path |
-| Python config migration breaks things | Write config migration tool + validation |
-| Performance regression vs C | Benchmark in Phase 8; tokio should match or beat libev |
+| Python GIL blocks tokio workers | All Python calls via spawn_blocking. Measure callback latency early (Phase 3). |
+| PyO3 API doesn't match Cython exactly | Phase 3 validates against real protocols before building I/O layer. |
+| TLS weak cipher config is complex | Use openssl crate directly, not rustls. Test against old SSL clients in Phase 4. |
+| TOML config missing required keys | Use current YAML configs as reference. Validate all required keys at startup. |
+| Performance regression vs C | Benchmark in Phase 7. Tokio should match or beat libev for I/O; Python callback overhead is the bottleneck regardless of language. |
+| Arc<Mutex<Connection>> deadlocks | Avoided: use ConnectionId references + ConnectionTable with RwLock. |
+| Panic in protocol handler crashes process | catch_unwind at every task boundary. Test with intentionally-panicking protocol. |
+| Stale ConnectionId after close | Return clear error ("connection closed") to Python. Test explicitly. |
+| Management transport unreachable | Poll loop retries with exponential backoff. Buffer incidents locally (ring buffer). Log but don't crash. |
+| Management commands used maliciously | Authenticate all transports (TLS client certs / TSIG). Validate commands against whitelist. No arbitrary code execution. |
+| Log/alert volume overwhelms management server | Rate-limit alerts per rule. Cap log_tail size. Incident buffer is bounded (drops oldest). |
+| SSRF via download module | Reject private/loopback IPs and non-HTTP schemes before fetching. |
+| Attacker-controlled file paths | All file writes use SHA256 or connection ID names. Path validation rejects traversal. |
+| Slow-read / slowloris attacks | Handshake timeout (10s), idle timeout (protocol-specific), sustain timeout (absolute deadline). |
+| GIL contention under load | Monitor `python_callback_duration_seconds` P99. spawn_blocking pool (64 threads) absorbs bursts. |
+| Python protocol handler infinite loop | Track consecutive zero-byte returns from handle_io_in. Close after N (default: 100). |
 
 ---
 
-## Verification Plan
+## Verification Checklist (per phase)
 
-After each phase, verify:
+After each phase:
 1. `cargo build` succeeds with no warnings
-2. `cargo test` passes all unit tests
-3. `cargo clippy` clean
-4. Integration test: start honeypot, connect with netcat, verify response
+2. `cargo test` passes all unit + integration tests for that phase
+3. `cargo clippy -- -D warnings` clean
+4. New fuzz targets run for ≥1 minute without findings
+5. Phase-specific acceptance test passes (documented in each phase)
 
 Final acceptance:
-1. All current Python protocol tests pass
-2. Can accept connections on all supported protocols
-3. Incidents are generated and dispatched to handlers
-4. Logging works with domain filtering
-5. Docker image builds and runs
-6. Memory usage is equal to or better than C version
+1. All current Python pytest tests pass against Rust binary
+2. All supported protocols accept connections and handle data exchange
+3. Incidents are generated and dispatched to Python handlers
+4. Logging works with domain filtering and multiple targets (JSON + stdout)
+5. Metrics endpoint reports connection/incident counters (if enabled)
+6. Docker image builds, starts, passes HEALTHCHECK, handles SIGTERM
+7. systemd unit starts, stops, restarts cleanly
+8. Memory usage is equal to or better than C version
+9. No `unsafe` in our code (enforced by workspace lint)
+10. Management poll cycle works end-to-end (status reports, commands, log/alert forwarding)
+11. IP deny list persists across restarts
