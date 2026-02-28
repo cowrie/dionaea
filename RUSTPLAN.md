@@ -395,8 +395,12 @@ dionaea_python_callback_duration_seconds{method="handle_io_in"} histogram
 dionaea_errors_total{kind="python_exception"} counter
 ```
 
-**Health check:** Optional HTTP endpoint (`/health`) returns 200 when the event loop is
-running and at least one service is listening. Used by Docker HEALTHCHECK and orchestrators.
+**Health check:** A `--healthcheck` CLI flag that checks whether the daemon is alive and
+exits 0/1. The check uses a Unix domain socket (`/var/run/dionaea/health.sock`) — no HTTP
+listener, no curl dependency in the container. The daemon writes a heartbeat timestamp to
+the socket; `--healthcheck` connects, reads it, and exits 0 if the timestamp is recent
+(within 2× the heartbeat interval). This avoids exposing any TCP port that an attacker
+could fingerprint as a honeypot indicator.
 
 ### Rust Idioms & Ownership
 
@@ -686,7 +690,7 @@ let threshold = fd_limit * config.limits.max_fds_pct / 100;
 if current_fd_count > threshold {
     tracing::warn!(fd = current_fd_count, limit = threshold, "FD limit reached, rejecting");
     metrics::counter!("dionaea_connections_rejected_total", "reason" => "fd_limit").increment(1);
-    drop(stream);  // close immediately
+    reject_connection(stream, &config.limits.reject_strategy).await;
     continue;
 }
 ```
@@ -700,6 +704,27 @@ time. When exceeded, reject the **new** connection (don't kill existing ones —
 be mid-protocol and generating useful incident data).
 
 Default: 50. Configurable per-protocol if needed.
+
+**Connection rejection strategy:** When a connection is rejected (by either Layer 1 or
+Layer 2), the behavior is configurable to avoid fingerprinting:
+
+```toml
+[limits]
+# Options: "rst", "accept_silence", "accept_protocol_error"
+reject_strategy = "accept_silence"   # default
+```
+
+- `rst` — Drop the socket immediately (`drop(stream)`). Fast, but an attacker scanning
+  multiple ports will notice some ports RST while others don't, revealing which services
+  are real vs. honeypot-managed.
+- `accept_silence` (default) — Accept the TCP connection, then hold it open silently until
+  the attacker times out. Looks like a slow/unresponsive service rather than a rate limit.
+- `accept_protocol_error` — Accept, then send a protocol-appropriate error (e.g., HTTP 503,
+  SMB STATUS_INSUFFICIENT_RESOURCES) before closing. Most realistic but requires per-protocol
+  error templates.
+
+Default is `accept_silence` because it requires no per-protocol logic and is indistinguishable
+from a legitimately overloaded service.
 
 **Layer 3: Per-connection bandwidth throttle (token bucket)**
 
@@ -1412,6 +1437,12 @@ pub async fn resolve(host: &str) -> Result<Vec<IpAddr>, Error> {
 }
 ```
 
+**DNS fingerprint minimization:** Configure hickory-resolver to match libudns query behavior.
+By default, disable EDNS0 OPT records and DNSSEC validation — libudns does not send these,
+and their presence in DNS queries is an observable difference that network-level monitoring
+could use to detect a rewrite. Use `ResolverOpts` with `edns0: false` and `use_dnssec: false`.
+These can be made configurable in TOML for operators who want DNSSEC in their environment.
+
 **Tests:**
 - Unit: Connection state machine transitions (valid and invalid)
 - Unit: Incident set/get with all OpaqueData variants
@@ -1978,6 +2009,21 @@ All behind Cargo features on the `dionaea` crate.
 - Timeout: configurable (default 30s)
 - Size limit: configurable (default 10MB)
 
+**HTTP fingerprint configuration:** The download module's outbound HTTP requests must not
+fingerprint the honeypot. By default, match libcurl's behavior (the current C implementation
+uses libcurl):
+
+```toml
+[download.http]
+user_agent = "curl/8.5.0"           # default matches libcurl
+header_order = ["Host", "User-Agent", "Accept", "*"]  # libcurl default ordering
+```
+
+Use `reqwest`'s `ClientBuilder` to set `user_agent()` and build headers in the configured
+order. The default `user_agent` should match the libcurl version that the current C dionaea
+ships with. Operators can change this to blend with their environment (e.g., `wget`, a
+browser UA, or a custom string).
+
 ### `pcap` feature (Linux/macOS)
 
 - `pcap` crate with `capture-stream` feature for async
@@ -2162,7 +2208,7 @@ EXPOSE 21 42 80 135 443 445 1433 1723 1883 3306 5060 5061 11211 27017
 VOLUME ["/var/lib/dionaea", "/var/log/dionaea"]
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
+    CMD ["/usr/local/bin/dionaea", "--healthcheck"]
 
 ENTRYPOINT ["/opt/dionaea/entrypoint.sh"]
 ```
