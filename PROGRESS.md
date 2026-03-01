@@ -100,10 +100,19 @@
 - Move-and-return pattern for `Py<PyAny>` across `spawn_blocking` boundaries
 - 2 tests: UDP echo roundtrip, peer idle timeout
 
-### 12. Wire into main.rs
-- Create `Arc<ConnectionRegistry>`, `Arc<ConnectionLimits>` in `async_main`
-- Start listeners per config, `ServiceHandle` for shutdown
-- Integration tests in `crates/dionaea/tests/`
+### 12. Wire into main.rs + Python bind/listen ✅
+- `RuntimeState` global (`OnceLock<Arc<RuntimeState>>`) holding registry, limits, listener handles
+- `async_main` creates `Arc<ConnectionRegistry>` + `Arc<ConnectionLimits>` from config
+- `PyConnection.bind()` stores local address/port
+- `PyConnection.listen()` starts TCP/UDP listener via spawned async task
+  - Uses oneshot channel to synchronously return bound address (port 0 support)
+  - Updates `local.host`/`local.port` with actual bound address
+  - Tracks listener abort handles in `RuntimeState` for shutdown
+- Non-factory `PyConnection` constructor now assigns an ID at creation (matches C behavior)
+- Non-factory constructor picks up registry/limits from global runtime state
+- Signal handler calls `state.stop_all_listeners()` on SIGTERM/SIGINT
+- 1 integration test: full Python bind→listen→connect→echo→disconnect lifecycle
+- 1 unit test: bind stores address
 
 ## Files Modified/Created in Phase 4
 ```
@@ -113,12 +122,16 @@ NEW: crates/dionaea/src/connection/callback.rs
 NEW: crates/dionaea/src/connection/tcp.rs
 NEW: crates/dionaea/src/connection/tls.rs
 NEW: crates/dionaea/src/connection/udp.rs
+NEW: crates/dionaea/src/runtime.rs
+NEW: crates/dionaea/tests/listen_connect.rs
 MOD: crates/dionaea/src/connection/mod.rs  (module registration + iter_ids + tls + udp mod)
-MOD: crates/dionaea/src/python/connection.rs  (pub(crate) fields)
+MOD: crates/dionaea/src/python/connection.rs  (bind/listen impl, runtime state pickup, ID at creation)
+MOD: crates/dionaea/src/main.rs  (runtime state init, graceful shutdown)
+MOD: crates/dionaea/src/lib.rs  (added runtime module)
 MOD: Cargo.toml  (added ip_network = "0.4")
 MOD: crates/dionaea/Cargo.toml  (added ip_network dep, updated deny-list feature)
 ```
 
 ## Git State
 - Branch: `dionaea-v2-rust`
-- 139 tests passing (with `--features tls`)
+- 142 tests passing (141 unit + 1 integration, with `--features tls`)

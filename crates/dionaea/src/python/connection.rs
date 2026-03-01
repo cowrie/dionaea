@@ -127,8 +127,19 @@ impl PyConnection {
             };
         }
 
+        // Pick up runtime state if available (for bind/listen/connect)
+        let (registry, limits, recv_buffer_size) =
+            if let Some(rt) = crate::runtime::get() {
+                (Some(rt.registry.clone()), Some(rt.limits.clone()), rt.recv_buffer_size)
+            } else {
+                (None, None, 65536)
+            };
+
+        // Assign an ID at creation (matches C behavior where every connection has an ID).
+        let id = crate::connection::next_id();
+
         PyConnection {
-            id: None,
+            id: Some(id),
             transport: String::new(),
             protocol: String::new(),
             status: "none".to_string(),
@@ -136,9 +147,9 @@ impl PyConnection {
             remote: PyNodeInfo::new(),
             timeouts: PyConnectionTimeouts::new(),
             send_tx: None,
-            registry: None,
-            limits: None,
-            recv_buffer_size: 65536,
+            registry,
+            limits,
+            recv_buffer_size,
         }
     }
 
@@ -361,20 +372,133 @@ impl PyConnection {
 
     /// Bind the connection to a local address and port.
     #[pyo3(signature = (addr, port, iface="".to_string()))]
-    fn bind(&self, addr: String, port: u16, iface: String) -> PyResult<i32> {
+    fn bind(&mut self, addr: String, port: u16, iface: String) -> PyResult<i32> {
         check_valid(&self.id)?;
-        let _ = (addr, port, iface);
-        // Will be implemented in Phase 4 (TCP/UDP I/O).
+        let _ = iface; // TODO: SO_BINDTODEVICE support
+        self.local.host = addr;
+        self.local.port = port;
         Ok(0)
     }
 
-    /// Listen for incoming connections.
+    /// Listen for incoming connections. Starts the listener task.
+    ///
+    /// Requires `bind()` to be called first to set the local address.
+    /// Uses the global runtime state for registry, limits, and listener tracking.
     #[pyo3(signature = (size=20))]
-    fn listen(&self, size: i32) -> PyResult<i32> {
-        check_valid(&self.id)?;
-        let _ = size;
-        // Will be implemented in Phase 4.
-        Ok(0)
+    fn listen(slf: &Bound<'_, PyConnection>, size: i32) -> PyResult<i32> {
+        let _ = size; // TCP backlog — tokio handles this internally
+
+        let (addr_str, port, transport, idle_timeout, recv_buffer_size) = {
+            let conn = slf.borrow();
+            check_valid(&conn.id)?;
+            (
+                conn.local.host.clone(),
+                conn.local.port,
+                conn.transport.clone(),
+                conn.timeouts.idle,
+                conn.recv_buffer_size,
+            )
+        };
+
+        if addr_str.is_empty() {
+            return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                "bind() must be called before listen()",
+            ));
+        }
+
+        let bind_addr: std::net::SocketAddr = format!("{addr_str}:{port}")
+            .parse()
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("invalid address: {e}")))?;
+
+        let rt_state = crate::runtime::get().ok_or_else(|| {
+            pyo3::exceptions::PyRuntimeError::new_err(
+                "no runtime state (daemon not initialized)"
+            )
+        })?;
+
+        let registry = rt_state.registry.clone();
+        let limits = rt_state.limits.clone();
+        let factory: Py<PyAny> = slf.clone().into_any().unbind();
+
+        let handle = tokio::runtime::Handle::try_current().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err(
+                "no tokio runtime available (listen must be called from within the runtime)"
+            )
+        })?;
+
+        // Use a oneshot channel to get the bound address back from the async listener.
+        let (result_tx, result_rx) = tokio::sync::oneshot::channel();
+
+        match transport.as_str() {
+            "tcp" => {
+                let rt_state_for_track = rt_state.clone();
+                handle.spawn(async move {
+                    match crate::connection::tcp::tcp_listen(
+                        bind_addr, registry, limits, factory, recv_buffer_size,
+                        crate::connection::tcp::RejectConfig::default(),
+                    )
+                    .await
+                    {
+                        Ok(listener_handle) => {
+                            tracing::info!(addr = %listener_handle.addr, transport = "tcp", "listener started");
+                            let addr = listener_handle.addr;
+                            rt_state_for_track.track_listener(listener_handle.abort_handle());
+                            let _ = result_tx.send(Ok(addr));
+                        }
+                        Err(e) => {
+                            tracing::error!(err = %e, addr = %bind_addr, "TCP listen failed");
+                            let _ = result_tx.send(Err(e.to_string()));
+                        }
+                    }
+                });
+            }
+            "udp" => {
+                let rt_state_for_track = rt_state.clone();
+                handle.spawn(async move {
+                    match crate::connection::udp::udp_listen(
+                        bind_addr, registry, limits, factory, recv_buffer_size, idle_timeout,
+                    )
+                    .await
+                    {
+                        Ok(listener_handle) => {
+                            tracing::info!(addr = %listener_handle.addr, transport = "udp", "listener started");
+                            let addr = listener_handle.addr;
+                            rt_state_for_track.track_listener(listener_handle.abort_handle());
+                            let _ = result_tx.send(Ok(addr));
+                        }
+                        Err(e) => {
+                            tracing::error!(err = %e, addr = %bind_addr, "UDP listen failed");
+                            let _ = result_tx.send(Err(e.to_string()));
+                        }
+                    }
+                });
+            }
+            // TLS listen requires SslAcceptor setup (cert generation, cipher config).
+            // Handled separately via a dedicated tls_listen() call path.
+            other => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "unsupported transport for listen: {other}"
+                )));
+            }
+        }
+
+        // Wait for bind result and update local address with actual port.
+        // The async task (tcp_listen/udp_listen) does pure async socket binding,
+        // so it doesn't need the GIL. blocking_recv is safe here.
+        let result: Result<Result<std::net::SocketAddr, String>, _> =
+            result_rx.blocking_recv();
+
+        match result {
+            Ok(Ok(bound_addr)) => {
+                let mut conn = slf.borrow_mut();
+                conn.local.host = bound_addr.ip().to_string();
+                conn.local.port = bound_addr.port();
+                conn.status = "listening".to_string();
+                Ok(0)
+            }
+            Ok(Err(e)) => Err(pyo3::exceptions::PyOSError::new_err(format!("listen failed: {e}"))),
+            Err(_) => Err(pyo3::exceptions::PyRuntimeError::new_err("listen task dropped")),
+        }
     }
 
     /// Initiate an outbound TCP connection. Fire-and-forget: returns immediately,
@@ -795,17 +919,7 @@ class DerivedProto(BaseProto):
                 .eval(c"__import__('dionaea_core_inv').PyConnection('tcp')", None, None)
                 .expect("create connection");
 
-            // Without an ID, properties should raise ReferenceError
-            let result = conn.getattr("transport");
-            assert!(result.is_err());
-            let err = result.unwrap_err();
-            assert!(err.is_instance_of::<pyo3::exceptions::PyReferenceError>(py));
-
-            // Set an ID, then invalidate
-            {
-                let mut c = conn.cast::<PyConnection>().unwrap().borrow_mut();
-                c.id = Some(ConnectionId(99));
-            }
+            // Connection starts with a valid ID
             let transport: String = conn.getattr("transport").unwrap().extract().unwrap();
             assert_eq!(transport, "tcp");
 
@@ -1110,6 +1224,26 @@ class BenchProto(PyConnection):
                 p99 < std::time::Duration::from_micros(500),
                 "P99 latency {p99:?} exceeds 500us threshold"
             );
+        });
+    }
+
+    #[test]
+    fn test_bind_stores_address() {
+        Python::attach(|py| {
+            register_test_module(py, "dionaea_core_bind");
+
+            py.run(
+                c"
+from dionaea_core_bind import PyConnection
+conn = PyConnection('tcp')
+conn.bind('127.0.0.1', 8080)
+assert conn.local.host == '127.0.0.1', f'expected 127.0.0.1, got {conn.local.host}'
+assert conn.local.port == 8080, f'expected 8080, got {conn.local.port}'
+",
+                None,
+                None,
+            )
+            .expect("bind stores address");
         });
     }
 }

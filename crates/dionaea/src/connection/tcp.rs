@@ -107,6 +107,11 @@ impl TcpListenerHandle {
     pub fn stop(&self) {
         self.abort.abort();
     }
+
+    /// Get the abort handle for external tracking (e.g., shutdown manager).
+    pub fn abort_handle(&self) -> tokio::task::AbortHandle {
+        self.abort.clone()
+    }
 }
 
 /// Start a TCP listener on the given address.

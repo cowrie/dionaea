@@ -60,6 +60,25 @@ fn main() {
 
 /// Async entry point running inside the tokio runtime.
 async fn async_main(config: config::Config) {
+    use std::sync::Arc;
+    use dionaea::connection::limits::ConnectionLimits;
+    use dionaea::connection::ConnectionRegistry;
+    use dionaea::runtime;
+
+    // Create shared connection infrastructure
+    let registry = Arc::new(ConnectionRegistry::new());
+    let limits = Arc::new(ConnectionLimits::new(
+        config.dionaea.limits.max_connections_per_ip,
+        config.dionaea.limits.max_connections_total,
+        config.dionaea.limits.max_fds_pct,
+    ));
+    let state = Arc::new(runtime::RuntimeState::new(
+        registry.clone(),
+        limits,
+        config.dionaea.limits.recv_buffer_size,
+    ));
+    runtime::init(state.clone());
+
     tracing::info!(
         listen_mode = %config.dionaea.listen.mode,
         max_connections = config.dionaea.limits.max_connections_total,
@@ -99,7 +118,12 @@ async fn async_main(config: config::Config) {
         tracing::info!("received Ctrl-C, shutting down");
     }
 
-    // Graceful shutdown sequence (Phase 7)
+    // Graceful shutdown: stop all listeners, let connections drain
+    state.stop_all_listeners();
+    tracing::info!(
+        active_connections = registry.len(),
+        "listeners stopped, draining connections"
+    );
     tracing::info!("shutdown complete");
 }
 
