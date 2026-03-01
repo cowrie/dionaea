@@ -1,6 +1,7 @@
 // ABOUTME: Connection lifecycle state machine and metadata registry.
 // ABOUTME: Owns ConnectionMeta (shared via DashMap) and defines state transitions.
 
+pub mod callback;
 pub mod limits;
 pub mod throttle;
 
