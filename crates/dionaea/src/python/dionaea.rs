@@ -1,8 +1,9 @@
 // ABOUTME: Python-visible dionaea singleton for global config and version access.
 // ABOUTME: Exposed as g_dionaea matching the binding.pyx dionaea class.
 
+use crate::runtime;
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
+use pyo3::types::{PyDict, PyList};
 
 /// Global dionaea singleton exposed to Python.
 ///
@@ -32,11 +33,53 @@ impl PyDionaea {
 impl PyDionaea {
     /// Return the parsed configuration as a Python dict.
     ///
-    /// Reads from the global config state. Returns an empty dict if no config is loaded.
+    /// Builds the flat-dotted-key dict format matching the C module.c output:
+    /// ```python
+    /// {
+    ///     "dionaea": {"listen.mode": "...", "listen.addresses": [...], ...},
+    ///     "module": {"service_configs": [...], "ihandler_configs": [...]},
+    /// }
+    /// ```
     fn config<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        // Will be wired to the actual config in Phase 4.
-        // For now, return an empty dict.
-        Ok(PyDict::new(py))
+        let Some(state) = runtime::get() else {
+            return Ok(PyDict::new(py));
+        };
+
+        let result = PyDict::new(py);
+
+        // "dionaea" section
+        let dionaea_dict = PyDict::new(py);
+        dionaea_dict.set_item("listen.mode", &state.config.dionaea.listen.mode)?;
+
+        let addrs: Vec<String> = state
+            .config
+            .dionaea
+            .listen
+            .addresses
+            .iter()
+            .map(|a| a.to_string())
+            .collect();
+        dionaea_dict.set_item("listen.addresses", PyList::new(py, &addrs)?)?;
+        dionaea_dict.set_item(
+            "listen.interfaces",
+            PyList::new(py, &state.config.dionaea.listen.interfaces)?,
+        )?;
+
+        result.set_item("dionaea", dionaea_dict)?;
+
+        // "module" section
+        let module_dict = PyDict::new(py);
+        module_dict.set_item(
+            "service_configs",
+            PyList::new(py, &state.config.modules.python.service_configs)?,
+        )?;
+        module_dict.set_item(
+            "ihandler_configs",
+            PyList::new(py, &state.config.modules.python.ihandler_configs)?,
+        )?;
+        result.set_item("module", module_dict)?;
+
+        Ok(result)
     }
 
     /// Return network interface addresses.
