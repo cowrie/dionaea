@@ -31,21 +31,21 @@ thread_local! {
 #[pyclass(subclass, weakref)]
 pub struct PyConnection {
     /// Connection ID. None after invalidation (connection freed/disconnected).
-    id: Option<ConnectionId>,
+    pub(crate) id: Option<ConnectionId>,
     /// Transport type string.
-    transport: String,
+    pub(crate) transport: String,
     /// Protocol name.
-    protocol: String,
+    pub(crate) protocol: String,
     /// Connection state string.
-    status: String,
+    pub(crate) status: String,
     /// Local endpoint info.
-    local: PyNodeInfo,
+    pub(crate) local: PyNodeInfo,
     /// Remote endpoint info.
-    remote: PyNodeInfo,
+    pub(crate) remote: PyNodeInfo,
     /// Timeout configuration.
-    timeouts: PyConnectionTimeouts,
+    pub(crate) timeouts: PyConnectionTimeouts,
     /// Channel for sending data/control to the I/O task.
-    send_tx: Option<mpsc::Sender<SendMessage>>,
+    pub(crate) send_tx: Option<mpsc::Sender<SendMessage>>,
 }
 
 /// Check that the connection is still valid (not freed/disconnected).

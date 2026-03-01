@@ -3,6 +3,7 @@
 
 pub mod callback;
 pub mod limits;
+pub mod tcp;
 pub mod throttle;
 
 use crate::error::Error;
@@ -381,6 +382,11 @@ impl ConnectionRegistry {
     /// Whether the registry is empty.
     pub fn is_empty(&self) -> bool {
         self.connections.is_empty()
+    }
+
+    /// Iterate over all connection IDs. Used for finding connections in tests.
+    pub fn iter_ids(&self) -> impl Iterator<Item = ConnectionId> + '_ {
+        self.connections.iter().map(|entry| *entry.key())
     }
 }
 
