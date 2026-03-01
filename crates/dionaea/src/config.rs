@@ -140,6 +140,9 @@ pub struct PythonModuleConfig {
     /// Glob patterns for ihandler config files.
     #[serde(default)]
     pub ihandler_configs: Vec<String>,
+    /// Directory containing Python packages (added to sys.path).
+    #[serde(default)]
+    pub python_path: Option<PathBuf>,
 }
 
 // --- Defaults ---
@@ -240,6 +243,7 @@ impl Default for PythonModuleConfig {
             imports: default_python_imports(),
             service_configs: Vec::new(),
             ihandler_configs: Vec::new(),
+            python_path: None,
         }
     }
 }

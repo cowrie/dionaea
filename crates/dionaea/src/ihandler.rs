@@ -142,6 +142,18 @@ impl IHandlerRegistry {
     pub fn is_empty(&self) -> bool {
         self.handlers.is_empty()
     }
+
+    /// Remove a handler identified by Python object pointer identity.
+    ///
+    /// Returns true if a handler was found and removed.
+    pub fn unregister_python(&mut self, ptr: *mut pyo3::ffi::PyObject) -> bool {
+        let before = self.handlers.len();
+        self.handlers.retain(|h| match &h.callback {
+            HandlerCallback::Python(py_obj) => py_obj.as_ptr() != ptr,
+            HandlerCallback::Rust(_) => true,
+        });
+        self.handlers.len() < before
+    }
 }
 
 #[cfg(test)]

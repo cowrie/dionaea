@@ -76,12 +76,13 @@ async fn async_main(config: config::Config) {
         registry.clone(),
         limits,
         config.dionaea.limits.recv_buffer_size,
+        config,
     ));
     runtime::init(state.clone());
 
     tracing::info!(
-        listen_mode = %config.dionaea.listen.mode,
-        max_connections = config.dionaea.limits.max_connections_total,
+        listen_mode = %state.config.dionaea.listen.mode,
+        max_connections = state.config.dionaea.limits.max_connections_total,
         "daemon ready"
     );
 

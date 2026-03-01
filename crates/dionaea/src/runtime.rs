@@ -3,8 +3,10 @@
 
 use std::sync::{Arc, Mutex, OnceLock};
 
+use crate::config::Config;
 use crate::connection::limits::ConnectionLimits;
 use crate::connection::ConnectionRegistry;
+use crate::ihandler::IHandlerRegistry;
 
 /// Global runtime state, initialized by `async_main`.
 static RUNTIME: OnceLock<Arc<RuntimeState>> = OnceLock::new();
@@ -20,6 +22,10 @@ pub struct RuntimeState {
     pub limits: Arc<ConnectionLimits>,
     /// Receive buffer size for handler tasks.
     pub recv_buffer_size: usize,
+    /// Incident handler registry (lock before use, release before Python callbacks).
+    pub ihandler_registry: Mutex<IHandlerRegistry>,
+    /// Parsed configuration (read-only after init).
+    pub config: Config,
     /// Abort handles for all active listeners. Stopped on shutdown.
     listeners: Mutex<Vec<tokio::task::AbortHandle>>,
 }
@@ -30,11 +36,14 @@ impl RuntimeState {
         registry: Arc<ConnectionRegistry>,
         limits: Arc<ConnectionLimits>,
         recv_buffer_size: usize,
+        config: Config,
     ) -> Self {
         RuntimeState {
             registry,
             limits,
             recv_buffer_size,
+            ihandler_registry: Mutex::new(IHandlerRegistry::new()),
+            config,
             listeners: Mutex::new(Vec::new()),
         }
     }
@@ -80,6 +89,22 @@ pub fn get() -> Option<Arc<RuntimeState>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config;
+
+    fn test_config() -> Config {
+        config::load_from_str(
+            r#"
+[dionaea]
+[dionaea.listen]
+mode = "manual"
+addresses = ["0.0.0.0"]
+[logging]
+level = "info"
+[modules]
+"#,
+        )
+        .expect("test config")
+    }
 
     // Note: Cannot test init/get here because OnceLock is process-global
     // and tests run in parallel. The integration test covers this.
@@ -88,7 +113,7 @@ mod tests {
     fn test_runtime_state_track_and_stop() {
         let reg = Arc::new(ConnectionRegistry::new());
         let lim = Arc::new(ConnectionLimits::new(50, 10_000, 70));
-        let state = RuntimeState::new(reg, lim, 65536);
+        let state = RuntimeState::new(reg, lim, 65536, test_config());
 
         // Create a dummy task to get an abort handle
         let rt = tokio::runtime::Builder::new_current_thread()

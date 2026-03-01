@@ -4,6 +4,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use dionaea::config;
 use dionaea::connection::limits::ConnectionLimits;
 use dionaea::connection::ConnectionRegistry;
 use dionaea::python::connection::PyConnection;
@@ -13,6 +14,21 @@ use pyo3::types::PyModule;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::time;
+
+fn test_config() -> config::Config {
+    config::load_from_str(
+        r#"
+[dionaea]
+[dionaea.listen]
+mode = "manual"
+addresses = ["0.0.0.0"]
+[logging]
+level = "info"
+[modules]
+"#,
+    )
+    .expect("test config")
+}
 
 fn register_test_module(py: Python<'_>, name: &str) {
     let module = PyModule::new(py, name).expect("module creation");
@@ -37,6 +53,7 @@ fn test_tcp_listen_via_python() {
         registry.clone(),
         limits.clone(),
         65536,
+        test_config(),
     ));
     runtime::init(state.clone());
 
