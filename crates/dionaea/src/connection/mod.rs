@@ -7,6 +7,7 @@ pub mod tcp;
 pub mod throttle;
 #[cfg(feature = "tls")]
 pub mod tls;
+pub mod udp;
 
 use crate::error::Error;
 use crate::node_info::NodeInfo;

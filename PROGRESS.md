@@ -89,9 +89,16 @@
 - Behind `#[cfg(feature = "tls")]`
 - 3 tests: cert generation, acceptor build, TLS echo roundtrip
 
-### 11. UDP (`connection/udp.rs`)
-- `udp_listen` → `UdpSocket`, peer table `HashMap<SocketAddr, (ConnectionId, Py<PyAny>)>`
-- Platform-specific: `recvfrom` on macOS, `recvmsg`+`IP_PKTINFO` on Linux
+### 11. UDP (`connection/udp.rs`) ✅
+- `udp_listen()` → `UdpSocket`, peer table `HashMap<SocketAddr, UdpPeer>`
+- Single recv loop with `tokio::select!` for recv, outgoing sends, idle sweep
+- Per-peer Python handlers via factory pattern (same as TCP)
+- `drain_peer_sends()` for reply path via `SendMessage::Datagram`
+- `sweep_idle_peers()` runs every 1s, removes peers idle longer than configured timeout
+- `remove_peer()` calls `handle_disconnect` on Python handler + cleanup
+- Handler addresses set on Python handler before `handle_established` (local/remote)
+- Move-and-return pattern for `Py<PyAny>` across `spawn_blocking` boundaries
+- 2 tests: UDP echo roundtrip, peer idle timeout
 
 ### 12. Wire into main.rs
 - Create `Arc<ConnectionRegistry>`, `Arc<ConnectionLimits>` in `async_main`
@@ -105,7 +112,8 @@ NEW: crates/dionaea/src/connection/limits.rs
 NEW: crates/dionaea/src/connection/callback.rs
 NEW: crates/dionaea/src/connection/tcp.rs
 NEW: crates/dionaea/src/connection/tls.rs
-MOD: crates/dionaea/src/connection/mod.rs  (module registration + iter_ids + tls mod)
+NEW: crates/dionaea/src/connection/udp.rs
+MOD: crates/dionaea/src/connection/mod.rs  (module registration + iter_ids + tls + udp mod)
 MOD: crates/dionaea/src/python/connection.rs  (pub(crate) fields)
 MOD: Cargo.toml  (added ip_network = "0.4")
 MOD: crates/dionaea/Cargo.toml  (added ip_network dep, updated deny-list feature)
@@ -113,4 +121,4 @@ MOD: crates/dionaea/Cargo.toml  (added ip_network dep, updated deny-list feature
 
 ## Git State
 - Branch: `dionaea-v2-rust`
-- 137 tests passing (with `--features tls`)
+- 139 tests passing (with `--features tls`)
