@@ -3,7 +3,9 @@
 
 use pyo3::prelude::*;
 
+use crate::ihandler::{HandlerCallback, IHandler, WildcardPattern};
 use crate::python::incident::PyIncident;
+use crate::runtime;
 
 /// Incident handler exposed to Python.
 ///
@@ -29,9 +31,28 @@ impl PyIHandler {
     }
 
     /// Initialize the handler. Python subclasses call `super().__init__(pattern)`.
+    ///
+    /// Auto-registers this handler in the global IHandlerRegistry if the runtime
+    /// is initialized. Matches the C behavior where `ihandler.__init__()` calls
+    /// `c_ihandler_new()` to register immediately.
     #[pyo3(signature = (pattern=None))]
-    fn __init__(&mut self, pattern: Option<String>) -> PyResult<()> {
-        self.pattern = pattern.unwrap_or_default();
+    fn __init__(slf: &Bound<'_, Self>, pattern: Option<String>) -> PyResult<()> {
+        let pat = pattern.unwrap_or_default();
+        slf.borrow_mut().pattern = pat.clone();
+
+        if let Some(state) = runtime::get() {
+            let callback = HandlerCallback::Python(slf.clone().into_any().unbind());
+            let handler = IHandler {
+                pattern: WildcardPattern::new(pat),
+                callback,
+            };
+            state
+                .ihandler_registry
+                .lock()
+                .expect("ihandler registry lock")
+                .register(handler);
+            tracing::debug!(pattern = %slf.borrow().pattern, "ihandler registered");
+        }
         Ok(())
     }
 
@@ -119,10 +140,12 @@ mod tests {
     #[test]
     fn test_ihandler_basic() {
         Python::attach(|py| {
-            let mut ih = PyIHandler::new(None);
-            ih.__init__(Some("dionaea.connection.*".into())).unwrap();
-            let h = Py::new(py, ih).unwrap();
+            let h = Py::new(py, PyIHandler::new(None)).unwrap();
             let bound = h.bind(py);
+            // Call __init__ through Python to test the Bound<Self> signature
+            bound
+                .call_method1("__init__", ("dionaea.connection.*",))
+                .unwrap();
             let pattern: String = bound.getattr("pattern").unwrap().extract().unwrap();
             assert_eq!(pattern, "dionaea.connection.*");
         });
