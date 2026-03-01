@@ -118,10 +118,15 @@ async fn accept_loop(
 
         tokio::spawn(async move {
             let handler_tx = tx.clone();
+            let reg_for_factory = reg.clone();
+            let lim_for_factory = lim.clone();
             let child_result = tokio::task::spawn_blocking(move || {
                 Python::attach(|py| {
                     let parent = factory_clone.bind(py);
-                    factory_create(py, &parent, id, handler_tx, "tcp")
+                    factory_create(
+                        py, &parent, id, handler_tx, "tcp",
+                        Some(reg_for_factory), Some(lim_for_factory), recv_buffer_size,
+                    )
                 })
             })
             .await;
@@ -144,6 +149,112 @@ async fn accept_loop(
             cleanup_connection(&reg, &lim, id, peer_ip);
         });
     }
+}
+
+/// Async task for outbound TCP connections.
+///
+/// DNS-resolves the target, connects with a timeout, updates the Python handler's
+/// address fields, then runs the standard I/O handler loop.
+/// Calls `handle_error` on the Python handler if connect or DNS resolution fails.
+pub async fn tcp_connect_task(
+    handler: Py<PyAny>,
+    id: ConnectionId,
+    addr: String,
+    port: u16,
+    rx: mpsc::Receiver<SendMessage>,
+    registry: Arc<ConnectionRegistry>,
+    recv_buffer_size: usize,
+) {
+    let connecting_timeout = get_timeout_secs(&registry, id, TimeoutKind::Connecting);
+    let timeout_dur = secs_to_duration(connecting_timeout);
+
+    let connect_result = time::timeout(timeout_dur, async {
+        let addr_str = format!("{addr}:{port}");
+        tokio::net::TcpStream::connect(&addr_str).await
+    })
+    .await;
+
+    match connect_result {
+        Ok(Ok(stream)) => {
+            let peer_addr = stream.peer_addr().ok();
+            let local_addr = stream.local_addr().ok();
+
+            // Update registry metadata
+            if let Some(mut meta) = registry.get_mut(id) {
+                if let Some(pa) = peer_addr {
+                    meta.remote = crate::node_info::NodeInfo::from_socket_addr(pa);
+                }
+                if let Some(la) = local_addr {
+                    meta.local = crate::node_info::NodeInfo::from_socket_addr(la);
+                }
+                meta.state = ConnectionState::Established;
+            }
+
+            // Update the Python handler's address fields before handle_established
+            let handler = {
+                let h = handler;
+                match tokio::task::spawn_blocking(move || {
+                    Python::attach(|py| {
+                        if let Ok(conn) = h.bind(py).cast::<PyConnection>() {
+                            let mut c = conn.borrow_mut();
+                            if let Some(pa) = peer_addr {
+                                c.remote.host = pa.ip().to_string();
+                                c.remote.port = pa.port();
+                            }
+                            if let Some(la) = local_addr {
+                                c.local.host = la.ip().to_string();
+                                c.local.port = la.port();
+                            }
+                            c.status = "established".to_string();
+                        }
+                        h
+                    })
+                })
+                .await
+                {
+                    Ok(h) => h,
+                    Err(e) => {
+                        tracing::error!(connection_id = %id, err = %e, "address update panicked");
+                        registry.remove(id);
+                        return;
+                    }
+                }
+            };
+
+            tracing::debug!(connection_id = %id, ?peer_addr, "outbound TCP connected");
+
+            handle_connection(stream, handler, id, rx, registry.clone(), recv_buffer_size).await;
+            registry.remove(id);
+        }
+        Ok(Err(e)) => {
+            tracing::debug!(connection_id = %id, err = %e, %addr, port, "outbound TCP connect failed");
+            call_handle_error(handler, id, &format!("connect failed: {e}")).await;
+            registry.remove(id);
+        }
+        Err(_) => {
+            tracing::debug!(connection_id = %id, %addr, port, "outbound TCP connect timed out");
+            call_handle_error(handler, id, "connect timed out").await;
+            registry.remove(id);
+        }
+    }
+}
+
+/// Call `handle_error` on the Python handler via spawn_blocking, then invalidate.
+async fn call_handle_error(handler: Py<PyAny>, id: ConnectionId, msg: &str) {
+    let err_msg = msg.to_string();
+    let _ = tokio::task::spawn_blocking(move || {
+        Python::attach(|py| {
+            let err = pyo3::exceptions::PyOSError::new_err(err_msg);
+            if let Err(e) = handler
+                .bind(py)
+                .call_method1("handle_error", (err.value(py),))
+            {
+                tracing::warn!(connection_id = %id, err = %e, "handle_error raised exception");
+            }
+            invalidate_handler(handler);
+        })
+    })
+    .await;
 }
 
 /// Per-connection I/O handler task.
@@ -556,7 +667,7 @@ fn get_fd_soft_limit() -> u64 {
 mod tests {
     use super::*;
     use crate::python::connection::PyConnection;
-    use pyo3::types::PyModule;
+    use pyo3::types::{PyBytes, PyModule};
     use std::time::Duration;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -849,6 +960,345 @@ factory = FailProto('tcp')
             let ip: std::net::IpAddr = "127.0.0.1".parse().expect("ip");
             assert_eq!(lim.ip_count(ip), 0, "connection should be cleaned up");
             handle.stop();
+        });
+    }
+
+    #[test]
+    fn test_tcp_outbound_connect() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .max_blocking_threads(8)
+            .enable_all()
+            .build()
+            .expect("runtime");
+        rt.block_on(async {
+            let reg = Arc::new(ConnectionRegistry::new());
+            let lim = Arc::new(ConnectionLimits::new(50, 10_000, 70));
+
+            // Start a simple echo TCP server
+            let echo_server = tokio::net::TcpListener::bind("127.0.0.1:0")
+                .await
+                .expect("bind echo server");
+            let echo_addr = echo_server.local_addr().expect("echo addr");
+
+            tokio::spawn(async move {
+                if let Ok((mut stream, _)) = echo_server.accept().await {
+                    let mut buf = [0u8; 1024];
+                    loop {
+                        match stream.read(&mut buf).await {
+                            Ok(0) => break,
+                            Ok(n) => {
+                                stream.write_all(&buf[..n]).await.ok();
+                            }
+                            Err(_) => break,
+                        }
+                    }
+                }
+            });
+
+            // Create a Python protocol with connect context
+            let proto = Python::attach(|py| {
+                register_test_module(py, "tcp_outconn_t");
+                py.run(
+                    c"
+from tcp_outconn_t import PyConnection
+class OutProto(PyConnection):
+    events = []
+    def __init__(self, proto=None):
+        super().__init__(proto)
+    def handle_established(self):
+        OutProto.events.append('established')
+    def handle_io_in(self, data):
+        OutProto.events.append(('io_in', bytes(data)))
+        return len(data)
+    def handle_disconnect(self):
+        OutProto.events.append('disconnect')
+        return False
+    def handle_error(self, err):
+        OutProto.events.append(('error', str(err)))
+proto = OutProto('tcp')
+",
+                    None,
+                    None,
+                )
+                .expect("define");
+
+                let proto = py.eval(c"proto", None, None).expect("proto");
+                {
+                    let mut c = proto
+                        .cast::<PyConnection>()
+                        .expect("cast")
+                        .borrow_mut();
+                    c.registry = Some(reg.clone());
+                    c.limits = Some(lim.clone());
+                    c.recv_buffer_size = 65536;
+                }
+
+                // Call connect
+                proto
+                    .call_method1(
+                        "connect",
+                        (echo_addr.ip().to_string(), echo_addr.port()),
+                    )
+                    .expect("connect");
+
+                proto.unbind()
+            });
+
+            // Wait for async connect + handle_established
+            time::sleep(Duration::from_millis(500)).await;
+
+            // Verify handle_established fired
+            Python::attach(|py| {
+                let events: Vec<String> = py
+                    .eval(
+                        c"[e if isinstance(e, str) else '' for e in OutProto.events]",
+                        None,
+                        None,
+                    )
+                    .expect("events")
+                    .extract()
+                    .expect("extract");
+                assert!(
+                    events.contains(&"established".to_string()),
+                    "expected 'established' in events, got {events:?}"
+                );
+            });
+
+            // Send data through the connection
+            Python::attach(|py| {
+                let p = proto.bind(py);
+                p.call_method1("send", (PyBytes::new(py, b"hello outbound"),))
+                    .expect("send");
+            });
+
+            // Wait for echo
+            time::sleep(Duration::from_millis(300)).await;
+
+            // Verify io_in received the echo
+            Python::attach(|py| {
+                let event_count: usize = py
+                    .eval(c"len(OutProto.events)", None, None)
+                    .expect("len")
+                    .extract()
+                    .expect("extract");
+                assert!(
+                    event_count >= 2,
+                    "expected at least 2 events (established + io_in), got {event_count}"
+                );
+                // Check the io_in data
+                let io_data: Vec<u8> = py
+                    .eval(
+                        c"next(d for e in OutProto.events if isinstance(e, tuple) for t, d in [e] if t == 'io_in')",
+                        None,
+                        None,
+                    )
+                    .expect("io_in data")
+                    .extract()
+                    .expect("extract");
+                assert_eq!(io_data, b"hello outbound");
+            });
+
+            // Close and verify disconnect
+            Python::attach(|py| {
+                proto.bind(py).call_method0("close").expect("close");
+            });
+            time::sleep(Duration::from_millis(300)).await;
+
+            Python::attach(|py| {
+                let events: Vec<String> = py
+                    .eval(
+                        c"[e if isinstance(e, str) else '' for e in OutProto.events]",
+                        None,
+                        None,
+                    )
+                    .expect("events")
+                    .extract()
+                    .expect("extract");
+                assert!(
+                    events.contains(&"disconnect".to_string()),
+                    "expected 'disconnect' in events, got {events:?}"
+                );
+            });
+        });
+    }
+
+    #[test]
+    fn test_tcp_connect_failure_calls_handle_error() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .max_blocking_threads(8)
+            .enable_all()
+            .build()
+            .expect("runtime");
+        rt.block_on(async {
+            let reg = Arc::new(ConnectionRegistry::new());
+            let lim = Arc::new(ConnectionLimits::new(50, 10_000, 70));
+
+            Python::attach(|py| {
+                register_test_module(py, "tcp_cfail_t");
+                py.run(
+                    c"
+from tcp_cfail_t import PyConnection
+class FailProto(PyConnection):
+    events = []
+    def __init__(self, proto=None):
+        super().__init__(proto)
+    def handle_established(self):
+        FailProto.events.append('established')
+    def handle_error(self, err):
+        FailProto.events.append(('error', str(err)))
+    def handle_disconnect(self):
+        FailProto.events.append('disconnect')
+        return False
+proto = FailProto('tcp')
+",
+                    None,
+                    None,
+                )
+                .expect("define");
+
+                let proto = py.eval(c"proto", None, None).expect("proto");
+                {
+                    let mut c = proto
+                        .cast::<PyConnection>()
+                        .expect("cast")
+                        .borrow_mut();
+                    c.registry = Some(reg.clone());
+                    c.limits = Some(lim.clone());
+                    c.recv_buffer_size = 65536;
+                }
+
+                // Connect to a port that nothing is listening on
+                proto
+                    .call_method1("connect", ("127.0.0.1", 1u16))
+                    .expect("connect");
+            });
+
+            // Wait for the connect attempt to fail
+            time::sleep(Duration::from_millis(500)).await;
+
+            Python::attach(|py| {
+                let has_error: bool = py
+                    .eval(
+                        c"any(isinstance(e, tuple) and e[0] == 'error' for e in FailProto.events)",
+                        None,
+                        None,
+                    )
+                    .expect("check")
+                    .extract()
+                    .expect("extract");
+                assert!(has_error, "expected handle_error to be called");
+
+                let no_established: bool = py
+                    .eval(
+                        c"'established' not in FailProto.events",
+                        None,
+                        None,
+                    )
+                    .expect("check")
+                    .extract()
+                    .expect("extract");
+                assert!(no_established, "handle_established should NOT fire on failure");
+            });
+
+            // Registry should be cleaned up
+            assert_eq!(reg.len(), 0, "connection should be removed from registry");
+        });
+    }
+
+    #[test]
+    fn test_tcp_connect_timeout_calls_handle_error() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .max_blocking_threads(8)
+            .enable_all()
+            .build()
+            .expect("runtime");
+        rt.block_on(async {
+            let reg = Arc::new(ConnectionRegistry::new());
+            let lim = Arc::new(ConnectionLimits::new(50, 10_000, 70));
+
+            Python::attach(|py| {
+                register_test_module(py, "tcp_ctmo_t");
+                py.run(
+                    c"
+from tcp_ctmo_t import PyConnection
+class TmoProto(PyConnection):
+    events = []
+    def __init__(self, proto=None):
+        super().__init__(proto)
+    def handle_established(self):
+        TmoProto.events.append('established')
+    def handle_error(self, err):
+        TmoProto.events.append(('error', str(err)))
+    def handle_disconnect(self):
+        TmoProto.events.append('disconnect')
+        return False
+proto = TmoProto('tcp')
+",
+                    None,
+                    None,
+                )
+                .expect("define");
+
+                let proto = py.eval(c"proto", None, None).expect("proto");
+                {
+                    let mut c = proto
+                        .cast::<PyConnection>()
+                        .expect("cast")
+                        .borrow_mut();
+                    c.registry = Some(reg.clone());
+                    c.limits = Some(lim.clone());
+                    c.recv_buffer_size = 65536;
+                    // Set a very short connecting timeout
+                    c.timeouts.connecting = 0.1;
+                }
+
+                // Connect to a non-routable address (will hang until timeout)
+                proto
+                    .call_method1("connect", ("192.0.2.1", 9999u16))
+                    .expect("connect");
+            });
+
+            // Set the connecting timeout in the registry too
+            let con_id = reg.iter_ids().next().expect("should have a connection");
+            if let Some(mut meta) = reg.get_mut(con_id) {
+                meta.timeouts.connecting = 0.1;
+            }
+
+            // Wait for timeout (0.1s + margin)
+            time::sleep(Duration::from_millis(600)).await;
+
+            Python::attach(|py| {
+                let has_error: bool = py
+                    .eval(
+                        c"any(isinstance(e, tuple) and e[0] == 'error' for e in TmoProto.events)",
+                        None,
+                        None,
+                    )
+                    .expect("check")
+                    .extract()
+                    .expect("extract");
+                assert!(has_error, "expected handle_error on timeout");
+
+                // Check the error message mentions timeout
+                let err_msg: String = py
+                    .eval(
+                        c"next(e[1] for e in TmoProto.events if isinstance(e, tuple) and e[0] == 'error')",
+                        None,
+                        None,
+                    )
+                    .expect("msg")
+                    .extract()
+                    .expect("extract");
+                assert!(
+                    err_msg.contains("timed out"),
+                    "error should mention timeout, got: {err_msg}"
+                );
+            });
+
+            assert_eq!(reg.len(), 0, "connection should be removed from registry");
         });
     }
 }

@@ -1,13 +1,16 @@
 // ABOUTME: PyO3 connection class that Python protocol handlers subclass.
 // ABOUTME: Full API surface matching binding.pyx connection class.
 
+use std::cell::Cell;
+use std::sync::Arc;
+
 use bytes::Bytes;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
-use std::cell::Cell;
 use tokio::sync::mpsc;
 
-use crate::connection::{ConnectionId, SendMessage};
+use crate::connection::limits::ConnectionLimits;
+use crate::connection::{ConnectionId, ConnectionRegistry, SendMessage};
 use crate::python::node_info::PyNodeInfo;
 use crate::python::stats::{
     PyConnectionAccounting, PyConnectionSpeed, PyConnectionStats, PyConnectionTimeouts,
@@ -46,6 +49,12 @@ pub struct PyConnection {
     pub(crate) timeouts: PyConnectionTimeouts,
     /// Channel for sending data/control to the I/O task.
     pub(crate) send_tx: Option<mpsc::Sender<SendMessage>>,
+    /// Connection registry for outbound connect registration.
+    pub(crate) registry: Option<Arc<ConnectionRegistry>>,
+    /// Connection limits for outbound connect checking.
+    pub(crate) limits: Option<Arc<ConnectionLimits>>,
+    /// Receive buffer size for handler tasks.
+    pub(crate) recv_buffer_size: usize,
 }
 
 /// Check that the connection is still valid (not freed/disconnected).
@@ -73,6 +82,9 @@ impl PyConnection {
             remote: PyNodeInfo::new(),
             timeouts: PyConnectionTimeouts::new(),
             send_tx: Some(tx),
+            registry: None,
+            limits: None,
+            recv_buffer_size: 65536,
         }
     }
 
@@ -109,6 +121,9 @@ impl PyConnection {
                 remote: PyNodeInfo::new(),
                 timeouts: PyConnectionTimeouts::new(),
                 send_tx: factory_tx,
+                registry: None,
+                limits: None,
+                recv_buffer_size: 65536,
             };
         }
 
@@ -121,6 +136,9 @@ impl PyConnection {
             remote: PyNodeInfo::new(),
             timeouts: PyConnectionTimeouts::new(),
             send_tx: None,
+            registry: None,
+            limits: None,
+            recv_buffer_size: 65536,
         }
     }
 
@@ -359,12 +377,52 @@ impl PyConnection {
         Ok(0)
     }
 
-    /// Connect to a remote host.
+    /// Initiate an outbound TCP connection. Fire-and-forget: returns immediately,
+    /// calls `handle_established` on success or `handle_error` on failure.
     #[pyo3(signature = (addr, port, iface="".to_string()))]
-    fn connect(&self, addr: String, port: u16, iface: String) -> PyResult<()> {
-        check_valid(&self.id)?;
-        let _ = (addr, port, iface);
-        // Will be implemented in Phase 4.
+    fn connect(slf: &Bound<'_, PyConnection>, addr: String, port: u16, iface: String) -> PyResult<()> {
+        let _ = iface; // TODO: SO_BINDTODEVICE support
+
+        let (id, rx, registry, recv_buffer_size) = {
+            let mut conn = slf.borrow_mut();
+
+            let registry = conn.registry.as_ref()
+                .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err(
+                    "no runtime context (registry not set)"
+                ))?.clone();
+
+            let recv_buffer_size = conn.recv_buffer_size;
+
+            // Register the outbound connection
+            let (new_id, tx, rx) = registry.register(
+                crate::connection::Transport::Tcp,
+                crate::connection::ConnectionType::Connect,
+            );
+            conn.id = Some(new_id);
+            conn.send_tx = Some(tx);
+            conn.remote.host = addr.clone();
+            conn.remote.port = port;
+            conn.status = "connecting".to_string();
+
+            // Set initial state in registry
+            if let Some(mut meta) = registry.get_mut(new_id) {
+                meta.state = crate::connection::ConnectionState::Connecting;
+            }
+
+            (new_id, rx, registry, recv_buffer_size)
+        };
+
+        let handler: Py<PyAny> = slf.clone().into_any().unbind();
+
+        let handle = tokio::runtime::Handle::try_current()
+            .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err(
+                "no tokio runtime available (connect must be called from within the runtime)"
+            ))?;
+
+        handle.spawn(crate::connection::tcp::tcp_connect_task(
+            handler, id, addr, port, rx, registry, recv_buffer_size,
+        ));
+
         Ok(())
     }
 
@@ -475,6 +533,9 @@ pub fn factory_create(
     id: ConnectionId,
     tx: mpsc::Sender<SendMessage>,
     transport: &str,
+    registry: Option<Arc<ConnectionRegistry>>,
+    limits: Option<Arc<ConnectionLimits>>,
+    recv_buffer_size: usize,
 ) -> PyResult<Py<PyAny>> {
     set_factory_context(id, tx);
 
@@ -485,6 +546,14 @@ pub fn factory_create(
     clear_factory_context();
 
     let child = result?;
+
+    // Set runtime context on child for outbound connects
+    if let Ok(conn) = child.cast::<PyConnection>() {
+        let mut c = conn.borrow_mut();
+        c.registry = registry;
+        c.limits = limits;
+        c.recv_buffer_size = recv_buffer_size;
+    }
 
     // Copy shared config from parent
     if let Err(e) = child.call_method1("apply_parent_config", (parent,)) {
@@ -841,7 +910,7 @@ parent = SMBProtocol('tcp')
 
             // Factory-create a child
             let (tx, _rx) = mpsc::channel(256);
-            let child = factory_create(py, &parent, ConnectionId(101), tx, "tcp").unwrap();
+            let child = factory_create(py, &parent, ConnectionId(101), tx, "tcp", None, None, 65536).unwrap();
             let child = child.bind(py);
 
             // Verify child is same class
