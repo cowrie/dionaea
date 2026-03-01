@@ -47,6 +47,7 @@ sha2 = "0.10"
 hickory-resolver = { version = "0.25", features = ["tokio"] }
 
 # IP deny list (CIDR prefix matching)
+ip_network = "0.4"
 ip_network_table = "0.2"
 
 # HTTP client (replaces curl module)

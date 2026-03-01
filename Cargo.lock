@@ -233,6 +233,7 @@ dependencies = [
  "bytes",
  "dashmap",
  "hickory-resolver",
+ "ip_network",
  "ip_network_table",
  "nfq",
  "nix 0.30.1",

@@ -28,6 +28,7 @@ openssl = { workspace = true, optional = true }
 tokio-openssl = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 hickory-resolver = { workspace = true, optional = true }
+ip_network = { workspace = true, optional = true }
 ip_network_table = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
 pcap = { workspace = true, optional = true }
@@ -42,7 +43,7 @@ default = ["tls", "dns", "download", "deny-list"]
 tls = ["dep:openssl", "dep:tokio-openssl"]
 dns = ["dep:hickory-resolver"]
 download = ["dep:reqwest", "dep:sha2"]
-deny-list = ["dep:ip_network_table"]
+deny-list = ["dep:ip_network", "dep:ip_network_table"]
 pcap = ["dep:pcap"]
 nfq = ["dep:nfq"]
 netlink = ["dep:rtnetlink"]

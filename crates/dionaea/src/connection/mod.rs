@@ -1,6 +1,9 @@
 // ABOUTME: Connection lifecycle state machine and metadata registry.
 // ABOUTME: Owns ConnectionMeta (shared via DashMap) and defines state transitions.
 
+pub mod limits;
+pub mod throttle;
+
 use crate::error::Error;
 use crate::node_info::NodeInfo;
 use bytes::Bytes;
