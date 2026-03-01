@@ -8,6 +8,8 @@ use dionaea::config;
 use dionaea::connection::limits::ConnectionLimits;
 use dionaea::connection::ConnectionRegistry;
 use dionaea::python::connection::PyConnection;
+use dionaea::python::ihandler::PyIHandler;
+use dionaea::python::incident::PyIncident;
 use dionaea::runtime;
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
@@ -35,6 +37,12 @@ fn register_test_module(py: Python<'_>, name: &str) {
     module
         .add_class::<PyConnection>()
         .expect("add PyConnection");
+    module
+        .add_class::<PyIHandler>()
+        .expect("add PyIHandler");
+    module
+        .add_class::<PyIncident>()
+        .expect("add PyIncident");
     py.import(c"sys")
         .expect("import sys")
         .getattr("modules")
@@ -157,6 +165,93 @@ port = listener.local.port
         // Verify registry tracked the connection
         // Connection may already be cleaned up after disconnect
         let _ = registry.len();
+
+        // --- Incident dispatch integration test ---
+        // Test that ihandler auto-registers via __init__ and report() dispatches correctly
+        tokio::task::spawn_blocking(|| {
+            Python::attach(|py| {
+                py.run(
+                    c"
+from listen_integ import PyIHandler, PyIncident
+
+class LogHandler(PyIHandler):
+    received = []
+    def __init__(self):
+        super().__init__('test.incident.*')
+
+    def handle_incident_test_incident_accept(self, incident):
+        LogHandler.received.append({
+            'origin': incident.origin,
+            'port': incident.port,
+        })
+
+    def handle_incident(self, incident):
+        LogHandler.received.append({
+            'origin': incident.origin,
+            'fallback': True,
+        })
+
+handler = LogHandler()
+
+# Report an incident that matches the specific handler method
+inc1 = PyIncident('test.incident.accept')
+inc1.port = 445
+inc1.report()
+
+# Report an incident that falls back to generic handler
+inc2 = PyIncident('test.incident.unknown')
+inc2.report()
+",
+                    None,
+                    None,
+                )
+                .expect("incident dispatch test");
+
+                // Verify handler received both incidents
+                let count: usize = py
+                    .eval(c"len(LogHandler.received)", None, None)
+                    .expect("len")
+                    .extract()
+                    .expect("extract");
+                assert_eq!(count, 2, "handler should have received 2 incidents");
+
+                // First incident: specific method
+                let origin: String = py
+                    .eval(c"LogHandler.received[0]['origin']", None, None)
+                    .expect("origin")
+                    .extract()
+                    .expect("extract");
+                assert_eq!(origin, "test.incident.accept");
+
+                let port: i64 = py
+                    .eval(c"LogHandler.received[0]['port']", None, None)
+                    .expect("port")
+                    .extract()
+                    .expect("extract");
+                assert_eq!(port, 445);
+
+                // Second incident: fallback method
+                let fallback: bool = py
+                    .eval(c"LogHandler.received[1]['fallback']", None, None)
+                    .expect("fallback")
+                    .extract()
+                    .expect("extract");
+                assert!(fallback, "second incident should use fallback handler");
+            });
+        })
+        .await
+        .expect("incident test spawn_blocking");
+
+        // Verify ihandler_registry has at least our handler registered
+        let handler_count = state
+            .ihandler_registry
+            .lock()
+            .expect("lock")
+            .len();
+        assert!(
+            handler_count >= 1,
+            "ihandler_registry should have at least 1 handler, got {handler_count}"
+        );
 
         // Clean shutdown
         state.stop_all_listeners();
