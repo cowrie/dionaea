@@ -86,6 +86,33 @@ async fn async_main(config: config::Config) {
         "daemon ready"
     );
 
+    // Load Python modules (must run with GIL via spawn_blocking)
+    {
+        let python_config = &state.config.modules.python;
+        // Clone what we need to move into the blocking task
+        let imports = python_config.imports.clone();
+        let service_configs = python_config.service_configs.clone();
+        let ihandler_configs = python_config.ihandler_configs.clone();
+        let python_path = python_config.python_path.clone();
+        let load_result = tokio::task::spawn_blocking(move || {
+            pyo3::Python::attach(|py| {
+                let config = dionaea::config::PythonModuleConfig {
+                    imports,
+                    service_configs,
+                    ihandler_configs,
+                    python_path,
+                };
+                dionaea::python::loader::load(py, &config)
+            })
+        })
+        .await
+        .expect("spawn_blocking join");
+        if let Err(e) = load_result {
+            tracing::error!(error = %e, "failed to load Python modules");
+            std::process::exit(1);
+        }
+    }
+
     // Register signal handlers
     #[cfg(unix)]
     {
