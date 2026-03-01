@@ -1,8 +1,11 @@
 // ABOUTME: Python-visible incident class for event dispatch between components.
 // ABOUTME: Supports dynamic attribute access (__getattr__/__setattr__) matching binding.pyx.
 
+use crate::ihandler::HandlerCallback;
 use crate::incident::{Incident, OpaqueData};
 use crate::python::convert::{opaque_to_py, py_to_opaque};
+use crate::python::ihandler::dispatch_to_handler;
+use crate::runtime;
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 use std::collections::HashMap;
@@ -55,13 +58,57 @@ impl PyIncident {
         &self.origin
     }
 
-    /// Report this incident to the handler registry.
+    /// Report this incident to all matching handlers in the registry.
     ///
-    /// In the current implementation this is a no-op placeholder.
-    /// The actual dispatch happens in the Rust incident system.
-    fn report(&self) {
-        // Will be wired to IHandlerRegistry::dispatch in Phase 4.
-        tracing::debug!(origin = %self.origin, "incident reported");
+    /// Locks the registry to find matching handlers, releases the lock,
+    /// then dispatches to each handler. This ordering prevents deadlocks
+    /// when a handler callback reports another incident.
+    ///
+    /// Errors in individual handlers are logged but not propagated,
+    /// matching the C behavior.
+    fn report(&self, py: Python<'_>) -> PyResult<()> {
+        let Some(state) = runtime::get() else {
+            tracing::debug!(origin = %self.origin, "incident reported (no runtime)");
+            return Ok(());
+        };
+
+        let incident = self.to_incident();
+
+        // Collect matching Python handlers while holding the lock, then release
+        let handlers: Vec<Py<PyAny>> = {
+            let registry = state.ihandler_registry.lock().expect("registry lock");
+            let indices = registry.matching_handlers(&incident);
+            indices
+                .iter()
+                .filter_map(|&i| {
+                    if let Some(h) = registry.get(i) {
+                        if let HandlerCallback::Python(ref py_obj) = h.callback {
+                            return Some(py_obj.clone_ref(py));
+                        }
+                    }
+                    None
+                })
+                .collect()
+        };
+        // Lock is released here
+
+        tracing::debug!(
+            origin = %self.origin,
+            handler_count = handlers.len(),
+            "dispatching incident"
+        );
+
+        for handler in &handlers {
+            let bound = handler.bind(py);
+            if let Err(e) = dispatch_to_handler(py, bound, self) {
+                tracing::error!(
+                    origin = %self.origin,
+                    error = %e,
+                    "error dispatching incident to handler"
+                );
+            }
+        }
+        Ok(())
     }
 
     /// List all data keys.
