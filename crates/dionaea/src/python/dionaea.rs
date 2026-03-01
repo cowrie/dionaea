@@ -64,6 +64,11 @@ impl PyDionaea {
             "listen.interfaces",
             PyList::new(py, &state.config.dionaea.listen.interfaces)?,
         )?;
+        dionaea_dict.set_item(
+            "download.dir",
+            state.config.dionaea.download.dir.to_string_lossy().as_ref(),
+        )?;
+        dionaea_dict.set_item("download.suffix", &state.config.dionaea.download.suffix)?;
 
         result.set_item("dionaea", dionaea_dict)?;
 

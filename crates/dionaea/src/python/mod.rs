@@ -35,7 +35,26 @@ pub fn register_classes(module: &Bound<'_, PyModule>) -> PyResult<()> {
     // Add connection_new factory function
     module.add_function(wrap_pyfunction!(connection_new, module)?)?;
 
+    // Add dlhfn logging bridge
+    module.add_function(wrap_pyfunction!(dlhfn, module)?)?;
+
     Ok(())
+}
+
+/// Bridge Python logging to Rust tracing.
+///
+/// Called by `dionaea/log.py` as `dlhfn(name, number, path, line, msg)`.
+/// Maps Python log levels (DEBUG=10, INFO=20, WARNING=30, ERROR=40, CRITICAL=50)
+/// to tracing levels.
+#[pyfunction]
+fn dlhfn(name: &str, number: i32, path: &str, line: i32, msg: &str) {
+    match number {
+        50 => tracing::error!(target: "python", logger = name, file = path, line = line, "{msg}"),
+        40 => tracing::error!(target: "python", logger = name, file = path, line = line, "{msg}"),
+        30 => tracing::warn!(target: "python", logger = name, file = path, line = line, "{msg}"),
+        20 => tracing::info!(target: "python", logger = name, file = path, line = line, "{msg}"),
+        _ => tracing::debug!(target: "python", logger = name, file = path, line = line, "{msg}"),
+    }
 }
 
 /// Factory function for creating connections from Python.
@@ -87,6 +106,28 @@ mod tests {
             assert!(module.getattr("PyDionaea").is_ok());
             assert!(module.getattr("g_dionaea").is_ok());
             assert!(module.getattr("connection_new").is_ok());
+            assert!(module.getattr("dlhfn").is_ok());
+        });
+    }
+
+    #[test]
+    fn test_dlhfn_does_not_panic() {
+        Python::attach(|py| {
+            setup_module(py, "dionaea_dlhfn_test");
+            // Call dlhfn at each log level to verify it doesn't panic
+            py.run(
+                c"
+from dionaea_dlhfn_test import dlhfn
+dlhfn('test.logger', 10, '/tmp/test.py', 42, 'debug message')
+dlhfn('test.logger', 20, '/tmp/test.py', 43, 'info message')
+dlhfn('test.logger', 30, '/tmp/test.py', 44, 'warning message')
+dlhfn('test.logger', 40, '/tmp/test.py', 45, 'error message')
+dlhfn('test.logger', 50, '/tmp/test.py', 46, 'critical message')
+",
+                None,
+                None,
+            )
+            .unwrap();
         });
     }
 

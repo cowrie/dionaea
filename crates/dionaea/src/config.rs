@@ -34,6 +34,20 @@ pub struct DionaeaConfig {
     /// Admin interface settings (metrics, health).
     #[serde(default)]
     pub admin: AdminConfig,
+    /// Download capture settings.
+    #[serde(default)]
+    pub download: DownloadConfig,
+}
+
+/// Download capture configuration.
+#[derive(Debug, Deserialize)]
+pub struct DownloadConfig {
+    /// Directory to store captured malware binaries.
+    #[serde(default = "default_download_dir")]
+    pub dir: PathBuf,
+    /// Suffix for in-progress downloads.
+    #[serde(default = "default_download_suffix")]
+    pub suffix: String,
 }
 
 /// How the daemon discovers addresses to listen on.
@@ -192,6 +206,12 @@ fn default_log_domains() -> String {
 fn default_true() -> bool {
     true
 }
+fn default_download_dir() -> PathBuf {
+    PathBuf::from("/var/lib/dionaea/binaries/")
+}
+fn default_download_suffix() -> String {
+    ".tmp".to_string()
+}
 fn default_python_imports() -> Vec<String> {
     vec!["dionaea".to_string()]
 }
@@ -212,6 +232,15 @@ impl Default for AdminConfig {
     fn default() -> Self {
         AdminConfig {
             listen: default_admin_listen(),
+        }
+    }
+}
+
+impl Default for DownloadConfig {
+    fn default() -> Self {
+        DownloadConfig {
+            dir: default_download_dir(),
+            suffix: default_download_suffix(),
         }
     }
 }
