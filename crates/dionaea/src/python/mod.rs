@@ -6,6 +6,7 @@ pub mod convert;
 pub mod dionaea;
 pub mod ihandler;
 pub mod incident;
+pub mod loader;
 pub mod node_info;
 pub mod stats;
 
