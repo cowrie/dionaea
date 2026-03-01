@@ -79,13 +79,15 @@
 - Also fixed: `connect()` now propagates Python timeouts to registry (was a race)
 - 3 tests: tracker cap, accept_silence holds then drops, silent cap fallback to RST
 
-## Not Yet Started
-
-### 10. TLS (`connection/tls.rs`)
-- Self-signed cert generation, `SslAcceptor` with weak ciphers, DH params
-- TLS accept wraps TCP accept with handshake timeout
+### 10. TLS (`connection/tls.rs`) ✅
+- Self-signed cert generation: RSA key (configurable bits), X509 v3, SHA256, 365-day validity
+- `CertSubject` struct: country, common_name, organization, organizational_unit
+- `build_ssl_acceptor()`: SSLv23 method, no client cert verify, optional cipher list
+- `tls_listen()`: TCP accept → TLS handshake (with timeout) → generic handle_connection
+- `handle_connection` refactored to generic `<S: AsyncRead + AsyncWrite + Unpin>`
+- Shared helpers exported as `pub(crate)`: cleanup_connection, invalidate_handler, etc.
 - Behind `#[cfg(feature = "tls")]`
-- Needs `PKG_CONFIG_PATH=/opt/homebrew/opt/openssl@3/lib/pkgconfig`
+- 3 tests: cert generation, acceptor build, TLS echo roundtrip
 
 ### 11. UDP (`connection/udp.rs`)
 - `udp_listen` → `UdpSocket`, peer table `HashMap<SocketAddr, (ConnectionId, Py<PyAny>)>`
@@ -102,7 +104,8 @@ NEW: crates/dionaea/src/connection/throttle.rs
 NEW: crates/dionaea/src/connection/limits.rs
 NEW: crates/dionaea/src/connection/callback.rs
 NEW: crates/dionaea/src/connection/tcp.rs
-MOD: crates/dionaea/src/connection/mod.rs  (module registration + iter_ids)
+NEW: crates/dionaea/src/connection/tls.rs
+MOD: crates/dionaea/src/connection/mod.rs  (module registration + iter_ids + tls mod)
 MOD: crates/dionaea/src/python/connection.rs  (pub(crate) fields)
 MOD: Cargo.toml  (added ip_network = "0.4")
 MOD: crates/dionaea/Cargo.toml  (added ip_network dep, updated deny-list feature)
@@ -110,4 +113,4 @@ MOD: crates/dionaea/Cargo.toml  (added ip_network dep, updated deny-list feature
 
 ## Git State
 - Branch: `dionaea-v2-rust`
-- 134 tests passing
+- 137 tests passing (with `--features tls`)

@@ -343,15 +343,19 @@ async fn call_handle_error(handler: Py<PyAny>, id: ConnectionId, msg: &str) {
 /// Runs a `select!` loop reading from the socket and the send channel.
 /// Python callbacks are invoked via `spawn_blocking` + GIL.
 /// Sequential callback guarantee: each callback completes before the next I/O event.
+///
+/// Generic over the stream type so it works with both plain TCP and TLS.
 #[allow(clippy::too_many_lines)]
-async fn handle_connection(
-    mut stream: tokio::net::TcpStream,
+pub(crate) async fn handle_connection<S>(
+    mut stream: S,
     handler: Py<PyAny>,
     id: ConnectionId,
     mut rx: mpsc::Receiver<SendMessage>,
     registry: Arc<ConnectionRegistry>,
     recv_buffer_size: usize,
-) {
+) where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
     let mut buf = BytesMut::zeroed(recv_buffer_size);
     let mut partial_buf: Vec<u8> = Vec::new();
 
@@ -679,7 +683,7 @@ async fn call_disconnect(handler: Py<PyAny>, id: ConnectionId) -> Py<PyAny> {
 }
 
 /// Get timeout seconds from the registry.
-fn get_timeout_secs(registry: &ConnectionRegistry, id: ConnectionId, kind: TimeoutKind) -> f64 {
+pub(crate) fn get_timeout_secs(registry: &ConnectionRegistry, id: ConnectionId, kind: TimeoutKind) -> f64 {
     registry.get(id).map_or(0.0, |meta| match kind {
         TimeoutKind::Idle => meta.timeouts.idle,
         TimeoutKind::Sustain => meta.timeouts.sustain,
@@ -691,7 +695,7 @@ fn get_timeout_secs(registry: &ConnectionRegistry, id: ConnectionId, kind: Timeo
 }
 
 /// Convert seconds to Duration, treating <= 0 as "far future" (effectively disabled).
-fn secs_to_duration(secs: f64) -> Duration {
+pub(crate) fn secs_to_duration(secs: f64) -> Duration {
     if secs <= 0.0 {
         Duration::from_secs(86400 * 365)
     } else {
@@ -705,7 +709,7 @@ fn make_timeout(secs: f64) -> Sleep {
 }
 
 /// Clean up after a connection closes.
-fn cleanup_connection(
+pub(crate) fn cleanup_connection(
     registry: &ConnectionRegistry,
     limits: &ConnectionLimits,
     id: ConnectionId,
@@ -720,7 +724,7 @@ fn cleanup_connection(
 }
 
 /// Invalidate the Python handler (set id to None, drop channel).
-fn invalidate_handler(handler: Py<PyAny>) {
+pub(crate) fn invalidate_handler(handler: Py<PyAny>) {
     Python::attach(|py| {
         let bound = handler.bind(py);
         if let Ok(conn) = bound.cast::<PyConnection>() {
@@ -730,7 +734,7 @@ fn invalidate_handler(handler: Py<PyAny>) {
 }
 
 /// Apply the configured rejection strategy to a connection that failed limit checks.
-fn reject_connection(
+pub(crate) fn reject_connection(
     stream: tokio::net::TcpStream,
     config: &RejectConfig,
     tracker: &Arc<SilentConnectionTracker>,
@@ -758,7 +762,7 @@ fn reject_connection(
 
 /// Get the RLIMIT_NOFILE soft limit.
 #[cfg(unix)]
-fn get_fd_soft_limit() -> u64 {
+pub(crate) fn get_fd_soft_limit() -> u64 {
     use nix::sys::resource::{getrlimit, Resource};
     match getrlimit(Resource::RLIMIT_NOFILE) {
         Ok((soft, _hard)) => soft,
@@ -767,7 +771,7 @@ fn get_fd_soft_limit() -> u64 {
 }
 
 #[cfg(not(unix))]
-fn get_fd_soft_limit() -> u64 {
+pub(crate) fn get_fd_soft_limit() -> u64 {
     1024
 }
 

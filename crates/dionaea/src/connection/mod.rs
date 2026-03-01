@@ -5,6 +5,8 @@ pub mod callback;
 pub mod limits;
 pub mod tcp;
 pub mod throttle;
+#[cfg(feature = "tls")]
+pub mod tls;
 
 use crate::error::Error;
 use crate::node_info::NodeInfo;
