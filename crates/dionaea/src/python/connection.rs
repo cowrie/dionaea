@@ -404,9 +404,13 @@ impl PyConnection {
             conn.remote.port = port;
             conn.status = "connecting".to_string();
 
-            // Set initial state in registry
+            // Set initial state and propagate timeouts to registry
             if let Some(mut meta) = registry.get_mut(new_id) {
                 meta.state = crate::connection::ConnectionState::Connecting;
+                meta.timeouts.connecting = conn.timeouts.connecting;
+                meta.timeouts.idle = conn.timeouts.idle;
+                meta.timeouts.sustain = conn.timeouts.sustain;
+                meta.timeouts.handshake = conn.timeouts.handshake;
             }
 
             (new_id, rx, registry, recv_buffer_size)

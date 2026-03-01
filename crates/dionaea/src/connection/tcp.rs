@@ -2,6 +2,7 @@
 // ABOUTME: Wires Python protocol callbacks to live sockets via spawn_blocking + GIL.
 
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use bytes::BytesMut;
@@ -19,6 +20,79 @@ use crate::connection::{
     TimeoutKind, Transport,
 };
 use crate::python::connection::{factory_create, PyConnection};
+
+/// What to do when a connection is rejected (limits exceeded).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RejectStrategy {
+    /// Drop immediately (TCP RST). Fast but attackers may detect it.
+    Rst,
+    /// Accept the connection, then hold it open silently until it times out.
+    /// Looks like a slow/unresponsive service rather than a rate limit.
+    AcceptSilence,
+}
+
+/// Configuration for connection rejection behavior.
+#[derive(Debug, Clone)]
+pub struct RejectConfig {
+    /// Which strategy to use when rejecting connections.
+    pub strategy: RejectStrategy,
+    /// How long to hold silent connections open (seconds). Default: 30.
+    pub silence_timeout_secs: f64,
+    /// Maximum number of concurrent silent connections. Default: 100.
+    pub silence_cap: usize,
+}
+
+impl Default for RejectConfig {
+    fn default() -> Self {
+        RejectConfig {
+            strategy: RejectStrategy::AcceptSilence,
+            silence_timeout_secs: 30.0,
+            silence_cap: 100,
+        }
+    }
+}
+
+/// Tracks concurrent silent (rejected) connections.
+#[derive(Debug)]
+pub struct SilentConnectionTracker {
+    /// Current number of active silent connections.
+    active: AtomicUsize,
+    /// Maximum allowed.
+    cap: usize,
+}
+
+impl SilentConnectionTracker {
+    /// Create a tracker with the given cap.
+    pub fn new(cap: usize) -> Self {
+        SilentConnectionTracker {
+            active: AtomicUsize::new(0),
+            cap,
+        }
+    }
+
+    /// Try to acquire a slot. Returns true if under cap.
+    pub fn try_acquire(&self) -> bool {
+        self.active
+            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |current| {
+                if current < self.cap {
+                    Some(current + 1)
+                } else {
+                    None
+                }
+            })
+            .is_ok()
+    }
+
+    /// Release a slot.
+    pub fn release(&self) {
+        self.active.fetch_sub(1, Ordering::SeqCst);
+    }
+
+    /// Current count.
+    pub fn count(&self) -> usize {
+        self.active.load(Ordering::SeqCst)
+    }
+}
 
 /// Handle for a running TCP listener, used for shutdown.
 pub struct TcpListenerHandle {
@@ -45,10 +119,13 @@ pub async fn tcp_listen(
     limits: Arc<ConnectionLimits>,
     protocol_factory: Py<PyAny>,
     recv_buffer_size: usize,
+    reject_config: RejectConfig,
 ) -> std::io::Result<TcpListenerHandle> {
     let listener = TcpListener::bind(addr).await?;
     let bound_addr = listener.local_addr()?;
     tracing::info!(%bound_addr, "TCP listener bound");
+
+    let silent_tracker = Arc::new(SilentConnectionTracker::new(reject_config.silence_cap));
 
     let task = tokio::spawn(accept_loop(
         listener,
@@ -56,6 +133,8 @@ pub async fn tcp_listen(
         limits,
         protocol_factory,
         recv_buffer_size,
+        reject_config,
+        silent_tracker,
     ));
 
     Ok(TcpListenerHandle {
@@ -71,6 +150,8 @@ async fn accept_loop(
     limits: Arc<ConnectionLimits>,
     protocol_factory: Py<PyAny>,
     recv_buffer_size: usize,
+    reject_config: RejectConfig,
+    silent_tracker: Arc<SilentConnectionTracker>,
 ) {
     loop {
         let (stream, peer_addr) = match listener.accept().await {
@@ -93,7 +174,7 @@ async fn accept_loop(
         if let Err(reason) = limits.check(peer_ip, registry.len() as u32, fd_count, fd_soft_limit)
         {
             tracing::debug!(%peer_addr, %reason, "rejecting connection");
-            drop(stream);
+            reject_connection(stream, &reject_config, &silent_tracker);
             continue;
         }
 
@@ -648,6 +729,33 @@ fn invalidate_handler(handler: Py<PyAny>) {
     });
 }
 
+/// Apply the configured rejection strategy to a connection that failed limit checks.
+fn reject_connection(
+    stream: tokio::net::TcpStream,
+    config: &RejectConfig,
+    tracker: &Arc<SilentConnectionTracker>,
+) {
+    match config.strategy {
+        RejectStrategy::Rst => {
+            drop(stream);
+        }
+        RejectStrategy::AcceptSilence => {
+            if tracker.try_acquire() {
+                let tracker = tracker.clone();
+                let timeout = config.silence_timeout_secs;
+                tokio::spawn(async move {
+                    time::sleep(secs_to_duration(timeout)).await;
+                    drop(stream);
+                    tracker.release();
+                });
+            } else {
+                // Silent cap reached, fall back to RST
+                drop(stream);
+            }
+        }
+    }
+}
+
 /// Get the RLIMIT_NOFILE soft limit.
 #[cfg(unix)]
 fn get_fd_soft_limit() -> u64 {
@@ -723,6 +831,7 @@ factory = EchoProtocol('tcp')
             limits.clone(),
             factory,
             65536,
+            RejectConfig::default(),
         )
         .await
         .expect("tcp_listen")
@@ -1251,8 +1360,8 @@ proto = TmoProto('tcp')
                     c.registry = Some(reg.clone());
                     c.limits = Some(lim.clone());
                     c.recv_buffer_size = 65536;
-                    // Set a very short connecting timeout
-                    c.timeouts.connecting = 0.1;
+                    // Short connecting timeout (generous enough for GIL contention)
+                    c.timeouts.connecting = 0.3;
                 }
 
                 // Connect to a non-routable address (will hang until timeout)
@@ -1261,14 +1370,9 @@ proto = TmoProto('tcp')
                     .expect("connect");
             });
 
-            // Set the connecting timeout in the registry too
-            let con_id = reg.iter_ids().next().expect("should have a connection");
-            if let Some(mut meta) = reg.get_mut(con_id) {
-                meta.timeouts.connecting = 0.1;
-            }
-
-            // Wait for timeout (0.1s + margin)
-            time::sleep(Duration::from_millis(600)).await;
+            // Timeout is propagated from Python object → registry by connect()
+            // Wait for timeout (0.3s + margin for GIL contention under parallel load)
+            time::sleep(Duration::from_millis(1500)).await;
 
             Python::attach(|py| {
                 let has_error: bool = py
@@ -1299,6 +1403,154 @@ proto = TmoProto('tcp')
             });
 
             assert_eq!(reg.len(), 0, "connection should be removed from registry");
+        });
+    }
+
+    #[test]
+    fn test_silent_tracker_cap() {
+        let tracker = SilentConnectionTracker::new(2);
+        assert_eq!(tracker.count(), 0);
+
+        assert!(tracker.try_acquire(), "first acquire under cap");
+        assert_eq!(tracker.count(), 1);
+
+        assert!(tracker.try_acquire(), "second acquire at cap-1");
+        assert_eq!(tracker.count(), 2);
+
+        assert!(!tracker.try_acquire(), "third acquire should fail at cap");
+        assert_eq!(tracker.count(), 2);
+
+        tracker.release();
+        assert_eq!(tracker.count(), 1);
+
+        assert!(tracker.try_acquire(), "should succeed after release");
+        assert_eq!(tracker.count(), 2);
+    }
+
+    #[test]
+    fn test_accept_silence_holds_connection() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .max_blocking_threads(8)
+            .enable_all()
+            .build()
+            .expect("runtime");
+        rt.block_on(async {
+            let reg = Arc::new(ConnectionRegistry::new());
+            // Per-IP limit of 1 so the second connection gets rejected
+            let lim = Arc::new(ConnectionLimits::new(1, 10_000, 70));
+            let factory = Python::attach(|py| create_echo_factory(py, "tcp_silence_t"));
+
+            let reject_cfg = RejectConfig {
+                strategy: RejectStrategy::AcceptSilence,
+                silence_timeout_secs: 0.5,
+                silence_cap: 10,
+            };
+            let handle = tcp_listen(
+                "127.0.0.1:0".parse().expect("addr"),
+                reg.clone(),
+                lim.clone(),
+                factory,
+                65536,
+                reject_cfg,
+            )
+            .await
+            .expect("tcp_listen");
+
+            time::sleep(Duration::from_millis(50)).await;
+
+            // First connection is accepted normally
+            let _c1 = tokio::net::TcpStream::connect(handle.addr).await.expect("c1");
+            time::sleep(Duration::from_millis(200)).await;
+
+            // Second connection exceeds per-IP limit → rejected via silence
+            let mut c2 = tokio::net::TcpStream::connect(handle.addr).await.expect("c2");
+            time::sleep(Duration::from_millis(100)).await;
+
+            // c2 should still be "connected" (TCP-level) — it was accepted then held open
+            // Try writing to it - should succeed since the socket is open
+            let write_result = c2.write_all(b"test").await;
+            assert!(write_result.is_ok(), "silent connection should still be open");
+
+            // Wait for the silence timeout (0.5s + margin)
+            time::sleep(Duration::from_millis(700)).await;
+
+            // Now the silent connection should be dropped — reads should return EOF or error
+            let mut buf = [0u8; 16];
+            let read_result = tokio::time::timeout(
+                Duration::from_millis(500),
+                c2.read(&mut buf),
+            )
+            .await;
+            match read_result {
+                Ok(Ok(0)) => {} // EOF — expected
+                Ok(Err(_)) => {} // connection reset — also acceptable
+                other => panic!("expected EOF or error after silence timeout, got {other:?}"),
+            }
+
+            handle.stop();
+        });
+    }
+
+    #[test]
+    fn test_silent_cap_fallback_to_rst() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .max_blocking_threads(8)
+            .enable_all()
+            .build()
+            .expect("runtime");
+        rt.block_on(async {
+            let reg = Arc::new(ConnectionRegistry::new());
+            // Per-IP limit of 1 → second+ connections rejected
+            let lim = Arc::new(ConnectionLimits::new(1, 10_000, 70));
+            let factory = Python::attach(|py| create_echo_factory(py, "tcp_silcap_t"));
+
+            // Cap of 1 silent connection, long timeout so it won't expire during test
+            let reject_cfg = RejectConfig {
+                strategy: RejectStrategy::AcceptSilence,
+                silence_timeout_secs: 30.0,
+                silence_cap: 1,
+            };
+            let handle = tcp_listen(
+                "127.0.0.1:0".parse().expect("addr"),
+                reg.clone(),
+                lim.clone(),
+                factory,
+                65536,
+                reject_cfg,
+            )
+            .await
+            .expect("tcp_listen");
+
+            time::sleep(Duration::from_millis(50)).await;
+
+            // c1: accepted normally
+            let _c1 = tokio::net::TcpStream::connect(handle.addr).await.expect("c1");
+            time::sleep(Duration::from_millis(200)).await;
+
+            // c2: rejected → held silent (fills cap=1)
+            let _c2 = tokio::net::TcpStream::connect(handle.addr).await.expect("c2");
+            time::sleep(Duration::from_millis(100)).await;
+
+            // c3: rejected → cap full, falls back to RST (drop)
+            let mut c3 = tokio::net::TcpStream::connect(handle.addr).await.expect("c3");
+            time::sleep(Duration::from_millis(100)).await;
+
+            // c3 should be closed quickly (RST fallback) — read returns EOF or error
+            let mut buf = [0u8; 16];
+            let read_result = tokio::time::timeout(
+                Duration::from_millis(500),
+                c3.read(&mut buf),
+            )
+            .await;
+            match read_result {
+                Ok(Ok(0)) => {} // EOF
+                Ok(Err(_)) => {} // connection reset
+                other => panic!("expected RST-like close for c3 (cap exceeded), got {other:?}"),
+            }
+
+            handle.stop();
         });
     }
 }
