@@ -84,10 +84,57 @@ impl PyDionaea {
 
     /// Return network interface addresses.
     ///
-    /// Returns a dict mapping interface names to lists of addresses.
+    /// Returns a dict matching the C module.c format:
+    /// ```python
+    /// {"en0": {2: [{"addr": "192.168.1.1"}], 10: [{"addr": "fe80::1"}]}}
+    /// ```
+    /// Keys: interface name → AF number (2=AF_INET, 10=AF_INET6) → list of addr dicts.
     fn getifaddrs<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        // Will be implemented in Phase 6 (infrastructure modules).
-        Ok(PyDict::new(py))
+        let result = PyDict::new(py);
+
+        let addrs = nix::ifaddrs::getifaddrs().map_err(|e| {
+            pyo3::exceptions::PyOSError::new_err(format!("getifaddrs: {e}"))
+        })?;
+
+        for iface in addrs {
+            let Some(addr) = iface.address else {
+                continue;
+            };
+
+            let (af, addr_str) = if let Some(sin) = addr.as_sockaddr_in() {
+                let af = nix::sys::socket::AddressFamily::Inet as i32;
+                (af, std::net::Ipv4Addr::from(sin.ip()).to_string())
+            } else if let Some(sin6) = addr.as_sockaddr_in6() {
+                let af = nix::sys::socket::AddressFamily::Inet6 as i32;
+                (af, sin6.ip().to_string())
+            } else {
+                continue;
+            };
+
+            // Get or create the interface dict
+            let iface_dict = if let Some(existing) = result.get_item(&iface.interface_name)? {
+                existing.cast::<PyDict>()?.clone()
+            } else {
+                let d = PyDict::new(py);
+                result.set_item(&iface.interface_name, &d)?;
+                d
+            };
+
+            // Get or create the AF list
+            let af_list = if let Some(existing) = iface_dict.get_item(af)? {
+                existing.cast::<PyList>()?.clone()
+            } else {
+                let l = PyList::empty(py);
+                iface_dict.set_item(af, &l)?;
+                l
+            };
+
+            let entry = PyDict::new(py);
+            entry.set_item("addr", addr_str)?;
+            af_list.append(entry)?;
+        }
+
+        Ok(result)
     }
 
     /// Return the dionaea version string.
@@ -125,12 +172,32 @@ mod tests {
     }
 
     #[test]
-    fn test_dionaea_getifaddrs_returns_dict() {
+    fn test_dionaea_getifaddrs_returns_interfaces() {
         Python::attach(|py| {
             let d = Py::new(py, PyDionaea::new()).unwrap();
             let bound = d.bind(py);
             let addrs = bound.call_method0("getifaddrs").unwrap();
-            assert!(addrs.cast::<PyDict>().is_ok());
+            let dict = addrs.cast::<PyDict>().unwrap();
+            // Every machine has at least the loopback interface
+            assert!(!dict.is_empty(), "getifaddrs should return at least one interface");
+
+            // Check structure: interface → AF dict → list of addr dicts
+            for (iface_name, af_dict) in dict.iter() {
+                let _name: String = iface_name.extract().unwrap();
+                let af_dict = af_dict.cast::<PyDict>().unwrap();
+                for (_af, addr_list) in af_dict.iter() {
+                    let addr_list = addr_list.cast::<PyList>().unwrap();
+                    for entry in addr_list.iter() {
+                        let entry_dict = entry.cast::<PyDict>().unwrap();
+                        let _addr: String = entry_dict
+                            .get_item("addr")
+                            .unwrap()
+                            .unwrap()
+                            .extract()
+                            .unwrap();
+                    }
+                }
+            }
         });
     }
 }
