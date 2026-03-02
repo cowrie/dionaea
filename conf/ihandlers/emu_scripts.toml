@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: none
+# SPDX-License-Identifier: CC0-1.0
+
+name = "emu_scripts"
+
+[config]
+# Maximum number of subdownloads
+# max_subdownloads = 20
+enabled_handlers = ["powershell", "vbscript"]
+# Be very careful if you use the raw_url handler
+# enabled_handlers = ["powershell", "vbscript", "raw_url"]

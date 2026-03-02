@@ -13,7 +13,7 @@ from threading import Event, Thread
 from collections.abc import Callable
 from typing import Any
 
-import yaml
+import tomllib
 
 logger = logging.getLogger('dionaea')
 logger.setLevel(logging.DEBUG)
@@ -157,26 +157,15 @@ def load_config_from_files(filename_patterns: list[str]) -> list[dict[str, Any]]
     for filename_pattern in filename_patterns:
         for filename in glob.glob(filename_pattern):
             try:
-                with open(filename) as fp:
-                    file_configs = yaml.safe_load(fp)
-            except yaml.YAMLError as e:
-                if hasattr(e, 'problem_mark'):
-                    mark = e.problem_mark  # type: ignore[attr-defined]
-                    logger.error(
-                        "Error while parsing config file '%s' at line: %d column: %d message: '%s'",
-                        filename,
-                        mark.line + 1,
-                        mark.column + 1,
-                        e.problem  # type: ignore[attr-defined]
-                    )
-                    if e.context is not None:  # type: ignore[attr-defined]
-                        logger.debug(f"Parser(context): {e.context}")  # type: ignore[attr-defined]
-                else:
-                    logger.error("Unknown error while parsing config file '%s'", filename)
-
-                # Skip processing
+                with open(filename, "rb") as fp:
+                    parsed = tomllib.load(fp)
+            except tomllib.TOMLDecodeError as e:
+                logger.error(
+                    "Error while parsing config file '%s': %s",
+                    filename,
+                    e,
+                )
                 continue
 
-            if isinstance(file_configs, (tuple, list)):
-                configs += file_configs
+            configs.append(parsed)
     return configs

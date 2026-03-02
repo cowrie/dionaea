@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: none
+# SPDX-License-Identifier: CC0-1.0
+
+name = "blackhole"
+
+# Telnet
+[[config.services]]
+port = 23
+protocol = "tcp"
+
+# DNS
+[[config.services]]
+port = 53
+protocol = "udp"
+
+[[config.services]]
+port = 53
+protocol = "tcp"
+
+# NTP
+[[config.services]]
+port = 123
+protocol = "udp"

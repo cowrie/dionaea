@@ -444,8 +444,8 @@ pcap = false
 
 [modules.python]
 imports = ["dionaea"]
-service_configs = ["/etc/dionaea/services-enabled/*.yaml"]
-ihandler_configs = ["/etc/dionaea/ihandlers-enabled/*.yaml"]
+service_configs = ["/etc/dionaea/services-enabled/*.toml"]
+ihandler_configs = ["/etc/dionaea/ihandlers-enabled/*.toml"]
 "#;
         let config = load_from_str(toml).expect("parse full config");
         assert_eq!(config.dionaea.user, "honeypot");

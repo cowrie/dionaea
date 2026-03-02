@@ -93,8 +93,8 @@ lookup_ethernet_addr=no
 [module.python]
 imports=dionaea.log,dionaea.services,dionaea.ihandlers
 sys_paths=default
-service_configs=@DIONAEA_CONFDIR@/services-enabled/*.yaml
-ihandler_configs=@DIONAEA_CONFDIR@/ihandlers-enabled/*.yaml
+service_configs=@DIONAEA_CONFDIR@/services-enabled/*.toml
+ihandler_configs=@DIONAEA_CONFDIR@/ihandlers-enabled/*.toml
 # Python module log level: debug, info, warning, error, critical (default: info)
 loglevel=info
 

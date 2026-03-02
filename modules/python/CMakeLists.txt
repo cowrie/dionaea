@@ -92,21 +92,23 @@ install_available_python_config(
     BUILD_DIR services-available
     DESTINATION_DIR services-available
     FILES
-        blackhole.yaml
-        epmap.yaml
+        blackhole.toml
+        epmap.toml
         ftp.yaml.in
         http.yaml.in
-        memcache.yaml
-        mirror.yaml
-        mongo.yaml
-        mqtt.yaml
-        mssql.yaml
-        mysql.yaml
+        memcache.toml
+        mirror.toml
+        mongo.toml
+        mqtt.toml
+        mssql.toml
+        mysql.toml
         nbns.yaml.in
-        pptp.yaml
+        pptp.toml
         printer.yaml.in
         sip.yaml.in
-        smb.yaml
+        smb.toml
+        snmp.toml
+        snmptrap.toml
         tftp.yaml.in
         upnp.yaml.in
         wireguard.yaml.in
@@ -116,21 +118,23 @@ install_enabled_python_config(
     DESTINATION services-enabled
     SOURCE_REL_DIR ../services-available
     FILES
-        blackhole.yaml
-        epmap.yaml
+        blackhole.toml
+        epmap.toml
         ftp.yaml
         http.yaml
-        memcache.yaml
-        mirror.yaml
-        mongo.yaml
-        mqtt.yaml
-        mssql.yaml
-        mysql.yaml
+        memcache.toml
+        mirror.toml
+        mongo.toml
+        mqtt.toml
+        mssql.toml
+        mysql.toml
         nbns.yaml
-        pptp.yaml
+        pptp.toml
         printer.yaml
         sip.yaml
-        smb.yaml
+        smb.toml
+        snmp.toml
+        snmptrap.toml
         tftp.yaml
         upnp.yaml
         wireguard.yaml
@@ -142,24 +146,24 @@ install_available_python_config(
     BUILD_DIR ihandlers-available
     DESTINATION_DIR ihandlers-available
     FILES
-        cmdshell.yaml
-        emuprofile.yaml
-        emu_scripts.yaml
+        cmdshell.toml
+        emuprofile.toml
+        emu_scripts.toml
         fail2ban.yaml.in
-        ftp.yaml
-        hpfeeds.yaml
+        ftp.toml
+        hpfeeds.toml
         log_db_sql.yaml.in
         log_incident.yaml.in
         log_json.yaml.in
         log_sqlite.yaml.in
-        nfq.yaml
-        p0f.yaml
-        s3.yaml
-        speakeasy.yaml
-        store.yaml
-        submit_http_post.yaml
-        submit_http.yaml
-        tftp_download.yaml
+        nfq.toml
+        p0f.toml
+        s3.toml
+        speakeasy.toml
+        store.toml
+        submit_http_post.toml
+        submit_http.toml
+        tftp_download.toml
         virustotal.yaml.in
 )
 
@@ -167,13 +171,13 @@ install_enabled_python_config(
     DESTINATION ihandlers-enabled
     SOURCE_REL_DIR ../ihandlers-available
     FILES
-        cmdshell.yaml
-        emuprofile.yaml
-        ftp.yaml
+        cmdshell.toml
+        emuprofile.toml
+        ftp.toml
         log_sqlite.yaml
-        speakeasy.yaml
-        store.yaml
-        tftp_download.yaml
+        speakeasy.toml
+        store.toml
+        tftp_download.toml
 )
 
 ##### IHandler

@@ -1,0 +1,60 @@
+# SPDX-FileCopyrightText: none
+# SPDX-License-Identifier: CC0-1.0
+
+name = "smb"
+
+## Generic setting ##
+
+# 1:"Windows XP Service Pack 0/1",
+# 2:"Windows XP Service Pack 2",
+# 3:"Windows XP Service Pack 3",
+# 4:"Windows 7 Service Pack 1",
+# 5:"Linux Samba 4.3.11"
+# [config]
+# os_type = 2
+
+# Architecture to advertise for DoublePulsar (32 or 64)
+# Controls whether 32-bit or 64-bit payloads are delivered
+# os_arch = 64
+
+# Additional config
+# primary_domain = "Test"
+# oem_domain_name = "Test"
+# server_name = "TEST-SERVER"
+
+## Windows 7 ##
+# native_os = "Windows 7 Professional 7600"
+# native_lan_manager = "Windows 7 Professional 6.1"
+# [config.shares."ADMIN$"]
+# comment = "Remote Admin"
+# path = "C:\\Windows"
+# type = "disktree"
+# [config.shares."C$"]
+# comment = "Default Share"
+# path = "C:\\"
+# type = ["disktree", "special"]
+# [config.shares."IPC$"]
+# comment = "Remote IPC"
+# type = "ipc"
+# [config.shares.Printer]
+# comment = "Microsoft XPS Document Writer"
+# type = "printq"
+
+## Samba ##
+# native_os = "Windows 6.1"
+# native_lan_manager = "Samba 4.3.11"
+# [config.shares.admin]
+# comment = "Remote Admin"
+# path = "\\home\\admin"
+# type = "disktree"
+# [config.shares.share]
+# comment = "Default Share"
+# path = "\\share"
+# type = "disktree"
+# [config.shares."IPC$"]
+# comment = "Remote IPC"
+# path = "IPC Service"
+# type = "ipc"
+# [config.shares.Printer]
+# comment = "Printer Drivers"
+# type = "printq"
