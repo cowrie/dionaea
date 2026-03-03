@@ -1,5 +1,5 @@
 // ABOUTME: Integration test for the full service loading chain.
-// ABOUTME: Loads dionaea + services modules, starts blackhole service, verifies TCP accept.
+// ABOUTME: Loads dionaea + services modules, starts blackhole + HTTP services via ServiceLoader.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -9,7 +9,7 @@ use dionaea::connection::limits::ConnectionLimits;
 use dionaea::connection::ConnectionRegistry;
 use dionaea::runtime;
 use pyo3::prelude::*;
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::time;
 
@@ -25,9 +25,17 @@ fn test_full_service_loading_chain() {
         .canonicalize()
         .expect("modules/python/ should exist");
 
-    // Create a temp service config for blackhole on port 0 (random)
+    // Create temp dirs for service configs and HTTP root
     let tmp_dir = std::env::temp_dir().join("dionaea_service_test");
-    let _ = std::fs::create_dir_all(&tmp_dir);
+    let http_root = tmp_dir.join("www");
+    let _ = std::fs::create_dir_all(&http_root);
+    std::fs::write(
+        http_root.join("index.html"),
+        "<html><body>ServiceLoader HTTP works!</body></html>",
+    )
+    .expect("write index.html");
+
+    // Blackhole service config
     std::fs::write(
         tmp_dir.join("blackhole.toml"),
         r#"
@@ -39,6 +47,19 @@ protocol = "tcp"
 "#,
     )
     .expect("write blackhole.toml");
+
+    // HTTP service config
+    let http_config = format!(
+        r#"
+name = "http"
+
+[config]
+root = "{root}"
+ports = [0]
+"#,
+        root = http_root.to_string_lossy().replace('\\', "\\\\"),
+    );
+    std::fs::write(tmp_dir.join("http.toml"), http_config).expect("write http.toml");
 
     let svc_glob = tmp_dir.join("*.toml").to_string_lossy().to_string();
 
@@ -112,82 +133,99 @@ python_path = "{python_path}"
         // Give listeners time to start (services.start() binds/listens)
         time::sleep(Duration::from_millis(500)).await;
 
-        // Blackhole uses port 0, so we need to find what port it bound to.
-        // Check the registry for any listening connections, or try to discover
-        // from Python.
-        let bound_port: u16 = tokio::task::spawn_blocking(|| {
+        // Discover bound ports from Python's g_slave
+        let (blackhole_port, http_port) = tokio::task::spawn_blocking(|| {
             Python::attach(|py| {
                 py.run(
                     c"
 from dionaea.services import g_slave
-_found_port = 0
+from dionaea.blackhole import BlackholeService
+from dionaea.http import HTTPService
+_blackhole_port = 0
+_http_port = 0
 if g_slave and hasattr(g_slave, 'daemons'):
     for _addr, _services in g_slave.daemons.items():
         for _svc, _daemons in _services.items():
             for _d in _daemons:
                 if _d.local.port > 0:
-                    _found_port = _d.local.port
+                    if _svc is BlackholeService:
+                        _blackhole_port = _d.local.port
+                    elif _svc is HTTPService:
+                        _http_port = _d.local.port
 ",
                     None,
                     None,
                 )
-                .expect("find port");
-                let val = py.eval(c"_found_port", None, None).expect("read port");
-                val.extract::<u16>().unwrap_or(0)
+                .expect("find ports");
+                let bp: u16 = py
+                    .eval(c"_blackhole_port", None, None)
+                    .expect("bp")
+                    .extract()
+                    .unwrap_or(0);
+                let hp: u16 = py
+                    .eval(c"_http_port", None, None)
+                    .expect("hp")
+                    .extract()
+                    .unwrap_or(0);
+                (bp, hp)
             })
         })
         .await
-        .expect("get port");
+        .expect("get ports");
 
-        if bound_port == 0 {
-            // port 0 means the blackhole service didn't start.
-            // This could be because services.py couldn't find 127.0.0.1 via
-            // getifaddrs in manual mode. Let's check what services.py saw.
-            let debug = tokio::task::spawn_blocking(|| {
-                Python::attach(|py| {
-                    py.run(
-                        c"
-from dionaea.services import g_slave
-_debug_parts = []
-_debug_parts.append('type=' + type(g_slave).__name__)
-if g_slave and hasattr(g_slave, 'addresses'):
-    _debug_parts.append('addrs=' + str(g_slave.addresses))
-if g_slave and hasattr(g_slave, 'daemons'):
-    _debug_parts.append('daemons=' + str(g_slave.daemons))
-_debug_info = ', '.join(_debug_parts)
-",
-                        None,
-                        None,
-                    )
-                    .ok();
-                    match py.eval(c"_debug_info", None, None) {
-                        Ok(val) => val.extract::<String>().unwrap_or_default(),
-                        Err(e) => format!("error: {e}"),
-                    }
-                })
-            })
-            .await
-            .expect("debug");
-            panic!("Blackhole service didn't start (port=0). Debug: {debug}");
-        }
-
-        // Connect to the blackhole service
-        let mut stream = TcpStream::connect(format!("127.0.0.1:{bound_port}"))
-            .await
-            .expect("connect to blackhole");
-
-        // Blackhole accepts and discards data
-        stream.write_all(b"test data").await.expect("write");
-        time::sleep(Duration::from_millis(200)).await;
-
-        // Verify connection was tracked
         assert!(
-            registry.len() >= 1,
-            "blackhole connection should be in registry"
+            blackhole_port > 0,
+            "blackhole service should have started on a port"
+        );
+        assert!(
+            http_port > 0,
+            "http service should have started on a port"
         );
 
-        drop(stream);
-        time::sleep(Duration::from_millis(200)).await;
+        // --- Test blackhole: accepts and discards data ---
+        {
+            let mut stream = TcpStream::connect(format!("127.0.0.1:{blackhole_port}"))
+                .await
+                .expect("connect to blackhole");
+            stream.write_all(b"test data").await.expect("write");
+            time::sleep(Duration::from_millis(200)).await;
+            assert!(
+                registry.len() >= 1,
+                "blackhole connection should be in registry"
+            );
+            drop(stream);
+            time::sleep(Duration::from_millis(200)).await;
+        }
+
+        // --- Test HTTP: GET / returns 200 OK with index.html content ---
+        {
+            let mut stream = TcpStream::connect(format!("127.0.0.1:{http_port}"))
+                .await
+                .expect("connect to http");
+            stream
+                .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                .await
+                .expect("write GET");
+
+            let mut response = Vec::new();
+            let mut buf = vec![0u8; 4096];
+            loop {
+                match time::timeout(Duration::from_secs(3), stream.read(&mut buf)).await {
+                    Ok(Ok(0)) => break,
+                    Ok(Ok(n)) => response.extend_from_slice(&buf[..n]),
+                    Ok(Err(_)) | Err(_) => break,
+                }
+            }
+            let response_str = String::from_utf8_lossy(&response);
+            assert!(
+                response_str.contains("HTTP/1.1 200"),
+                "expected 200 OK from HTTP service, got: {response_str}"
+            );
+            assert!(
+                response_str.contains("ServiceLoader HTTP works!"),
+                "expected HTML body from HTTP service, got: {response_str}"
+            );
+        }
 
         // Cleanup
         let _ = std::fs::remove_dir_all(&tmp_dir);
