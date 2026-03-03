@@ -531,6 +531,31 @@ pub(crate) async fn handle_connection<S>(
                         if let Some(mut meta) = registry.get_mut(id) {
                             meta.stats.bytes_out += data.len() as u64;
                         }
+
+                        // Notify Python that data was written (enables chunked transfers).
+                        // handle_io_out may call self.send() to queue more data.
+                        let h = handler;
+                        let post = tokio::task::spawn_blocking(move || {
+                            Python::attach(|py| {
+                                let result = callback::call_handle_io_out(h.bind(py));
+                                (h, result)
+                            })
+                        })
+                        .await;
+
+                        match post {
+                            Ok((h, PostCallback::Continue)) => {
+                                handler = h;
+                            }
+                            Ok((h, _)) => {
+                                invalidate_handler(h);
+                                return;
+                            }
+                            Err(e) => {
+                                tracing::error!(connection_id = %id, err = %e, "io_out panicked");
+                                return;
+                            }
+                        }
                     }
                     Some(SendMessage::SetTimeout { which, value }) => {
                         update_timeout(&registry, id, which, value);

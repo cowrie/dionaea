@@ -29,6 +29,8 @@ level = "debug"
 }
 
 /// Load the real http.py protocol, serve a static HTML file, verify HTTP GET response.
+///
+/// Also tests large file transfer (>64KB) that requires handle_io_out chunking.
 #[test]
 fn test_real_http_get() {
     let registry = Arc::new(ConnectionRegistry::new());
@@ -145,6 +147,52 @@ port = h.local.port
             response_str.contains("Hello from Dionaea!"),
             "expected HTML body in response, got: {response_str}"
         );
+
+        // --- Test large file (>64KB) requiring handle_io_out chunking ---
+        {
+            // Create a 128KB file
+            let large_content = "X".repeat(128 * 1024);
+            std::fs::write(tmp_dir.join("large.txt"), &large_content)
+                .expect("write large.txt");
+
+            let mut stream2 = TcpStream::connect(format!("127.0.0.1:{bound_port}"))
+                .await
+                .expect("connect for large file");
+
+            stream2
+                .write_all(b"GET /large.txt HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                .await
+                .expect("write GET large");
+
+            let mut response2 = Vec::new();
+            let mut buf2 = vec![0u8; 8192];
+            loop {
+                match time::timeout(Duration::from_secs(5), stream2.read(&mut buf2)).await {
+                    Ok(Ok(0)) => break,
+                    Ok(Ok(n)) => response2.extend_from_slice(&buf2[..n]),
+                    Ok(Err(_)) | Err(_) => break,
+                }
+            }
+
+            let response2_str = String::from_utf8_lossy(&response2);
+            assert!(
+                response2_str.contains("HTTP/1.1 200"),
+                "expected 200 OK for large file, got start: {}",
+                &response2_str[..response2_str.len().min(200)]
+            );
+            // Verify the body contains the full content (find the end of headers)
+            if let Some(body_start) = response2_str.find("\r\n\r\n") {
+                let body = &response2_str[body_start + 4..];
+                assert_eq!(
+                    body.len(),
+                    128 * 1024,
+                    "expected 128KB body, got {} bytes",
+                    body.len()
+                );
+            } else {
+                panic!("no header/body separator found in response");
+            }
+        }
 
         // Cleanup
         let _ = std::fs::remove_dir_all(&tmp_dir);
