@@ -2012,7 +2012,27 @@ Timeouts integrate into the connection task's `tokio::select!` loop.
 
 ---
 
-## Phase 5: Processor Pipeline + Bistream + Shellcode (Week 10)
+## Phase 5: End-to-End Protocol Validation ✅ COMPLETE
+
+**Goal:** Prove real Python protocols work through the Rust core.
+
+### Completed
+- **echo.py** end-to-end: loads real protocol, TCP connect, welcome banner, data reversal
+- **http.py** end-to-end: loads real protocol, HTTP GET, serves static files, 200 OK
+
+### Bugs Found & Fixed
+- `PyConnection.__new__` rejected `proto` keyword argument
+- `drain_control_messages` silently dropped Data messages sent during `handle_established`
+- `apply_parent_config` was a no-op stub (critical for httpd config inheritance)
+- `py_to_opaque` couldn't convert connection objects to OpaqueData
+
+---
+
+## Phase 6: Processor Pipeline + Bistream + Shellcode (POSTPONED)
+
+**Status:** Postponed until more protocols are validated. The processor pipeline is not
+needed for basic protocol operation (`self.processors()` is a no-op stub). Prioritizing
+getting more protocols running end-to-end first.
 
 **Goal:** Processor tree, bistream recording, shellcode detection.
 
@@ -2125,7 +2145,7 @@ When shellcode detected:
 
 ---
 
-## Phase 6: Infrastructure Modules (Weeks 11-12)
+## Phase 7: Infrastructure Modules (Weeks 11-12)
 
 All behind Cargo features on the `dionaea` crate.
 
@@ -2253,7 +2273,7 @@ nix::unistd::setuid(uid)?;
 
 ---
 
-## Phase 7: Integration Testing + Acceptance (Weeks 13-14)
+## Phase 8: Integration Testing + Acceptance (Weeks 13-14)
 
 By this point, every phase has its own tests. This phase is about **end-to-end acceptance**
 and **feature parity validation** against the C version.
@@ -2305,7 +2325,7 @@ Use `criterion` or `hyperfine` for benchmarks. Store results for regression trac
 
 ---
 
-## Phase 8: Deployment + Packaging (Week 15)
+## Phase 9: Deployment + Packaging (Week 15)
 
 ### Docker image
 

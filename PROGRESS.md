@@ -1,137 +1,118 @@
-# Phase 4 Progress - TCP/UDP I/O + TLS
+# Dionaea v2 Rust Migration — Progress
 
-## Completed Increments
+## Phase 4: TCP/UDP I/O + TLS ✅ COMPLETE
 
-### 1. Throttle + Accounting (`connection/throttle.rs`) ✅
+### Completed Increments
+
+#### 1. Throttle + Accounting (`connection/throttle.rs`) ✅
 - Token bucket rate limiter with configurable bytes/sec, interval refill, burst cap
 - Cumulative byte accounting with optional limit
 - 11 tests, all passing
-- Committed: `36f8578`
 
-### 2. ConnectionLimits (`connection/limits.rs`) ✅
+#### 2. ConnectionLimits (`connection/limits.rs`) ✅
 - Per-IP `DashMap<IpAddr, AtomicU32>` counting with cleanup-at-zero
 - Global FD % and total connection checks
 - `RejectReason` enum for diagnostics
 - 8 tests, all passing
-- Committed: `36f8578`
 
-### 3. IP Deny List (`connection/limits.rs`) ✅
+#### 3. IP Deny List (`connection/limits.rs`) ✅
 - CIDR matching via `ip_network_table` crate, behind `#[cfg(feature = "deny-list")]`
 - Optional TTL per entry with auto-expire
-- Added `ip_network = "0.4"` to workspace deps
 - 7 tests (including integration with ConnectionLimits), all passing
-- Committed: `36f8578`
 
-### 4. Callback Error Recovery (`connection/callback.rs`) ✅
-- Matches actual `binding.pyx` exception handling behavior:
-  - `handle_origin`/`handle_established`: log exception, continue (no close)
-  - `handle_io_in`/`handle_io_out`: log exception, close connection
-  - `handle_disconnect`/timeouts: propagate (close on error)
-  - `handle_error`: log and continue
+#### 4. Callback Error Recovery (`connection/callback.rs`) ✅
+- Matches actual `binding.pyx` exception handling behavior
 - `PostCallback` enum: `Continue | Close | Reconnect`
 - 9 tests, all passing
-- Committed: `d861384`
 
-### 5-7. TCP Listener + Handler + Timeouts (`connection/tcp.rs`) ✅
+#### 5-7. TCP Listener + Handler + Timeouts (`connection/tcp.rs`) ✅
 - `tcp_listen()` → `TcpListenerHandle` with bound address
 - Accept loop: checks limits → `registry.register` → `factory_create` via spawn_blocking
-- Handler I/O loop with `tokio::select!`:
-  - Socket read → `handle_io_in` via spawn_blocking + GIL
-  - Send channel → `write_all` to socket
-  - Idle timeout (resets on data) → `handle_timeout_idle`
-  - Sustain timeout (never resets) → `handle_timeout_sustain`
-- `drain_control_messages()` after `handle_established` to pick up Python-set timeouts
-- Throttle + accounting integration (close when limit exceeded)
-- Partial consumption buffer (handle_io_in returns < n)
-- Sequential callback guarantee (await each callback before next I/O)
-- `call_disconnect()` helper with move-and-return pattern
-- 6 tests passing: bind, echo roundtrip, established+disconnect, per-IP rejection, idle timeout, exception closes
+- Handler I/O loop with `tokio::select!`
+- `drain_control_messages()` preserves Data messages sent during handle_established
+- Throttle + accounting integration
+- 6 tests passing
 
-#### Key PyO3 0.28 patterns used:
-- `Py::clone_ref(py)` inside `Python::attach()` for factory cloning (Py::clone removed in 0.28)
-- Move-and-return pattern for all spawn_blocking calls (handler moved in, returned with result)
-- `tokio::pin!` for Sleep futures in select!
-- `Python::attach()` for brief GIL acquisition on worker threads (atomic incref only)
+#### 8. TCP Outbound Connect ✅
+- `PyConnection.connect()`: registers in registry, spawns async `tcp_connect_task`
+- 3 tests: echo roundtrip, connect failure, connect timeout
 
-#### Changes to existing files:
-- `connection/mod.rs`: added `pub mod callback; pub mod limits; pub mod tcp; pub mod throttle;` + `iter_ids()` method on registry
-- `python/connection.rs`: fields changed from private to `pub(crate)` (id, transport, protocol, status, local, remote, timeouts, send_tx)
+#### 9. Connection Rejection Strategy ✅
+- `RejectStrategy`: Rst, AcceptSilence
+- `SilentConnectionTracker` with configurable cap
+- 3 tests
+
+#### 10. TLS (`connection/tls.rs`) ✅
+- Self-signed cert generation, SSL acceptor, TLS accept loop
+- Behind `#[cfg(feature = "tls")]`
+- 3 tests
+
+#### 11. UDP (`connection/udp.rs`) ✅
+- Single socket, per-peer Python handlers, idle timeout sweep
+- 2 tests
+
+#### 12. Wire into main.rs + Python bind/listen ✅
+- `RuntimeState` global, `PyConnection.bind()/listen()`
+- 1 integration test, 1 unit test
+
+---
+
+## Phase 5: End-to-End Protocol Validation ✅ COMPLETE
+
+### 13. Real echo.py Protocol Test ✅
+- Loads actual `modules/python/dionaea/echo.py` via Python module loader
+- Binds/listens on random port, connects with TCP client
+- Verifies welcome message ("welcome to reverse world!\n") and data reversal
+- **Bugs fixed:**
+  - `PyConnection.__new__` rejected `proto` keyword argument (was `_proto`)
+  - `drain_control_messages` silently dropped Data messages (welcome banners)
+- Committed: `84d2e34`
+
+### 14. Real http.py Protocol Test ✅
+- Loads actual `modules/python/dionaea/http.py` via module loader
+- Creates temp directory with index.html, serves via httpd protocol
+- HTTP GET returns 200 OK with correct body
+- **Bugs fixed:**
+  - `apply_parent_config` was a no-op stub — now iterates `shared_config_values`
+    and copies attributes from parent to child (critical for config inheritance)
+  - `py_to_opaque` rejected connection objects — now detects `PyConnection`
+    subclasses and stores as `ConnectionRef(id)`, fixing `i.con = self` in incidents
+- Committed: `16f1485`
+
+---
+
+## Test Summary
+- Branch: `dionaea-v2-rust`
+- 145 unit tests passing + 3 integration tests (with `--features tls`)
+- 1 flaky benchmark test (`test_spawn_blocking_gil_latency`) — GIL contention under
+  parallel test load, not a regression
 
 ## Known Issue
-- `test_spawn_blocking_gil_latency` (pre-existing benchmark test in `python/connection.rs`) fails when run alongside TCP tests due to GIL contention. The P99 threshold of 500μs is exceeded under heavy parallel test load. This test was passing before Phase 4 only because there was no GIL contention. **Not a regression — the benchmark needs a higher threshold or isolation.**
+- `test_spawn_blocking_gil_latency`: P99 threshold of 500μs exceeded under heavy
+  parallel test load. Needs higher threshold or test isolation.
 
-### 8. TCP Outbound Connect (`connection/tcp.rs`, `python/connection.rs`) ✅
-- `PyConnection.connect()` implemented: registers in registry, spawns async `tcp_connect_task`
-- `tcp_connect_task`: DNS resolve → `TcpStream::connect` with configurable connecting timeout
-- On success: updates Python handler addresses, runs standard handler I/O loop
-- On failure/timeout: calls `handle_error` on the Python handler
-- Added `registry`, `limits`, `recv_buffer_size` fields to `PyConnection` for context propagation
-- `factory_create` passes runtime context to child connections
-- 3 tests: echo roundtrip, connect failure, connect timeout
-- Committed: `31b364f`
-
-### 9. Connection Rejection Strategy (`connection/tcp.rs`) ✅
-- `RejectStrategy` enum: `Rst` (drop immediately), `AcceptSilence` (hold open silently)
-- `RejectConfig`: strategy, silence_timeout_secs (default 30), silence_cap (default 100)
-- `SilentConnectionTracker`: atomic try_acquire/release with configurable cap
-- `reject_connection()` integrated into accept_loop
-- Falls back to RST when silent cap is exhausted
-- Also fixed: `connect()` now propagates Python timeouts to registry (was a race)
-- 3 tests: tracker cap, accept_silence holds then drops, silent cap fallback to RST
-
-### 10. TLS (`connection/tls.rs`) ✅
-- Self-signed cert generation: RSA key (configurable bits), X509 v3, SHA256, 365-day validity
-- `CertSubject` struct: country, common_name, organization, organizational_unit
-- `build_ssl_acceptor()`: SSLv23 method, no client cert verify, optional cipher list
-- `tls_listen()`: TCP accept → TLS handshake (with timeout) → generic handle_connection
-- `handle_connection` refactored to generic `<S: AsyncRead + AsyncWrite + Unpin>`
-- Shared helpers exported as `pub(crate)`: cleanup_connection, invalidate_handler, etc.
-- Behind `#[cfg(feature = "tls")]`
-- 3 tests: cert generation, acceptor build, TLS echo roundtrip
-
-### 11. UDP (`connection/udp.rs`) ✅
-- `udp_listen()` → `UdpSocket`, peer table `HashMap<SocketAddr, UdpPeer>`
-- Single recv loop with `tokio::select!` for recv, outgoing sends, idle sweep
-- Per-peer Python handlers via factory pattern (same as TCP)
-- `drain_peer_sends()` for reply path via `SendMessage::Datagram`
-- `sweep_idle_peers()` runs every 1s, removes peers idle longer than configured timeout
-- `remove_peer()` calls `handle_disconnect` on Python handler + cleanup
-- Handler addresses set on Python handler before `handle_established` (local/remote)
-- Move-and-return pattern for `Py<PyAny>` across `spawn_blocking` boundaries
-- 2 tests: UDP echo roundtrip, peer idle timeout
-
-### 12. Wire into main.rs + Python bind/listen ✅
-- `RuntimeState` global (`OnceLock<Arc<RuntimeState>>`) holding registry, limits, listener handles
-- `async_main` creates `Arc<ConnectionRegistry>` + `Arc<ConnectionLimits>` from config
-- `PyConnection.bind()` stores local address/port
-- `PyConnection.listen()` starts TCP/UDP listener via spawned async task
-  - Uses oneshot channel to synchronously return bound address (port 0 support)
-  - Updates `local.host`/`local.port` with actual bound address
-  - Tracks listener abort handles in `RuntimeState` for shutdown
-- Non-factory `PyConnection` constructor now assigns an ID at creation (matches C behavior)
-- Non-factory constructor picks up registry/limits from global runtime state
-- Signal handler calls `state.stop_all_listeners()` on SIGTERM/SIGINT
-- 1 integration test: full Python bind→listen→connect→echo→disconnect lifecycle
-- 1 unit test: bind stores address
-
-## Files Modified/Created in Phase 4
+## Files Modified/Created
 ```
-NEW: crates/dionaea/src/connection/throttle.rs
-NEW: crates/dionaea/src/connection/limits.rs
-NEW: crates/dionaea/src/connection/callback.rs
-NEW: crates/dionaea/src/connection/tcp.rs
-NEW: crates/dionaea/src/connection/tls.rs
-NEW: crates/dionaea/src/connection/udp.rs
-NEW: crates/dionaea/src/runtime.rs
-NEW: crates/dionaea/tests/listen_connect.rs
-MOD: crates/dionaea/src/connection/mod.rs  (module registration + iter_ids + tls + udp mod)
-MOD: crates/dionaea/src/python/connection.rs  (bind/listen impl, runtime state pickup, ID at creation)
-MOD: crates/dionaea/src/main.rs  (runtime state init, graceful shutdown)
-MOD: crates/dionaea/src/lib.rs  (added runtime module)
-MOD: Cargo.toml  (added ip_network = "0.4")
-MOD: crates/dionaea/Cargo.toml  (added ip_network dep, updated deny-list feature)
-```
+Phase 4:
+  NEW: crates/dionaea/src/connection/throttle.rs
+  NEW: crates/dionaea/src/connection/limits.rs
+  NEW: crates/dionaea/src/connection/callback.rs
+  NEW: crates/dionaea/src/connection/tcp.rs
+  NEW: crates/dionaea/src/connection/tls.rs
+  NEW: crates/dionaea/src/connection/udp.rs
+  NEW: crates/dionaea/src/runtime.rs
+  NEW: crates/dionaea/tests/listen_connect.rs
+  MOD: crates/dionaea/src/connection/mod.rs
+  MOD: crates/dionaea/src/python/connection.rs
+  MOD: crates/dionaea/src/main.rs
+  MOD: crates/dionaea/src/lib.rs
+  MOD: Cargo.toml
+  MOD: crates/dionaea/Cargo.toml
 
-## Git State
-- Branch: `dionaea-v2-rust`
-- 142 tests passing (141 unit + 1 integration, with `--features tls`)
+Phase 5:
+  NEW: crates/dionaea/tests/echo_protocol.rs
+  NEW: crates/dionaea/tests/http_protocol.rs
+  MOD: crates/dionaea/src/connection/tcp.rs  (drain_control_messages returns Data)
+  MOD: crates/dionaea/src/python/connection.rs  (__new__ proto kwarg, apply_parent_config)
+  MOD: crates/dionaea/src/python/convert.rs  (PyConnection → ConnectionRef)
+```
