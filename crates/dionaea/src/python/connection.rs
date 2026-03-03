@@ -488,8 +488,43 @@ impl PyConnection {
                     }
                 });
             }
-            // TLS listen requires SslAcceptor setup (cert generation, cipher config).
-            // Handled separately via a dedicated tls_listen() call path.
+            #[cfg(feature = "tls")]
+            "tls" => {
+                use crate::connection::tls::{generate_self_signed_cert, build_ssl_acceptor, TlsConfig};
+                use std::time::Duration;
+
+                let tls_config = TlsConfig::default();
+                let (pkey, cert) = generate_self_signed_cert(&tls_config).map_err(|e| {
+                    pyo3::exceptions::PyRuntimeError::new_err(format!("cert generation failed: {e}"))
+                })?;
+                let acceptor = build_ssl_acceptor(&pkey, &cert, None).map_err(|e| {
+                    pyo3::exceptions::PyRuntimeError::new_err(format!("SSL acceptor failed: {e}"))
+                })?;
+                let handshake_timeout = Duration::from_secs(10);
+
+                let rt_state_for_track = rt_state.clone();
+                handle.spawn(async move {
+                    match crate::connection::tls::tls_listen(
+                        bind_addr, registry, limits, factory, recv_buffer_size,
+                        crate::connection::tcp::RejectConfig::default(),
+                        acceptor,
+                        handshake_timeout,
+                    )
+                    .await
+                    {
+                        Ok(listener_handle) => {
+                            tracing::info!(addr = %listener_handle.addr, transport = "tls", "listener started");
+                            let addr = listener_handle.addr;
+                            rt_state_for_track.track_listener(listener_handle.abort_handle());
+                            let _ = result_tx.send(Ok(addr));
+                        }
+                        Err(e) => {
+                            tracing::error!(err = %e, addr = %bind_addr, "TLS listen failed");
+                            let _ = result_tx.send(Err(e.to_string()));
+                        }
+                    }
+                });
+            }
             other => {
                 return Err(pyo3::exceptions::PyValueError::new_err(format!(
                     "unsupported transport for listen: {other}"
