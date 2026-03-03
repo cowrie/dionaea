@@ -5,7 +5,7 @@ use std::net::SocketAddr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use bytes::BytesMut;
+use bytes::{Bytes, BytesMut};
 use pyo3::prelude::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
@@ -391,9 +391,9 @@ pub(crate) async fn handle_connection<S>(
         }
     };
 
-    // Drain any SetTimeout messages sent during handle_established
-    // (Python protocol may set timeouts in handle_established)
-    drain_control_messages(
+    // Drain any control messages sent during handle_established
+    // (Python protocol may set timeouts or send welcome banners)
+    let pending_data = drain_control_messages(
         &mut rx,
         &registry,
         id,
@@ -402,6 +402,18 @@ pub(crate) async fn handle_connection<S>(
         &mut in_accounting,
         &mut out_accounting,
     );
+
+    // Flush any data sent during handle_established (e.g. welcome banners)
+    for data in pending_data {
+        if let Err(e) = stream.write_all(&data).await {
+            tracing::debug!(connection_id = %id, err = %e, "write error flushing established data");
+            invalidate_handler(handler);
+            return;
+        }
+        if let Some(mut meta) = registry.get_mut(id) {
+            meta.stats.bytes_out += data.len() as u64;
+        }
+    }
 
     // Initialize timeouts (pinned for select!)
     let idle_timeout = make_timeout(get_timeout_secs(&registry, id, TimeoutKind::Idle));
@@ -623,6 +635,8 @@ pub(crate) async fn handle_connection<S>(
 
 /// Drain pending control messages from the channel (non-blocking).
 /// Called after handle_established to pick up timeouts set by the protocol.
+/// Returns any Data messages that were queued during handle_established
+/// (e.g. welcome banners sent from handle_established).
 fn drain_control_messages(
     rx: &mut mpsc::Receiver<SendMessage>,
     registry: &ConnectionRegistry,
@@ -631,7 +645,8 @@ fn drain_control_messages(
     out_throttle: &mut Throttle,
     in_accounting: &mut Accounting,
     out_accounting: &mut Accounting,
-) {
+) -> Vec<Bytes> {
+    let mut pending_data = Vec::new();
     while let Ok(msg) = rx.try_recv() {
         match msg {
             SendMessage::SetTimeout { which, value } => {
@@ -645,9 +660,11 @@ fn drain_control_messages(
                 Direction::In => in_accounting.set_limit(limit),
                 Direction::Out => out_accounting.set_limit(limit),
             },
-            _ => {} // Data messages before select! loop are unusual, skip
+            SendMessage::Data(data) => pending_data.push(data),
+            SendMessage::Datagram { .. } => {}
         }
     }
+    pending_data
 }
 
 /// Update a timeout value in the registry.
