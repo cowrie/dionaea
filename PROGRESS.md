@@ -1,126 +1,164 @@
-# Dionaea v2 Rust Migration — Progress
+# Dionaea v2 Rust Migration — Implementation Plan
 
-## Phase 4: TCP/UDP I/O + TLS ✅ COMPLETE
+## Phases 1–4: Foundation ✅ COMPLETE
 
-### Completed Increments
+All core infrastructure is done: workspace, config, error handling, logging,
+PyO3 bridge (full binding.pyx API), TCP/UDP/TLS I/O, connection lifecycle,
+incident system, ihandler dispatch, throttling, accounting, limits, deny list.
 
-#### 1. Throttle + Accounting (`connection/throttle.rs`) ✅
-- Token bucket rate limiter with configurable bytes/sec, interval refill, burst cap
-- Cumulative byte accounting with optional limit
-- 11 tests, all passing
-
-#### 2. ConnectionLimits (`connection/limits.rs`) ✅
-- Per-IP `DashMap<IpAddr, AtomicU32>` counting with cleanup-at-zero
-- Global FD % and total connection checks
-- `RejectReason` enum for diagnostics
-- 8 tests, all passing
-
-#### 3. IP Deny List (`connection/limits.rs`) ✅
-- CIDR matching via `ip_network_table` crate, behind `#[cfg(feature = "deny-list")]`
-- Optional TTL per entry with auto-expire
-- 7 tests (including integration with ConnectionLimits), all passing
-
-#### 4. Callback Error Recovery (`connection/callback.rs`) ✅
-- Matches actual `binding.pyx` exception handling behavior
-- `PostCallback` enum: `Continue | Close | Reconnect`
-- 9 tests, all passing
-
-#### 5-7. TCP Listener + Handler + Timeouts (`connection/tcp.rs`) ✅
-- `tcp_listen()` → `TcpListenerHandle` with bound address
-- Accept loop: checks limits → `registry.register` → `factory_create` via spawn_blocking
-- Handler I/O loop with `tokio::select!`
-- `drain_control_messages()` preserves Data messages sent during handle_established
-- Throttle + accounting integration
-- 6 tests passing
-
-#### 8. TCP Outbound Connect ✅
-- `PyConnection.connect()`: registers in registry, spawns async `tcp_connect_task`
-- 3 tests: echo roundtrip, connect failure, connect timeout
-
-#### 9. Connection Rejection Strategy ✅
-- `RejectStrategy`: Rst, AcceptSilence
-- `SilentConnectionTracker` with configurable cap
-- 3 tests
-
-#### 10. TLS (`connection/tls.rs`) ✅
-- Self-signed cert generation, SSL acceptor, TLS accept loop
-- Behind `#[cfg(feature = "tls")]`
-- 3 tests
-
-#### 11. UDP (`connection/udp.rs`) ✅
-- Single socket, per-peer Python handlers, idle timeout sweep
-- 2 tests
-
-#### 12. Wire into main.rs + Python bind/listen ✅
-- `RuntimeState` global, `PyConnection.bind()/listen()`
-- 1 integration test, 1 unit test
+146 unit tests passing.
 
 ---
 
-## Phase 5: End-to-End Protocol Validation ✅ COMPLETE
+## Phase 5: End-to-End Protocol Validation
 
-### 13. Real echo.py Protocol Test ✅
-- Loads actual `modules/python/dionaea/echo.py` via Python module loader
-- Binds/listens on random port, connects with TCP client
-- Verifies welcome message ("welcome to reverse world!\n") and data reversal
-- **Bugs fixed:**
-  - `PyConnection.__new__` rejected `proto` keyword argument (was `_proto`)
-  - `drain_control_messages` silently dropped Data messages (welcome banners)
-- Committed: `84d2e34`
+### 5.1 echo.py end-to-end ✅
+- Real echo.py loads, welcome banner, data reversal verified
+- Fixed: `__new__` keyword arg, drain_control_messages data loss
 
-### 14. Real http.py Protocol Test ✅
-- Loads actual `modules/python/dionaea/http.py` via module loader
-- Creates temp directory with index.html, serves via httpd protocol
-- HTTP GET returns 200 OK with correct body
-- **Bugs fixed:**
-  - `apply_parent_config` was a no-op stub — now iterates `shared_config_values`
-    and copies attributes from parent to child (critical for config inheritance)
-  - `py_to_opaque` rejected connection objects — now detects `PyConnection`
-    subclasses and stores as `ConnectionRef(id)`, fixing `i.con = self` in incidents
-- Committed: `16f1485`
+### 5.2 http.py end-to-end ✅
+- Real http.py loads, serves static files, HTTP GET → 200 OK
+- Fixed: apply_parent_config stub, py_to_opaque missing connection type
 
-### 15. Full Service Loading Chain ✅
-- Tests `import dionaea → services.new() → load_submodules() → services.start()`
-- Blackhole service started via ServiceLoader, verified TCP accept
-- HTTP service started via ServiceLoader, verified GET / → 200 OK with body
-- Gracefully handles missing optional Python deps (e.g., `construct` for tftp)
-- Committed: `028721a`, `1f3604e`
+### 5.3 Full service loading chain ✅
+- services.new() → load_submodules() → services.start() → ServiceLoader dispatch
+- Blackhole + HTTP both start and accept connections via config-driven chain
+
+### 5.4 TLS listen from Python
+- [ ] Wire `listen()` for transport "tls": generate self-signed cert, build SslAcceptor, call tls_listen()
+- [ ] Test: httpd with ssl_ports starts, HTTPS GET works
+- Blocks: HTTP service with TLS (ssl_ports config)
+
+### 5.5 handle_io_out callback after writes
+- [ ] After writing data to socket in the I/O loop, call `handle_io_out` on the Python handler
+- [ ] Test: HTTP GET for large file (>64KB) transfers in chunks via handle_io_out
+- Blocks: Large file serving, any protocol using chunked output
+
+### 5.6 FTP protocol test
+- [ ] Start FTP service via ServiceLoader
+- [ ] Connect with raw TCP, verify banner (220), login sequence, directory listing
+- [ ] FTP uses outbound connect() for data channels — tests connect() path
+- Depends on: 5.5 (FTP sends files via handle_io_out)
+
+### 5.7 SMB/EPMAP protocol test
+- [ ] Start SMB + EPMAP services via ServiceLoader
+- [ ] Connect, verify initial SMB negotiate response
+- [ ] EPMAP is simpler (port mapper) — good sanity check
+
+### 5.8 MySQL protocol test
+- [ ] Start MySQL service via ServiceLoader
+- [ ] Connect, verify greeting packet (version, salt, capabilities)
+
+### 5.9 ihandler loading chain test
+- [ ] Load ihandlers via dionaea.ihandlers module
+- [ ] Start a log_json or store ihandler from config
+- [ ] Trigger an incident, verify handler receives it
+- [ ] Test with real ihandler config TOML files
+
+### 5.10 Run daemon binary end-to-end
+- [ ] `cargo run -- -c conf/dionaea.toml` with service configs
+- [ ] Connect with curl, nmap, verify responses
+- [ ] Verify clean shutdown on SIGTERM
+- Depends on: 5.4, 5.5, 5.9
 
 ---
 
-## Test Summary
-- Branch: `dionaea-v2-rust`
-- 146 unit tests + 4 integration tests (with `--features tls`)
-- Flaky benchmark test (`test_spawn_blocking_gil_latency`) sometimes fails under
-  GIL contention — not a regression
+## Phase 6: Processor Pipeline + Shellcode (POSTPONED)
 
-## Known Issue
-- `test_spawn_blocking_gil_latency`: P99 threshold of 500μs exceeded under heavy
-  parallel test load. Needs higher threshold or test isolation.
+Not needed for basic protocol operation. `self.processors()` is a no-op stub.
+Will implement after all protocols are validated.
+
+- [ ] Processor trait + tree structure (ProcessorNode, ProcessorPipeline)
+- [ ] Filter processor (allow/deny by protocol/connection type)
+- [ ] StreamDumper processor (bistream recording to disk)
+- [ ] BiStream data structure (interleaved bidirectional recording)
+- [ ] shell-detect crate (GetPC pattern scanning: x86, x86-64, MIPS)
+- [ ] Shellcode processor (scan ingress, save + emit incident)
+- [ ] Config parsing + tree construction from TOML
+- [ ] Wire into I/O loop via SendMessage::AttachProcessors
+- [ ] PyConnection.processors() creates pipeline from template
+
+---
+
+## Phase 7: Infrastructure Modules
+
+### 7.1 Download module (behind `download` feature)
+- [ ] Listen for `dionaea.download.offer` incidents
+- [ ] Async HTTP download via reqwest
+- [ ] Save to temp file, rename on completion with SHA256 hash
+- [ ] Emit `dionaea.download.complete` incident
+- [ ] Size limit + timeout config
+
+### 7.2 Privilege dropping
+- [ ] Bind all service ports while root
+- [ ] Linux: drop capabilities except CAP_NET_BIND_SERVICE
+- [ ] macOS: setregid/setreuid to configured user/group
+- [ ] Set RLIMIT_NOFILE
+
+### 7.3 Graceful shutdown improvements
+- [ ] Call Python services stop() on shutdown
+- [ ] Call Python ihandlers stop() on shutdown
+- [ ] Drain in-flight connections with configurable deadline
+- [ ] Persist IP deny list to disk
+
+### 7.4 SIGHUP log reopening
+- [ ] Reopen log file handles on SIGHUP (for logrotate)
+
+### 7.5 pcap module (Linux/macOS, behind `pcap` feature)
+- [ ] Capture interface packets, detect TCP RST with seq=0
+- [ ] Emit `dionaea.connection.tcp.reject` incident
+
+### 7.6 nfq module (Linux only, behind `nfq` feature)
+- [ ] Netfilter queue capture with slot-based throttling
+- [ ] Emit `dionaea.connection.tcp.pending` incident
+
+### 7.7 netlink module (Linux only, behind `netlink` feature)
+- [ ] Monitor interface address changes via rtnetlink
+- [ ] Emit `dionaea.module.nl.addr.new/del` incidents
+
+---
+
+## Phase 8: Integration Testing + Acceptance
+
+- [ ] Run existing pytest suite against Rust binary
+- [ ] Feature parity checklist per protocol (bind, accept, data exchange, incidents)
+- [ ] Performance benchmarks vs C version (connections/sec, memory, throughput)
+- [ ] Fuzz testing: random bytes to TCP read path
+
+---
+
+## Phase 9: Deployment + Packaging
+
+- [ ] Multi-stage Dockerfile (Rust build + Python runtime)
+- [ ] systemd unit file with security hardening
+- [ ] logrotate config
+- [ ] Operational monitoring (Prometheus alert rules)
+
+---
+
+## Current State
+
+- **Branch:** `dionaea-v2-rust`
+- **Tests:** 146 unit + 4 integration, all green
+- **Flaky:** `test_spawn_blocking_gil_latency` (GIL contention, not a regression)
+- **Next:** 5.4 (TLS listen from Python)
 
 ## Files Modified/Created
+
 ```
-Phase 4:
-  NEW: crates/dionaea/src/connection/throttle.rs
-  NEW: crates/dionaea/src/connection/limits.rs
-  NEW: crates/dionaea/src/connection/callback.rs
-  NEW: crates/dionaea/src/connection/tcp.rs
-  NEW: crates/dionaea/src/connection/tls.rs
-  NEW: crates/dionaea/src/connection/udp.rs
-  NEW: crates/dionaea/src/runtime.rs
+Phases 1-4:
+  NEW: crates/dionaea/src/config.rs, error.rs, main.rs, lib.rs, runtime.rs
+  NEW: crates/dionaea/src/node_info.rs, ihandler.rs, incident.rs
+  NEW: crates/dionaea/src/connection/{mod,tcp,tls,udp,callback,limits,throttle}.rs
+  NEW: crates/dionaea/src/python/{mod,connection,incident,ihandler,dionaea,node_info,stats,convert,loader}.rs
+  NEW: crates/shell-detect/src/lib.rs (stub)
   NEW: crates/dionaea/tests/listen_connect.rs
-  MOD: crates/dionaea/src/connection/mod.rs
-  MOD: crates/dionaea/src/python/connection.rs
-  MOD: crates/dionaea/src/main.rs
-  MOD: crates/dionaea/src/lib.rs
-  MOD: Cargo.toml
-  MOD: crates/dionaea/Cargo.toml
 
 Phase 5:
   NEW: crates/dionaea/tests/echo_protocol.rs
   NEW: crates/dionaea/tests/http_protocol.rs
   NEW: crates/dionaea/tests/service_loading.rs
-  MOD: crates/dionaea/src/connection/tcp.rs  (drain_control_messages returns Data)
-  MOD: crates/dionaea/src/python/connection.rs  (__new__ proto kwarg, apply_parent_config)
+  MOD: crates/dionaea/src/connection/tcp.rs  (drain_control_messages preserves Data)
+  MOD: crates/dionaea/src/python/connection.rs  (__new__ kwarg, apply_parent_config)
   MOD: crates/dionaea/src/python/convert.rs  (PyConnection → ConnectionRef)
 ```
