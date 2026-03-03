@@ -24,15 +24,15 @@ incident system, ihandler dispatch, throttling, accounting, limits, deny list.
 - services.new() → load_submodules() → services.start() → ServiceLoader dispatch
 - Blackhole + HTTP both start and accept connections via config-driven chain
 
-### 5.4 TLS listen from Python
-- [ ] Wire `listen()` for transport "tls": generate self-signed cert, build SslAcceptor, call tls_listen()
-- [ ] Test: httpd with ssl_ports starts, HTTPS GET works
-- Blocks: HTTP service with TLS (ssl_ports config)
+### 5.4 TLS listen from Python ✅
+- Wire `listen()` for transport "tls": generate self-signed cert, build SslAcceptor, call tls_listen()
+- Test: httpd with proto='tls' starts, HTTPS GET works
+- Committed: `468a332`
 
-### 5.5 handle_io_out callback after writes
-- [ ] After writing data to socket in the I/O loop, call `handle_io_out` on the Python handler
-- [ ] Test: HTTP GET for large file (>64KB) transfers in chunks via handle_io_out
-- Blocks: Large file serving, any protocol using chunked output
+### 5.5 handle_io_out callback after writes ✅
+- After writing data to socket, call `handle_io_out` on Python handler via spawn_blocking
+- Test: HTTP GET for 128KB file transfers in 2 chunks via handle_io_out
+- Committed: `b9a5b74`
 
 ### 5.6 FTP protocol test
 - [ ] Start FTP service via ServiceLoader
@@ -139,9 +139,9 @@ Will implement after all protocols are validated.
 ## Current State
 
 - **Branch:** `dionaea-v2-rust`
-- **Tests:** 146 unit + 4 integration, all green
+- **Tests:** 145 unit + 5 integration, all green
 - **Flaky:** `test_spawn_blocking_gil_latency` (GIL contention, not a regression)
-- **Next:** 5.4 (TLS listen from Python)
+- **Next:** 5.6 (FTP protocol test)
 
 ## Files Modified/Created
 
