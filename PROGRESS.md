@@ -53,11 +53,11 @@ incident system, ihandler dispatch, throttling, accounting, limits, deny list.
 - [ ] Trigger an incident, verify handler receives it
 - [ ] Test with real ihandler config TOML files
 
-### 5.10 Run daemon binary end-to-end
-- [ ] `cargo run -- -c conf/dionaea.toml` with service configs
-- [ ] Connect with curl, nmap, verify responses
-- [ ] Verify clean shutdown on SIGTERM
-- Depends on: 5.4, 5.5, 5.9
+### 5.10 Run daemon binary end-to-end ✅
+- `./target/debug/dionaea -c tmp/test_daemon.toml` starts in ~0.2s
+- Blackhole on 8023, HTTP on 8080
+- `curl http://127.0.0.1:8080/` → 200 OK with HTML body
+- Clean shutdown on SIGTERM, exit 0
 
 ---
 
@@ -139,7 +139,7 @@ Will implement after all protocols are validated.
 - **Branch:** `dionaea-v2-rust`
 - **Tests:** 145 unit + 6 integration, all green
 - **Flaky:** `test_spawn_blocking_gil_latency` (GIL contention, not a regression)
-- **Next:** 5.10 (run daemon binary end-to-end)
+- **Next:** 5.7-5.9 (more protocol tests, ihandler chain)
 
 ## Files Modified/Created
 
