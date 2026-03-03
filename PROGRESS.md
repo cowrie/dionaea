@@ -34,11 +34,9 @@ incident system, ihandler dispatch, throttling, accounting, limits, deny list.
 - Test: HTTP GET for 128KB file transfers in 2 chunks via handle_io_out
 - Committed: `b9a5b74`
 
-### 5.6 FTP protocol test
-- [ ] Start FTP service via ServiceLoader
-- [ ] Connect with raw TCP, verify banner (220), login sequence, directory listing
-- [ ] FTP uses outbound connect() for data channels — tests connect() path
-- Depends on: 5.5 (FTP sends files via handle_io_out)
+### 5.6 FTP protocol test ✅
+- Real FTP protocol loads, 220 banner, USER/PASS login, PWD works
+- Committed: `5d175f7`
 
 ### 5.7 SMB/EPMAP protocol test
 - [ ] Start SMB + EPMAP services via ServiceLoader
@@ -139,9 +137,9 @@ Will implement after all protocols are validated.
 ## Current State
 
 - **Branch:** `dionaea-v2-rust`
-- **Tests:** 145 unit + 5 integration, all green
+- **Tests:** 145 unit + 6 integration, all green
 - **Flaky:** `test_spawn_blocking_gil_latency` (GIL contention, not a regression)
-- **Next:** 5.6 (FTP protocol test)
+- **Next:** 5.10 (run daemon binary end-to-end)
 
 ## Files Modified/Created
 
