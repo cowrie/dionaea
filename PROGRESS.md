@@ -79,13 +79,20 @@
     subclasses and stores as `ConnectionRef(id)`, fixing `i.con = self` in incidents
 - Committed: `16f1485`
 
+### 15. Full Service Loading Chain ✅
+- Tests `import dionaea → services.new() → load_submodules() → services.start()`
+- Blackhole service started via ServiceLoader, verified TCP accept
+- HTTP service started via ServiceLoader, verified GET / → 200 OK with body
+- Gracefully handles missing optional Python deps (e.g., `construct` for tftp)
+- Committed: `028721a`, `1f3604e`
+
 ---
 
 ## Test Summary
 - Branch: `dionaea-v2-rust`
-- 145 unit tests passing + 3 integration tests (with `--features tls`)
-- 1 flaky benchmark test (`test_spawn_blocking_gil_latency`) — GIL contention under
-  parallel test load, not a regression
+- 146 unit tests + 4 integration tests (with `--features tls`)
+- Flaky benchmark test (`test_spawn_blocking_gil_latency`) sometimes fails under
+  GIL contention — not a regression
 
 ## Known Issue
 - `test_spawn_blocking_gil_latency`: P99 threshold of 500μs exceeded under heavy
@@ -112,6 +119,7 @@ Phase 4:
 Phase 5:
   NEW: crates/dionaea/tests/echo_protocol.rs
   NEW: crates/dionaea/tests/http_protocol.rs
+  NEW: crates/dionaea/tests/service_loading.rs
   MOD: crates/dionaea/src/connection/tcp.rs  (drain_control_messages returns Data)
   MOD: crates/dionaea/src/python/connection.rs  (__new__ proto kwarg, apply_parent_config)
   MOD: crates/dionaea/src/python/convert.rs  (PyConnection → ConnectionRef)
