@@ -2,6 +2,7 @@
 // ABOUTME: Handles int, str, bytes, connection ref, list, dict, and None.
 
 use crate::incident::OpaqueData;
+use crate::python::connection::PyConnection;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyInt, PyList, PyString};
 use std::collections::HashMap;
@@ -43,6 +44,13 @@ pub fn opaque_to_py(py: Python<'_>, value: &OpaqueData) -> PyResult<Py<PyAny>> {
 /// connection detection is handled by the caller.
 pub fn py_to_opaque(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<OpaqueData> {
     if obj.is_none() {
+        return Ok(OpaqueData::None);
+    }
+    // Check for connection subclass (must be before int since ConnectionId is numeric)
+    if let Ok(conn) = obj.cast::<PyConnection>() {
+        if let Some(id) = conn.borrow().connection_id() {
+            return Ok(OpaqueData::ConnectionRef(id));
+        }
         return Ok(OpaqueData::None);
     }
     // Check int before str because bool is a subclass of int in Python

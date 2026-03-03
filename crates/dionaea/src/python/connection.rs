@@ -299,13 +299,28 @@ impl PyConnection {
     }
 
     /// Copy shared config values from parent connection.
-    fn apply_parent_config(&self, parent: &Bound<'_, PyAny>) -> PyResult<()> {
+    ///
+    /// Iterates `parent.shared_config_values` and copies each named attribute
+    /// from parent to self. Matches the C `connection_apply_parent_config`.
+    fn apply_parent_config(slf: &Bound<'_, Self>, parent: &Bound<'_, PyAny>) -> PyResult<()> {
         let value_names = match parent.getattr("shared_config_values") {
             Ok(names) => names,
             Err(_) => return Ok(()),
         };
-        let slf = parent.py().None(); // placeholder; actual copying happens in Python override
-        let _ = (value_names, slf);
+        let iter = value_names.try_iter()?;
+        for item in iter {
+            let name: String = item?.extract()?;
+            match parent.getattr(name.as_str()) {
+                Ok(val) => {
+                    if let Err(e) = slf.setattr(name.as_str(), &val) {
+                        tracing::debug!(attr = %name, err = %e, "failed to copy shared config value");
+                    }
+                }
+                Err(_) => {
+                    tracing::debug!(attr = %name, "parent missing shared config value");
+                }
+            }
+        }
         Ok(())
     }
 
