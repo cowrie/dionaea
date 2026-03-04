@@ -111,9 +111,13 @@ impl PyIncident {
         Ok(())
     }
 
-    /// List all data keys.
-    fn keys(&self) -> Vec<String> {
-        self.data.keys().cloned().collect()
+    /// List all data keys as bytes, matching C behavior where keys are `char *`.
+    fn keys<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, pyo3::types::PyBytes>>> {
+        Ok(self
+            .data
+            .keys()
+            .map(|k| pyo3::types::PyBytes::new(py, k.as_bytes()))
+            .collect())
     }
 
     /// Set a data field by key.
@@ -263,14 +267,14 @@ mod tests {
             let bound = inc.bind(py);
             bound.setattr("alpha", 1i64).unwrap();
             bound.setattr("beta", 2i64).unwrap();
-            let keys: Vec<String> = bound
+            let keys: Vec<Vec<u8>> = bound
                 .call_method0("keys")
                 .unwrap()
                 .extract()
                 .unwrap();
             assert_eq!(keys.len(), 2);
-            assert!(keys.contains(&"alpha".to_string()));
-            assert!(keys.contains(&"beta".to_string()));
+            assert!(keys.contains(&b"alpha".to_vec()));
+            assert!(keys.contains(&b"beta".to_vec()));
         });
     }
 

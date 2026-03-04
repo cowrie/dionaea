@@ -20,14 +20,26 @@ pub struct PyIHandler {
     pattern: String,
 }
 
-#[pymethods]
 impl PyIHandler {
-    #[new]
-    #[pyo3(signature = (_pattern=None))]
-    fn new(_pattern: Option<String>) -> Self {
+    /// Create a new handler from Rust (used by tests).
+    pub fn empty() -> Self {
         PyIHandler {
             pattern: String::new(),
         }
+    }
+}
+
+#[pymethods]
+impl PyIHandler {
+    /// Accept any args/kwargs from Python subclass constructors.
+    /// The actual pattern is set in `__init__`.
+    #[new]
+    #[pyo3(signature = (*_args, **_kwargs))]
+    fn new(
+        _args: &Bound<'_, pyo3::types::PyTuple>,
+        _kwargs: Option<&Bound<'_, pyo3::types::PyDict>>,
+    ) -> Self {
+        PyIHandler::empty()
     }
 
     /// Initialize the handler. Python subclasses call `super().__init__(pattern)`.
@@ -140,7 +152,7 @@ mod tests {
     #[test]
     fn test_ihandler_basic() {
         Python::attach(|py| {
-            let h = Py::new(py, PyIHandler::new(None)).unwrap();
+            let h = Py::new(py, PyIHandler::empty()).unwrap();
             let bound = h.bind(py);
             // Call __init__ through Python to test the Bound<Self> signature
             bound
