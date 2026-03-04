@@ -717,17 +717,22 @@ pub fn factory_create(
 ) -> PyResult<Py<PyAny>> {
     set_factory_context(id, tx);
 
+    // Call type() with no arguments, matching C behavior (PY_CLONE + PY_INIT).
+    // The Python subclass __init__ sets transport via connection.__init__(self, "tcp").
     let parent_type = parent.get_type();
-    let result = parent_type.call1((transport,));
+    let result = parent_type.call0();
 
     // Always clear factory context, even on error
     clear_factory_context();
 
     let child = result?;
 
-    // Set runtime context on child for outbound connects
+    // Set runtime context on child and ensure transport matches the parent.
+    // In C, the child's transport is set from the listener's C struct, not from
+    // __init__ args. Some protocols don't pass transport in __init__ at all.
     if let Ok(conn) = child.cast::<PyConnection>() {
         let mut c = conn.borrow_mut();
+        c.transport = transport.to_string();
         c.registry = registry;
         c.limits = limits;
         c.recv_buffer_size = recv_buffer_size;
