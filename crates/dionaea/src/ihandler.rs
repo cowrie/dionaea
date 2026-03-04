@@ -1,6 +1,8 @@
 // ABOUTME: Incident handler registry with wildcard pattern matching.
 // ABOUTME: Dispatches incidents to registered handlers based on origin glob patterns.
 
+use std::sync::Arc;
+
 use crate::incident::Incident;
 
 /// Wildcard pattern matcher.
@@ -66,8 +68,8 @@ fn wildcard_match(pattern: &[u8], text: &[u8]) -> bool {
 
 /// Callback for handling incidents. Either Rust or Python.
 pub enum HandlerCallback {
-    /// A Rust function callback.
-    Rust(Box<dyn Fn(&Incident) + Send + Sync>),
+    /// A Rust function callback (Arc for cloning out of registry during dispatch).
+    Rust(Arc<dyn Fn(&Incident) + Send + Sync>),
     /// A Python callback (handled via spawn_blocking + GIL in dispatch).
     Python(pyo3::Py<pyo3::PyAny>),
 }
@@ -224,14 +226,14 @@ mod tests {
 
         registry.register(IHandler {
             pattern: WildcardPattern::new("dionaea.connection.*"),
-            callback: HandlerCallback::Rust(Box::new(move |_incident| {
+            callback: HandlerCallback::Rust(Arc::new(move |_incident| {
                 called_clone.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             })),
         });
 
         registry.register(IHandler {
             pattern: WildcardPattern::new("dionaea.download.*"),
-            callback: HandlerCallback::Rust(Box::new(|_| {})),
+            callback: HandlerCallback::Rust(Arc::new(|_| {})),
         });
 
         let incident = Incident::new("dionaea.connection.tcp.accept");

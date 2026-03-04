@@ -9,6 +9,7 @@ use crate::runtime;
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Incident exposed to Python protocol handlers and ihandlers.
 ///
@@ -74,31 +75,37 @@ impl PyIncident {
 
         let incident = self.to_incident();
 
-        // Collect matching Python handlers while holding the lock, then release
-        let handlers: Vec<Py<PyAny>> = {
+        // Collect matching handlers while holding the lock, then release.
+        // Rust handlers are cloned as Arc; Python handlers are cloned as Py<PyAny>.
+        let (rust_handlers, py_handlers) = {
             let registry = state.ihandler_registry.lock().expect("registry lock");
             let indices = registry.matching_handlers(&incident);
-            indices
-                .iter()
-                .filter_map(|&i| {
-                    if let Some(h) = registry.get(i) {
-                        if let HandlerCallback::Python(ref py_obj) = h.callback {
-                            return Some(py_obj.clone_ref(py));
-                        }
+            let mut rust_cbs: Vec<Arc<dyn Fn(&Incident) + Send + Sync>> = Vec::new();
+            let mut py_cbs: Vec<Py<PyAny>> = Vec::new();
+            for &i in &indices {
+                if let Some(h) = registry.get(i) {
+                    match &h.callback {
+                        HandlerCallback::Rust(f) => rust_cbs.push(f.clone()),
+                        HandlerCallback::Python(py_obj) => py_cbs.push(py_obj.clone_ref(py)),
                     }
-                    None
-                })
-                .collect()
+                }
+            }
+            (rust_cbs, py_cbs)
         };
         // Lock is released here
 
         tracing::debug!(
             origin = %self.origin,
-            handler_count = handlers.len(),
+            rust_handlers = rust_handlers.len(),
+            py_handlers = py_handlers.len(),
             "dispatching incident"
         );
 
-        for handler in &handlers {
+        for handler in &rust_handlers {
+            handler(&incident);
+        }
+
+        for handler in &py_handlers {
             let bound = handler.bind(py);
             if let Err(e) = dispatch_to_handler(py, bound, self) {
                 tracing::error!(
