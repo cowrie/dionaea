@@ -113,6 +113,12 @@ async fn async_main(config: config::Config) {
         }
     }
 
+    // Register built-in Rust modules
+    #[cfg(feature = "download")]
+    if state.config.modules.download {
+        dionaea::download::register();
+    }
+
     // Register signal handlers
     #[cfg(unix)]
     {
