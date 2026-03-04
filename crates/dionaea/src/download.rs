@@ -63,7 +63,8 @@ fn hex_encode(bytes: &[u8]) -> String {
 /// Download a URL to the download directory.
 ///
 /// Returns the final path (named by SHA256 hash) and the hex hash string.
-async fn download_url(
+/// Public for integration testing — callers bypass URL validation.
+pub async fn download_url(
     url: &reqwest::Url,
     config: &DownloadConfig,
 ) -> Result<(PathBuf, String), String> {
