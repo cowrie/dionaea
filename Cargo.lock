@@ -244,6 +244,7 @@ dependencies = [
  "reqwest",
  "rtnetlink",
  "serde",
+ "serde_json",
  "sha2",
  "shell-detect",
  "thiserror 2.0.18",
