@@ -48,6 +48,12 @@ pub struct DownloadConfig {
     /// Suffix for in-progress downloads.
     #[serde(default = "default_download_suffix")]
     pub suffix: String,
+    /// HTTP download timeout in seconds.
+    #[serde(default = "default_download_timeout")]
+    pub timeout_secs: u64,
+    /// Maximum download size in bytes (0 = unlimited).
+    #[serde(default = "default_download_size_limit")]
+    pub size_limit_bytes: u64,
 }
 
 /// How the daemon discovers addresses to listen on.
@@ -212,6 +218,12 @@ fn default_download_dir() -> PathBuf {
 fn default_download_suffix() -> String {
     ".tmp".to_string()
 }
+fn default_download_timeout() -> u64 {
+    30
+}
+fn default_download_size_limit() -> u64 {
+    10 * 1024 * 1024 // 10 MB
+}
 fn default_python_imports() -> Vec<String> {
     vec!["dionaea".to_string()]
 }
@@ -241,6 +253,8 @@ impl Default for DownloadConfig {
         DownloadConfig {
             dir: default_download_dir(),
             suffix: default_download_suffix(),
+            timeout_secs: default_download_timeout(),
+            size_limit_bytes: default_download_size_limit(),
         }
     }
 }
@@ -531,5 +545,36 @@ max_fds_pct = 0
 "#;
         let err = load_from_str(toml).unwrap_err();
         assert!(err.to_string().contains("max_fds_pct"));
+    }
+
+    #[test]
+    fn test_download_config_defaults() {
+        let config = load_from_str(MINIMAL_CONFIG).expect("parse");
+        assert_eq!(config.dionaea.download.dir.to_str().unwrap(), "/var/lib/dionaea/binaries/");
+        assert_eq!(config.dionaea.download.suffix, ".tmp");
+        assert_eq!(config.dionaea.download.timeout_secs, 30);
+        assert_eq!(config.dionaea.download.size_limit_bytes, 10 * 1024 * 1024);
+    }
+
+    #[test]
+    fn test_download_config_custom() {
+        let toml = r#"
+[dionaea]
+[dionaea.listen]
+mode = "manual"
+addresses = ["0.0.0.0"]
+[dionaea.download]
+dir = "/tmp/captures"
+suffix = ".incomplete"
+timeout_secs = 60
+size_limit_bytes = 52428800
+[logging]
+[modules]
+"#;
+        let config = load_from_str(toml).expect("parse");
+        assert_eq!(config.dionaea.download.dir.to_str().unwrap(), "/tmp/captures");
+        assert_eq!(config.dionaea.download.suffix, ".incomplete");
+        assert_eq!(config.dionaea.download.timeout_secs, 60);
+        assert_eq!(config.dionaea.download.size_limit_bytes, 52428800);
     }
 }
