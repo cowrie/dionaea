@@ -38,6 +38,7 @@ rtnetlink = { workspace = true, optional = true }
 [dev-dependencies]
 proptest = { workspace = true }
 serde_json = "1"
+tempfile = "3"
 
 [features]
 default = ["tls", "dns", "download", "deny-list"]

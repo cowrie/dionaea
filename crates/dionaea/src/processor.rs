@@ -2,6 +2,9 @@
 // ABOUTME: Supports filtering, bistream recording, and shellcode detection.
 
 use std::any::Any;
+use std::fs;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::bistream::BiStream;
@@ -231,6 +234,188 @@ impl ProcessorCtx for EmptyCtx {
     }
 }
 
+// --- StreamDumper Processor ---
+
+/// Records bidirectional I/O to disk in Python-eval-compatible format.
+///
+/// Output format (one per connection):
+/// ```python
+/// stream = [('in', b'GET / HTTP/1.1\r\n'), ('out', b'HTTP/1.1 200 OK\r\n')]
+/// ```
+///
+/// Files are written to a directory derived from the configured path pattern,
+/// which supports strftime-style `%Y`, `%m`, `%d` substitution.
+pub struct StreamDumper {
+    path_pattern: String,
+}
+
+impl StreamDumper {
+    /// Create a new stream dumper with the given path pattern.
+    pub fn new(path_pattern: String) -> Self {
+        StreamDumper { path_pattern }
+    }
+}
+
+impl Processor for StreamDumper {
+    fn name(&self) -> &str {
+        "streamdumper"
+    }
+
+    fn new_ctx(&self) -> Box<dyn ProcessorCtx> {
+        let dir = expand_strftime(&self.path_pattern);
+        Box::new(StreamDumperCtx {
+            dir: PathBuf::from(dir),
+            file: None,
+            chunk_count: 0,
+        })
+    }
+
+    fn io_in(&self, ctx: &mut dyn ProcessorCtx, data: &[u8]) {
+        let ctx = ctx
+            .as_any_mut()
+            .downcast_mut::<StreamDumperCtx>()
+            .expect("StreamDumperCtx");
+        ctx.write_chunk("in", data);
+    }
+
+    fn io_out(&self, ctx: &mut dyn ProcessorCtx, data: &[u8]) {
+        let ctx = ctx
+            .as_any_mut()
+            .downcast_mut::<StreamDumperCtx>()
+            .expect("StreamDumperCtx");
+        ctx.write_chunk("out", data);
+    }
+}
+
+/// Per-connection state for the stream dumper.
+struct StreamDumperCtx {
+    dir: PathBuf,
+    file: Option<fs::File>,
+    chunk_count: usize,
+}
+
+impl StreamDumperCtx {
+    fn write_chunk(&mut self, direction: &str, data: &[u8]) {
+        if let Err(e) = self.write_chunk_inner(direction, data) {
+            tracing::warn!(err = %e, "streamdumper write failed");
+        }
+    }
+
+    fn write_chunk_inner(
+        &mut self,
+        direction: &str,
+        data: &[u8],
+    ) -> std::io::Result<()> {
+        let file = match &mut self.file {
+            Some(f) => f,
+            None => {
+                fs::create_dir_all(&self.dir)?;
+                let path = self.dir.join(format!(
+                    "{}-{}.bistream",
+                    std::process::id(),
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_nanos()
+                ));
+                let f = fs::File::create(&path)?;
+                tracing::debug!(path = %path.display(), "opened bistream file");
+                self.file = Some(f);
+                self.file.as_mut().expect("just created")
+            }
+        };
+
+        // Write Python-compatible format
+        if self.chunk_count == 0 {
+            write!(file, "stream = [(")?;
+        } else {
+            write!(file, ", (")?;
+        }
+        write!(file, "'{direction}', ")?;
+        write_python_bytes(file, data)?;
+        write!(file, ")")?;
+        self.chunk_count += 1;
+        Ok(())
+    }
+}
+
+impl Drop for StreamDumperCtx {
+    fn drop(&mut self) {
+        if let Some(ref mut file) = self.file {
+            // Close the Python list
+            let _ = writeln!(file, "]");
+        }
+    }
+}
+
+impl ProcessorCtx for StreamDumperCtx {
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
+/// Write bytes as a Python bytes literal (b'...') with proper escaping.
+fn write_python_bytes(w: &mut impl Write, data: &[u8]) -> std::io::Result<()> {
+    w.write_all(b"b'")?;
+    for &byte in data {
+        match byte {
+            b'\\' => w.write_all(b"\\\\")?,
+            b'\'' => w.write_all(b"\\'")?,
+            b'\n' => w.write_all(b"\\n")?,
+            b'\r' => w.write_all(b"\\r")?,
+            b'\t' => w.write_all(b"\\t")?,
+            0x20..=0x7E => w.write_all(&[byte])?,
+            _ => write!(w, "\\x{byte:02x}")?,
+        }
+    }
+    w.write_all(b"'")?;
+    Ok(())
+}
+
+/// Expand strftime-style patterns in a path string.
+/// Supports: %Y (year), %m (month), %d (day), %H (hour), %M (minute), %S (second).
+pub fn expand_strftime(pattern: &str) -> String {
+    use std::time::SystemTime;
+
+    let secs = SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+
+    expand_strftime_with_epoch(pattern, secs)
+}
+
+/// Expand strftime patterns using a specific epoch timestamp (for testing).
+fn expand_strftime_with_epoch(pattern: &str, epoch_secs: u64) -> String {
+    // Convert epoch seconds to date components
+    // Algorithm from Howard Hinnant's civil_from_days
+    let days = (epoch_secs / 86400) as i64;
+    let time_of_day = epoch_secs % 86400;
+
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097) as u64;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
+    let y = (yoe as i64) + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+
+    let hour = time_of_day / 3600;
+    let minute = (time_of_day % 3600) / 60;
+    let second = time_of_day % 60;
+
+    pattern
+        .replace("%Y", &format!("{y:04}"))
+        .replace("%m", &format!("{m:02}"))
+        .replace("%d", &format!("{d:02}"))
+        .replace("%H", &format!("{hour:02}"))
+        .replace("%M", &format!("{minute:02}"))
+        .replace("%S", &format!("{second:02}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -371,6 +556,73 @@ mod tests {
         let pipeline = ProcessorPipeline::from_tree(&tree, "httpd", "accept");
         assert!(pipeline.is_empty());
     }
+
+    // --- StreamDumper tests ---
+
+    #[test]
+    fn streamdumper_writes_bistream_file() {
+        let dir = tempfile::tempdir().expect("tmpdir");
+        let dumper = StreamDumper::new(dir.path().to_str().unwrap().to_string());
+
+        let tree = vec![ProcessorNode {
+            processor: Arc::new(dumper),
+            children: vec![],
+        }];
+
+        let mut pipeline = ProcessorPipeline::from_tree(&tree, "httpd", "accept");
+        pipeline.io_in(b"GET / HTTP/1.1\r\n");
+        pipeline.io_out(b"HTTP/1.1 200 OK\r\n");
+
+        // Drop pipeline to close the file
+        drop(pipeline);
+
+        // Find the bistream file
+        let entries: Vec<_> = fs::read_dir(dir.path())
+            .expect("read dir")
+            .filter_map(|e| e.ok())
+            .collect();
+        assert_eq!(entries.len(), 1);
+
+        let content = fs::read_to_string(entries[0].path()).expect("read file");
+        assert!(content.starts_with("stream = [("));
+        assert!(content.contains("'in'"));
+        assert!(content.contains("'out'"));
+        assert!(content.contains("GET / HTTP/1.1"));
+        assert!(content.contains("HTTP/1.1 200 OK"));
+        assert!(content.ends_with("]\n"));
+    }
+
+    #[test]
+    fn python_bytes_escaping() {
+        let mut buf = Vec::new();
+        write_python_bytes(&mut buf, b"hello\r\n\t\\world'").expect("write");
+        let s = String::from_utf8(buf).expect("utf8");
+        assert_eq!(s, r"b'hello\r\n\t\\world\''");
+    }
+
+    #[test]
+    fn python_bytes_non_printable() {
+        let mut buf = Vec::new();
+        write_python_bytes(&mut buf, &[0x00, 0x01, 0xFF, 0x41]).expect("write");
+        let s = String::from_utf8(buf).expect("utf8");
+        assert_eq!(s, r"b'\x00\x01\xffA'");
+    }
+
+    #[test]
+    fn strftime_expansion() {
+        // 2024-01-15 12:30:45 UTC = epoch 1705318245
+        let result = expand_strftime_with_epoch("var/lib/%Y-%m-%d/bistreams", 1_705_318_245);
+        assert_eq!(result, "var/lib/2024-01-15/bistreams");
+    }
+
+    #[test]
+    fn strftime_time_components() {
+        // 2024-01-15 11:30:45 UTC = epoch 1705318245
+        let result = expand_strftime_with_epoch("%H-%M-%S", 1_705_318_245);
+        assert_eq!(result, "11-30-45");
+    }
+
+    // --- Pipeline tests ---
 
     #[test]
     fn pipeline_nested_dispatch() {
