@@ -82,12 +82,16 @@ Will implement after all protocols are validated.
 
 ## Phase 7: Infrastructure Modules
 
-### 7.1 Download module (behind `download` feature)
-- [ ] Listen for `dionaea.download.offer` incidents
-- [ ] Async HTTP download via reqwest
-- [ ] Save to temp file, rename on completion with SHA256 hash
-- [ ] Emit `dionaea.download.complete` incident
-- [ ] Size limit + timeout config
+### 7.1 Download module (behind `download` feature) ✅
+- [x] Listen for `dionaea.download.offer` incidents (Rust ihandler)
+- [x] Async HTTP download via reqwest with streaming SHA256
+- [x] Save to temp file, rename on completion with SHA256 hash (content-addressable)
+- [x] Emit `dionaea.download.complete` incident
+- [x] Size limit + timeout config
+- [x] URL validation: http/https only, SSRF protection (reject private/loopback IPs)
+- [x] Deduplication: duplicate content reuses existing file
+- Committed: `b6d4ae6`, `02ddbc3`, `d420819`
+- Also: `c28be32` (Rust handler dispatch), `a7d1f20` (config fields)
 
 ### 7.2 Privilege dropping
 - [ ] Bind all service ports while root
@@ -139,9 +143,9 @@ Will implement after all protocols are validated.
 ## Current State
 
 - **Branch:** `dionaea-v2-rust`
-- **Tests:** 146 unit + 9 integration, all green
+- **Tests:** 163 unit + 11 integration, all green
 - **Flaky:** `test_spawn_blocking_gil_latency` (GIL contention, not a regression)
-- **Next:** Phase 7 (infrastructure modules) or Phase 6 (processors)
+- **Next:** Phase 7.2+ (privilege dropping, shutdown, etc.) or Phase 6 (processors)
 
 ## Files Modified/Created
 
@@ -167,4 +171,14 @@ Phase 5:
   MOD: crates/dionaea/src/python/incident.rs  (keys() returns bytes)
   MOD: crates/dionaea/src/python/ihandler.rs  (__new__ accepts **kwargs)
   MOD: crates/dionaea/src/python/convert.rs  (PyConnection → ConnectionRef)
+
+Phase 7:
+  NEW: crates/dionaea/src/download.rs  (HTTP download module behind download feature)
+  NEW: crates/dionaea/tests/rust_ihandler.rs  (Rust handler dispatch test)
+  NEW: crates/dionaea/tests/download_module.rs  (download E2E test)
+  MOD: crates/dionaea/src/ihandler.rs  (Arc<Fn> for Rust callbacks)
+  MOD: crates/dionaea/src/python/incident.rs  (dispatch to Rust handlers in report())
+  MOD: crates/dionaea/src/config.rs  (download timeout/size_limit, Clone)
+  MOD: crates/dionaea/src/lib.rs  (download module)
+  MOD: crates/dionaea/src/main.rs  (register download handler at startup)
 ```
