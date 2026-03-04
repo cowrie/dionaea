@@ -11,5 +11,6 @@ pub mod ihandler;
 pub mod incident;
 pub mod node_info;
 pub mod privileges;
+pub mod processor;
 pub mod python;
 pub mod runtime;
