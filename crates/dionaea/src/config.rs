@@ -15,6 +15,9 @@ pub struct Config {
     pub logging: LoggingConfig,
     /// Module enable/disable flags and settings.
     pub modules: ModulesConfig,
+    /// Processor pipeline configuration.
+    #[serde(default)]
+    pub processors: Vec<ProcessorConfig>,
 }
 
 /// Core daemon settings (listen addresses, limits, security).
@@ -163,6 +166,37 @@ pub struct PythonModuleConfig {
     /// Directory containing Python packages (added to sys.path).
     #[serde(default)]
     pub python_path: Option<PathBuf>,
+}
+
+/// Configuration for a single processor in the pipeline.
+#[derive(Debug, Deserialize)]
+pub struct ProcessorConfig {
+    /// Processor type: "filter", "streamdumper", "shellcode".
+    pub name: String,
+    /// Unique label for cross-referencing (used by `next` to build tree).
+    pub label: String,
+    /// Labels of child processors (run after this one).
+    #[serde(default)]
+    pub next: Vec<String>,
+    /// Allow rules (filter processor only).
+    #[serde(default)]
+    pub allow: Vec<FilterRuleConfig>,
+    /// Deny rules (filter processor only).
+    #[serde(default)]
+    pub deny: Vec<FilterRuleConfig>,
+    /// Directory path pattern for streamdumper output.
+    pub path: Option<String>,
+}
+
+/// A filter rule matching connection type and/or protocol.
+#[derive(Debug, Deserialize)]
+pub struct FilterRuleConfig {
+    /// Connection types to match ("accept", "connect"). Empty = any.
+    #[serde(default)]
+    pub types: Vec<String>,
+    /// Protocol names to match ("httpd", "smbd"). Empty = any.
+    #[serde(default)]
+    pub protocols: Vec<String>,
 }
 
 // --- Defaults ---
@@ -576,5 +610,72 @@ size_limit_bytes = 52428800
         assert_eq!(config.dionaea.download.suffix, ".incomplete");
         assert_eq!(config.dionaea.download.timeout_secs, 60);
         assert_eq!(config.dionaea.download.size_limit_bytes, 52428800);
+    }
+
+    #[test]
+    fn test_processor_config() {
+        let toml = r#"
+[dionaea]
+[dionaea.listen]
+mode = "manual"
+addresses = ["0.0.0.0"]
+[logging]
+[modules]
+
+[[processors]]
+name = "filter"
+label = "filter_streamdumper"
+next = ["streamdumper"]
+allow = [
+  { types = ["accept"] },
+  { types = ["connect"], protocols = ["ftpctrl"] },
+]
+deny = [
+  { protocols = ["ftpdata", "ftpdatacon"] },
+]
+
+[[processors]]
+name = "streamdumper"
+label = "streamdumper"
+path = "var/lib/dionaea/bistreams/%Y-%m-%d/"
+
+[[processors]]
+name = "filter"
+label = "filter_shellcode"
+next = ["shellcode"]
+allow = [
+  { protocols = ["smbd", "epmapper", "mssqld", "httpd"] },
+]
+
+[[processors]]
+name = "shellcode"
+label = "shellcode"
+"#;
+        let config = load_from_str(toml).expect("parse processor config");
+        assert_eq!(config.processors.len(), 4);
+
+        let filter = &config.processors[0];
+        assert_eq!(filter.name, "filter");
+        assert_eq!(filter.label, "filter_streamdumper");
+        assert_eq!(filter.next, vec!["streamdumper"]);
+        assert_eq!(filter.allow.len(), 2);
+        assert_eq!(filter.allow[0].types, vec!["accept"]);
+        assert_eq!(filter.allow[1].protocols, vec!["ftpctrl"]);
+        assert_eq!(filter.deny.len(), 1);
+        assert_eq!(filter.deny[0].protocols, vec!["ftpdata", "ftpdatacon"]);
+
+        let dumper = &config.processors[1];
+        assert_eq!(dumper.name, "streamdumper");
+        assert_eq!(dumper.path, Some("var/lib/dionaea/bistreams/%Y-%m-%d/".into()));
+
+        let shellcode = &config.processors[3];
+        assert_eq!(shellcode.name, "shellcode");
+        assert!(shellcode.next.is_empty());
+    }
+
+    #[test]
+    fn test_no_processors_by_default() {
+        let config = load_from_str(MINIMAL_CONFIG).expect("parse");
+        assert!(config.processors.is_empty());
     }
 }

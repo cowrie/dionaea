@@ -2,12 +2,14 @@
 // ABOUTME: Supports filtering, bistream recording, and shellcode detection.
 
 use std::any::Any;
+use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::bistream::BiStream;
+use crate::config::ProcessorConfig;
 use crate::connection::Direction;
 
 /// A processor that can observe and act on connection I/O data.
@@ -146,6 +148,100 @@ impl ProcessorPipeline {
     pub fn is_empty(&self) -> bool {
         self.nodes.is_empty()
     }
+}
+
+// --- Config → Tree Builder ---
+
+/// Build a processor node tree from config entries.
+///
+/// Each config entry has a `label` (unique name) and `next` (labels of children).
+/// Root nodes are entries not referenced by any other entry's `next`.
+pub fn build_tree(
+    configs: &[ProcessorConfig],
+    download_dir: &Path,
+) -> Vec<ProcessorNode> {
+    // Build processor instances indexed by label
+    let mut processors: HashMap<&str, Arc<dyn Processor>> = HashMap::new();
+
+    for cfg in configs {
+        let processor: Arc<dyn Processor> = match cfg.name.as_str() {
+            "filter" => {
+                let allow: Vec<(Vec<String>, Vec<String>)> = cfg
+                    .allow
+                    .iter()
+                    .map(|r| (r.protocols.clone(), r.types.clone()))
+                    .collect();
+                let deny: Vec<(Vec<String>, Vec<String>)> = cfg
+                    .deny
+                    .iter()
+                    .map(|r| (r.protocols.clone(), r.types.clone()))
+                    .collect();
+                Arc::new(FilterProcessor::new(cfg.label.clone(), allow, deny))
+            }
+            "streamdumper" => {
+                let path = cfg
+                    .path
+                    .clone()
+                    .unwrap_or_else(|| "var/lib/dionaea/bistreams/%Y-%m-%d/".into());
+                Arc::new(StreamDumper::new(path))
+            }
+            "shellcode" => Arc::new(ShellcodeProcessor::new(download_dir.to_path_buf())),
+            other => {
+                tracing::warn!(name = other, label = %cfg.label, "unknown processor type, skipping");
+                continue;
+            }
+        };
+        processors.insert(&cfg.label, processor);
+    }
+
+    // Build adjacency: label → children labels
+    let mut children_map: HashMap<&str, Vec<&str>> = HashMap::new();
+    let mut referenced: std::collections::HashSet<&str> = std::collections::HashSet::new();
+
+    for cfg in configs {
+        for next_label in &cfg.next {
+            children_map
+                .entry(cfg.label.as_str())
+                .or_default()
+                .push(next_label.as_str());
+            referenced.insert(next_label.as_str());
+        }
+    }
+
+    // Root nodes = those not referenced by any `next`
+    let roots: Vec<&str> = configs
+        .iter()
+        .map(|c| c.label.as_str())
+        .filter(|label| !referenced.contains(label))
+        .collect();
+
+    // Recursive tree builder
+    fn build_node(
+        label: &str,
+        processors: &HashMap<&str, Arc<dyn Processor>>,
+        children_map: &HashMap<&str, Vec<&str>>,
+    ) -> Option<ProcessorNode> {
+        let processor = processors.get(label)?.clone();
+        let children = children_map
+            .get(label)
+            .map(|child_labels| {
+                child_labels
+                    .iter()
+                    .filter_map(|child| build_node(child, processors, children_map))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        Some(ProcessorNode {
+            processor,
+            children,
+        })
+    }
+
+    roots
+        .into_iter()
+        .filter_map(|label| build_node(label, &processors, &children_map))
+        .collect()
 }
 
 // --- Filter Processor ---
@@ -750,6 +846,71 @@ mod tests {
         // 2024-01-15 11:30:45 UTC = epoch 1705318245
         let result = expand_strftime_with_epoch("%H-%M-%S", 1_705_318_245);
         assert_eq!(result, "11-30-45");
+    }
+
+    // --- build_tree tests ---
+
+    #[test]
+    fn build_tree_empty_config() {
+        let tree = build_tree(&[], Path::new("/tmp"));
+        assert!(tree.is_empty());
+    }
+
+    #[test]
+    fn build_tree_filter_with_child() {
+        let configs = vec![
+            ProcessorConfig {
+                name: "filter".into(),
+                label: "filter_sd".into(),
+                next: vec!["sd".into()],
+                allow: vec![crate::config::FilterRuleConfig {
+                    types: vec!["accept".into()],
+                    protocols: vec![],
+                }],
+                deny: vec![],
+                path: None,
+            },
+            ProcessorConfig {
+                name: "streamdumper".into(),
+                label: "sd".into(),
+                next: vec![],
+                allow: vec![],
+                deny: vec![],
+                path: Some("/tmp/bistreams/%Y-%m-%d/".into()),
+            },
+        ];
+
+        let tree = build_tree(&configs, Path::new("/tmp"));
+        // Only filter_sd should be a root (sd is referenced by next)
+        assert_eq!(tree.len(), 1);
+        assert_eq!(tree[0].processor.name(), "filter_sd");
+        assert_eq!(tree[0].children.len(), 1);
+        assert_eq!(tree[0].children[0].processor.name(), "streamdumper");
+    }
+
+    #[test]
+    fn build_tree_two_independent_roots() {
+        let configs = vec![
+            ProcessorConfig {
+                name: "streamdumper".into(),
+                label: "sd".into(),
+                next: vec![],
+                allow: vec![],
+                deny: vec![],
+                path: Some("/tmp/bs/".into()),
+            },
+            ProcessorConfig {
+                name: "shellcode".into(),
+                label: "sc".into(),
+                next: vec![],
+                allow: vec![],
+                deny: vec![],
+                path: None,
+            },
+        ];
+
+        let tree = build_tree(&configs, Path::new("/tmp"));
+        assert_eq!(tree.len(), 2);
     }
 
     // --- ShellcodeProcessor tests ---
