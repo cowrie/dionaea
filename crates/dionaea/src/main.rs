@@ -149,7 +149,7 @@ async fn async_main(config: config::Config) {
         }
     }
 
-    // Register signal handlers
+    // Wait for shutdown signal. SIGHUP reopens logs without shutting down.
     #[cfg(unix)]
     {
         let mut sigterm =
@@ -162,16 +162,21 @@ async fn async_main(config: config::Config) {
             tokio::signal::unix::signal(tokio::signal::unix::SignalKind::hangup())
                 .expect("SIGHUP handler");
 
-        tokio::select! {
-            _ = sigterm.recv() => {
-                tracing::info!("received SIGTERM, shutting down");
-            }
-            _ = sigint.recv() => {
-                tracing::info!("received SIGINT, shutting down");
-            }
-            _ = sighup.recv() => {
-                tracing::info!("received SIGHUP, reopening logs");
-                // TODO: reopen log file handles
+        loop {
+            tokio::select! {
+                _ = sigterm.recv() => {
+                    tracing::info!("received SIGTERM, shutting down");
+                    break;
+                }
+                _ = sigint.recv() => {
+                    tracing::info!("received SIGINT, shutting down");
+                    break;
+                }
+                _ = sighup.recv() => {
+                    tracing::info!("received SIGHUP, reopening logs");
+                    // File-based log targets would reopen their handles here.
+                    // Currently all logging goes to stdout, so this is a no-op.
+                }
             }
         }
     }
