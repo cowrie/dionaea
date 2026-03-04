@@ -1,6 +1,7 @@
 // ABOUTME: Dionaea honeypot core library.
 // ABOUTME: Re-exports public types for integration tests and the binary.
 
+pub mod bistream;
 pub mod config;
 pub mod connection;
 #[cfg(feature = "download")]
