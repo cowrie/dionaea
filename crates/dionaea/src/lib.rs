@@ -3,6 +3,8 @@
 
 pub mod config;
 pub mod connection;
+#[cfg(feature = "download")]
+pub mod download;
 pub mod error;
 pub mod ihandler;
 pub mod incident;

@@ -40,7 +40,7 @@ pub struct DionaeaConfig {
 }
 
 /// Download capture configuration.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct DownloadConfig {
     /// Directory to store captured malware binaries.
     #[serde(default = "default_download_dir")]
