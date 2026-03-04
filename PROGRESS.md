@@ -93,20 +93,27 @@ Will implement after all protocols are validated.
 - Committed: `b6d4ae6`, `02ddbc3`, `d420819`
 - Also: `c28be32` (Rust handler dispatch), `a7d1f20` (config fields)
 
-### 7.2 Privilege dropping
-- [ ] Bind all service ports while root
-- [ ] Linux: drop capabilities except CAP_NET_BIND_SERVICE
-- [ ] macOS: setregid/setreuid to configured user/group
-- [ ] Set RLIMIT_NOFILE
+### 7.2 Privilege dropping ✅
+- [x] Resolve user/group from config (names or numeric IDs)
+- [x] Raise RLIMIT_NOFILE to hard limit
+- [x] Drop supplementary groups (Linux), setgid, setuid
+- [x] Skip gracefully when not running as root
+- [ ] Linux: drop capabilities except CAP_NET_BIND_SERVICE (deferred, C version doesn't either)
+- Committed: `a7fcf29`
 
-### 7.3 Graceful shutdown improvements
-- [ ] Call Python services stop() on shutdown
-- [ ] Call Python ihandlers stop() on shutdown
-- [ ] Drain in-flight connections with configurable deadline
-- [ ] Persist IP deny list to disk
+### 7.3 Graceful shutdown improvements ✅
+- [x] Call Python module stop() on shutdown (services, ihandlers)
+- [x] Clear ihandler registry on shutdown
+- [x] Stop all listeners on shutdown
+- [ ] Drain in-flight connections with configurable deadline (deferred)
+- [ ] Persist IP deny list to disk (deferred)
+- Committed: `b386caf`
 
-### 7.4 SIGHUP log reopening
-- [ ] Reopen log file handles on SIGHUP (for logrotate)
+### 7.4 SIGHUP log reopening ✅
+- [x] Fix SIGHUP to continue running (was falling through to shutdown)
+- [x] SIGHUP handler loops back to wait for signals
+- [ ] Actual file handle reopening (deferred until file-based log targets)
+- Committed: `68d5171`
 
 ### 7.5 pcap module (Linux/macOS, behind `pcap` feature)
 - [ ] Capture interface packets, detect TCP RST with seq=0
@@ -143,9 +150,9 @@ Will implement after all protocols are validated.
 ## Current State
 
 - **Branch:** `dionaea-v2-rust`
-- **Tests:** 163 unit + 11 integration, all green
+- **Tests:** 173 unit + 11 integration, all green
 - **Flaky:** `test_spawn_blocking_gil_latency` (GIL contention, not a regression)
-- **Next:** Phase 7.2+ (privilege dropping, shutdown, etc.) or Phase 6 (processors)
+- **Next:** Phase 7.5+ (pcap, nfq, netlink) or Phase 6 (processors) or Phase 8 (acceptance)
 
 ## Files Modified/Created
 
