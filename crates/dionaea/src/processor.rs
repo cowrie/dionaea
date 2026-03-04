@@ -372,6 +372,136 @@ fn write_python_bytes(w: &mut impl Write, data: &[u8]) -> std::io::Result<()> {
     Ok(())
 }
 
+// --- Shellcode Processor ---
+
+/// Detects shellcode in incoming data using GetPC pattern scanning.
+///
+/// On detection: saves shellcode bytes to a file (content-addressable by SHA256)
+/// and emits a `dionaea.shellcode.detected` incident.
+pub struct ShellcodeProcessor {
+    download_dir: PathBuf,
+}
+
+impl ShellcodeProcessor {
+    /// Create a new shellcode processor that saves detections to the given directory.
+    pub fn new(download_dir: PathBuf) -> Self {
+        ShellcodeProcessor { download_dir }
+    }
+}
+
+impl Processor for ShellcodeProcessor {
+    fn name(&self) -> &str {
+        "shellcode"
+    }
+
+    fn new_ctx(&self) -> Box<dyn ProcessorCtx> {
+        Box::new(ShellcodeCtx {
+            scan_offset: 0,
+            download_dir: self.download_dir.clone(),
+        })
+    }
+
+    fn io_in(&self, ctx: &mut dyn ProcessorCtx, data: &[u8]) {
+        let ctx = ctx
+            .as_any_mut()
+            .downcast_mut::<ShellcodeCtx>()
+            .expect("ShellcodeCtx");
+        ctx.scan(data);
+    }
+
+    fn io_out(&self, _ctx: &mut dyn ProcessorCtx, _data: &[u8]) {
+        // Only scan incoming data (attacker → honeypot)
+    }
+}
+
+/// Per-connection state for the shellcode detector.
+struct ShellcodeCtx {
+    scan_offset: usize,
+    download_dir: PathBuf,
+}
+
+impl ShellcodeCtx {
+    fn scan(&mut self, data: &[u8]) {
+        // Only scan new data (after scan_offset within this chunk)
+        if let Some(det) = shell_detect::detect(data) {
+            let hash = {
+                use sha2::Digest;
+                let mut hasher = sha2::Sha256::new();
+                hasher.update(data);
+                format!("{:x}", hasher.finalize())
+            };
+
+            let path = self.download_dir.join(format!("shellcode-{hash}.bin"));
+
+            // Content-addressable: skip if already exists
+            if !path.exists() {
+                if let Err(e) = fs::create_dir_all(&self.download_dir) {
+                    tracing::warn!(err = %e, "failed to create shellcode dir");
+                    return;
+                }
+                if let Err(e) = fs::write(&path, data) {
+                    tracing::warn!(err = %e, "failed to write shellcode");
+                    return;
+                }
+            }
+
+            let global_offset = self.scan_offset + det.offset;
+            tracing::info!(
+                arch = %det.arch,
+                offset = global_offset,
+                hash = %hash,
+                path = %path.display(),
+                "shellcode detected"
+            );
+
+            // Emit incident (requires GIL — spawn a thread)
+            emit_shellcode_incident(
+                det.arch.to_string(),
+                global_offset,
+                hash,
+                path.to_string_lossy().to_string(),
+            );
+        }
+
+        self.scan_offset += data.len();
+    }
+}
+
+impl ProcessorCtx for ShellcodeCtx {
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
+/// Emit a `dionaea.shellcode.detected` incident via Python's incident system.
+fn emit_shellcode_incident(arch: String, offset: usize, hash: String, path: String) {
+    let _ = std::thread::spawn(move || {
+        pyo3::Python::attach(|py| {
+            use pyo3::types::PyAnyMethods;
+
+            let inc = pyo3::Py::new(
+                py,
+                crate::python::incident::PyIncident::new(Some(
+                    "dionaea.shellcode.detected".to_string(),
+                )),
+            );
+            let Ok(inc) = inc else {
+                tracing::error!("failed to create shellcode.detected incident");
+                return;
+            };
+            let bound = inc.into_bound(py).into_any();
+            let _ = bound.setattr("arch", &arch);
+            let _ = bound.setattr("offset", offset);
+            let _ = bound.setattr("sha256hash", &hash);
+            let _ = bound.setattr("path", &path);
+            if let Err(e) = bound.call_method0("report") {
+                tracing::error!(error = %e, "failed to report shellcode.detected");
+            }
+        });
+    })
+    .join();
+}
+
 /// Expand strftime-style patterns in a path string.
 /// Supports: %Y (year), %m (month), %d (day), %H (hour), %M (minute), %S (second).
 pub fn expand_strftime(pattern: &str) -> String {
@@ -620,6 +750,105 @@ mod tests {
         // 2024-01-15 11:30:45 UTC = epoch 1705318245
         let result = expand_strftime_with_epoch("%H-%M-%S", 1_705_318_245);
         assert_eq!(result, "11-30-45");
+    }
+
+    // --- ShellcodeProcessor tests ---
+
+    #[test]
+    fn shellcode_saves_detection() {
+        let dir = tempfile::tempdir().expect("tmpdir");
+        let detector = ShellcodeProcessor::new(dir.path().to_path_buf());
+
+        let tree = vec![ProcessorNode {
+            processor: Arc::new(detector),
+            children: vec![],
+        }];
+
+        let mut pipeline = ProcessorPipeline::from_tree(&tree, "smbd", "accept");
+
+        // Send x86 call+pop shellcode
+        let shellcode = vec![0xE8, 0x00, 0x00, 0x00, 0x00, 0x58, 0x90, 0x90];
+        pipeline.io_in(&shellcode);
+
+        // Check that a shellcode file was written
+        let entries: Vec<_> = fs::read_dir(dir.path())
+            .expect("read dir")
+            .filter_map(|e| e.ok())
+            .collect();
+        assert_eq!(entries.len(), 1);
+
+        let name = entries[0].file_name();
+        let name_str = name.to_str().expect("filename");
+        assert!(name_str.starts_with("shellcode-"));
+        assert!(name_str.ends_with(".bin"));
+
+        // Verify contents match the shellcode
+        let saved = fs::read(entries[0].path()).expect("read shellcode");
+        assert_eq!(saved, shellcode);
+    }
+
+    #[test]
+    fn shellcode_deduplication() {
+        let dir = tempfile::tempdir().expect("tmpdir");
+        let detector = ShellcodeProcessor::new(dir.path().to_path_buf());
+
+        let tree = vec![ProcessorNode {
+            processor: Arc::new(detector),
+            children: vec![],
+        }];
+
+        let mut pipeline = ProcessorPipeline::from_tree(&tree, "smbd", "accept");
+
+        // Send same shellcode twice
+        let shellcode = vec![0xE8, 0x00, 0x00, 0x00, 0x00, 0x5B, 0x90];
+        pipeline.io_in(&shellcode);
+        pipeline.io_in(&shellcode);
+
+        // Should only have one file (content-addressable)
+        let entries: Vec<_> = fs::read_dir(dir.path())
+            .expect("read dir")
+            .filter_map(|e| e.ok())
+            .collect();
+        assert_eq!(entries.len(), 1);
+    }
+
+    #[test]
+    fn shellcode_no_detection_on_clean_data() {
+        let dir = tempfile::tempdir().expect("tmpdir");
+        let detector = ShellcodeProcessor::new(dir.path().to_path_buf());
+
+        let tree = vec![ProcessorNode {
+            processor: Arc::new(detector),
+            children: vec![],
+        }];
+
+        let mut pipeline = ProcessorPipeline::from_tree(&tree, "httpd", "accept");
+        pipeline.io_in(b"GET / HTTP/1.1\r\n");
+
+        // No shellcode files
+        let entries: Vec<_> = fs::read_dir(dir.path())
+            .expect("read dir")
+            .filter_map(|e| e.ok())
+            .collect();
+        assert_eq!(entries.len(), 0);
+    }
+
+    #[test]
+    fn shellcode_scan_offset_tracking() {
+        let dir = tempfile::tempdir().expect("tmpdir");
+        let detector = ShellcodeProcessor::new(dir.path().to_path_buf());
+        let mut ctx = detector.new_ctx();
+
+        let ctx = ctx.as_any_mut().downcast_mut::<ShellcodeCtx>().unwrap();
+
+        // First chunk: clean data (100 bytes)
+        let clean_data = vec![0x41u8; 100];
+        ctx.scan(&clean_data);
+        assert_eq!(ctx.scan_offset, 100);
+
+        // Second chunk: more clean data
+        ctx.scan(&clean_data);
+        assert_eq!(ctx.scan_offset, 200);
     }
 
     // --- Pipeline tests ---
