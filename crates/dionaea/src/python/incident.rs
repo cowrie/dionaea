@@ -45,7 +45,7 @@ impl PyIncident {
 impl PyIncident {
     #[new]
     #[pyo3(signature = (origin=None))]
-    fn new(origin: Option<String>) -> Self {
+    pub fn new(origin: Option<String>) -> Self {
         PyIncident {
             origin: origin.unwrap_or_default(),
             data: HashMap::new(),

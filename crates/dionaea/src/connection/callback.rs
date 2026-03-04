@@ -4,6 +4,8 @@
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
+use crate::python::incident::PyIncident;
+
 /// What the I/O task should do after a Python callback returns.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PostCallback {
@@ -155,6 +157,29 @@ pub fn call_handle_timeout_listen(conn: &Bound<'_, PyAny>) -> PostCallback {
             tracing::error!(err = %e, "handle_timeout_listen raised exception");
             PostCallback::Close
         }
+    }
+}
+
+/// Emit a connection lifecycle incident (e.g. `dionaea.connection.tcp.accept`).
+///
+/// Must be called with the GIL held. Creates a PyIncident with `con` set to
+/// the connection handler, then reports it. Errors are logged but not propagated.
+pub fn emit_connection_incident(py: Python<'_>, conn: &Bound<'_, PyAny>, origin: &str) {
+    let inc = match Py::new(py, PyIncident::new(Some(origin.to_string()))) {
+        Ok(inc) => inc,
+        Err(e) => {
+            tracing::warn!(origin = %origin, err = %e, "failed to create incident");
+            return;
+        }
+    };
+    let bound = inc.bind(py);
+    // Set con = handler
+    if let Err(e) = bound.setattr("con", conn) {
+        tracing::warn!(origin = %origin, err = %e, "failed to set incident.con");
+        return;
+    }
+    if let Err(e) = bound.call_method0("report") {
+        tracing::warn!(origin = %origin, err = %e, "failed to report incident");
     }
 }
 

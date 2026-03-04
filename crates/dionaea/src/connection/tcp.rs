@@ -231,7 +231,7 @@ async fn accept_loop(
                 }
             };
 
-            handle_connection(stream, handler, id, rx, reg.clone(), recv_buffer_size).await;
+            handle_connection(stream, handler, id, rx, reg.clone(), recv_buffer_size, "tcp").await;
             cleanup_connection(&reg, &lim, id, peer_ip);
         });
     }
@@ -309,7 +309,7 @@ pub async fn tcp_connect_task(
 
             tracing::debug!(connection_id = %id, ?peer_addr, "outbound TCP connected");
 
-            handle_connection(stream, handler, id, rx, registry.clone(), recv_buffer_size).await;
+            handle_connection(stream, handler, id, rx, registry.clone(), recv_buffer_size, "tcp").await;
             registry.remove(id);
         }
         Ok(Err(e)) => {
@@ -358,6 +358,7 @@ pub(crate) async fn handle_connection<S>(
     mut rx: mpsc::Receiver<SendMessage>,
     registry: Arc<ConnectionRegistry>,
     recv_buffer_size: usize,
+    transport: &str,
 ) where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
 {
@@ -369,10 +370,13 @@ pub(crate) async fn handle_connection<S>(
     let mut in_accounting = Accounting::unlimited();
     let mut out_accounting = Accounting::unlimited();
 
-    // Call handle_established (move-and-return pattern for GIL)
+    // Emit connection accept/connect incident and call handle_established
+    let transport_str = transport.to_string();
     let h = handler;
     let post = tokio::task::spawn_blocking(move || {
         Python::attach(|py| {
+            let accept_origin = format!("dionaea.connection.{transport_str}.accept");
+            callback::emit_connection_incident(py, h.bind(py), &accept_origin);
             let result = callback::call_handle_established(h.bind(py));
             (h, result)
         })
@@ -712,10 +716,12 @@ fn update_timeout(
 }
 
 /// Call handle_disconnect via spawn_blocking, returning the handler.
+/// Also emits a `dionaea.connection.free` incident.
 async fn call_disconnect(handler: Py<PyAny>, id: ConnectionId) -> Py<PyAny> {
     match tokio::task::spawn_blocking(move || {
         Python::attach(|py| {
             callback::call_handle_disconnect(handler.bind(py));
+            callback::emit_connection_incident(py, handler.bind(py), "dionaea.connection.free");
             handler
         })
     })
