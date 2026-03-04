@@ -38,20 +38,22 @@ incident system, ihandler dispatch, throttling, accounting, limits, deny list.
 - Real FTP protocol loads, 220 banner, USER/PASS login, PWD works
 - Committed: `5d175f7`
 
-### 5.7 SMB/EPMAP protocol test
-- [ ] Start SMB + EPMAP services via ServiceLoader
-- [ ] Connect, verify initial SMB negotiate response
-- [ ] EPMAP is simpler (port mapper) — good sanity check
+### 5.7 SMB/EPMAP protocol test ✅
+- SMB negotiate: connect, send NBT+SMB negotiate request, verify response
+- EPMAP: connect, send DCERPC bind request, verify bind_ack response
+- Fixed: factory_create to call type() with no args (matching C PY_CLONE/PY_INIT)
+- Committed: `61d6e10`
 
-### 5.8 MySQL protocol test
-- [ ] Start MySQL service via ServiceLoader
-- [ ] Connect, verify greeting packet (version, salt, capabilities)
+### 5.8 MySQL protocol test ✅
+- Connect, verify greeting packet: protocol version 10, version string, scramble
+- Committed: `4ba0fff`
 
-### 5.9 ihandler loading chain test
-- [ ] Load ihandlers via dionaea.ihandlers module
-- [ ] Start a log_json or store ihandler from config
-- [ ] Trigger an incident, verify handler receives it
-- [ ] Test with real ihandler config TOML files
+### 5.9 ihandler loading chain test ✅
+- Custom ihandler receives connection lifecycle incidents (accept, free)
+- Real LogJsonHandler writes valid JSON incident log to file
+- Fixed: PyIncident.keys() returns bytes (matching C char* behavior)
+- Fixed: PyIHandler.__new__() accepts **kwargs from subclasses
+- Committed: `49dcc2f`
 
 ### 5.10 Run daemon binary end-to-end ✅
 - `./target/debug/dionaea -c tmp/test_daemon.toml` starts in ~0.2s
@@ -137,9 +139,9 @@ Will implement after all protocols are validated.
 ## Current State
 
 - **Branch:** `dionaea-v2-rust`
-- **Tests:** 145 unit + 6 integration, all green
+- **Tests:** 146 unit + 9 integration, all green
 - **Flaky:** `test_spawn_blocking_gil_latency` (GIL contention, not a regression)
-- **Next:** 5.7-5.9 (more protocol tests, ihandler chain)
+- **Next:** Phase 7 (infrastructure modules) or Phase 6 (processors)
 
 ## Files Modified/Created
 
@@ -156,7 +158,13 @@ Phase 5:
   NEW: crates/dionaea/tests/echo_protocol.rs
   NEW: crates/dionaea/tests/http_protocol.rs
   NEW: crates/dionaea/tests/service_loading.rs
-  MOD: crates/dionaea/src/connection/tcp.rs  (drain_control_messages preserves Data)
-  MOD: crates/dionaea/src/python/connection.rs  (__new__ kwarg, apply_parent_config)
+  NEW: crates/dionaea/tests/smb_epmap_protocol.rs
+  NEW: crates/dionaea/tests/mysql_protocol.rs
+  NEW: crates/dionaea/tests/ihandler_chain.rs
+  MOD: crates/dionaea/src/connection/tcp.rs  (drain_control_messages, incidents)
+  MOD: crates/dionaea/src/connection/callback.rs  (emit_connection_incident)
+  MOD: crates/dionaea/src/python/connection.rs  (__new__ kwarg, factory_create fix)
+  MOD: crates/dionaea/src/python/incident.rs  (keys() returns bytes)
+  MOD: crates/dionaea/src/python/ihandler.rs  (__new__ accepts **kwargs)
   MOD: crates/dionaea/src/python/convert.rs  (PyConnection → ConnectionRef)
 ```
