@@ -182,12 +182,40 @@ async fn async_main(config: config::Config) {
         tracing::info!("received Ctrl-C, shutting down");
     }
 
-    // Graceful shutdown: stop all listeners, let connections drain
+    // Graceful shutdown
     state.stop_all_listeners();
     tracing::info!(
         active_connections = registry.len(),
         "listeners stopped, draining connections"
     );
+
+    // Call Python module stop() functions
+    {
+        let imports = state.config.modules.python.imports.clone();
+        let service_configs = state.config.modules.python.service_configs.clone();
+        let ihandler_configs = state.config.modules.python.ihandler_configs.clone();
+        let python_path = state.config.modules.python.python_path.clone();
+        let _ = tokio::task::spawn_blocking(move || {
+            pyo3::Python::attach(|py| {
+                let config = dionaea::config::PythonModuleConfig {
+                    imports,
+                    service_configs,
+                    ihandler_configs,
+                    python_path,
+                };
+                dionaea::python::loader::shutdown(py, &config);
+            });
+        })
+        .await;
+    }
+
+    // Clear ihandler registry
+    state
+        .ihandler_registry
+        .lock()
+        .expect("registry lock")
+        .clear();
+
     tracing::info!("shutdown complete");
 }
 

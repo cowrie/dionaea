@@ -74,6 +74,33 @@ pub fn load(py: Python<'_>, config: &PythonModuleConfig) -> PyResult<()> {
     Ok(())
 }
 
+/// Call stop() on all loaded Python modules.
+///
+/// Must be called with the GIL held. Re-imports each module by name
+/// and calls `stop()` if the function exists. Errors are logged but
+/// not propagated (shutdown must continue regardless).
+pub fn shutdown(py: Python<'_>, config: &PythonModuleConfig) {
+    for name in &config.imports {
+        match py.import(name.as_str()) {
+            Ok(module) => {
+                if let Ok(func) = module.getattr("stop") {
+                    if func.is_callable() {
+                        tracing::debug!(module = %name, "calling stop()");
+                        if let Err(e) = func.call0() {
+                            tracing::error!(module = %name, error = %e, "module stop() failed");
+                            e.print(py);
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::warn!(module = %name, error = %e, "failed to re-import for shutdown");
+            }
+        }
+    }
+    tracing::info!("Python modules stopped");
+}
+
 /// Register `dionaea.core` in sys.modules with all PyO3 classes and aliases.
 ///
 /// Python code does `from dionaea.core import connection, ihandler, incident, g_dionaea`.
@@ -177,6 +204,20 @@ mod tests {
                 sys_path.contains(&"/tmp/test_dionaea_modules".to_string()),
                 "python_path should be in sys.path"
             );
+        });
+    }
+
+    #[test]
+    fn test_shutdown_empty_imports() {
+        Python::attach(|py| {
+            let config = crate::config::PythonModuleConfig {
+                imports: vec![],
+                service_configs: vec![],
+                ihandler_configs: vec![],
+                python_path: None,
+            };
+            // Should complete without error even with no modules
+            shutdown(py, &config);
         });
     }
 }
