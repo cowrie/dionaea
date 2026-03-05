@@ -36,4 +36,4 @@ netlink = false
 python_path = "modules/python"
 imports = ["dionaea", "dionaea.services"]
 service_configs = ["conf/services/*.toml"]
-ihandler_configs = []
+ihandler_configs = ["conf/ihandlers/*.toml"]
