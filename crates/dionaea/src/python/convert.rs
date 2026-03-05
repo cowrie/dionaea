@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: Bidirectional conversion between Rust OpaqueData and Python objects.
 // ABOUTME: Handles int, str, bytes, connection ref, list, dict, and None.
 

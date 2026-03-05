@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: Processor pipeline for intercepting connection I/O.
 // ABOUTME: Supports filtering, bistream recording, and shellcode detection.
 

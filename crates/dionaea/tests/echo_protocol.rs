@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: Integration test loading the real echo.py Python protocol module.
 // ABOUTME: Verifies the full stack: runtime → loader → echo.py → TCP connect → data flow.
 

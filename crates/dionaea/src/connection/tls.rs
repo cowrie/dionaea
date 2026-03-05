@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: TLS listener, self-signed cert generation, and SSL context setup.
 // ABOUTME: Wraps TCP accept with TLS handshake, reuses generic handle_connection for I/O.
 

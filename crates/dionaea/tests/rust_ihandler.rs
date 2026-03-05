@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: Integration test for Rust-native ihandler dispatch.
 // ABOUTME: Verifies that PyIncident::report() calls HandlerCallback::Rust handlers.
 

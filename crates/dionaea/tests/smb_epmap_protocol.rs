@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: Integration tests for SMB and EPMAP (DCE/RPC) protocols.
 // ABOUTME: Verifies negotiate response (SMB) and DCERPC bind_ack (EPMAP).
 

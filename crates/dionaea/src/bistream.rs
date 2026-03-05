@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: Bidirectional stream buffer for recording connection I/O.
 // ABOUTME: Thread-safe storage of ordered data chunks with direction metadata.
 

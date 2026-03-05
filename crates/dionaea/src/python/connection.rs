@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: PyO3 connection class that Python protocol handlers subclass.
 // ABOUTME: Full API surface matching binding.pyx connection class.
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: Integration test for the Python connection bind/listen/connect lifecycle.
 // ABOUTME: Verifies the full stack: runtime init → bind → listen → TCP connect → data flow.
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: TOML configuration loading with validation and env var overrides.
 // ABOUTME: Defines the complete config structure for the dionaea daemon.
 

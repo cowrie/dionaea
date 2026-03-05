@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 //! ABOUTME: Shellcode detection via GetPC byte pattern scanning.
 //! ABOUTME: Detects x86, x86-64, and MIPS shellcode in arbitrary byte streams.
 

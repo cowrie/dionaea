@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: Integration test for the MySQL protocol.
 // ABOUTME: Verifies the server greeting packet on connect.
 

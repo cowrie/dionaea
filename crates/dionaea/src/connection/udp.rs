@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: UDP listener with per-peer connection multiplexing via peer table.
 // ABOUTME: Single socket, per-peer Python handlers, idle timeout sweep for cleanup.
 

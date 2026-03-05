@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: Entry point for the dionaea honeypot daemon.
 // ABOUTME: Initializes config, logging, Python, tokio runtime, and signal handlers.
 

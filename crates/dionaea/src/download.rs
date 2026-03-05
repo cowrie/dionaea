@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: HTTP download module for capturing malware binaries.
 // ABOUTME: Listens for dionaea.download.offer incidents and fetches URLs via reqwest.
 

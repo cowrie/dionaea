@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: Python-visible incident handler class for event dispatch.
 // ABOUTME: Dispatches to handle_incident_<origin_with_underscores>() or fallback handle_incident().
 

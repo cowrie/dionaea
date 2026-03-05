@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: Fuzz test sending random bytes to TCP read path.
 // ABOUTME: Verifies no panics or crashes from arbitrary input data.
 

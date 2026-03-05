@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: Python-visible incident class for event dispatch between components.
 // ABOUTME: Supports dynamic attribute access (__getattr__/__setattr__) matching binding.pyx.
 

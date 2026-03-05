@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: Python-visible connection statistics and timeout configuration.
 // ABOUTME: Maps to binding.pyx connection_timeouts, connection_speed, connection_accounting, connection_stats.
 
