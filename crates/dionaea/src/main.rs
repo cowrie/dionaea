@@ -2,6 +2,7 @@
 // ABOUTME: Initializes config, logging, Python, tokio runtime, and signal handlers.
 
 use dionaea::config;
+use dionaea::processor;
 use std::path::PathBuf;
 
 fn main() {
@@ -72,11 +73,16 @@ async fn async_main(config: config::Config) {
         config.dionaea.limits.max_connections_total,
         config.dionaea.limits.max_fds_pct,
     ));
+    let processor_tree = processor::build_tree(
+        &config.processors,
+        &config.dionaea.download.dir,
+    );
     let state = Arc::new(runtime::RuntimeState::new(
         registry.clone(),
         limits,
         config.dionaea.limits.recv_buffer_size,
         config,
+        processor_tree,
     ));
     runtime::init(state.clone());
 

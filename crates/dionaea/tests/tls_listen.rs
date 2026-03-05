@@ -37,6 +37,7 @@ fn test_tls_listen_via_python() {
         limits.clone(),
         65536,
         test_config(),
+        Vec::new(),
     ));
     runtime::init(state.clone());
 

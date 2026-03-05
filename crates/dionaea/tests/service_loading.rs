@@ -94,6 +94,7 @@ python_path = "{python_path}"
         limits.clone(),
         65536,
         cfg,
+        Vec::new(),
     ));
     runtime::init(state.clone());
 

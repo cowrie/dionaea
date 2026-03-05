@@ -40,6 +40,7 @@ fn test_real_http_get() {
         limits.clone(),
         65536,
         test_config(),
+        Vec::new(),
     ));
     runtime::init(state.clone());
 

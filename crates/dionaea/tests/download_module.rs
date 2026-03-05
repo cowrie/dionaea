@@ -56,6 +56,7 @@ fn test_download_module_end_to_end() {
         limits.clone(),
         65536,
         test_config(&tmp_dir),
+        Vec::new(),
     ));
     runtime::init(state.clone());
 

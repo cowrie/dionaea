@@ -56,6 +56,14 @@ pub struct ProcessorPipeline {
     bistream: Arc<BiStream>,
 }
 
+impl std::fmt::Debug for ProcessorPipeline {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProcessorPipeline")
+            .field("node_count", &self.nodes.len())
+            .finish()
+    }
+}
+
 /// A filtered, instantiated processor node with per-connection context.
 struct ActiveNode {
     processor: Arc<dyn Processor>,

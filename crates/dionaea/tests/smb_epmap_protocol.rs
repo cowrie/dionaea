@@ -138,6 +138,7 @@ fn test_smb_and_epmap_protocols() {
         limits.clone(),
         65536,
         test_config(),
+        Vec::new(),
     ));
     runtime::init(state.clone());
 

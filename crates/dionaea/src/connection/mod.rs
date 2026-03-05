@@ -11,6 +11,7 @@ pub mod udp;
 
 use crate::error::Error;
 use crate::node_info::NodeInfo;
+use crate::processor::ProcessorPipeline;
 use bytes::Bytes;
 use dashmap::DashMap;
 use std::fmt;
@@ -299,6 +300,8 @@ pub enum SendMessage {
         /// Max bytes (0 = unlimited).
         limit: u64,
     },
+    /// Attach a processor pipeline (streamdumper, shellcode, etc.) to this connection.
+    AttachProcessors(ProcessorPipeline),
 }
 
 /// Which timeout to configure.

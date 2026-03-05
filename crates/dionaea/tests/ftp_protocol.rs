@@ -38,6 +38,7 @@ fn test_ftp_login_sequence() {
         limits.clone(),
         65536,
         test_config(),
+        Vec::new(),
     ));
     runtime::init(state.clone());
 

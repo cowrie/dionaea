@@ -247,6 +247,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "shell-detect",
+ "tempfile",
  "thiserror 2.0.18",
  "tokio",
  "tokio-openssl",

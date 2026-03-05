@@ -41,6 +41,7 @@ fn test_real_echo_protocol() {
         limits.clone(),
         65536,
         test_config(),
+        Vec::new(),
     ));
     runtime::init(state.clone());
 

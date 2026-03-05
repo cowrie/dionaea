@@ -364,6 +364,7 @@ pub(crate) async fn handle_connection<S>(
 {
     let mut buf = BytesMut::zeroed(recv_buffer_size);
     let mut partial_buf: Vec<u8> = Vec::new();
+    let mut processor_pipeline: Option<crate::processor::ProcessorPipeline> = None;
 
     let mut in_throttle = Throttle::unlimited();
     let mut out_throttle = Throttle::unlimited();
@@ -396,8 +397,8 @@ pub(crate) async fn handle_connection<S>(
     };
 
     // Drain any control messages sent during handle_established
-    // (Python protocol may set timeouts or send welcome banners)
-    let pending_data = drain_control_messages(
+    // (Python protocol may set timeouts, send welcome banners, or attach processors)
+    let (pending_data, drained_pipeline) = drain_control_messages(
         &mut rx,
         &registry,
         id,
@@ -406,6 +407,9 @@ pub(crate) async fn handle_connection<S>(
         &mut in_accounting,
         &mut out_accounting,
     );
+    if drained_pipeline.is_some() {
+        processor_pipeline = drained_pipeline;
+    }
 
     // Flush any data sent during handle_established (e.g. welcome banners)
     for data in pending_data {
@@ -473,6 +477,10 @@ pub(crate) async fn handle_connection<S>(
                             combined
                         };
 
+                        if let Some(ref mut pipeline) = processor_pipeline {
+                            pipeline.io_in(&data);
+                        }
+
                         let h = handler;
                         let post = tokio::task::spawn_blocking(move || {
                             Python::attach(|py| {
@@ -536,6 +544,10 @@ pub(crate) async fn handle_connection<S>(
                             meta.stats.bytes_out += data.len() as u64;
                         }
 
+                        if let Some(ref mut pipeline) = processor_pipeline {
+                            pipeline.io_out(&data);
+                        }
+
                         // Notify Python that data was written (enables chunked transfers).
                         // handle_io_out may call self.send() to queue more data.
                         let h = handler;
@@ -590,6 +602,10 @@ pub(crate) async fn handle_connection<S>(
                         }
                     }
                     Some(SendMessage::Datagram { .. }) => {}
+                    Some(SendMessage::AttachProcessors(pipeline)) => {
+                        tracing::debug!(connection_id = %id, "processor pipeline attached");
+                        processor_pipeline = Some(pipeline);
+                    }
                     None => {
                         tracing::debug!(connection_id = %id, "send channel closed");
                         handler = call_disconnect(handler, id).await;
@@ -664,8 +680,10 @@ pub(crate) async fn handle_connection<S>(
 
 /// Drain pending control messages from the channel (non-blocking).
 /// Called after handle_established to pick up timeouts set by the protocol.
-/// Returns any Data messages that were queued during handle_established
-/// (e.g. welcome banners sent from handle_established).
+/// Drain pending control messages from the channel.
+///
+/// Returns any Data messages (e.g. welcome banners) and an optional
+/// processor pipeline if `processors()` was called during handle_established.
 fn drain_control_messages(
     rx: &mut mpsc::Receiver<SendMessage>,
     registry: &ConnectionRegistry,
@@ -674,8 +692,9 @@ fn drain_control_messages(
     out_throttle: &mut Throttle,
     in_accounting: &mut Accounting,
     out_accounting: &mut Accounting,
-) -> Vec<Bytes> {
+) -> (Vec<Bytes>, Option<crate::processor::ProcessorPipeline>) {
     let mut pending_data = Vec::new();
+    let mut pipeline = None;
     while let Ok(msg) = rx.try_recv() {
         match msg {
             SendMessage::SetTimeout { which, value } => {
@@ -691,9 +710,13 @@ fn drain_control_messages(
             },
             SendMessage::Data(data) => pending_data.push(data),
             SendMessage::Datagram { .. } => {}
+            SendMessage::AttachProcessors(p) => {
+                tracing::debug!(connection_id = %id, "processor pipeline attached");
+                pipeline = Some(p);
+            }
         }
     }
-    pending_data
+    (pending_data, pipeline)
 }
 
 /// Update a timeout value in the registry.

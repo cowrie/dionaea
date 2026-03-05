@@ -7,6 +7,7 @@ use crate::config::Config;
 use crate::connection::limits::ConnectionLimits;
 use crate::connection::ConnectionRegistry;
 use crate::ihandler::IHandlerRegistry;
+use crate::processor::ProcessorNode;
 
 /// Global runtime state, initialized by `async_main`.
 static RUNTIME: OnceLock<Arc<RuntimeState>> = OnceLock::new();
@@ -26,6 +27,8 @@ pub struct RuntimeState {
     pub ihandler_registry: Mutex<IHandlerRegistry>,
     /// Parsed configuration (read-only after init).
     pub config: Config,
+    /// Processor template tree (built from config at startup).
+    pub processor_tree: Vec<ProcessorNode>,
     /// Abort handles for all active listeners. Stopped on shutdown.
     listeners: Mutex<Vec<tokio::task::AbortHandle>>,
 }
@@ -37,6 +40,7 @@ impl RuntimeState {
         limits: Arc<ConnectionLimits>,
         recv_buffer_size: usize,
         config: Config,
+        processor_tree: Vec<ProcessorNode>,
     ) -> Self {
         RuntimeState {
             registry,
@@ -44,6 +48,7 @@ impl RuntimeState {
             recv_buffer_size,
             ihandler_registry: Mutex::new(IHandlerRegistry::new()),
             config,
+            processor_tree,
             listeners: Mutex::new(Vec::new()),
         }
     }
@@ -113,7 +118,7 @@ level = "info"
     fn test_runtime_state_track_and_stop() {
         let reg = Arc::new(ConnectionRegistry::new());
         let lim = Arc::new(ConnectionLimits::new(50, 10_000, 70));
-        let state = RuntimeState::new(reg, lim, 65536, test_config());
+        let state = RuntimeState::new(reg, lim, 65536, test_config(), Vec::new());
 
         // Create a dummy task to get an abort handle
         let rt = tokio::runtime::Builder::new_current_thread()

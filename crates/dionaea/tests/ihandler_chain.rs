@@ -46,6 +46,7 @@ fn test_ihandler_chain_with_log_json() {
         limits.clone(),
         65536,
         test_config(),
+        Vec::new(),
     ));
     runtime::init(state.clone());
 

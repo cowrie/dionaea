@@ -614,8 +614,43 @@ impl PyConnection {
 
     /// Attach the processor pipeline to this connection.
     fn processors(&self) -> PyResult<()> {
-        check_valid(&self.id)?;
-        // Will be implemented in Phase 5 (processor pipeline).
+        let id = check_valid(&self.id)?;
+        let Some(state) = crate::runtime::get() else {
+            return Ok(());
+        };
+
+        if state.processor_tree.is_empty() {
+            return Ok(());
+        }
+
+        // Look up protocol and connection type from registry
+        let (protocol, conn_type) = {
+            let meta = state.registry.get(id).ok_or_else(|| {
+                pyo3::exceptions::PyReferenceError::new_err("connection not in registry")
+            })?;
+            let conn_type = match meta.connection_type {
+                crate::connection::ConnectionType::Accept => "accept",
+                crate::connection::ConnectionType::Listen => "listen",
+                crate::connection::ConnectionType::Connect => "connect",
+            };
+            (meta.protocol.clone(), conn_type.to_string())
+        };
+
+        let pipeline = crate::processor::ProcessorPipeline::from_tree(
+            &state.processor_tree,
+            &protocol,
+            &conn_type,
+        );
+
+        if pipeline.is_empty() {
+            return Ok(());
+        }
+
+        // Send to I/O task via channel
+        if let Some(ref tx) = self.send_tx {
+            let _ = tx.try_send(SendMessage::AttachProcessors(pipeline));
+        }
+
         Ok(())
     }
 
