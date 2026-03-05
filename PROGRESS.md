@@ -6,7 +6,7 @@ All core infrastructure is done: workspace, config, error handling, logging,
 PyO3 bridge (full binding.pyx API), TCP/UDP/TLS I/O, connection lifecycle,
 incident system, ihandler dispatch, throttling, accounting, limits, deny list.
 
-146 unit tests passing.
+146 unit tests passing (now 217 after Phase 6).
 
 ---
 
@@ -63,20 +63,56 @@ incident system, ihandler dispatch, throttling, accounting, limits, deny list.
 
 ---
 
-## Phase 6: Processor Pipeline + Shellcode (POSTPONED)
+## Phase 6: Processor Pipeline + Shellcode Detection ✅ COMPLETE
 
-Not needed for basic protocol operation. `self.processors()` is a no-op stub.
-Will implement after all protocols are validated.
+### 6.1 shell-detect crate ✅
+- [x] GetPC pattern scanning: x86 call+pop, FPU fnstenv, jmp+call
+- [x] x86-64 RIP-relative lea, MIPS bgezal
+- [x] 17 unit tests (all patterns, edge cases, priority)
+- Committed: `4247687`
 
-- [ ] Processor trait + tree structure (ProcessorNode, ProcessorPipeline)
-- [ ] Filter processor (allow/deny by protocol/connection type)
-- [ ] StreamDumper processor (bistream recording to disk)
-- [ ] BiStream data structure (interleaved bidirectional recording)
-- [ ] shell-detect crate (GetPC pattern scanning: x86, x86-64, MIPS)
-- [ ] Shellcode processor (scan ingress, save + emit incident)
-- [ ] Config parsing + tree construction from TOML
-- [ ] Wire into I/O loop via SendMessage::AttachProcessors
-- [ ] PyConnection.processors() creates pipeline from template
+### 6.2 BiStream data structure ✅
+- [x] Thread-safe bidirectional stream buffer (Vec under Mutex)
+- [x] Per-direction offset tracking, chunk history
+- [x] 4 unit tests
+- Committed: `a739303`
+
+### 6.3 Processor trait + FilterProcessor ✅
+- [x] Processor trait (name/accepts/io_in/io_out/new_ctx)
+- [x] ProcessorNode template tree, ProcessorPipeline per-connection instantiation
+- [x] FilterProcessor with allow/deny rules (protocol + connection type matching)
+- [x] 9 unit tests
+- Committed: `3727fd8`
+
+### 6.4 StreamDumper processor ✅
+- [x] Python-eval-compatible bistream format (`stream = [('in', b'...'), ...]`)
+- [x] Lazy file creation, strftime path expansion (%Y/%m/%d/%H/%M/%S)
+- [x] Proper byte escaping for non-printable characters
+- [x] 5 unit tests
+- Committed: `ce6ac19`
+
+### 6.5 ShellcodeProcessor ✅
+- [x] Calls shell_detect::detect() on incoming data
+- [x] Content-addressable file storage (SHA256 filename, deduplication)
+- [x] Emits `dionaea.shellcode.detected` incident (arch, offset, hash, path)
+- [x] Per-connection scan offset tracking
+- [x] 4 unit tests
+- Committed: `328a10a`
+
+### 6.6 Config parsing + tree builder ✅
+- [x] `[[processors]]` TOML config with name, label, next, allow, deny, path
+- [x] `build_tree()` resolves label/next references into ProcessorNode tree
+- [x] Root nodes = entries not referenced by any other's `next`
+- [x] 5 unit tests (config parsing + tree building)
+- Committed: `ccdde15`
+
+### 6.7 Wire into I/O loop + PyConnection.processors() ✅
+- [x] `AttachProcessors(ProcessorPipeline)` variant in SendMessage
+- [x] `handle_connection` feeds io_in/io_out through pipeline
+- [x] `drain_control_messages` returns pipeline from handle_established
+- [x] `PyConnection.processors()` builds pipeline from global tree, sends via channel
+- [x] `RuntimeState.processor_tree` built from config at startup
+- Committed: `adc6455`
 
 ---
 
@@ -150,9 +186,9 @@ Will implement after all protocols are validated.
 ## Current State
 
 - **Branch:** `dionaea-v2-rust`
-- **Tests:** 173 unit + 11 integration, all green
-- **Flaky:** `test_spawn_blocking_gil_latency` (GIL contention, not a regression)
-- **Next:** Phase 7.5+ (pcap, nfq, netlink) or Phase 6 (processors) or Phase 8 (acceptance)
+- **Tests:** 217 unit + 11 integration, all green
+- **Flaky:** Some timing-sensitive network tests under parallel load (pre-existing)
+- **Next:** Phase 7.5+ (pcap, nfq, netlink) or Phase 8 (acceptance)
 
 ## Files Modified/Created
 
@@ -188,4 +224,17 @@ Phase 7:
   MOD: crates/dionaea/src/config.rs  (download timeout/size_limit, Clone)
   MOD: crates/dionaea/src/lib.rs  (download module)
   MOD: crates/dionaea/src/main.rs  (register download handler at startup)
+
+Phase 6:
+  NEW: crates/dionaea/src/bistream.rs  (bidirectional stream buffer)
+  NEW: crates/dionaea/src/processor.rs  (pipeline, filter, streamdumper, shellcode)
+  MOD: crates/shell-detect/src/lib.rs  (stub → real GetPC pattern scanning)
+  MOD: crates/dionaea/src/connection/mod.rs  (AttachProcessors in SendMessage)
+  MOD: crates/dionaea/src/connection/tcp.rs  (pipeline in I/O loop, drain returns pipeline)
+  MOD: crates/dionaea/src/python/connection.rs  (processors() implementation)
+  MOD: crates/dionaea/src/config.rs  (ProcessorConfig, FilterRuleConfig)
+  MOD: crates/dionaea/src/runtime.rs  (processor_tree field)
+  MOD: crates/dionaea/src/main.rs  (build processor tree from config)
+  MOD: crates/dionaea/src/lib.rs  (bistream, processor modules)
+  MOD: crates/dionaea/Cargo.toml  (sha2 non-optional, tempfile dev-dep)
 ```
