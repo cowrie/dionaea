@@ -602,9 +602,10 @@ class NBNSService(ServiceLoader):
         daemon = nbnsd()
         if config is not None:
             daemon.apply_config(config)
-        daemon.bind(addr, 137, iface=iface)
+        port = (config or {}).get("port", 137)
+        daemon.bind(addr, port, iface=iface)
         daemon.listen()
-        logger.info("NBNS service started on %s:137", addr)
+        logger.info("NBNS service started on %s:%d", addr, port)
         return daemon
 
 
@@ -620,7 +621,8 @@ class NBNSDatagramService(ServiceLoader):
         daemon = nbnsd()
         if config is not None:
             daemon.apply_config(config)
-        daemon.bind(addr, 138, iface=iface)
+        port = (config or {}).get("port", 138)
+        daemon.bind(addr, port, iface=iface)
         daemon.listen()
-        logger.info("NetBIOS Datagram service started on %s:138", addr)
+        logger.info("NetBIOS Datagram service started on %s:%d", addr, port)
         return daemon

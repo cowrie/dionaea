@@ -17,7 +17,8 @@ class EPMAPService(ServiceLoader):
     @classmethod
     def start(cls, addr: str, iface: str | None = None, config: dict[str, Any] | None = None) -> 'epmapper':
         daemon = epmapper()
-        daemon.bind(addr, 135, iface=iface)
+        port = (config or {}).get("port", 135)
+        daemon.bind(addr, port, iface=iface)
         daemon.listen()
         return daemon
 

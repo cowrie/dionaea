@@ -183,7 +183,8 @@ class TFTPService(ServiceLoader):
                 daemon.apply_config(config)
             except ServiceConfigError as e:
                 logger.error(e.msg, *e.args)
-        daemon.bind(addr, 69, iface=iface)
+        port = (config or {}).get("port", 69)
+        daemon.bind(addr, port, iface=iface)
         return daemon
 
 

@@ -302,6 +302,8 @@ pub enum SendMessage {
     },
     /// Attach a processor pipeline (streamdumper, shellcode, etc.) to this connection.
     AttachProcessors(ProcessorPipeline),
+    /// Graceful close requested by Python's `close()`.
+    Close,
 }
 
 /// Which timeout to configure.

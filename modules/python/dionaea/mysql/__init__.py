@@ -20,6 +20,7 @@ class MYSQLService(ServiceLoader):
     def start(cls, addr: str, iface: str | None = None, config: dict[str, Any] | None = None) -> mysqld:
         daemon = mysqld()
         daemon.apply_config(config or {})
-        daemon.bind(addr, 3306, iface=iface)
+        port = (config or {}).get("port", 3306)
+        daemon.bind(addr, port, iface=iface)
         daemon.listen()
         return daemon

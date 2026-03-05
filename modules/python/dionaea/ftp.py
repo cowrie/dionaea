@@ -142,7 +142,8 @@ class FTPService(ServiceLoader):
         except ServiceConfigError as e:
             logger.error(e.msg, *e.args)
             return
-        daemon.bind(addr, 21, iface=iface)
+        port = (config or {}).get("port", 21)
+        daemon.bind(addr, port, iface=iface)
         daemon.listen()
         return daemon
 

@@ -606,6 +606,12 @@ pub(crate) async fn handle_connection<S>(
                         tracing::debug!(connection_id = %id, "processor pipeline attached");
                         processor_pipeline = Some(pipeline);
                     }
+                    Some(SendMessage::Close) => {
+                        tracing::debug!(connection_id = %id, "close requested");
+                        handler = call_disconnect(handler, id).await;
+                        invalidate_handler(handler);
+                        return;
+                    }
                     None => {
                         tracing::debug!(connection_id = %id, "send channel closed");
                         handler = call_disconnect(handler, id).await;
@@ -713,6 +719,10 @@ fn drain_control_messages(
             SendMessage::AttachProcessors(p) => {
                 tracing::debug!(connection_id = %id, "processor pipeline attached");
                 pipeline = Some(p);
+            }
+            SendMessage::Close => {
+                // Close will be handled after pending data is flushed
+                break;
             }
         }
     }

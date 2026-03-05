@@ -607,7 +607,9 @@ impl PyConnection {
     /// Close this connection.
     fn close(&mut self) -> PyResult<()> {
         check_valid(&self.id)?;
-        // Drop the send channel to signal the I/O task
+        if let Some(tx) = &self.send_tx {
+            let _ = tx.try_send(crate::connection::SendMessage::Close);
+        }
         self.send_tx = None;
         Ok(())
     }

@@ -4,6 +4,8 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+import os
+
 import pymysql
 
 
@@ -17,10 +19,14 @@ class SQLConnection:
         self.disconnect()
 
     def connect(self):
-        self.cnx = pymysql.connect(user="root", host="127.0.0.1")
+        host = os.environ.get("DIONAEA_HOST", "127.0.0.1")
+        port = int(os.environ.get("DIONAEA_MYSQL_PORT", "3306"))
+        self.cnx = pymysql.connect(user="root", host=host, port=port)
         self.cursor = self.cnx.cursor()
         return self.cursor
 
     def disconnect(self):
-        self.cursor.close()
-        self.cnx.close()
+        if self.cursor is not None:
+            self.cursor.close()
+        if self.cnx is not None:
+            self.cnx.close()
