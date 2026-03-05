@@ -3,23 +3,44 @@
 // ABOUTME: Converts between Rust, Python, I/O, TLS, and config errors.
 
 /// All errors produced by the dionaea crate.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug)]
 pub enum Error {
     /// I/O error (network, file system).
-    #[error("I/O error: {0}")]
-    Io(#[from] std::io::Error),
+    Io(std::io::Error),
 
     /// Configuration parsing or validation error.
-    #[error("config error: {0}")]
     Config(String),
 
     /// Python error (converted from PyErr at the boundary).
-    #[error("Python error: {0}")]
     Python(String),
 
     /// TOML deserialization error.
-    #[error("TOML parse error: {0}")]
-    Toml(#[from] toml::de::Error),
+    Toml(toml::de::Error),
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::Io(e) => write!(f, "I/O error: {e}"),
+            Error::Config(msg) => write!(f, "config error: {msg}"),
+            Error::Python(msg) => write!(f, "Python error: {msg}"),
+            Error::Toml(e) => write!(f, "TOML parse error: {e}"),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
+
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
+        Error::Io(err)
+    }
+}
+
+impl From<toml::de::Error> for Error {
+    fn from(err: toml::de::Error) -> Self {
+        Error::Toml(err)
+    }
 }
 
 impl From<pyo3::PyErr> for Error {

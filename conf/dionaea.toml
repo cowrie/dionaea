@@ -2,12 +2,10 @@
 # ABOUTME: See RUSTPLAN.md for config key documentation.
 
 [dionaea]
-user = "dionaea"
-group = "dionaea"
 
 [dionaea.listen]
 mode = "manual"
-addresses = ["0.0.0.0"]
+addresses = ["127.0.0.1"]
 
 [dionaea.limits]
 max_fds_pct = 70
@@ -17,15 +15,15 @@ send_channel_capacity = 256
 recv_buffer_size = 65536
 
 [dionaea.admin]
-listen = "127.0.0.1"
+listen = "127.0.0.2"
 
 [logging]
-level = "info"
+level = "debug"
 
 [[logging.targets]]
 type = "stdout"
 format = "text"
-levels = "info,warning,error,critical"
+levels = "debug,info,warning,error,critical"
 domains = "*"
 
 [modules]
@@ -35,6 +33,7 @@ nfq = false
 netlink = false
 
 [modules.python]
-imports = ["dionaea"]
-service_configs = []
+python_path = "modules/python"
+imports = ["dionaea", "dionaea.services"]
+service_configs = ["conf/services/*.toml"]
 ihandler_configs = []

@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: none
+# SPDX-License-Identifier: CC0-1.0
+
+name = "http"
+
+[config]
+root = "var/dionaea/http/root"
+max_request_size = 32768
+ports = [80]
+ssl_ports = [443]
+global_headers = [["Server", "nginx"]]

@@ -25,11 +25,11 @@ pub struct Config {
 #[derive(Debug, Deserialize)]
 pub struct DionaeaConfig {
     /// Unix user to run as after privilege drop.
-    #[serde(default = "default_user")]
-    pub user: String,
+    #[serde(default)]
+    pub user: Option<String>,
     /// Unix group to run as after privilege drop.
-    #[serde(default = "default_group")]
-    pub group: String,
+    #[serde(default)]
+    pub group: Option<String>,
     /// Network listening configuration.
     pub listen: ListenConfig,
     /// Resource limits and rate limiting.
@@ -202,12 +202,6 @@ pub struct FilterRuleConfig {
 
 // --- Defaults ---
 
-fn default_user() -> String {
-    "dionaea".to_string()
-}
-fn default_group() -> String {
-    "dionaea".to_string()
-}
 fn default_listen_mode() -> String {
     "manual".to_string()
 }
@@ -354,10 +348,10 @@ fn apply_env_overrides(config: &mut Config) {
         config.logging.level = val;
     }
     if let Ok(val) = std::env::var("DIONAEA_DIONAEA__USER") {
-        config.dionaea.user = val;
+        config.dionaea.user = Some(val);
     }
     if let Ok(val) = std::env::var("DIONAEA_DIONAEA__GROUP") {
-        config.dionaea.group = val;
+        config.dionaea.group = Some(val);
     }
     if let Ok(val) = std::env::var("DIONAEA_DIONAEA__LIMITS__MAX_FDS_PCT") {
         if let Ok(n) = val.parse() {

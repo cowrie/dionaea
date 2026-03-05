@@ -89,7 +89,7 @@ impl ConnectionLimits {
 
         // Check FD limit
         if fd_soft_limit > 0 {
-            let threshold = fd_soft_limit * u64::from(self.max_fds_pct) / 100;
+            let threshold = fd_soft_limit / 100 * u64::from(self.max_fds_pct);
             if fd_count >= threshold {
                 return Err(RejectReason::FdLimit {
                     used: fd_count,

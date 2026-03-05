@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: none
+# SPDX-License-Identifier: CC0-1.0
+
+name = "ftp"
+
+[config]
+root = "var/dionaea/ftp/root"
+
+[config.response_messages]
+welcome_msg = "220 DiskStation FTP server ready."

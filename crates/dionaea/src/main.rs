@@ -128,31 +128,32 @@ async fn async_main(config: config::Config) {
 
     // Drop privileges after all ports are bound
     {
-        let user = &state.config.dionaea.user;
-        let group = &state.config.dionaea.group;
-
         if let Err(e) = dionaea::privileges::raise_nofile_limit() {
             tracing::warn!(error = %e, "failed to raise RLIMIT_NOFILE");
         }
 
-        match (
-            dionaea::privileges::resolve_user(user),
-            dionaea::privileges::resolve_group(group),
-        ) {
-            (Ok(uid), Ok(gid)) => {
-                if let Err(e) = dionaea::privileges::drop_privileges(uid, gid) {
-                    tracing::error!(error = %e, "failed to drop privileges");
+        if let (Some(user), Some(group)) = (&state.config.dionaea.user, &state.config.dionaea.group) {
+            match (
+                dionaea::privileges::resolve_user(user),
+                dionaea::privileges::resolve_group(group),
+            ) {
+                (Ok(uid), Ok(gid)) => {
+                    if let Err(e) = dionaea::privileges::drop_privileges(uid, gid) {
+                        tracing::error!(error = %e, "failed to drop privileges");
+                        std::process::exit(1);
+                    }
+                }
+                (Err(e), _) => {
+                    tracing::error!(error = %e, user = %user, "failed to resolve user");
+                    std::process::exit(1);
+                }
+                (_, Err(e)) => {
+                    tracing::error!(error = %e, group = %group, "failed to resolve group");
                     std::process::exit(1);
                 }
             }
-            (Err(e), _) => {
-                tracing::error!(error = %e, user = %user, "failed to resolve user");
-                std::process::exit(1);
-            }
-            (_, Err(e)) => {
-                tracing::error!(error = %e, group = %group, "failed to resolve group");
-                std::process::exit(1);
-            }
+        } else {
+            tracing::info!("no user/group configured, skipping privilege drop");
         }
     }
 
