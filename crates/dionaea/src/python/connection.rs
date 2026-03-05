@@ -106,8 +106,12 @@ impl PyConnection {
 impl PyConnection {
     /// Construct the Rust struct. Python subclasses call __init__ via super().
     #[new]
-    #[pyo3(signature = (proto=None))]
-    pub fn new(proto: Option<String>) -> Self {
+    #[pyo3(signature = (proto=None, *_args, **_kwargs))]
+    pub fn new(
+        proto: Option<String>,
+        _args: &Bound<'_, pyo3::types::PyTuple>,
+        _kwargs: Option<&Bound<'_, pyo3::types::PyDict>>,
+    ) -> Self {
         // Check if this is a factory call (accept path)
         let factory_id = FACTORY_CON_ID.with(|f| f.take());
         let factory_tx = FACTORY_SEND_TX.with(|f| f.take());

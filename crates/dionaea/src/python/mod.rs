@@ -62,7 +62,8 @@ fn dlhfn(name: &str, number: i32, path: &str, line: i32, msg: &str) {
 /// Returns a weakref proxy, matching the Cython `connection_new()`.
 #[pyfunction]
 fn connection_new(py: Python<'_>, con_type: String) -> PyResult<Py<PyAny>> {
-    let conn = Py::new(py, connection::PyConnection::new(Some(con_type.clone())))?;
+    let empty_tuple = pyo3::types::PyTuple::empty(py);
+    let conn = Py::new(py, connection::PyConnection::new(Some(con_type.clone()), &empty_tuple, None))?;
     // Call __init__ to set up the transport
     {
         let mut c = conn.bind(py).cast::<connection::PyConnection>()?.borrow_mut();
