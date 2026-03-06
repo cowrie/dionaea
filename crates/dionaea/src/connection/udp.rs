@@ -68,7 +68,7 @@ pub async fn udp_listen(
 ) -> std::io::Result<UdpListenerHandle> {
     let socket = UdpSocket::bind(addr).await?;
     let bound_addr = socket.local_addr()?;
-    tracing::info!(%bound_addr, "UDP listener bound");
+    tracing::debug!(%bound_addr, "UDP listener bound");
 
     let idle_timeout = if idle_timeout_secs <= 0.0 {
         Duration::from_secs(86400 * 365) // effectively disabled

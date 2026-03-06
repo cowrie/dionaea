@@ -188,7 +188,7 @@ pub async fn tls_listen(
 ) -> std::io::Result<TlsListenerHandle> {
     let listener = TcpListener::bind(addr).await?;
     let bound_addr = listener.local_addr()?;
-    tracing::info!(%bound_addr, "TLS listener bound");
+    tracing::debug!(%bound_addr, "TLS listener bound");
 
     let silent_tracker = Arc::new(SilentConnectionTracker::new(reject_config.silence_cap));
     let acceptor = Arc::new(acceptor);

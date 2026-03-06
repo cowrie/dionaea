@@ -129,7 +129,7 @@ pub async fn tcp_listen(
 ) -> std::io::Result<TcpListenerHandle> {
     let listener = TcpListener::bind(addr).await?;
     let bound_addr = listener.local_addr()?;
-    tracing::info!(%bound_addr, "TCP listener bound");
+    tracing::debug!(%bound_addr, "TCP listener bound");
 
     let silent_tracker = Arc::new(SilentConnectionTracker::new(reject_config.silence_cap));
 
