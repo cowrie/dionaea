@@ -5,7 +5,7 @@
 
 [dionaea.listen]
 mode = "manual"
-addresses = ["127.0.0.1"]
+addresses = ["0.0.0.0"]
 
 [dionaea.limits]
 max_fds_pct = 70
@@ -15,7 +15,7 @@ send_channel_capacity = 256
 recv_buffer_size = 65536
 
 [dionaea.admin]
-listen = "127.0.0.2"
+listen = "127.0.0.1"
 
 [logging]
 level = "debug"
