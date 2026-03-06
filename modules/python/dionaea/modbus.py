@@ -5,7 +5,7 @@
 #
 # SPDX-FileCopyrightText: none
 #
-# SPDX-License-Identifier: GPL-2.0-or-later
+# SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
 import struct
