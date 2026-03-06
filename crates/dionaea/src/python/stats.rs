@@ -49,6 +49,7 @@ impl PyConnectionTimeouts {
 
 #[pymethods]
 impl PyConnectionTimeouts {
+    /// Create timeouts with default values.
     #[new]
     pub fn new() -> Self {
         PyConnectionTimeouts {

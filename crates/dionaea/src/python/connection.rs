@@ -108,6 +108,7 @@ impl PyConnection {
     #[new]
     #[pyo3(signature = (proto=None, *_args, **_kwargs))]
     pub fn new(
+        #[allow(unused_variables)]
         proto: Option<String>,
         _args: &Bound<'_, pyo3::types::PyTuple>,
         _kwargs: Option<&Bound<'_, pyo3::types::PyDict>>,

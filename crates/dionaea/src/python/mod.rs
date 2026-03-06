@@ -2,13 +2,21 @@
 // ABOUTME: PyO3 bridge between Rust core and Python protocol handlers.
 // ABOUTME: Defines #[pyclass] types that Python protocol modules subclass.
 
+/// PyConnection: base class for Python protocol handlers.
 pub mod connection;
+/// Rust ↔ Python type conversion helpers.
 pub mod convert;
+/// PyDionaea singleton: config access, getifaddrs, version.
 pub mod dionaea;
+/// PyIHandler: base class for Python incident handlers.
 pub mod ihandler;
+/// PyIncident: dynamic key-value container for event data.
 pub mod incident;
+/// Python module loading: import, new(), start(), stop() lifecycle.
 pub mod loader;
+/// PyNodeInfo: network endpoint address exposed to Python.
 pub mod node_info;
+/// PyConnectionTimeouts, PyConnectionSpeed, etc. exposed to Python.
 pub mod stats;
 
 use pyo3::prelude::*;

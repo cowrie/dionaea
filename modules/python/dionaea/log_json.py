@@ -19,15 +19,12 @@ logger.setLevel(logging.DEBUG)
 
 
 class FileHandler:
-    handle_schemes = ["file"]
-
-    def __init__(self, url):
-        self.url = url
-        url = urlparse(url)
+    def __init__(self, path):
+        self.path = path
         try:
-            self.fp = open(url.path, "a")
+            self.fp = open(path, "a")
         except OSError as e:
-            raise LoaderError("Unable to open file %s Error message '%s'", url.path, e.strerror)
+            raise LoaderError("Unable to open file '%s': %s", path, e.strerror)
 
     def submit(self, data):
         data = json.dumps(data)
@@ -93,10 +90,12 @@ class LogJsonHandler(ihandler):
 
         for handler in handlers:
             url = urlparse(handler)
-            for h in (FileHandler, HTTPHandler,):
-                if url.scheme in h.handle_schemes:
-                    self.handlers.append(h(url=handler))
-                    break
+            if url.scheme in HTTPHandler.handle_schemes:
+                self.handlers.append(HTTPHandler(url=handler))
+            else:
+                # Plain path or file: URL — treat as local file
+                path = url.path if url.scheme == "file" else handler
+                self.handlers.append(FileHandler(path=path))
 
     def handle_incident(self, icd):
         #        print("unknown")

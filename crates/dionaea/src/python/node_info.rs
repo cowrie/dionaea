@@ -40,6 +40,7 @@ impl PyNodeInfo {
 
 #[pymethods]
 impl PyNodeInfo {
+    /// Create a node info defaulting to 0.0.0.0:0.
     #[new]
     pub fn new() -> Self {
         PyNodeInfo {

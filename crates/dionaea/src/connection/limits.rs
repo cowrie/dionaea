@@ -10,13 +10,35 @@ use std::sync::atomic::{AtomicU32, Ordering};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RejectReason {
     /// Too many connections from this source IP.
-    PerIpLimit { ip: IpAddr, current: u32, limit: u32 },
+    PerIpLimit {
+        /// Source IP that exceeded the limit.
+        ip: IpAddr,
+        /// Current connection count from this IP.
+        current: u32,
+        /// Configured per-IP limit.
+        limit: u32,
+    },
     /// Global connection count exceeded.
-    TotalLimit { current: u32, limit: u32 },
+    TotalLimit {
+        /// Current total connection count.
+        current: u32,
+        /// Configured total limit.
+        limit: u32,
+    },
     /// File descriptor usage too high.
-    FdLimit { used: u64, soft_limit: u64, threshold_pct: u32 },
+    FdLimit {
+        /// Current FD count.
+        used: u64,
+        /// OS soft limit for file descriptors.
+        soft_limit: u64,
+        /// Configured threshold percentage.
+        threshold_pct: u32,
+    },
     /// IP is on the deny list.
-    Denied { ip: IpAddr },
+    Denied {
+        /// Denied source IP.
+        ip: IpAddr,
+    },
 }
 
 impl std::fmt::Display for RejectReason {

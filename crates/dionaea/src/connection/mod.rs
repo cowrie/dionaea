@@ -2,12 +2,18 @@
 // ABOUTME: Connection lifecycle state machine and metadata registry.
 // ABOUTME: Owns ConnectionMeta (shared via DashMap) and defines state transitions.
 
+/// Python callback dispatch (handle_io_in, handle_established, etc.).
 pub mod callback;
+/// Per-IP and global connection limit enforcement.
 pub mod limits;
+/// TCP listener, accept loop, and generic I/O handler.
 pub mod tcp;
+/// Bandwidth throttling and byte accounting.
 pub mod throttle;
+/// TLS listener, self-signed cert generation, and SSL handshake.
 #[cfg(feature = "tls")]
 pub mod tls;
+/// UDP socket, peer table, and idle sweep.
 pub mod udp;
 
 use crate::error::Error;

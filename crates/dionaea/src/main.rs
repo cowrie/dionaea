@@ -2,6 +2,8 @@
 // ABOUTME: Entry point for the dionaea honeypot daemon.
 // ABOUTME: Initializes config, logging, Python, tokio runtime, and signal handlers.
 
+//! Dionaea honeypot daemon entry point.
+
 use dionaea::config;
 use dionaea::processor;
 use std::path::PathBuf;

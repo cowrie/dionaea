@@ -4,4 +4,9 @@
 name = "log_json"
 
 [config]
-handlers = ["file://var/dionaea/dionaea.json"]
+# Each entry is a file path or HTTP(S) URL.
+# File paths are relative to the working directory.
+# Examples:
+#   "var/dionaea/dionaea.json"        — local file (append mode)
+#   "https://log.example.com/ingest" — POST JSON to remote endpoint
+handlers = ["var/dionaea/dionaea.json"]

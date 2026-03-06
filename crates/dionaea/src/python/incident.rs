@@ -45,6 +45,7 @@ impl PyIncident {
 
 #[pymethods]
 impl PyIncident {
+    /// Create an incident with an optional origin path.
     #[new]
     #[pyo3(signature = (origin=None))]
     pub fn new(origin: Option<String>) -> Self {
