@@ -40,3 +40,29 @@ ihandler_configs = [
     "conf/ihandlers/log_json.toml",
     "conf/ihandlers/log_sqlite.toml",
 ]
+
+# Processor pipeline: filter → streamdumper, filter → shellcode detection
+[[processors]]
+name = "filter"
+label = "filter_streamdumper"
+next = ["streamdumper"]
+deny = [
+    { protocols = ["ftpdata", "ftpdatacon"] },
+]
+
+[[processors]]
+name = "streamdumper"
+label = "streamdumper"
+path = "var/dionaea/bistreams/%Y-%m-%d/"
+
+[[processors]]
+name = "filter"
+label = "filter_shellcode"
+next = ["shellcode"]
+allow = [
+    { protocols = ["smbd", "epmapper", "mssqld", "httpd"] },
+]
+
+[[processors]]
+name = "shellcode"
+label = "shellcode"
