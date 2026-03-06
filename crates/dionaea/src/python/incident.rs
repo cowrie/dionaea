@@ -4,6 +4,7 @@
 
 use crate::ihandler::HandlerCallback;
 use crate::incident::{Incident, OpaqueData};
+use crate::python::connection::PyConnection;
 use crate::python::convert::{opaque_to_py, py_to_opaque};
 use crate::python::ihandler::dispatch_to_handler;
 use crate::runtime;
@@ -17,11 +18,18 @@ use std::sync::Arc;
 /// Dynamic attributes are stored in a `HashMap<String, OpaqueData>` and accessed
 /// via `__getattr__`/`__setattr__`. The `origin` property is read-only.
 ///
+/// Connection objects are also stored as `Py<PyAny>` in `py_refs` so that Python
+/// handlers get back the original object (with .protocol, .transport, etc.)
+/// instead of a bare connection ID integer.
+///
 /// Matches the Cython `incident` class in binding.pyx.
 #[pyclass(subclass)]
 pub struct PyIncident {
     origin: String,
     data: HashMap<String, OpaqueData>,
+    /// Original Python objects for attributes that lose fidelity through OpaqueData
+    /// (e.g. connection objects which become ConnectionRef(id)).
+    py_refs: HashMap<String, Py<PyAny>>,
 }
 
 impl PyIncident {
@@ -30,6 +38,7 @@ impl PyIncident {
         PyIncident {
             origin: incident.origin.clone(),
             data: incident.data.clone(),
+            py_refs: HashMap::new(),
         }
     }
 
@@ -52,6 +61,7 @@ impl PyIncident {
         PyIncident {
             origin: origin.unwrap_or_default(),
             data: HashMap::new(),
+            py_refs: HashMap::new(),
         }
     }
 
@@ -147,12 +157,24 @@ impl PyIncident {
     }
 
     /// Dynamic attribute access: `incident.con`, `incident.port`, etc.
+    ///
+    /// Returns the original Python object for connection-type attributes,
+    /// falling back to OpaqueData conversion for everything else.
     fn __getattr__(&self, py: Python<'_>, name: &str) -> PyResult<Py<PyAny>> {
+        if let Some(py_ref) = self.py_refs.get(name) {
+            return Ok(py_ref.clone_ref(py));
+        }
         self.get(py, name)
     }
 
     /// Dynamic attribute setting: `incident.con = value`, etc.
+    ///
+    /// Connection objects are stored as both OpaqueData (for Rust handlers)
+    /// and as the original Python object (for Python handlers).
     fn __setattr__(&mut self, py: Python<'_>, key: String, value: &Bound<'_, PyAny>) -> PyResult<()> {
+        if value.cast::<PyConnection>().is_ok() {
+            self.py_refs.insert(key.clone(), value.clone().unbind());
+        }
         self.set(py, key, value)
     }
 
