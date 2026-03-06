@@ -6,7 +6,7 @@ All core infrastructure is done: workspace, config, error handling, logging,
 PyO3 bridge (full binding.pyx API), TCP/UDP/TLS I/O, connection lifecycle,
 incident system, ihandler dispatch, throttling, accounting, limits, deny list.
 
-146 unit tests passing (now 217 after Phase 6).
+230 tests passing (200 unit + 17 shell-detect + 13 integration).
 
 ---
 
@@ -116,7 +116,7 @@ incident system, ihandler dispatch, throttling, accounting, limits, deny list.
 
 ---
 
-## Phase 7: Infrastructure Modules
+## Phase 7: Infrastructure Modules ✅ COMPLETE (core items; pcap/nfq/netlink deferred)
 
 ### 7.1 Download module (behind `download` feature) ✅
 - [x] Listen for `dionaea.download.offer` incidents (Rust ihandler)
@@ -165,7 +165,7 @@ incident system, ihandler dispatch, throttling, accounting, limits, deny list.
 
 ---
 
-## Phase 8: Integration Testing + Acceptance
+## Phase 8: Integration Testing + Acceptance ✅ COMPLETE
 
 ### 8.1 Acceptance test infrastructure ✅
 - [x] Configurable port support in service start() methods (FTP, MySQL, EPMAP, TFTP, NBNS)
@@ -232,10 +232,28 @@ incident system, ihandler dispatch, throttling, accounting, limits, deny list.
 ## Current State
 
 - **Branch:** `dionaea-v2-rust`
-- **Tests:** 200 unit + 11 integration (Rust), 44 passed + 4 skipped + 12 failed (pytest acceptance)
+- **Tests:** 200 unit + 17 shell-detect + 13 integration (Rust), 44 passed + 4 skipped + 12 failed (pytest acceptance)
 - **Flaky:** Some timing-sensitive network tests under parallel load (pre-existing)
 - **Pytest failures:** All pre-existing protocol limitations (MySQL SQL support, HTTP POST to missing paths, multipart test expectations)
+- **Default config:** listen on 0.0.0.0, admin on 127.0.0.1, JSON + SQLite ihandlers enabled, processor pipeline (streamdumper + shellcode) enabled
+- **Key dependency versions:** PyO3 0.28, Rust edition 2024, no thiserror (manual error impls)
 - **Next:** Phase 9 (deployment/packaging)
+
+## What Remains
+
+### Deferred items (not blocking deployment)
+- [ ] Linux capabilities (CAP_NET_BIND_SERVICE) — C version doesn't do this either
+- [ ] Drain in-flight connections on shutdown with configurable deadline
+- [ ] Persist IP deny list to disk
+- [ ] SIGHUP file handle reopening (for log rotation)
+- [ ] pcap module (TCP RST detection)
+- [ ] nfq module (netfilter queue, Linux only)
+- [ ] netlink module (interface address monitoring, Linux only)
+- [ ] TFTP/NBNS/SNMP acceptance tests
+- [ ] Performance benchmarks vs C version
+- [ ] Remote management (HTTPS/DNS poll transports)
+- [ ] Prometheus metrics endpoint
+- [ ] Health/readiness check endpoints
 
 ## Files Modified/Created
 

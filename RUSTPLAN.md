@@ -13,8 +13,7 @@ in Rust with PyO3, keeping all Python protocols unchanged.
   Keep Python Speakeasy handler for Windows API emulation (IOC extraction).
   No unicorn-engine dependency in Rust core — Speakeasy already uses unicorn
   internally via Python.
-- Config: TOML for Rust core. Python service/ihandler configs stay YAML (avoids touching
-  every protocol module's config loading code).
+- Config: TOML everywhere. Python service and ihandler configs migrated to TOML.
 - Privileges: Linux capabilities (CAP_NET_BIND_SERVICE), no pchild fork
 - Modules: Compile-time Cargo features, no dynamic loading
 - TLS: openssl crate (mandatory for weak cipher honeypot support)
@@ -36,21 +35,16 @@ openssl = "0.10"
 tokio-openssl = "0.6"
 
 # Python embedding
-pyo3 = { version = "0.23", features = ["auto-initialize"] }  # verify latest stable on crates.io
+pyo3 = { version = "0.28", features = ["auto-initialize"] }
 
 # Logging + observability
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 tracing-appender = "0.2"
-metrics = "0.24"
-metrics-exporter-prometheus = "0.18"
-
-# Error handling
-thiserror = "2"
 
 # Config
 serde = { version = "1", features = ["derive"] }
-toml = "1"
+toml = "0.8"
 
 # Data structures
 bytes = "1"            # BytesMut for zero-copy send buffers
@@ -60,22 +54,22 @@ dashmap = "6"          # Concurrent HashMap for per-IP tracking
 sha2 = "0.10"          # SHA256 for download/shellcode file naming
 
 # DNS
-hickory-resolver = { version = "0.25", features = ["tokio-runtime"] }
+hickory-resolver = { version = "0.25", features = ["tokio"] }
 
 # IP deny list (CIDR prefix matching)
+ip_network = "0.4"
 ip_network_table = "0.2"
 
 # HTTP client (replaces curl module)
-reqwest = { version = "0.13", default-features = false, features = ["native-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["native-tls"] }
 
 # System/privileges
-nix = { version = "0.31", features = ["socket", "uio", "user", "process", "fs", "net", "resource"] }
-caps = "0.5"           # Linux-only, behind cfg
+nix = { version = "0.30", features = ["socket", "uio", "user", "process", "fs", "net", "resource", "signal"] }
 
 # Platform-specific (Linux only, behind cfg)
 pcap = "2"             # libpcap bindings
 nfq = "0.2"            # netfilter queue (pure Rust, MIT)
-rtnetlink = "0.20"     # netlink interface monitoring
+rtnetlink = "0.15"     # netlink interface monitoring
 
 [workspace.dev-dependencies]
 proptest = "1"
@@ -94,10 +88,8 @@ module_name_repetitions = "allow"
 must_use_candidate = "allow"
 ```
 
-**Version verification:** Before creating `Cargo.toml`, verify all crate versions against
-crates.io. Versions above are best estimates — run `cargo check` in Phase 1 to catch
-incompatibilities early. In particular: `pyo3`, `reqwest`, `metrics`, and `nfq` versions
-should be pinned to actual latest stable releases.
+**Version note:** Versions above match the actual `Cargo.toml` as of Phase 8 completion.
+Metrics and Prometheus dependencies are not yet added (planned for Phase 9+).
 
 No unicorn-engine dependency in Rust — Speakeasy uses unicorn internally via Python.
 GetPC pattern detection is pure Rust (no external deps needed — it's byte pattern scanning).
@@ -113,26 +105,18 @@ These apply to every phase, not just one.
 
 ```rust
 // crates/dionaea/src/error.rs
-#[derive(Debug, thiserror::Error)]
+// Manual Display/Error impls (thiserror dropped to reduce dependencies).
+#[derive(Debug)]
 pub enum Error {
-    #[error("I/O error: {0}")]
-    Io(#[from] std::io::Error),
-
-    #[error("TLS error: {0}")]
-    Tls(#[from] openssl::error::ErrorStack),
-
-    #[error("config error: {0}")]
+    Io(std::io::Error),
+    Tls(openssl::error::ErrorStack),
     Config(String),
-
-    #[error("Python error: {0}")]
     Python(String),  // Converted from PyErr at the boundary
-
-    #[error("DNS resolution failed for {host}: {source}")]
     Dns { host: String, source: hickory_resolver::error::ResolveError },
 }
 
 // Python ↔ Rust boundary: PyErr → Error::Python, Error → PyErr
-// PyO3 handles this via From<PyErr> and Into<PyErr> impls.
+// Manual From<PyErr> and Into<PyErr> impls.
 ```
 
 **Panic policy:** `panic = "unwind"` in release. A panic in one connection handler must not
@@ -140,10 +124,10 @@ take down the process. Log the panic, close that connection, continue.
 
 **`catch_unwind` placement guide:**
 - Wrap the *entire body* of each `spawn_blocking` closure in `catch_unwind`. This catches
-  Rust-side panics that happen outside `Python::with_gil`.
-- Inside `Python::with_gil`, rely on PyO3's internal panic handling — PyO3 catches panics
-  within `with_gil` closures and converts them to `PyErr`, which is the correct behavior.
-  Do NOT nest `catch_unwind` inside `with_gil` (it interferes with GIL state management).
+  Rust-side panics that happen outside `Python::attach`.
+- Inside `Python::attach`, rely on PyO3's internal panic handling — PyO3 catches panics
+  within `attach` closures and converts them to `PyErr`, which is the correct behavior.
+  Do NOT nest `catch_unwind` inside `attach` (it interferes with GIL state management).
 - At every tokio task entry point (the `async move {}` block in `tokio::spawn`), wrap the
   entire task body in `catch_unwind` via `AssertUnwindSafe` on the future.
 - `catch_unwind` does NOT catch `std::process::abort()` (some OpenSSL error handlers call
@@ -170,9 +154,9 @@ The GIL is the single hardest integration problem. Rules:
 3. **Callback pattern:** When Rust needs to call Python (handle_io_in, handle_established, etc.):
    ```rust
    let result = tokio::task::spawn_blocking(move || {
-       Python::with_gil(|py| {
+       Python::attach(|py| {
            let handler = py_protocol.bind(py);
-           handler.call_method1("handle_io_in", (data,))
+           handler.call_method1(intern!(py, "handle_io_in"), (data,))
        })
    }).await?;
    ```
@@ -597,7 +581,7 @@ job (see Testing Strategy §CI pipeline). clippy, test, audit, and deny run per-
   verbose and the invariant is obvious (e.g., poisoned mutex).
 - **No macros unless unavoidable.** Macros are a different language — LSPs can't parse
   them, they're hard to debug, and they destroy code locality. Use functions and
-  generics first. The only acceptable macros are derive macros (thiserror, serde,
+  generics first. The only acceptable macros are derive macros (serde,
   PyO3) and trivial declarative macros for repetitive trait impls. If you're writing
   a `macro_rules!` that spans more than 10 lines, reconsider.
 - **`// SAFETY:` comments** on every `unsafe` block (if any get `#[allow]`ed) and on
@@ -631,7 +615,7 @@ native equivalents which are better.
 | `g_malloc`/`g_free` | All allocation | Rust's allocator (automatic via ownership) |
 | `g_error`/`g_warning`/`g_debug` | Logging | `tracing::error!`/`warn!`/`debug!` |
 | `GKeyFile` (INI parser) | Main config | `serde` + `toml` crate |
-| `GError` | Error propagation | `thiserror` enum + `Result<T, Error>` |
+| `GError` | Error propagation | `Error` enum + `Result<T, Error>` |
 | `GThreadPool` | Processor thread pool | `tokio::task::spawn_blocking` pool |
 | `GMainLoop` / `libev` | Event loop | `tokio` async runtime |
 | `g_pattern_spec_match` | Glob with `*` matching dots | Simple wildcard: `*` = any chars, `?` = one char |
@@ -1175,7 +1159,7 @@ dionaea-v2/
 │   │   └── src/
 │   │       ├── main.rs             # Entry point: config, init, signal handling, tokio runtime
 │   │       ├── lib.rs              # Crate root: re-exports for integration tests
-│   │       ├── error.rs            # Error types (thiserror)
+│   │       ├── error.rs            # Error types (manual impls)
 │   │       ├── config.rs           # TOML config loading, validation, env overrides
 │   │       ├── connection/
 │   │       │   ├── mod.rs          # ConnectionMeta, TaskState, state machine, lifecycle
@@ -1188,9 +1172,10 @@ dionaea-v2/
 │   │       ├── ihandler.rs         # IHandler registry, wildcard pattern matching
 │   │       ├── processor.rs        # Processor pipeline tree
 │   │       ├── bistream.rs         # Bidirectional stream recording
-│   │       ├── dns.rs              # Async DNS resolution
 │   │       ├── node_info.rs        # Network address info
-│   │       ├── metrics.rs          # Prometheus metrics definitions
+│   │       ├── privileges.rs      # Privilege dropping (setuid/setgid)
+│   │       ├── download.rs        # HTTP download module (behind download feature)
+│   │       ├── runtime.rs         # Global state (OnceLock): registries, config, processor tree
 │   │       ├── python/             # PyO3 bridge (module, not separate crate)
 │   │       │   ├── mod.rs          # Python init, module registration
 │   │       │   ├── connection.rs   # #[pyclass] PyConnection
@@ -1201,7 +1186,7 @@ dionaea-v2/
 │   │       │   ├── dionaea.rs      # #[pyclass] global singleton (config, version)
 │   │       │   ├── convert.rs      # Rust ↔ Python type conversions
 │   │       │   └── loader.rs       # Python module import, ServiceLoader/IHandlerLoader
-│   │       └── management/
+│   │       └── management/         # (PLANNED, not yet implemented)
 │   │           ├── mod.rs          # ManagementApi, StatusReport, commands
 │   │           ├── state.rs        # Incident ring buffer, IP deny list, queries
 │   │           ├── https.rs        # JSON/HTTPS poll transport (feature-gated)
@@ -1217,8 +1202,8 @@ dionaea-v2/
 │
 ├── conf/                            # Default configuration files
 │   ├── dionaea.toml                # Main config (TOML, read by Rust)
-│   ├── services/                   # Per-service YAML configs (read by Python)
-│   └── ihandlers/                  # Per-handler YAML configs (read by Python)
+│   ├── services/                   # Per-service TOML configs (read by Python)
+│   └── ihandlers/                  # Per-handler TOML configs (read by Python)
 │
 ├── python/                          # Python protocol modules (copied from current repo)
 │   ├── requirements.txt            # Pinned versions for all runtime Python deps
@@ -1262,12 +1247,14 @@ They share core types and are too small to justify separate compilation units.
 ```toml
 # crates/dionaea/Cargo.toml
 [features]
-default = ["download"]
+default = ["tls", "dns", "download", "deny-list"]
+tls = ["dep:openssl", "dep:tokio-openssl"]
+dns = ["dep:hickory-resolver"]
+download = ["dep:reqwest"]
+deny-list = ["dep:ip_network", "dep:ip_network_table"]
 pcap = ["dep:pcap"]
 nfq = ["dep:nfq"]              # implies target_os = "linux"
 netlink = ["dep:rtnetlink"]    # implies target_os = "linux"
-download = ["dep:reqwest"]
-metrics = ["dep:metrics", "dep:metrics-exporter-prometheus"]
 mgmt-https = ["dep:reqwest"]   # JSON/HTTPS poll-based remote management
 mgmt-dns = []                  # DNS-based poll-based remote management
 ```
@@ -1287,7 +1274,7 @@ the Cython binding API closely enough for existing Python protocols to work?
 Build a minimal proof-of-concept that:
 - [ ] Define `#[pyclass(subclass)]` `PyConnection` with `handle_io_in` and `send` methods
 - [ ] Subclass it in Python: `class echo(connection): def handle_io_in(self, data): ...`
-- [ ] Call `handle_io_in` from Rust via `spawn_blocking` + `Python::with_gil`
+- [ ] Call `handle_io_in` from Rust via `spawn_blocking` + `Python::attach`
 - [ ] Call `send()` from Python back into Rust
 - [ ] Verify method resolution order works for all `handle_*` callbacks
 - [ ] Verify `#[pyclass(subclass)]` supports Python `__init__` with `super().__init__()` call
@@ -1365,9 +1352,12 @@ nfq = false
 netlink = false
 
 [modules.python]
-imports = ["dionaea"]
-service_configs = ["/etc/dionaea/services-enabled/*.yaml"]
-ihandler_configs = ["/etc/dionaea/ihandlers-enabled/*.yaml"]
+imports = ["dionaea", "dionaea.services"]
+service_configs = ["conf/services/*.toml"]
+ihandler_configs = [
+    "conf/ihandlers/log_json.toml",
+    "conf/ihandlers/log_sqlite.toml",
+]
 
 [dionaea.admin]
 listen = "127.0.0.1"              # admin interface (metrics, health) — separate from honeypot
@@ -1662,7 +1652,7 @@ Dynamic dispatch: origin dots→underscores for method lookup (see below)
 logic replaces dots with underscores in the origin and looks for a specific method:
 
 ```rust
-// In spawn_blocking + Python::with_gil:
+// In spawn_blocking + Python::attach:
 let origin = incident.origin.replace('.', "_");
 let method_name = format!("handle_incident_{origin}");
 match handler.bind(py).getattr(method_name.as_str()) {

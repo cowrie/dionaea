@@ -491,7 +491,7 @@ service_configs = ["/etc/dionaea/services-enabled/*.toml"]
 ihandler_configs = ["/etc/dionaea/ihandlers-enabled/*.toml"]
 "#;
         let config = load_from_str(toml).expect("parse full config");
-        assert_eq!(config.dionaea.user, "honeypot");
+        assert_eq!(config.dionaea.user.as_deref(), Some("honeypot"));
         assert_eq!(config.dionaea.listen.mode, "getifaddrs");
         assert_eq!(config.dionaea.listen.interfaces, vec!["eth0", "eth1"]);
         assert_eq!(config.dionaea.limits.max_fds_pct, 80);
@@ -507,8 +507,8 @@ ihandler_configs = ["/etc/dionaea/ihandlers-enabled/*.toml"]
     #[test]
     fn test_config_round_trip_defaults() {
         let config = load_from_str(MINIMAL_CONFIG).expect("parse");
-        assert_eq!(config.dionaea.user, "dionaea");
-        assert_eq!(config.dionaea.group, "dionaea");
+        assert_eq!(config.dionaea.user, None);
+        assert_eq!(config.dionaea.group, None);
         assert_eq!(
             config.dionaea.admin.listen,
             "127.0.0.1".parse::<IpAddr>().expect("valid IP")
