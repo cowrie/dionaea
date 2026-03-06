@@ -124,6 +124,9 @@ def new() -> None:
 
     if mode == 'manual':
         addresses = dionaea_config.get("listen.addresses")
+        # Wildcard addresses: 0.0.0.0 means all IPv4, :: means all IPv6
+        has_v4_wildcard = "0.0.0.0" in addresses if addresses else False
+        has_v6_wildcard = "::" in addresses if addresses else False
         ifaces = g_dionaea.getifaddrs()
         for iface in ifaces.keys():
             afs = ifaces[iface]
@@ -133,8 +136,13 @@ def new() -> None:
                     if iface not in addrs:
                         addrs[iface] = []
                     for config in configs:
-                        if config["addr"] in addresses:
-                            addrs[iface].append(config['addr'])
+                        addr_str = config["addr"]
+                        if addr_str in addresses:
+                            addrs[iface].append(addr_str)
+                        elif af == 2 and has_v4_wildcard:
+                            addrs[iface].append(addr_str)
+                        elif af == 10 and has_v6_wildcard:
+                            addrs[iface].append(addr_str)
         g_slave = slave(addresses=addrs)
     elif mode == 'getifaddrs':
         ifaces = g_dionaea.getifaddrs()
