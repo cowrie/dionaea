@@ -242,7 +242,7 @@ fn default_true() -> bool {
     true
 }
 fn default_download_dir() -> PathBuf {
-    PathBuf::from("/var/lib/dionaea/binaries/")
+    PathBuf::from("var/dionaea/downloads/")
 }
 fn default_download_suffix() -> String {
     ".tmp".to_string()
@@ -579,7 +579,7 @@ max_fds_pct = 0
     #[test]
     fn test_download_config_defaults() {
         let config = load_from_str(MINIMAL_CONFIG).expect("parse");
-        assert_eq!(config.dionaea.download.dir.to_str().unwrap(), "/var/lib/dionaea/binaries/");
+        assert_eq!(config.dionaea.download.dir.to_str().unwrap(), "var/dionaea/downloads/");
         assert_eq!(config.dionaea.download.suffix, ".tmp");
         assert_eq!(config.dionaea.download.timeout_secs, 30);
         assert_eq!(config.dionaea.download.size_limit_bytes, 10 * 1024 * 1024);

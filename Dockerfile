@@ -1,122 +1,75 @@
-# This file is part of the dionaea honeypot
-#
-# SPDX-FileCopyrightText: none
-#
-# SPDX-License-Identifier: CC0-1.0
+# ABOUTME: Multi-stage Docker build for the dionaea v2 Rust honeypot.
+# ABOUTME: Builds the Rust binary with PyO3 and packages it with Python protocol modules.
 
-FROM debian:trixie-slim AS builder
+# ── Stage 1: Build ───────────────────────────────────────────────────────────
+FROM rust:1-bookworm AS builder
 
-ARG DEBIAN_FRONTEND=noninteractive
-
-ENV DIONAEA_GROUP=dionaea \
-    DIONAEA_USER=dionaea \
-    DIONAEA_HOME=/opt/dionaea
-
-# Set locale to UTF-8, otherwise upstream libraries have bytes/string conversion issues
-ENV LC_ALL=C.UTF-8 \
-    LANG=C.UTF-8 \
-    LANGUAGE=C.UTF-8
-
-RUN groupadd -r ${DIONAEA_GROUP} && \
-    useradd -r -d ${DIONAEA_HOME} -g ${DIONAEA_GROUP} ${DIONAEA_USER}
-#    adduser --system --no-create-home --shell /bin/bash --disabled-password --disabled-login
-
-COPY . /code
-
-# no libemu-dev/libemu2 for now, explore https://github.com/mandiant/unicorn-libemu-shim/tree/master
 RUN apt-get update && \
-    apt-get -qq install -y \
-        -o APT::Install-Suggests=false \
-        -o APT::Install-Recommends=false \
-        -o Dpkg::Use-Pty="0" \
-        -o Dpkg::Progress-Fancy="0" \
-        build-essential \
-        cmake \
-        curl \
-        cython3 \
-        git \
-        libcurl4-openssl-dev \
-        libev-dev \
-        libglib2.0-dev \
-        libnetfilter-queue-dev \
-        libpcap-dev \
+    apt-get -qq install -y --no-install-recommends \
         libssl-dev \
-        libtool \
-        libudns-dev \
-        python3 \
-        python3-dev \
-        python3-pip \
-        python3-construct \
-        python3-setuptools \
-        python3-bson \
-        python3-yaml \
-        fonts-liberation && \
-    pip install --break-system-packages speakeasy-emulator
+        pkg-config \
+        python3-dev && \
+    rm -rf /var/lib/apt/lists/*
 
-RUN   git config --global --add safe.directory /code && \
-      cd /code && git checkout . && \
-      mkdir -p /code/build && \
-      cd /code/build && \
-      cmake -DCMAKE_INSTALL_PREFIX:PATH=/opt/dionaea /code && \
-      make && \
-      make install && \
-      chown -R dionaea:dionaea /opt/dionaea/var && \
-      cp /code/docker/entrypoint.sh /opt/dionaea/entrypoint.sh && \
-      mkdir -p /opt/dionaea/template && \
-      (cd /opt/dionaea && mv var/lib template/ && mv var/log template/ && mv etc template/)
+WORKDIR /build
+
+# Cargo dependency caching: copy manifests first, build with dummy sources,
+# then copy real sources. This way dependency layers are cached across rebuilds.
+COPY Cargo.toml Cargo.lock ./
+COPY crates/dionaea/Cargo.toml crates/dionaea/Cargo.toml
+COPY crates/shell-detect/Cargo.toml crates/shell-detect/Cargo.toml
+
+RUN mkdir -p crates/dionaea/src crates/shell-detect/src && \
+    echo 'fn main() {}' > crates/dionaea/src/main.rs && \
+    echo '' > crates/dionaea/src/lib.rs && \
+    echo '' > crates/shell-detect/src/lib.rs && \
+    cargo build --release 2>&1 || true && \
+    rm -rf crates/*/src
+
+# Copy real source and build
+COPY crates/ crates/
+RUN cargo build --release
 
 
-FROM debian:trixie-slim AS runtime
-
-ARG DEBIAN_FRONTEND=noninteractive
-
-ENV DIONAEA_GROUP=dionaea \
-    DIONAEA_USER=dionaea \
-    DIONAEA_HOME=/opt/dionaea
-
-ENV LC_ALL=C.UTF-8 \
-    LANG=C.UTF-8 \
-    LANGUAGE=C.UTF-8
-
-RUN groupadd -r ${DIONAEA_GROUP} && \
-    useradd -r -d ${DIONAEA_HOME} -m -g ${DIONAEA_GROUP} ${DIONAEA_USER}
+# ── Stage 2: Runtime ─────────────────────────────────────────────────────────
+FROM python:3.12-slim-bookworm
 
 RUN apt-get update && \
-    apt-get -qq install -y \
-        -o APT::Install-Suggests=false \
-        -o APT::Install-Recommends=false \
-        -o Dpkg::Use-Pty="0" \
-        gdb \
-        vim-tiny \
-        netcat-openbsd \
-        curl \
-        ca-certificates \
+    apt-get -qq install -y --no-install-recommends \
+        libssl3 \
         libcap2-bin \
-        libcurl4 \
-        libev4 \
-        libglib2.0-0 \
-        libnetfilter-queue1 \
-        libpcap0.8 \
-        libudns0 \
-        python3 \
-        python3-construct \
-        python3-setuptools \
-        python3-bson \
-        python3-yaml \
-        fonts-liberation && \
-    apt-get autoremove --purge -y && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+        ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder --chown=${DIONAEA_USER}:${DIONAEA_GROUP} ${DIONAEA_HOME} ${DIONAEA_HOME}
+# Create non-root user
+RUN groupadd -r dionaea && \
+    useradd -r -d /opt/dionaea -g dionaea dionaea
 
-# Copy Python packages (unicorn, speakeasy, and dependencies) from builder stage
-COPY --from=builder /usr/local/lib/python3.13/dist-packages /usr/local/lib/python3.13/dist-packages
+WORKDIR /opt/dionaea
 
-# Create symlink for unicorn library (pip installs as libunicorn.so but we need libunicorn.so.1)
-RUN ln -s /usr/local/lib/python3.13/dist-packages/unicorn/lib/libunicorn.so \
-          /usr/local/lib/python3.13/dist-packages/unicorn/lib/libunicorn.so.1
+# Copy binary
+COPY --from=builder /build/target/release/dionaea bin/dionaea
 
-RUN setcap cap_net_bind_service=+ep /opt/dionaea/bin/dionaea
+# Copy config and Python protocol modules
+COPY conf/ conf/
+COPY modules/python/dionaea/ modules/python/dionaea/
+
+# Create data directories
+RUN mkdir -p \
+        var/dionaea/bistreams \
+        var/dionaea/downloads \
+        var/dionaea/shellcode \
+        var/log/dionaea && \
+    chown -R dionaea:dionaea var/
+
+# Copy entrypoint
+COPY docker/entrypoint.sh entrypoint.sh
+RUN chmod +x entrypoint.sh
+
+# Allow binding privileged ports without running as root
+RUN setcap cap_net_bind_service=+ep bin/dionaea
+
+ENV DIONAEA_DIONAEA__USER=dionaea \
+    DIONAEA_DIONAEA__GROUP=dionaea
 
 ENTRYPOINT ["/opt/dionaea/entrypoint.sh"]

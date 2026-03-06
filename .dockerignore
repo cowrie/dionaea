@@ -1,16 +1,45 @@
-# SPDX-FileCopyrightText: none
-# SPDX-License-Identifier: CC0-1.0
+# ABOUTME: Excludes build artifacts and non-essential files from Docker context.
+# ABOUTME: Keeps context small for faster builds.
 
+# Build artifacts
+target/
+build/
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Git
+.git/
+.github/
+.gitignore
+
+# Docker (avoid recursive context)
 Dockerfile
 .dockerignore
-.cache
-.mypy_cache
-.tox
-.idea
-.github
+
+# CI / config
 .drone.yml
-.direnv
+.direnv/
+.envrc
+.cache/
+.mypy_cache/
+.tox/
+
+# Python bytecode
+*.pyc
+__pycache__/
 venv/
 doc/venv/
-build
-*.pyc
+
+# Local dev files
+tmp/
+malware/
+oxy/
+*.sqlite
+
+# Documentation
+*.md
+doc/

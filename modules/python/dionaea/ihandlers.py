@@ -42,7 +42,11 @@ def start() -> None:
             if h not in g_handlers:
                 g_handlers[h] = []
 
-            handlers = h.start(config=ihandler_config.get("config", {}))
+            try:
+                handlers = h.start(config=ihandler_config.get("config", {}))
+            except Exception:
+                logger.error("Failed to create ihandler '%s'", h.name, exc_info=True)
+                continue
             if isinstance(handlers, (list, tuple)):
                 g_handlers[h] += handlers
             elif handlers is not None:
@@ -51,9 +55,12 @@ def start() -> None:
     for handler_loader, ihandlers in g_handlers.items():
         for i in ihandlers:
             logger.info("Starting %s", str(i))
-            method = getattr(i, "start")
-            if method is not None:
-                method()
+            try:
+                method = getattr(i, "start")
+                if method is not None:
+                    method()
+            except Exception:
+                logger.error("Failed to start ihandler %s", i, exc_info=True)
 
 
 def stop() -> None:

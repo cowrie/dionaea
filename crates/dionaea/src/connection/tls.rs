@@ -287,16 +287,13 @@ async fn tls_accept_loop(
             .await;
 
             match handshake_result {
-                Ok(Ok(())) => {
-                    // Handshake succeeded
-                    tracing::debug!(%peer_addr, "TLS handshake completed");
-                }
+                Ok(Ok(())) => {}
                 Ok(Err(e)) => {
-                    tracing::debug!(%peer_addr, err = %e, "TLS handshake failed");
+                    tracing::debug!(%peer_addr, %local_addr, err = %e, "TLS handshake failed");
                     return;
                 }
                 Err(_) => {
-                    tracing::debug!(%peer_addr, "TLS handshake timed out");
+                    tracing::debug!(%peer_addr, %local_addr, "TLS handshake timed out");
                     return;
                 }
             }
@@ -311,7 +308,7 @@ async fn tls_accept_loop(
                 meta.state = ConnectionState::Established;
             }
 
-            tracing::debug!(connection_id = %id, %peer_addr, "accepted TLS connection");
+            tracing::debug!(connection_id = %id, %peer_addr, %local_addr, "TLS handshake completed");
 
             let _ = acceptor_clone; // keep alive
             let reg_for_factory = reg.clone();
