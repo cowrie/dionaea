@@ -9,11 +9,13 @@ from dionaea.core import ihandler, incident
 
 import logging
 import json
-import uuid
+import os
 import sqlite3
 
 logger = logging.getLogger("virustotal")
 logger.setLevel(logging.DEBUG)
+
+VT_API_BASE = "https://www.virustotal.com/api/v3"
 
 
 class VirusTotalHandlerLoader(IHandlerLoader):
@@ -22,14 +24,6 @@ class VirusTotalHandlerLoader(IHandlerLoader):
     @classmethod
     def start(cls, config=None):
         return virustotalhandler("*", config=config)
-
-
-class vtreport:
-    def __init__(self, backlogfile, sha256hash, file, status):
-        self.backlogfile = backlogfile
-        self.sha256hash = sha256hash
-        self.file = file
-        self.status = status
 
 
 class virustotalhandler(ihandler):
@@ -45,7 +39,6 @@ class virustotalhandler(ihandler):
         if comment is None:
             comment = "This sample was captured in the wild and uploaded by the dionaea honeypot.\n#honeypot #malware #networkworm"
         self.comment = comment
-        self.cookies = {}
 
         p = config.get("file")
         self.dbh = sqlite3.connect(p, check_same_thread=False)
@@ -70,25 +63,86 @@ class virustotalhandler(ihandler):
         )
         self.backlog_timer.start()
 
-    def _verify_api_key(self):
-        """Check the API key against VT by requesting a report for a dummy hash."""
+    def _vt_request(self, method, endpoint, json_body=None):
+        """Make an API v3 request. Returns (status_code, parsed_json) or (None, None) on error."""
         from urllib.request import Request, urlopen
         from urllib.error import URLError, HTTPError
-        from urllib.parse import urlencode
+
+        url = f"{VT_API_BASE}{endpoint}"
+        data = None
+        if json_body is not None:
+            data = json.dumps(json_body).encode()
+
+        req = Request(url, data=data, method=method)
+        req.add_header("x-apikey", self.apikey)
+        if json_body is not None:
+            req.add_header("Content-Type", "application/json")
+
         try:
-            dummy_hash = "0" * 64
-            params = urlencode({"resource": dummy_hash, "apikey": self.apikey}).encode()
-            req = Request("https://www.virustotal.com/vtapi/v2/file/report", data=params)
-            resp = urlopen(req, timeout=10)
-            resp.read()
-            logger.info("VirusTotal API key is valid")
+            resp = urlopen(req, timeout=30)
+            body = resp.read()
+            return resp.status, json.loads(body) if body else {}
         except HTTPError as e:
-            if e.code == 403:
-                logger.warning("VirusTotal API key is invalid (HTTP 403)")
-            else:
-                logger.warning("VirusTotal API key check failed: HTTP %d", e.code)
+            body = e.read()
+            try:
+                j = json.loads(body) if body else {}
+            except (json.JSONDecodeError, ValueError):
+                j = {}
+            return e.code, j
         except (URLError, OSError) as e:
-            logger.warning("VirusTotal API unreachable: %s", e)
+            logger.warning("VirusTotal API request failed: %s %s: %s", method, endpoint, e)
+            return None, None
+
+    def _vt_upload_file(self, file_path):
+        """Upload a file via multipart POST to /files. Returns (status_code, parsed_json)."""
+        from urllib.request import Request, urlopen
+        from urllib.error import URLError, HTTPError
+
+        boundary = "----DionaeaUploadBoundary"
+        filename = os.path.basename(file_path)
+
+        with open(file_path, "rb") as f:
+            file_data = f.read()
+
+        body = (
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
+            f"Content-Type: application/octet-stream\r\n"
+            f"\r\n"
+        ).encode() + file_data + f"\r\n--{boundary}--\r\n".encode()
+
+        url = f"{VT_API_BASE}/files"
+        req = Request(url, data=body, method="POST")
+        req.add_header("x-apikey", self.apikey)
+        req.add_header("Content-Type", f"multipart/form-data; boundary={boundary}")
+
+        try:
+            resp = urlopen(req, timeout=120)
+            return resp.status, json.loads(resp.read())
+        except HTTPError as e:
+            body = e.read()
+            try:
+                j = json.loads(body) if body else {}
+            except (json.JSONDecodeError, ValueError):
+                j = {}
+            return e.code, j
+        except (URLError, OSError) as e:
+            logger.warning("VirusTotal file upload failed: %s", e)
+            return None, None
+
+    def _verify_api_key(self):
+        """Check the API key against VT v3 by requesting a report for a dummy hash."""
+        dummy_hash = "0" * 64
+        status, _ = self._vt_request("GET", f"/files/{dummy_hash}")
+        if status is None:
+            logger.warning("VirusTotal API unreachable during key verification")
+        elif status in (401, 403):
+            logger.warning("VirusTotal API key is invalid (HTTP %d)", status)
+        elif status in (200, 404):
+            # 200 = hash found, 404 = hash not found; either means key is valid
+            logger.info("VirusTotal API key is valid")
+        else:
+            logger.warning("VirusTotal API key check returned unexpected HTTP %d", status)
 
     def __handle_backlog_timeout(self):
         # try to comment on files
@@ -102,7 +156,7 @@ class virustotalhandler(ihandler):
                 (sf[0],),
             )
             self.dbh.commit()
-            self.make_comment(sf[0], sf[1], sf[2], "comment")
+            self._make_comment(sf[0], sf[1], "comment")
             return
 
         # try to receive reports for files we submitted
@@ -115,7 +169,7 @@ class virustotalhandler(ihandler):
                 (sf[0],),
             )
             self.dbh.commit()
-            self.get_file_report(sf[0], sf[1], sf[2], "query")
+            self._get_file_report(sf[0], sf[1], "query")
             return
 
         # submit files not known to virustotal
@@ -128,7 +182,7 @@ class virustotalhandler(ihandler):
                 (sf[0],),
             )
             self.dbh.commit()
-            self.scan_file(sf[0], sf[1], sf[2], "submit")
+            self._scan_file(sf[0], sf[1], sf[2], "submit")
             return
 
         # query new files
@@ -141,7 +195,7 @@ class virustotalhandler(ihandler):
                 (sf[0],),
             )
             self.dbh.commit()
-            self.get_file_report(sf[0], sf[1], sf[2], "new")
+            self._get_file_report(sf[0], sf[1], "new")
             return
 
     def stop(self):
@@ -157,184 +211,143 @@ class virustotalhandler(ihandler):
             (icd.sha256hash, icd.file, "new"),
         )
 
-    def get_file_report(self, backlogfile, sha256_hash, path, status):
-        cookie = str(uuid.uuid4())
-        self.cookies[cookie] = vtreport(backlogfile, sha256_hash, path, status)
+    def _get_file_report(self, backlogfile, sha256_hash, status):
+        status_code, j = self._vt_request("GET", f"/files/{sha256_hash}")
 
-        i = incident("dionaea.upload.request")
-        i._url = "https://www.virustotal.com/vtapi/v2/file/report"
-        i.resource = sha256_hash
-        i.apikey = self.apikey
-        i._callback = "dionaea.modules.python.virustotal.get_file_report"
-        i._userdata = cookie
-        i.report()
-
-    def handle_incident_dionaea_modules_python_virustotal_get_file_report(self, icd):
-        with open(icd.path) as f:
-            j = json.load(f)
-
-        cookie = icd._userdata
-        vtr = self.cookies[cookie]
-        response_code = j.get("response_code")
-        logger.debug(
-            "VirusTotal response_code=%s for %s", response_code, vtr.sha256hash[:16]
-        )
-
-        if response_code == -2:
-            logger.warning("VirusTotal API throttle for %s", vtr.sha256hash[:16])
+        if status_code is None:
+            # Network error — reset status for retry
             self.cursor.execute(
                 """UPDATE backlogfiles SET status = ? WHERE backlogfile = ?""",
-                (vtr.status, vtr.backlogfile),
+                (status, backlogfile),
             )
             self.dbh.commit()
-        elif response_code == -1:
+            return
+
+        if status_code == 429:
+            logger.warning("VirusTotal API throttle for %s", sha256_hash[:16])
+            self.cursor.execute(
+                """UPDATE backlogfiles SET status = ? WHERE backlogfile = ?""",
+                (status, backlogfile),
+            )
+            self.dbh.commit()
+        elif status_code in (401, 403):
             logger.warning("VirusTotal API key invalid or missing")
-        elif response_code == 0:  # file unknown
+        elif status_code == 404:
             logger.info(
                 "VirusTotal: file %s not found, queuing for submission",
-                vtr.sha256hash[:16],
+                sha256_hash[:16],
             )
-            # mark for submit
-            if vtr.status == "new":
+            if status == "new":
                 self.cursor.execute(
                     """UPDATE backlogfiles SET status = 'submit', lastcheck_time = strftime("%s",'now') WHERE backlogfile = ?""",
-                    (vtr.backlogfile,),
+                    (backlogfile,),
                 )
-            elif vtr.status == "query":
+            elif status == "query":
                 self.cursor.execute(
                     """UPDATE backlogfiles SET lastcheck_time = strftime("%s",'now') WHERE backlogfile = ?""",
-                    (vtr.backlogfile,),
+                    (backlogfile,),
                 )
             self.dbh.commit()
-        elif response_code == 1:  # file known
-            positives = j.get("positives", 0)
-            total = j.get("total", 0)
+        elif status_code == 200:
+            stats = j.get("data", {}).get("attributes", {}).get("last_analysis_stats", {})
+            positives = stats.get("malicious", 0) + stats.get("suspicious", 0)
+            total = sum(stats.values())
             logger.info(
                 "VirusTotal: file %s known, detection %d/%d",
-                vtr.sha256hash[:16],
+                sha256_hash[:16],
                 positives,
                 total,
             )
             self.cursor.execute(
-                """DELETE FROM backlogfiles WHERE backlogfile = ?""", (vtr.backlogfile,)
+                """DELETE FROM backlogfiles WHERE backlogfile = ?""", (backlogfile,)
             )
             self.dbh.commit()
 
-            logger.debug(f"report {j}")
+            logger.debug("report %s", j)
 
             i = incident("dionaea.modules.python.virustotal.report")
-            i.sha256hash = vtr.sha256hash
-            i.path = icd.path
+            i.sha256hash = sha256_hash
             i.report()
         else:
-            logger.warning("VirusTotal unexpected response: %s", j)
-        del self.cookies[cookie]
+            logger.warning("VirusTotal unexpected HTTP %d for %s", status_code, sha256_hash[:16])
 
-    def scan_file(self, backlogfile, sha256_hash, path, status):
-        logger.warning("VirusTotal: submitting file %s", sha256_hash)
-        cookie = str(uuid.uuid4())
-        self.cookies[cookie] = vtreport(backlogfile, sha256_hash, path, status)
+    def _scan_file(self, backlogfile, sha256_hash, path, status):
+        logger.info("VirusTotal: submitting file %s", sha256_hash)
 
-        i = incident("dionaea.upload.request")
-        i._url = "https://www.virustotal.com/vtapi/v2/file/scan"
-        i.apikey = self.apikey
-        i.set("file://file", path)
-        i._callback = "dionaea.modules.python.virustotal_scan_file"
-        i._userdata = cookie
-        i.report()
+        status_code, j = self._vt_upload_file(path)
 
-    def handle_incident_dionaea_modules_python_virustotal_scan_file(self, icd):
-        with open(icd.path) as f:
-            j = json.load(f)
+        if status_code is None:
+            # Network error — reset status for retry
+            self.cursor.execute(
+                """UPDATE backlogfiles SET status = ? WHERE backlogfile = ?""",
+                (status, backlogfile),
+            )
+            self.dbh.commit()
+            return
 
-        cookie = icd._userdata
-        vtr = self.cookies[cookie]
-        response_code = j.get("response_code")
-        logger.debug(
-            "VirusTotal scan_file response_code=%s for %s",
-            response_code,
-            vtr.sha256hash[:16],
-        )
-
-        if response_code == -2:
+        if status_code == 429:
             logger.warning(
                 "VirusTotal API throttle during file submission for %s",
-                vtr.sha256hash[:16],
+                sha256_hash[:16],
             )
             self.cursor.execute(
                 """UPDATE backlogfiles SET status = ? WHERE backlogfile = ?""",
-                (vtr.status, vtr.backlogfile),
+                (status, backlogfile),
             )
             self.dbh.commit()
-        elif response_code == -1:
+        elif status_code in (401, 403):
             logger.warning("VirusTotal API key invalid or missing")
-        elif response_code == 1:
-            scan_id = j["scan_id"]
+        elif status_code == 200:
+            analysis_id = j.get("data", {}).get("id", "")
             logger.info(
                 "VirusTotal: file %s submitted successfully",
-                vtr.sha256hash[:16],
+                sha256_hash[:16],
             )
-            # recycle this entry for the query
             self.cursor.execute(
                 """UPDATE backlogfiles SET scan_id = ?, status = 'comment', submit_time = strftime("%s",'now') WHERE backlogfile = ?""",
-                (
-                    scan_id,
-                    vtr.backlogfile,
-                ),
+                (analysis_id, backlogfile),
             )
             self.dbh.commit()
         else:
             logger.warning(
-                "VirusTotal unexpected response during file submission: %s", j
-            )
-        del self.cookies[cookie]
-
-    def make_comment(self, backlogfile, sha256_hash, path, status):
-        cookie = str(uuid.uuid4())
-        self.cookies[cookie] = vtreport(backlogfile, sha256_hash, path, status)
-
-        i = incident("dionaea.upload.request")
-        i._url = "https://www.virustotal.com/vtapi/v2/comments/put"
-        i.apikey = self.apikey
-        i.comment = self.comment
-        i.resource = sha256_hash
-        i._callback = "dionaea.modules.python.virustotal_make_comment"
-        i._userdata = cookie
-        i.report()
-
-    def handle_incident_dionaea_modules_python_virustotal_make_comment(self, icd):
-        cookie = icd._userdata
-        vtr = self.cookies[cookie]
-        try:
-            with open(icd.path) as f:
-                j = json.load(f)
-            response_code = j.get("response_code")
-            logger.debug(
-                "VirusTotal make_comment response_code=%s for %s",
-                response_code,
-                vtr.sha256hash[:16],
+                "VirusTotal unexpected HTTP %d during file submission: %s", status_code, j
             )
 
-            if response_code == -2:
-                logger.warning(
-                    "VirusTotal API throttle during comment for %s", vtr.sha256hash[:16]
-                )
-                self.cursor.execute(
-                    """UPDATE backlogfiles SET status = ? WHERE backlogfile = ?""",
-                    (vtr.status, vtr.backlogfile),
-                )
-                self.dbh.commit()
-            elif response_code == -1:
-                logger.warning("VirusTotal API key invalid or missing")
-            elif response_code == 1:
-                logger.info("VirusTotal: comment posted for %s", vtr.sha256hash[:16])
-                self.cursor.execute(
-                    """UPDATE backlogfiles SET status = 'query' WHERE backlogfile = ? """,
-                    (vtr.backlogfile,),
-                )
-                self.dbh.commit()
-            else:
-                logger.warning("VirusTotal unexpected response during comment: %s", j)
-        except Exception as e:
-            logger.warning("VirusTotal comment response parse error: %s", e)
-        del self.cookies[cookie]
+    def _make_comment(self, backlogfile, sha256_hash, status):
+        status_code, j = self._vt_request("POST", f"/files/{sha256_hash}/comments", {
+            "data": {
+                "type": "comment",
+                "attributes": {
+                    "text": self.comment,
+                },
+            },
+        })
+
+        if status_code is None:
+            self.cursor.execute(
+                """UPDATE backlogfiles SET status = ? WHERE backlogfile = ?""",
+                (status, backlogfile),
+            )
+            self.dbh.commit()
+            return
+
+        if status_code == 429:
+            logger.warning(
+                "VirusTotal API throttle during comment for %s", sha256_hash[:16]
+            )
+            self.cursor.execute(
+                """UPDATE backlogfiles SET status = ? WHERE backlogfile = ?""",
+                (status, backlogfile),
+            )
+            self.dbh.commit()
+        elif status_code in (401, 403):
+            logger.warning("VirusTotal API key invalid or missing")
+        elif status_code in (200, 201):
+            logger.info("VirusTotal: comment posted for %s", sha256_hash[:16])
+            self.cursor.execute(
+                """UPDATE backlogfiles SET status = 'query' WHERE backlogfile = ? """,
+                (backlogfile,),
+            )
+            self.dbh.commit()
+        else:
+            logger.warning("VirusTotal unexpected HTTP %d during comment: %s", status_code, j)
