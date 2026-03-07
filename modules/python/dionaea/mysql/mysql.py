@@ -100,7 +100,7 @@ class mysqld(connection):
         try:
             p = self.config[Database]["path"]
             logger.debug(f"Opening database {Database} ({p})")
-            self.dbh = sqlite3.connect(p)
+            self.dbh = sqlite3.connect(p, check_same_thread=False)
             self.cursor = self.dbh.cursor()
             self.database = Database
             return True

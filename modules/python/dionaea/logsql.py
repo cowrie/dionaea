@@ -38,7 +38,7 @@ class logsqlhandler(ihandler):
         self.pending = {}
 
         #       self.dbh = sqlite3.connect(user = g_dionaea.config()['modules']['python']['logsql']['file'])
-        self.dbh = sqlite3.connect(self.filename)
+        self.dbh = sqlite3.connect(self.filename, check_same_thread=False)
         self.cursor = self.dbh.cursor()
         update = False
 

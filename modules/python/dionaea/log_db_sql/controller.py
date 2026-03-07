@@ -33,7 +33,8 @@ class LogSQLHandler(ihandler):
         # mapping socket -> attackid
 
         engine = create_engine(
-            self._config.get("url"), echo=False, convert_unicode=True
+            self._config.get("url"), echo=False, convert_unicode=True,
+            connect_args={"check_same_thread": False},
         )
         self.db_session = scoped_session(
             sessionmaker(autocommit=False, autoflush=False, bind=engine)
