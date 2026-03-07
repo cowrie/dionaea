@@ -78,6 +78,7 @@ pub struct ConnectionLimits {
 impl ConnectionLimits {
     /// Create with the given limits.
     pub fn new(max_per_ip: u32, max_total: u32, max_fds_pct: u32) -> Self {
+        let max_fds_pct = max_fds_pct.min(100);
         ConnectionLimits {
             per_ip: DashMap::new(),
             max_per_ip,
