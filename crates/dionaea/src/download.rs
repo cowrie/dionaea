@@ -14,6 +14,38 @@ use crate::ihandler::{HandlerCallback, IHandler, WildcardPattern};
 use crate::incident::{Incident, OpaqueData};
 use crate::runtime;
 
+/// Reject IP addresses that should not be reachable from a honeypot download.
+fn reject_dangerous_ip(ip: std::net::IpAddr) -> Result<(), String> {
+    if ip.is_loopback() {
+        return Err(format!("loopback address rejected: {ip}"));
+    }
+    if ip.is_multicast() {
+        return Err(format!("multicast address rejected: {ip}"));
+    }
+    if ip.is_unspecified() {
+        return Err(format!("unspecified address rejected: {ip}"));
+    }
+    match ip {
+        std::net::IpAddr::V4(v4) => {
+            if v4.is_private() || v4.is_link_local() {
+                return Err(format!("private address rejected: {ip}"));
+            }
+        }
+        std::net::IpAddr::V6(v6) => {
+            let seg0 = v6.segments()[0];
+            // fe80::/10 link-local
+            if seg0 & 0xffc0 == 0xfe80 {
+                return Err(format!("link-local address rejected: {ip}"));
+            }
+            // fc00::/7 unique-local (private)
+            if seg0 & 0xfe00 == 0xfc00 {
+                return Err(format!("unique-local address rejected: {ip}"));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Validate that a URL is safe to download.
 /// Only http:// and https:// schemes are allowed.
 fn validate_url(url: &str) -> Result<reqwest::Url, String> {
@@ -24,27 +56,12 @@ fn validate_url(url: &str) -> Result<reqwest::Url, String> {
         scheme => return Err(format!("unsupported scheme: {scheme}")),
     }
 
-    // Reject private/loopback IPs to prevent SSRF.
+    // Reject private/loopback/multicast IPs to prevent SSRF.
     // host_str() returns brackets for IPv6 (e.g. "[::1]"), strip them for parsing.
     if let Some(host) = parsed.host_str() {
         let host_bare = host.trim_start_matches('[').trim_end_matches(']');
         if let Ok(ip) = host_bare.parse::<std::net::IpAddr>() {
-            if ip.is_loopback() {
-                return Err(format!("loopback address rejected: {ip}"));
-            }
-            match ip {
-                std::net::IpAddr::V4(v4) => {
-                    if v4.is_private() || v4.is_link_local() {
-                        return Err(format!("private address rejected: {ip}"));
-                    }
-                }
-                std::net::IpAddr::V6(v6) => {
-                    // fe80::/10 link-local
-                    if v6.segments()[0] & 0xffc0 == 0xfe80 {
-                        return Err(format!("link-local address rejected: {ip}"));
-                    }
-                }
-            }
+            reject_dangerous_ip(ip)?;
         }
     }
 
@@ -317,6 +334,36 @@ mod tests {
     fn test_validate_url_rejects_ipv6_loopback() {
         let err = validate_url("http://[::1]/malware").unwrap_err();
         assert!(err.contains("loopback"));
+    }
+
+    #[test]
+    fn test_validate_url_rejects_ipv6_link_local() {
+        let err = validate_url("http://[fe80::1]/malware").unwrap_err();
+        assert!(err.contains("link-local"));
+    }
+
+    #[test]
+    fn test_validate_url_rejects_ipv6_unique_local() {
+        let err = validate_url("http://[fd12::1]/malware").unwrap_err();
+        assert!(err.contains("unique-local"));
+    }
+
+    #[test]
+    fn test_validate_url_rejects_multicast_v4() {
+        let err = validate_url("http://224.0.0.1/malware").unwrap_err();
+        assert!(err.contains("multicast"));
+    }
+
+    #[test]
+    fn test_validate_url_rejects_multicast_v6() {
+        let err = validate_url("http://[ff02::1]/malware").unwrap_err();
+        assert!(err.contains("multicast"));
+    }
+
+    #[test]
+    fn test_validate_url_rejects_unspecified() {
+        let err = validate_url("http://0.0.0.0/malware").unwrap_err();
+        assert!(err.contains("unspecified"));
     }
 
     #[test]
