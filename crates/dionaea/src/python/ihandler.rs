@@ -117,7 +117,11 @@ pub fn dispatch_to_handler(
     handler: &Bound<'_, PyAny>,
     incident: &PyIncident,
 ) -> PyResult<()> {
-    let py_incident = Py::new(py, PyIncident::from_incident(&incident.to_incident()))?;
+    let mut new_incident = PyIncident::from_incident(&incident.to_incident());
+    for (k, v) in &incident.py_refs {
+        new_incident.py_refs.insert(k.clone(), v.clone_ref(py));
+    }
+    let py_incident = Py::new(py, new_incident)?;
     let origin = incident.to_incident().origin;
     let method_name = format!("handle_incident_{}", origin.replace('.', "_"));
 
@@ -289,6 +293,73 @@ class DataHandler(PyIHandler):
             assert_eq!(url, "http://evil.com/malware.exe");
             let size: i64 = received.get_item("size").unwrap().extract().unwrap();
             assert_eq!(size, 4096);
+        });
+    }
+
+    #[test]
+    fn test_dispatch_preserves_py_refs() {
+        Python::attach(|py| {
+            register_module(py, "dionaea_ih_test_pyrefs");
+
+            // Register PyConnection so we can create instances
+            let module = PyModule::new(py, "dionaea_ih_test_pyrefs_conn").unwrap();
+            module
+                .add_class::<crate::python::connection::PyConnection>()
+                .unwrap();
+            py.import(c"sys")
+                .unwrap()
+                .getattr("modules")
+                .unwrap()
+                .set_item("dionaea_ih_test_pyrefs_conn", module)
+                .unwrap();
+
+            py.run(
+                c"
+from dionaea_ih_test_pyrefs import PyIHandler, PyIncident
+from dionaea_ih_test_pyrefs_conn import PyConnection
+
+class ConnHandler(PyIHandler):
+    def __init__(self):
+        super().__init__('dionaea.connection.*')
+        self.con_type = None
+
+    def handle_incident_dionaea_connection_tcp_accept(self, incident):
+        # This should get the actual connection object, not an int
+        self.con_type = type(incident.con).__name__
+",
+                None,
+                None,
+            )
+            .unwrap();
+
+            let handler = py.eval(c"ConnHandler()", None, None).unwrap();
+
+            // Create a connection object via Python (constructor needs *args, **kwargs)
+            let conn: Py<PyAny> = py
+                .eval(c"PyConnection('tcp')", None, None)
+                .unwrap()
+                .unbind();
+
+            let mut incident = PyIncident::new(Some("dionaea.connection.tcp.accept".into()));
+            // Simulate what emit_connection_incident does: setattr("con", conn)
+            incident
+                .py_refs
+                .insert("con".to_string(), conn.clone_ref(py));
+            incident.data.insert(
+                "con".to_string(),
+                crate::incident::OpaqueData::ConnectionRef(
+                    crate::connection::ConnectionId(1),
+                ),
+            );
+
+            dispatch_to_handler(py, &handler, &incident).unwrap();
+
+            let con_type: String = handler
+                .getattr("con_type")
+                .unwrap()
+                .extract()
+                .unwrap();
+            assert_eq!(con_type, "PyConnection");
         });
     }
 

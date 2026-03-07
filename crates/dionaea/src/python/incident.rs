@@ -26,10 +26,10 @@ use std::sync::Arc;
 #[pyclass(subclass)]
 pub struct PyIncident {
     origin: String,
-    data: HashMap<String, OpaqueData>,
+    pub(crate) data: HashMap<String, OpaqueData>,
     /// Original Python objects for attributes that lose fidelity through OpaqueData
     /// (e.g. connection objects which become ConnectionRef(id)).
-    py_refs: HashMap<String, Py<PyAny>>,
+    pub(crate) py_refs: HashMap<String, Py<PyAny>>,
 }
 
 impl PyIncident {
