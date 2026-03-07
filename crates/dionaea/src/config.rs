@@ -144,8 +144,8 @@ pub struct ModulesConfig {
     /// Enable HTTP upload module (virustotal, hpfeeds, submit_http).
     #[serde(default = "default_true")]
     pub upload: bool,
-    /// Pcap capture settings. Defaults to capturing on all interfaces.
-    #[serde(default = "default_pcap_config")]
+    /// Pcap capture settings. Present = enabled, absent = disabled.
+    #[serde(default)]
     pub pcap: Option<PcapConfig>,
     /// Enable netfilter queue module.
     #[serde(default)]
@@ -270,11 +270,6 @@ fn default_python_imports() -> Vec<String> {
 fn default_pcap_interfaces() -> Vec<String> {
     vec!["any".to_string()]
 }
-fn default_pcap_config() -> Option<PcapConfig> {
-    Some(PcapConfig {
-        interfaces: default_pcap_interfaces(),
-    })
-}
 
 impl Default for LimitsConfig {
     fn default() -> Self {
@@ -322,7 +317,7 @@ impl Default for ModulesConfig {
             python: PythonModuleConfig::default(),
             download: true,
             upload: true,
-            pcap: default_pcap_config(),
+            pcap: None,
             nfq: false,
             netlink: false,
         }
@@ -519,7 +514,7 @@ ihandler_configs = ["/etc/dionaea/ihandlers-enabled/*.toml"]
         assert_eq!(config.logging.targets[0].target_type, "file");
         assert_eq!(config.logging.targets[1].target_type, "stdout");
         assert!(config.modules.download);
-        assert!(config.modules.pcap.is_some());
+        assert!(config.modules.pcap.is_none());
         assert_eq!(config.modules.python.imports, vec!["dionaea"]);
     }
 
@@ -694,10 +689,9 @@ label = "shellcode"
     }
 
     #[test]
-    fn test_pcap_config_enabled_by_default() {
+    fn test_pcap_config_none_by_default() {
         let config = load_from_str(MINIMAL_CONFIG).expect("parse");
-        let pcap = config.modules.pcap.as_ref().expect("pcap should be Some");
-        assert_eq!(pcap.interfaces, vec!["any"]);
+        assert!(config.modules.pcap.is_none());
     }
 
     #[test]
