@@ -368,10 +368,22 @@ impl Processor for StreamDumper {
 
     fn new_ctx(&self) -> Box<dyn ProcessorCtx> {
         let dir = expand_strftime(&self.path_pattern);
+        let dir_path = PathBuf::from(&dir);
+        // Reject path patterns that contain traversal sequences after expansion
+        if dir.contains("..") {
+            tracing::error!(path = %dir, "streamdumper path contains traversal, refusing");
+            return Box::new(StreamDumperCtx {
+                dir: PathBuf::new(),
+                file: None,
+                chunk_count: 0,
+                disabled: true,
+            });
+        }
         Box::new(StreamDumperCtx {
-            dir: PathBuf::from(dir),
+            dir: dir_path,
             file: None,
             chunk_count: 0,
+            disabled: false,
         })
     }
 
@@ -397,10 +409,14 @@ struct StreamDumperCtx {
     dir: PathBuf,
     file: Option<fs::File>,
     chunk_count: usize,
+    disabled: bool,
 }
 
 impl StreamDumperCtx {
     fn write_chunk(&mut self, direction: &str, data: &[u8]) {
+        if self.disabled {
+            return;
+        }
         if let Err(e) = self.write_chunk_inner(direction, data) {
             tracing::warn!(err = %e, "streamdumper write failed");
         }
