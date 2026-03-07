@@ -28,9 +28,10 @@ domains = "*"
 
 [modules]
 download = true
-pcap = false
 nfq = false
 netlink = false
+
+[modules.pcap]
 
 [modules.python]
 python_path = "modules/python"
