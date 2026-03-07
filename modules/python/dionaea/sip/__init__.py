@@ -88,7 +88,7 @@ class SIPService(ServiceLoader):
                 )
                 g_timer_cleanup.start()
             else:
-                logger.info("Cleanup loop already started!")
+                logger.debug("Cleanup loop already started")
         return daemons
 
 
