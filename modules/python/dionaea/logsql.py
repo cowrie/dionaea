@@ -785,14 +785,14 @@ class logsqlhandler(ihandler):
     def handle_incident_dionaea_connection_tcp_accept(self, icd):
         attackid = self.connection_insert(icd, "accept")
         con = icd.con
-        logger.info(
+        logger.debug(
             f"created incident id={attackid} ({con.remote.host}:{con.remote.port}->{con.local.host}:{con.local.port})"
         )
 
     def handle_incident_dionaea_connection_tls_accept(self, icd):
         attackid = self.connection_insert(icd, "accept")
         con = icd.con
-        logger.info(
+        logger.debug(
             f"created incident id={attackid} ({con.remote.host}:{con.remote.port}->{con.local.host}:{con.local.port})"
         )
 
