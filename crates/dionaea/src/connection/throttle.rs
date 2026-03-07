@@ -133,7 +133,7 @@ impl Accounting {
 
     /// Add `n` bytes. Returns `true` if the limit has been reached or exceeded.
     pub fn add(&mut self, n: u64) -> bool {
-        self.current += n;
+        self.current = self.current.saturating_add(n);
         !self.is_unlimited() && self.current >= self.limit
     }
 
