@@ -57,13 +57,27 @@ pub fn register_classes(module: &Bound<'_, PyModule>) -> PyResult<()> {
 /// to tracing levels.
 #[pyfunction]
 fn dlhfn(name: &str, number: i32, path: &str, line: i32, msg: &str) {
+    let file = strip_to_relative(path);
     match number {
-        50 => tracing::error!(target: "python", logger = name, file = path, line = line, "{msg}"),
-        40 => tracing::error!(target: "python", logger = name, file = path, line = line, "{msg}"),
-        30 => tracing::warn!(target: "python", logger = name, file = path, line = line, "{msg}"),
-        20 => tracing::info!(target: "python", logger = name, file = path, line = line, "{msg}"),
-        _ => tracing::debug!(target: "python", logger = name, file = path, line = line, "{msg}"),
+        50 => tracing::error!(target: "python", logger = name, file = file, line = line, "{msg}"),
+        40 => tracing::error!(target: "python", logger = name, file = file, line = line, "{msg}"),
+        30 => tracing::warn!(target: "python", logger = name, file = file, line = line, "{msg}"),
+        20 => tracing::info!(target: "python", logger = name, file = file, line = line, "{msg}"),
+        _ => tracing::debug!(target: "python", logger = name, file = file, line = line, "{msg}"),
     }
+}
+
+/// Strip an absolute path to a relative one from the current working directory.
+fn strip_to_relative(path: &str) -> &str {
+    static CWD: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+    let cwd = CWD.get_or_init(|| std::env::current_dir().unwrap_or_default());
+    let cwd_str = cwd.to_str().unwrap_or("");
+    if !cwd_str.is_empty() {
+        if let Some(rel) = path.strip_prefix(cwd_str) {
+            return rel.strip_prefix('/').unwrap_or(rel);
+        }
+    }
+    path
 }
 
 /// Factory function for creating connections from Python.
