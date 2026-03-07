@@ -1,21 +1,8 @@
 # SPDX-FileCopyrightText: none
 # SPDX-License-Identifier: CC0-1.0
 
-### CMake
-CMakeLists.txt.user
-CMakeCache.txt
-CMakeFiles
-CMakeScripts
-Testing
-Makefile
-cmake_install.cmake
-install_manifest.txt
-compile_commands.json
-CTestTestfile.cmake
-_deps
-
-### Vagrant
-vagrant/.vagrant/
+### Rust
+/target/
 
 ### Vim
 [._]*.s[a-w][a-z]
@@ -26,70 +13,24 @@ Session.vim
 *~
 
 ### JetBrains
-# Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm, CLion, Android Studio
 *.iml
 .idea/
 
-### intermediate object files
-*.o
-*.lo
-*.la
-
-### automake
-/Makefile
-/include/**/Makefile
-/modules/**/Makefile
-/src/**/Makefile
-Makefile.in
-.deps
-.libs
-config.h
-aclocal.m4
-autom4te.cache/
-configure
-compile
-depcomp
-install-sh
-libtool
-ltmain.sh
-missing
-stamp-h1
-
-### slickedit
-*.vpj
-*.vpw
-*.vpwhistu
-*.vtg
-
-### project specific
-src/dionaea
-modules/python/binding.c
-modules/python/build/
-modules/python/setup.py
-
 ### Python
-# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
-
-# C extensions
 *.so
-
-# Distribution / packaging
 .Python
 build/
 develop-eggs/
 dist/
-downloads/
 eggs/
 .eggs/
 lib/
 lib64/
 parts/
 sdist/
-var/*
-!var/dionaea/
 wheels/
 share/python-wheels/
 *.egg-info/
@@ -134,12 +75,10 @@ venv.bak/
 .dmypy.json
 dmypy.json
 
-# Cython debug symbols
-cython_debug/
-
 ### Doc
 /doc/build/
 /doc/api/build/
 
-### Rust
-/target/
+### Runtime data
+var/*
+!var/dionaea/
