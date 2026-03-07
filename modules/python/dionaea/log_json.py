@@ -161,7 +161,9 @@ class LogJsonHandler(ihandler):
         :return: The prepared value
         """
         if isinstance(v, bytes):
-            return v.decode(encoding="utf-8", errors="replace")
+            v = v.decode(encoding="utf-8", errors="replace")
+        if isinstance(v, str):
+            v = v.rstrip("\x00")
         return v
 
     def _serialize_connection(self, icd, connection_type):
