@@ -97,8 +97,22 @@ async fn upload_multipart(
         form = form.part(name.clone(), part);
     }
 
-    // Add file fields
+    // Add file fields (validate paths are within allowed directories)
+    let allowed_dir = runtime::get()
+        .map(|s| s.config.dionaea.download.dir.clone())
+        .unwrap_or_else(|| std::env::temp_dir());
+    let allowed_canonical = allowed_dir.canonicalize().unwrap_or(allowed_dir);
+
     for (name, path) in &file_fields {
+        let file_path = Path::new(path);
+        if let Ok(canonical) = file_path.canonicalize() {
+            if !canonical.starts_with(&allowed_canonical) {
+                return Err(format!("file path outside allowed directory: {path}"));
+            }
+        } else {
+            return Err(format!("cannot resolve file path: {path}"));
+        }
+
         let data = tokio::fs::read(path)
             .await
             .map_err(|e| format!("failed to read file {path}: {e}"))?;
