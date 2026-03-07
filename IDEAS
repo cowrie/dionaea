@@ -118,6 +118,11 @@ Options to consider:
 
 ## Data Processing
 
+### pcapng Traffic Recording
+- Record full packet captures to pcapng files per connection or interface
+- Complements bistream (application-layer) with full wire-level capture
+- Useful for protocol analysis, replay, and forensics
+
 ### Bistream to PCAP Conversion
 - Convert bistream files to Wireshark-compatible format
 - Analysis tool request
