@@ -19,7 +19,7 @@ use tokio::time::{self, Duration};
 
 use crate::connection::limits::ConnectionLimits;
 use crate::connection::tcp::{
-    cleanup_connection, get_fd_soft_limit, handle_connection, RejectConfig,
+    cleanup_connection, get_fd_soft_limit, handle_connection, invalidate_handler, RejectConfig,
     SilentConnectionTracker,
 };
 use crate::connection::{ConnectionRegistry, ConnectionState, ConnectionType, Transport};
@@ -347,7 +347,10 @@ async fn tls_accept_loop(
             };
 
             // Run the standard I/O handler loop over the TLS stream
-            handle_connection(tls_stream, handler, id, rx, reg.clone(), recv_buffer_size, "tls").await;
+            let (h, _rx, _post) =
+                handle_connection(tls_stream, handler, id, rx, reg.clone(), recv_buffer_size, "tls").await;
+            let h = crate::connection::tcp::emit_connection_free(h).await;
+            crate::connection::tcp::invalidate_handler(h);
             cleanup_connection(&reg, &lim, id, peer_ip);
         });
     }

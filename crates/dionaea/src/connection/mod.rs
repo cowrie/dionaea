@@ -144,6 +144,7 @@ pub fn validate_transition(from: ConnectionState, to: ConnectionState) -> Result
             | (Connecting, Close)
             | (Handshake, Established)
             | (Handshake, Close)
+            | (Established, Connecting) // reconnect after disconnect
             | (Established, Shutdown)
             | (Established, Close)
             | (Shutdown, Close)

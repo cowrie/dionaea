@@ -232,116 +232,192 @@ async fn accept_loop(
                 }
             };
 
-            handle_connection(stream, handler, id, rx, reg.clone(), recv_buffer_size, "tcp").await;
+            let (h, _rx, _post) =
+                handle_connection(stream, handler, id, rx, reg.clone(), recv_buffer_size, "tcp").await;
+            let h = emit_connection_free(h).await;
+            invalidate_handler(h);
             cleanup_connection(&reg, &lim, id, peer_ip);
         });
     }
 }
 
-/// Async task for outbound TCP connections.
+/// Async task for outbound TCP connections with reconnect support.
 ///
 /// DNS-resolves the target, connects with a timeout, updates the Python handler's
-/// address fields, then runs the standard I/O handler loop.
-/// Calls `handle_error` on the Python handler if connect or DNS resolution fails.
+/// address fields, then runs the standard I/O handler loop. If the Python handler
+/// requests reconnection (returning True from `handle_disconnect` or `handle_error`),
+/// the task sleeps for `timeouts.reconnect` seconds and tries again with a new socket.
 pub async fn tcp_connect_task(
-    handler: Py<PyAny>,
+    mut handler: Py<PyAny>,
     id: ConnectionId,
     addr: String,
     port: u16,
-    rx: mpsc::Receiver<SendMessage>,
+    mut rx: mpsc::Receiver<SendMessage>,
     registry: Arc<ConnectionRegistry>,
     recv_buffer_size: usize,
 ) {
-    let connecting_timeout = get_timeout_secs(&registry, id, TimeoutKind::Connecting);
-    let timeout_dur = secs_to_duration(connecting_timeout);
+    loop {
+        let connecting_timeout = get_timeout_secs(&registry, id, TimeoutKind::Connecting);
+        let timeout_dur = secs_to_duration(connecting_timeout);
 
-    let connect_result = time::timeout(timeout_dur, async {
-        let addr_str = format!("{addr}:{port}");
-        tokio::net::TcpStream::connect(&addr_str).await
-    })
-    .await;
+        let connect_result = time::timeout(timeout_dur, async {
+            let addr_str = format!("{addr}:{port}");
+            tokio::net::TcpStream::connect(&addr_str).await
+        })
+        .await;
 
-    match connect_result {
-        Ok(Ok(stream)) => {
-            let peer_addr = stream.peer_addr().ok();
-            let local_addr = stream.local_addr().ok();
+        match connect_result {
+            Ok(Ok(stream)) => {
+                let peer_addr = stream.peer_addr().ok();
+                let local_addr = stream.local_addr().ok();
 
-            // Update registry metadata
-            if let Some(mut meta) = registry.get_mut(id) {
-                if let Some(pa) = peer_addr {
-                    meta.remote = crate::node_info::NodeInfo::from_socket_addr(pa);
-                }
-                if let Some(la) = local_addr {
-                    meta.local = crate::node_info::NodeInfo::from_socket_addr(la);
-                }
-                meta.state = ConnectionState::Established;
-            }
-
-            // Update the Python handler's address fields before handle_established
-            let handler = {
-                let h = handler;
-                match tokio::task::spawn_blocking(move || {
-                    Python::attach(|py| {
-                        if let Ok(conn) = h.bind(py).cast::<PyConnection>() {
-                            let mut c = conn.borrow_mut();
-                            if let Some(pa) = peer_addr {
-                                c.remote.host = pa.ip().to_string();
-                                c.remote.port = pa.port();
-                            }
-                            if let Some(la) = local_addr {
-                                c.local.host = la.ip().to_string();
-                                c.local.port = la.port();
-                            }
-                            c.status = "established".to_string();
-                        }
-                        h
-                    })
-                })
-                .await
-                {
-                    Ok(h) => h,
-                    Err(e) => {
-                        tracing::error!(connection_id = %id, err = %e, "address update panicked");
-                        registry.remove(id);
-                        return;
+                // Update registry metadata
+                if let Some(mut meta) = registry.get_mut(id) {
+                    if let Some(pa) = peer_addr {
+                        meta.remote = crate::node_info::NodeInfo::from_socket_addr(pa);
                     }
+                    if let Some(la) = local_addr {
+                        meta.local = crate::node_info::NodeInfo::from_socket_addr(la);
+                    }
+                    meta.state = ConnectionState::Established;
                 }
-            };
 
-            tracing::debug!(connection_id = %id, ?peer_addr, "outbound TCP connected");
+                // Update the Python handler's address fields before handle_established
+                handler = {
+                    let h = handler;
+                    match tokio::task::spawn_blocking(move || {
+                        Python::attach(|py| {
+                            if let Ok(conn) = h.bind(py).cast::<PyConnection>() {
+                                let mut c = conn.borrow_mut();
+                                if let Some(pa) = peer_addr {
+                                    c.remote.host = pa.ip().to_string();
+                                    c.remote.port = pa.port();
+                                }
+                                if let Some(la) = local_addr {
+                                    c.local.host = la.ip().to_string();
+                                    c.local.port = la.port();
+                                }
+                                c.status = "established".to_string();
+                            }
+                            h
+                        })
+                    })
+                    .await
+                    {
+                        Ok(h) => h,
+                        Err(e) => {
+                            tracing::error!(connection_id = %id, err = %e, "address update panicked");
+                            break;
+                        }
+                    }
+                };
 
-            handle_connection(stream, handler, id, rx, registry.clone(), recv_buffer_size, "tcp").await;
-            registry.remove(id);
+                tracing::debug!(connection_id = %id, ?peer_addr, "outbound TCP connected");
+
+                let post;
+                (handler, rx, post) = handle_connection(
+                    stream, handler, id, rx, registry.clone(), recv_buffer_size, "tcp",
+                )
+                .await;
+
+                if post != PostCallback::Reconnect {
+                    handler = emit_connection_free(handler).await;
+                    invalidate_handler(handler);
+                    break;
+                }
+            }
+            Ok(Err(e)) => {
+                tracing::debug!(connection_id = %id, err = %e, %addr, port, "outbound TCP connect failed");
+                let post;
+                (handler, post) = call_handle_error(handler, id, &format!("connect failed: {e}")).await;
+                if post != PostCallback::Reconnect {
+                    handler = emit_connection_free(handler).await;
+                    invalidate_handler(handler);
+                    break;
+                }
+            }
+            Err(_) => {
+                tracing::debug!(connection_id = %id, %addr, port, "outbound TCP connect timed out");
+                let post;
+                (handler, post) = call_handle_error(handler, id, "connect timed out").await;
+                if post != PostCallback::Reconnect {
+                    handler = emit_connection_free(handler).await;
+                    invalidate_handler(handler);
+                    break;
+                }
+            }
         }
-        Ok(Err(e)) => {
-            tracing::debug!(connection_id = %id, err = %e, %addr, port, "outbound TCP connect failed");
-            call_handle_error(handler, id, &format!("connect failed: {e}")).await;
-            registry.remove(id);
-        }
-        Err(_) => {
-            tracing::debug!(connection_id = %id, %addr, port, "outbound TCP connect timed out");
-            call_handle_error(handler, id, "connect timed out").await;
-            registry.remove(id);
+
+        // Reconnect: read delay from handler's timeouts.reconnect, then retry
+        let reconnect_delay = {
+            let h = handler;
+            match tokio::task::spawn_blocking(move || {
+                Python::attach(|py| {
+                    let delay = if let Ok(conn) = h.bind(py).cast::<PyConnection>() {
+                        conn.borrow().timeouts.reconnect
+                    } else {
+                        5.0
+                    };
+                    (h, delay)
+                })
+            })
+            .await
+            {
+                Ok((h, delay)) => {
+                    handler = h;
+                    delay
+                }
+                Err(e) => {
+                    tracing::error!(connection_id = %id, err = %e, "reconnect delay read panicked");
+                    break;
+                }
+            }
+        };
+
+        tracing::info!(
+            connection_id = %id,
+            delay_secs = reconnect_delay,
+            %addr,
+            port,
+            "reconnecting"
+        );
+        time::sleep(secs_to_duration(reconnect_delay)).await;
+
+        // Reset connection state for the next attempt
+        if let Some(mut meta) = registry.get_mut(id) {
+            meta.state = ConnectionState::Connecting;
         }
     }
+
+    registry.remove(id);
 }
 
-/// Call `handle_error` on the Python handler via spawn_blocking, then invalidate.
-async fn call_handle_error(handler: Py<PyAny>, id: ConnectionId, msg: &str) {
+/// Call `handle_error` on the Python handler via spawn_blocking.
+///
+/// Returns the handler and post-callback so the reconnect loop can decide
+/// whether to retry or give up.
+async fn call_handle_error(
+    handler: Py<PyAny>,
+    id: ConnectionId,
+    msg: &str,
+) -> (Py<PyAny>, PostCallback) {
     let err_msg = msg.to_string();
-    let _ = tokio::task::spawn_blocking(move || {
+    match tokio::task::spawn_blocking(move || {
         Python::attach(|py| {
             let err = pyo3::exceptions::PyOSError::new_err(err_msg);
-            if let Err(e) = handler
-                .bind(py)
-                .call_method1("handle_error", (err.value(py),))
-            {
-                tracing::warn!(connection_id = %id, err = %e, "handle_error raised exception");
-            }
-            invalidate_handler(handler);
+            let post = callback::call_handle_error(handler.bind(py), &err.value(py).to_string());
+            (handler, post)
         })
     })
-    .await;
+    .await
+    {
+        Ok(pair) => pair,
+        Err(e) => {
+            tracing::warn!(connection_id = %id, err = %e, "handle_error panicked");
+            let h = Python::attach(|py| py.None().into());
+            (h, PostCallback::Close)
+        }
+    }
 }
 
 /// Per-connection I/O handler task.
@@ -351,6 +427,9 @@ async fn call_handle_error(handler: Py<PyAny>, id: ConnectionId, msg: &str) {
 /// Sequential callback guarantee: each callback completes before the next I/O event.
 ///
 /// Generic over the stream type so it works with both plain TCP and TLS.
+///
+/// Returns `(handler, rx, post_callback)` so that callers (e.g. the reconnect loop)
+/// can reuse the Python handler and channel across reconnections.
 #[allow(clippy::too_many_lines)]
 pub(crate) async fn handle_connection<S>(
     mut stream: S,
@@ -360,7 +439,8 @@ pub(crate) async fn handle_connection<S>(
     registry: Arc<ConnectionRegistry>,
     recv_buffer_size: usize,
     transport: &str,
-) where
+) -> (Py<PyAny>, mpsc::Receiver<SendMessage>, PostCallback)
+where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
 {
     let mut buf = BytesMut::zeroed(recv_buffer_size);
@@ -371,6 +451,14 @@ pub(crate) async fn handle_connection<S>(
     let mut out_throttle = Throttle::unlimited();
     let mut in_accounting = Accounting::unlimited();
     let mut out_accounting = Accounting::unlimited();
+
+    // Helper: return tuple for error exits where handler was lost (panics).
+    macro_rules! error_exit {
+        ($rx:expr) => {{
+            let h = Python::attach(|py| py.None().into());
+            return (h, $rx, PostCallback::Close);
+        }};
+    }
 
     // Emit connection accept/connect incident and call handle_established
     let transport_str = transport.to_string();
@@ -388,12 +476,11 @@ pub(crate) async fn handle_connection<S>(
     let mut handler = match post {
         Ok((h, PostCallback::Continue)) => h,
         Ok((h, _)) => {
-            invalidate_handler(h);
-            return;
+            return (h, rx, PostCallback::Close);
         }
         Err(e) => {
             tracing::error!(connection_id = %id, err = %e, "handle_established panicked");
-            return;
+            error_exit!(rx);
         }
     };
 
@@ -416,8 +503,7 @@ pub(crate) async fn handle_connection<S>(
     for data in pending_data {
         if let Err(e) = stream.write_all(&data).await {
             tracing::debug!(connection_id = %id, err = %e, "write error flushing established data");
-            invalidate_handler(handler);
-            return;
+            return (handler, rx, PostCallback::Close);
         }
         if let Some(mut meta) = registry.get_mut(id) {
             meta.stats.bytes_out += data.len() as u64;
@@ -448,9 +534,8 @@ pub(crate) async fn handle_connection<S>(
             result = stream.read(&mut buf[..read_limit]) => {
                 match result {
                     Ok(0) => {
-                        handler = call_disconnect(handler, id).await;
-                        invalidate_handler(handler);
-                        return;
+                        let (h, post) = call_disconnect(handler, id).await;
+                        return (h, rx, post);
                     }
                     Ok(n) => {
                         // Reset idle timeout on data
@@ -461,9 +546,8 @@ pub(crate) async fn handle_connection<S>(
 
                         if in_accounting.add(n as u64) {
                             tracing::debug!(connection_id = %id, "accounting limit, closing");
-                            handler = call_disconnect(handler, id).await;
-                            invalidate_handler(handler);
-                            return;
+                            let (h, post) = call_disconnect(handler, id).await;
+                            return (h, rx, post);
                         }
 
                         if let Some(mut meta) = registry.get_mut(id) {
@@ -500,20 +584,18 @@ pub(crate) async fn handle_connection<S>(
                                 }
                             }
                             Ok((h, _, _, _)) => {
-                                invalidate_handler(h);
-                                return;
+                                return (h, rx, PostCallback::Close);
                             }
                             Err(e) => {
                                 tracing::error!(connection_id = %id, err = %e, "io_in panicked");
-                                return;
+                                error_exit!(rx);
                             }
                         }
                     }
                     Err(e) => {
                         tracing::debug!(connection_id = %id, err = %e, "TCP read error");
-                        handler = call_disconnect(handler, id).await;
-                        invalidate_handler(handler);
-                        return;
+                        let (h, post) = call_disconnect(handler, id).await;
+                        return (h, rx, post);
                     }
                 }
             }
@@ -529,16 +611,14 @@ pub(crate) async fn handle_connection<S>(
 
                         if out_accounting.add(data.len() as u64) {
                             tracing::debug!(connection_id = %id, "outbound accounting limit");
-                            handler = call_disconnect(handler, id).await;
-                            invalidate_handler(handler);
-                            return;
+                            let (h, post) = call_disconnect(handler, id).await;
+                            return (h, rx, post);
                         }
 
                         if let Err(e) = stream.write_all(&data).await {
                             tracing::debug!(connection_id = %id, err = %e, "TCP write error");
-                            handler = call_disconnect(handler, id).await;
-                            invalidate_handler(handler);
-                            return;
+                            let (h, post) = call_disconnect(handler, id).await;
+                            return (h, rx, post);
                         }
 
                         if let Some(mut meta) = registry.get_mut(id) {
@@ -565,12 +645,11 @@ pub(crate) async fn handle_connection<S>(
                                 handler = h;
                             }
                             Ok((h, _)) => {
-                                invalidate_handler(h);
-                                return;
+                                return (h, rx, PostCallback::Close);
                             }
                             Err(e) => {
                                 tracing::error!(connection_id = %id, err = %e, "io_out panicked");
-                                return;
+                                error_exit!(rx);
                             }
                         }
                     }
@@ -609,15 +688,13 @@ pub(crate) async fn handle_connection<S>(
                     }
                     Some(SendMessage::Close) => {
                         tracing::debug!(connection_id = %id, "close requested");
-                        handler = call_disconnect(handler, id).await;
-                        invalidate_handler(handler);
-                        return;
+                        let (h, post) = call_disconnect(handler, id).await;
+                        return (h, rx, post);
                     }
                     None => {
                         tracing::debug!(connection_id = %id, "send channel closed");
-                        handler = call_disconnect(handler, id).await;
-                        invalidate_handler(handler);
-                        return;
+                        let (h, post) = call_disconnect(handler, id).await;
+                        return (h, rx, post);
                     }
                 }
             }
@@ -642,12 +719,11 @@ pub(crate) async fn handle_connection<S>(
                         );
                     }
                     Ok((h, _)) => {
-                        invalidate_handler(h);
-                        return;
+                        return (h, rx, PostCallback::Close);
                     }
                     Err(e) => {
                         tracing::error!(connection_id = %id, err = %e, "timeout_idle panicked");
-                        return;
+                        error_exit!(rx);
                     }
                 }
             }
@@ -672,12 +748,11 @@ pub(crate) async fn handle_connection<S>(
                         );
                     }
                     Ok((h, _)) => {
-                        invalidate_handler(h);
-                        return;
+                        return (h, rx, PostCallback::Close);
                     }
                     Err(e) => {
                         tracing::error!(connection_id = %id, err = %e, "timeout_sustain panicked");
-                        return;
+                        error_exit!(rx);
                     }
                 }
             }
@@ -749,12 +824,32 @@ fn update_timeout(
     }
 }
 
-/// Call handle_disconnect via spawn_blocking, returning the handler.
-/// Also emits a `dionaea.connection.free` incident.
-async fn call_disconnect(handler: Py<PyAny>, id: ConnectionId) -> Py<PyAny> {
+/// Call handle_disconnect via spawn_blocking, returning the handler and post-callback.
+///
+/// Does NOT emit `dionaea.connection.free` — the caller decides when to emit it
+/// (accept-type connections always emit; connect-type only on final close).
+async fn call_disconnect(handler: Py<PyAny>, id: ConnectionId) -> (Py<PyAny>, PostCallback) {
     match tokio::task::spawn_blocking(move || {
         Python::attach(|py| {
-            callback::call_handle_disconnect(handler.bind(py));
+            let post = callback::call_handle_disconnect(handler.bind(py));
+            (handler, post)
+        })
+    })
+    .await
+    {
+        Ok(pair) => pair,
+        Err(e) => {
+            tracing::error!(connection_id = %id, err = %e, "handle_disconnect panicked");
+            let h = Python::attach(|py| py.None().into());
+            (h, PostCallback::Close)
+        }
+    }
+}
+
+/// Emit `dionaea.connection.free` via spawn_blocking.
+pub(crate) async fn emit_connection_free(handler: Py<PyAny>) -> Py<PyAny> {
+    match tokio::task::spawn_blocking(move || {
+        Python::attach(|py| {
             callback::emit_connection_incident(py, handler.bind(py), "dionaea.connection.free");
             handler
         })
@@ -762,10 +857,7 @@ async fn call_disconnect(handler: Py<PyAny>, id: ConnectionId) -> Py<PyAny> {
     .await
     {
         Ok(h) => h,
-        Err(e) => {
-            tracing::error!(connection_id = %id, err = %e, "handle_disconnect panicked");
-            Python::attach(|py| py.None().into())
-        }
+        Err(_) => Python::attach(|py| py.None().into()),
     }
 }
 
