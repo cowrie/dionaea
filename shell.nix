@@ -3,20 +3,17 @@
 
 pkgs.mkShell {
   buildInputs = with pkgs; [
-    # Build tools
+    # Rust toolchain
+    rustc
+    cargo
+    clippy
+    rustfmt
+
+    # Build dependencies
     pkg-config
-    cmake
-
-    # C libraries
-    glib.dev
-    udns
-    libev
     openssl.dev
-    curl.dev
-    libpcap
 
-    # Python
-    python312Packages.setuptools
-    python312Packages.cython
+    # Python (for PyO3)
+    python312
   ];
 }

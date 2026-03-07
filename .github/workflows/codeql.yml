@@ -1,17 +1,15 @@
+# ABOUTME: CodeQL security analysis workflow for Python code.
+# ABOUTME: Runs on push, pull request, and manual dispatch.
 ---
 # SPDX-FileCopyrightText: none
 # SPDX-License-Identifier: CC0-1.0
-#
-# For most projects, this workflow file will not need changing; you simply need
-# to commit it to your repository.
-#
-# You may wish to alter this file to override the set of languages analyzed,
-# or to provide custom queries or build logic.
 name: "CodeQL"
 
 on:  # yamllint disable-line rule:truthy
-  #  push:
-  #    branches: [main]
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
 
   workflow_dispatch:
     inputs:
@@ -32,46 +30,14 @@ jobs:
     name: Analyze
     runs-on: ubuntu-latest
 
-    strategy:
-      fail-fast: false
-      matrix:
-        language: ['python', 'cpp']
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - name: Install additional packages
-        run: |
-         sudo apt-get update
-         sudo apt-get install -y --no-install-recommends \
-           build-essential \
-           cmake \
-           check \
-           cython3 \
-           libcurl4-openssl-dev \
-           libev-dev \
-           libglib2.0-dev \
-           libloudmouth1-dev \
-           libnetfilter-queue-dev \
-             libnl-3-dev \
-           libpcap-dev \
-           libssl-dev \
-           libtool \
-           libudns-dev \
-           python3 \
-           python3-dev \
-           python3-bson \
-           python3-yaml \
-           python3-boto3 \
-           fonts-liberation
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
-          languages: ${{ matrix.language }}
+          languages: python
           queries: security-extended
 
       - name: Autobuild
