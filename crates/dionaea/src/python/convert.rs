@@ -38,12 +38,24 @@ pub fn opaque_to_py(py: Python<'_>, value: &OpaqueData) -> PyResult<Py<PyAny>> {
     }
 }
 
+/// Maximum nesting depth for recursive Python → OpaqueData conversion.
+const MAX_NESTING_DEPTH: usize = 100;
+
 /// Convert a Python object to a Rust `OpaqueData` value.
 ///
 /// Type dispatch order matches binding.pyx: connection, int, str, bytes, list/tuple, dict, None.
 /// Since we don't have access to PyConnection here (it would create a circular dependency),
 /// connection detection is handled by the caller.
 pub fn py_to_opaque(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<OpaqueData> {
+    py_to_opaque_inner(py, obj, 0)
+}
+
+fn py_to_opaque_inner(py: Python<'_>, obj: &Bound<'_, PyAny>, depth: usize) -> PyResult<OpaqueData> {
+    if depth > MAX_NESTING_DEPTH {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            format!("nested structure exceeds maximum depth of {MAX_NESTING_DEPTH}")
+        ));
+    }
     if obj.is_none() {
         return Ok(OpaqueData::None);
     }
@@ -69,7 +81,7 @@ pub fn py_to_opaque(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<OpaqueDa
     if let Ok(list) = obj.cast::<PyList>() {
         let mut items = Vec::with_capacity(list.len());
         for item in list.iter() {
-            items.push(py_to_opaque(py, &item)?);
+            items.push(py_to_opaque_inner(py, &item, depth + 1)?);
         }
         return Ok(OpaqueData::List(items));
     }
@@ -78,7 +90,7 @@ pub fn py_to_opaque(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<OpaqueDa
         let items: Vec<Bound<'_, PyAny>> = obj.extract()?;
         let mut result = Vec::with_capacity(items.len());
         for item in &items {
-            result.push(py_to_opaque(py, item)?);
+            result.push(py_to_opaque_inner(py, item, depth + 1)?);
         }
         return Ok(OpaqueData::List(result));
     }
@@ -86,7 +98,7 @@ pub fn py_to_opaque(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<OpaqueDa
         let mut map = HashMap::new();
         for (k, v) in dict.iter() {
             let key: String = k.extract()?;
-            map.insert(key, py_to_opaque(py, &v)?);
+            map.insert(key, py_to_opaque_inner(py, &v, depth + 1)?);
         }
         return Ok(OpaqueData::Dict(map));
     }
@@ -247,6 +259,40 @@ mod tests {
                     OpaqueData::None,
                 ])
             );
+        });
+    }
+
+    #[test]
+    fn test_deeply_nested_list_rejected() {
+        Python::attach(|py| {
+            // Build a list nested 150 levels deep (exceeds MAX_NESTING_DEPTH=100)
+            let setup = c"
+result = [1]
+for _ in range(150):
+    result = [result]
+";
+            py.run(setup, None, None).expect("run");
+            let obj = py.eval(c"result", None, None).expect("eval");
+            let err = py_to_opaque(py, &obj);
+            assert!(err.is_err());
+            let msg = err.unwrap_err().to_string();
+            assert!(msg.contains("maximum depth"), "unexpected error: {msg}");
+        });
+    }
+
+    #[test]
+    fn test_moderately_nested_list_accepted() {
+        Python::attach(|py| {
+            // Build a list nested 50 levels deep (within MAX_NESTING_DEPTH=100)
+            let setup = c"
+result2 = [42]
+for _ in range(50):
+    result2 = [result2]
+";
+            py.run(setup, None, None).expect("run");
+            let obj = py.eval(c"result2", None, None).expect("eval");
+            let result = py_to_opaque(py, &obj);
+            assert!(result.is_ok(), "50 levels should be within limit");
         });
     }
 
