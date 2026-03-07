@@ -10,7 +10,9 @@ use crate::python::ihandler::dispatch_to_handler;
 use crate::runtime;
 use pyo3::prelude::*;
 use pyo3::types::PyList;
+use std::cell::Cell;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 /// Incident exposed to Python protocol handlers and ihandlers.
@@ -52,6 +54,42 @@ impl PyIncident {
     }
 }
 
+/// Serializes incident dispatch across threads.
+///
+/// Python handlers (logsql, etc.) share mutable state that isn't thread-safe.
+/// sqlite3 releases the GIL during cursor operations, which allows concurrent
+/// dispatch from different spawn_blocking threads. This flag ensures only one
+/// thread dispatches at a time, matching the C single-threaded event loop model.
+///
+/// The GIL is released while waiting (via `detach`) to prevent deadlock
+/// with threads that hold this flag and are waiting to reacquire the GIL.
+static DISPATCH_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+// Per-thread flag to detect reentrant dispatch (handler reports another incident).
+thread_local! {
+    static DISPATCH_REENTRANT: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Acquire the dispatch lock, releasing the GIL while waiting.
+fn acquire_dispatch(py: Python<'_>) {
+    loop {
+        if DISPATCH_ACTIVE
+            .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
+            .is_ok()
+        {
+            return;
+        }
+        // Release GIL so the dispatching thread can finish its Python work,
+        // then try again.
+        py.detach(|| std::thread::yield_now());
+    }
+}
+
+/// Release the dispatch lock.
+fn release_dispatch() {
+    DISPATCH_ACTIVE.store(false, Ordering::Release);
+}
+
 #[pymethods]
 impl PyIncident {
     /// Create an incident with an optional origin path.
@@ -76,6 +114,12 @@ impl PyIncident {
     /// Locks the registry to find matching handlers, releases the lock,
     /// then dispatches to each handler. This ordering prevents deadlocks
     /// when a handler callback reports another incident.
+    ///
+    /// Dispatch is serialized across threads to match the C single-threaded
+    /// model. Python handlers (e.g. logsql) share mutable state (sqlite3
+    /// cursors) that isn't thread-safe, and sqlite3 releases the GIL during
+    /// cursor.execute(), which would allow concurrent dispatch without this
+    /// serialization.
     ///
     /// Errors in individual handlers are logged but not propagated,
     /// matching the C behavior.
@@ -106,6 +150,19 @@ impl PyIncident {
         };
         // Lock is released here
 
+        // Serialize dispatch across threads. The GIL alone isn't sufficient
+        // because Python C extensions (sqlite3, etc.) can release it during I/O,
+        // allowing another thread to enter dispatch concurrently.
+        //
+        // Reentrant dispatch (handler reports another incident on the same thread)
+        // is allowed via a thread-local flag — the outer call already holds
+        // the dispatch lock.
+        let reentrant = DISPATCH_REENTRANT.with(|f| f.get());
+        if !reentrant {
+            acquire_dispatch(py);
+            DISPATCH_REENTRANT.with(|f| f.set(true));
+        }
+
         tracing::debug!(
             origin = %self.origin,
             rust_handlers = rust_handlers.len(),
@@ -127,6 +184,12 @@ impl PyIncident {
                 );
             }
         }
+
+        if !reentrant {
+            DISPATCH_REENTRANT.with(|f| f.set(false));
+            release_dispatch();
+        }
+
         Ok(())
     }
 

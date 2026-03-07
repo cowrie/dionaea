@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
-//! ABOUTME: Shellcode detection via GetPC byte pattern scanning.
+//! ABOUTME: Shellcode detection via `GetPC` byte pattern scanning.
 //! ABOUTME: Detects x86, x86-64, and MIPS shellcode in arbitrary byte streams.
 
-/// Scan a byte buffer for shellcode GetPC patterns.
+/// Scan a byte buffer for shellcode `GetPC` patterns.
 ///
 /// Returns the offset and architecture of any detected shellcode,
 /// or `None` if no patterns match.
@@ -50,10 +50,10 @@ pub fn detect(data: &[u8]) -> Option<Detection> {
     None
 }
 
-/// x86 call $+5; pop reg pattern.
+/// x86 `call $+5; pop reg` pattern.
 ///
 /// `E8 00 00 00 00` is `call` with displacement 0 (calls the next instruction).
-/// Followed by `pop` of any general register (`58`=eax through `5F`=edi).
+/// Followed by `pop` of any general register (`58`=`eax` through `5F`=`edi`).
 fn find_x86_call_pop(data: &[u8]) -> Option<usize> {
     if data.len() < 6 {
         return None;
@@ -72,7 +72,7 @@ fn find_x86_call_pop(data: &[u8]) -> Option<usize> {
     None
 }
 
-/// x86 FPU GetPC pattern.
+/// x86 FPU `GetPC` pattern.
 ///
 /// `D9 EE` = `fldz` (push 0.0 on FPU stack)
 /// `D9 74 24 F4` = `fnstenv [esp-12]` (store FPU environment on stack)
@@ -90,7 +90,7 @@ fn find_x86_fpu(data: &[u8]) -> Option<usize> {
     None
 }
 
-/// x86 jmp-over-call GetPC pattern.
+/// x86 jmp-over-call `GetPC` pattern.
 ///
 /// `EB xx` = short jmp (xx bytes forward)
 /// At the jmp target: `E8 yy yy yy yy` = call back, followed by pop reg.
@@ -120,7 +120,7 @@ fn find_x86_jmp_call(data: &[u8]) -> Option<usize> {
 /// x86-64 RIP-relative lea pattern.
 ///
 /// `48 8D 05 00 00 00 00` = `lea rax, [rip+0]`
-/// REX.W prefix (48) + LEA opcode (8D) + ModRM for [rip+disp32] with rax (05)
+/// `REX.W` prefix (48) + `LEA` opcode (8D) + `ModRM` for `[rip+disp32]` with `rax` (05)
 /// displacement 0 means it loads the address of the next instruction.
 fn find_x64_lea_rip(data: &[u8]) -> Option<usize> {
     const PATTERN: [u8; 7] = [0x48, 0x8D, 0x05, 0x00, 0x00, 0x00, 0x00];
@@ -135,7 +135,7 @@ fn find_x64_lea_rip(data: &[u8]) -> Option<usize> {
     None
 }
 
-/// MIPS BGEZAL $zero GetPC pattern.
+/// MIPS `BGEZAL $zero` `GetPC` pattern.
 ///
 /// `04 11 FF FF` = `bgezal $zero, -4`
 /// $zero is always >= 0, so this always branches-and-links.
