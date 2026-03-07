@@ -39,8 +39,8 @@ class virustotalhandler(ihandler):
         self.apikey = config.get("apikey", "")
         if not self.apikey or not self.apikey.strip("."):
             logger.warning("VirusTotal API key not configured")
-        elif len(self.apikey) != 64 or not all(c in "0123456789abcdef" for c in self.apikey):
-            logger.warning("VirusTotal API key does not look valid (expected 64 hex characters)")
+        else:
+            self._verify_api_key()
         comment = config.get("comment")
         if comment is None:
             comment = "This sample was captured in the wild and uploaded by the dionaea honeypot.\n#honeypot #malware #networkworm"
@@ -69,6 +69,26 @@ class virustotalhandler(ihandler):
             repeat=True,
         )
         self.backlog_timer.start()
+
+    def _verify_api_key(self):
+        """Check the API key against VT by requesting a report for a dummy hash."""
+        from urllib.request import Request, urlopen
+        from urllib.error import URLError, HTTPError
+        from urllib.parse import urlencode
+        try:
+            dummy_hash = "0" * 64
+            params = urlencode({"resource": dummy_hash, "apikey": self.apikey}).encode()
+            req = Request("https://www.virustotal.com/vtapi/v2/file/report", data=params)
+            resp = urlopen(req, timeout=10)
+            resp.read()
+            logger.info("VirusTotal API key is valid")
+        except HTTPError as e:
+            if e.code == 403:
+                logger.warning("VirusTotal API key is invalid (HTTP 403)")
+            else:
+                logger.warning("VirusTotal API key check failed: HTTP %d", e.code)
+        except (URLError, OSError) as e:
+            logger.warning("VirusTotal API unreachable: %s", e)
 
     def __handle_backlog_timeout(self):
         # try to comment on files
