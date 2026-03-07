@@ -4,7 +4,7 @@
 name = "printer"
 
 [config]
-root = "@DIONAEA_STATEDIR@/printer/root"
+root = "var/dionaea/printer/root"
 
 [config.pjl_msgs]
 info_id = "HP LASERJET 4ML"

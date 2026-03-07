@@ -4,6 +4,6 @@
 name = "tftp"
 
 [config]
-root = "@DIONAEA_STATEDIR@/tftp/root"
+root = "var/dionaea/tftp/root"
 # Enable or disable upload support (WRQ packets)
 allow_uploads = true

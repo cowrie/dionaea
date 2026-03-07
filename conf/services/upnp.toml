@@ -4,7 +4,7 @@
 name = "upnp"
 
 [config]
-root = "@DIONAEA_STATEDIR@/upnp/root"
+root = "var/dionaea/upnp/root"
 # Maximum request size in kbytes (32MB)
 max_request_size = 32768
 

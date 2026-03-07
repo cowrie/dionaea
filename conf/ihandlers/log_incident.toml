@@ -6,5 +6,5 @@ name = "log_incident"
 [config]
 handlers = [
     # "http://127.0.0.1:8080/",
-    "file://@DIONAEA_STATEDIR@/dionaea_incident.json",
+    "file://var/dionaea/dionaea_incident.json",
 ]

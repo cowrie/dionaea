@@ -4,5 +4,5 @@
 name = "fail2ban"
 
 [config]
-downloads = "@DIONAEA_STATEDIR@/fail2ban/downloads.f2b"
-offers = "@DIONAEA_STATEDIR@/fail2ban/offers.f2b"
+downloads = "var/dionaea/fail2ban/downloads.f2b"
+offers = "var/dionaea/fail2ban/offers.f2b"

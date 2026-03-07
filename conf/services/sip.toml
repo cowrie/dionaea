@@ -7,7 +7,7 @@ name = "sip"
 udp_ports = [5060]
 tcp_ports = [5060]
 tls_ports = [5061]
-users = "@DIONAEA_STATEDIR@/sip/accounts.sqlite"
+users = "var/dionaea/sip/accounts.sqlite"
 
 [config.rtp]
 enable = true
@@ -15,7 +15,7 @@ enable = true
 modes = ["bistream", "pcap"]
 
 [config.rtp.pcap]
-path = "@DIONAEA_STATEDIR@/sip/rtp/{personality}/%Y-%m-%d/"
+path = "var/dionaea/sip/rtp/{personality}/%Y-%m-%d/"
 filename = "%H:%M:%S_{remote_host}_{remote_port}_in.pcap"
 
 [config.personalities.default]

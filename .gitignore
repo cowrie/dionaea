@@ -88,7 +88,8 @@ lib/
 lib64/
 parts/
 sdist/
-var/
+var/*
+!var/dionaea/
 wheels/
 share/python-wheels/
 *.egg-info/
