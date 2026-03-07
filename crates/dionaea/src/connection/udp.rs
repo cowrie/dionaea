@@ -40,6 +40,9 @@ impl UdpListenerHandle {
     }
 }
 
+/// Hard cap on UDP peer table size to prevent memory exhaustion from IP spoofing.
+const MAX_UDP_PEERS: usize = 10_000;
+
 /// Per-peer state in the UDP peer table.
 struct UdpPeer {
     /// Connection ID in the registry.
@@ -163,7 +166,12 @@ async fn udp_recv_loop(
                                 }
                             }
                         } else {
-                            // New peer: check limits, create connection
+                            // New peer: check peer table cap and limits
+                            if peers.len() >= MAX_UDP_PEERS {
+                                tracing::warn!(%remote_addr, peers = peers.len(), "UDP peer table full, rejecting");
+                                continue;
+                            }
+
                             let fd_count = registry.len() as u64;
                             let fd_soft_limit = get_fd_soft_limit();
 
