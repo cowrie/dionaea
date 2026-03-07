@@ -40,7 +40,7 @@ serde_json = "1"
 tempfile = "3"
 
 [features]
-default = ["tls", "dns", "download", "deny-list"]
+default = ["tls", "dns", "download", "deny-list", "pcap"]
 tls = ["dep:openssl", "dep:tokio-openssl"]
 dns = ["dep:hickory-resolver"]
 download = ["dep:reqwest"]
