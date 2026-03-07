@@ -48,7 +48,7 @@ ip_network = "0.4"
 ip_network_table = "0.2"
 
 # HTTP client (replaces curl module)
-reqwest = { version = "0.12", default-features = false, features = ["native-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["native-tls", "multipart"] }
 
 # System/privileges
 nix = { version = "0.30", features = ["socket", "uio", "user", "process", "fs", "net", "resource", "signal"] }

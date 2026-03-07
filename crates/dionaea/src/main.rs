@@ -206,6 +206,10 @@ async fn async_main(config: config::Config, log_state: LogState) {
     if state.config.modules.download {
         dionaea::download::register();
     }
+    #[cfg(feature = "upload")]
+    if state.config.modules.upload {
+        dionaea::upload::register();
+    }
 
     // Drop privileges after all ports are bound
     {

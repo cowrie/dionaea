@@ -13,6 +13,9 @@ pub mod connection;
 /// HTTP/HTTPS download capture module.
 #[cfg(feature = "download")]
 pub mod download;
+/// HTTP multipart upload module (virustotal, hpfeeds, submit_http).
+#[cfg(feature = "upload")]
+pub mod upload;
 /// Error types for the dionaea crate.
 pub mod error;
 /// Incident handler dispatch (Rust-side handlers).

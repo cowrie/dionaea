@@ -141,6 +141,9 @@ pub struct ModulesConfig {
     /// Enable HTTP download module.
     #[serde(default = "default_true")]
     pub download: bool,
+    /// Enable HTTP upload module (virustotal, hpfeeds, submit_http).
+    #[serde(default = "default_true")]
+    pub upload: bool,
     /// Enable pcap module.
     #[serde(default)]
     pub pcap: bool,
@@ -302,6 +305,7 @@ impl Default for ModulesConfig {
         ModulesConfig {
             python: PythonModuleConfig::default(),
             download: true,
+            upload: true,
             pcap: false,
             nfq: false,
             netlink: false,
