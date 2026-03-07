@@ -40,6 +40,8 @@ service_configs = ["conf/services/*.toml"]
 ihandler_configs = [
     "conf/ihandlers/log_json.toml",
     "conf/ihandlers/log_sqlite.toml",
+    "conf/ihandlers/speakeasy.toml",
+    "conf/ihandlers/virustotal.toml",
 ]
 
 # Processor pipeline: filter → streamdumper, filter → shellcode detection
