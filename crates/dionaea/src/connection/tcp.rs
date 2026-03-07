@@ -210,10 +210,22 @@ async fn accept_loop(
             let child_result = tokio::task::spawn_blocking(move || {
                 Python::attach(|py| {
                     let parent = factory_clone.bind(py);
-                    factory_create(
+                    let child = factory_create(
                         py, &parent, id, handler_tx, "tcp",
                         Some(reg_for_factory), Some(lim_for_factory), recv_buffer_size,
-                    )
+                    )?;
+
+                    // Set socket addresses and status on the child handler
+                    if let Ok(conn) = child.bind(py).cast::<PyConnection>() {
+                        let mut c = conn.borrow_mut();
+                        c.remote.host = peer_addr.ip().to_string();
+                        c.remote.port = peer_addr.port();
+                        c.local.host = local_addr.ip().to_string();
+                        c.local.port = local_addr.port();
+                        c.status = "established".to_string();
+                    }
+
+                    PyResult::Ok(child)
                 })
             })
             .await;
