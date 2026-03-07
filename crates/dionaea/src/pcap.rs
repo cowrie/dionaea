@@ -256,7 +256,7 @@ fn capture_loop(device_name: &str, shutdown: &AtomicBool) {
     let cap = pcap::Capture::from_device(device_name)
         .map(|c| {
             c.snaplen(SNAPLEN)
-                .promisc(true)
+                .promisc(device_name != "any")
                 .timeout(TIMEOUT_MS)
         })
         .and_then(pcap::Capture::open);
