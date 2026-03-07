@@ -85,6 +85,7 @@ class SipConfig:
 
         self.users = os.path.join(self.root_path, config.get("users", "var/lib/dionaea/sip/accounts.sqlite"))
 
+        os.makedirs(os.path.dirname(self.users), exist_ok=True)
         self._conn = sqlite3.connect(self.users, check_same_thread=False)
         self._cur = self._conn.cursor()
 
