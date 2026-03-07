@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: none
+# SPDX-License-Identifier: CC0-1.0
+
+name = "tftp"
+
+[config]
+root = "@DIONAEA_STATEDIR@/tftp/root"
+# Enable or disable upload support (WRQ packets)
+allow_uploads = true

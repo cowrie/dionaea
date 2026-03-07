@@ -1,0 +1,42 @@
+# SPDX-FileCopyrightText: none
+# SPDX-License-Identifier: CC0-1.0
+
+name = "sip"
+
+[config]
+udp_ports = [5060]
+tcp_ports = [5060]
+tls_ports = [5061]
+users = "@DIONAEA_STATEDIR@/sip/accounts.sqlite"
+
+[config.rtp]
+enable = true
+# bistream = dump as bistream
+modes = ["bistream", "pcap"]
+
+[config.rtp.pcap]
+path = "@DIONAEA_STATEDIR@/sip/rtp/{personality}/%Y-%m-%d/"
+filename = "%H:%M:%S_{remote_host}_{remote_port}_in.pcap"
+
+[config.personalities.default]
+domain = "localhost"
+name = "softphone"
+personality = "generic"
+
+# [config.personalities.next-server]
+# domain = "my-domain"
+# name = "my server"
+# personality = "generic"
+# serve = ["10.0.0.1"]
+# default_sdp = "default"
+# handle = ["REGISTER", "INVITE", "BYE", "CANCEL", "ACK"]
+
+[config.actions.bank-redirect]
+do = "redirect"
+# params = ...
+
+[config.actions.play-hello]
+do = "play"
+
+[config.actions.play-hello.params]
+file = "var/dionaea/.../file.ext"

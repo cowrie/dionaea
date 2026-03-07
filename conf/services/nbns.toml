@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: none
+# SPDX-License-Identifier: CC0-1.0
+
+# NetBIOS Name Service (NBNS) - UDP port 137
+# Captures name queries to detect WPAD attacks and NetBIOS reconnaissance
+
+[[services]]
+name = "nbns"
+
+[services.config]
+# Respond to name queries to appear as a valid target
+respond = true
+# List of names to respond to (case insensitive, use '*' for all)
+respond_names = ["WPAD", "*"]
+
+# NetBIOS Datagram Service - UDP port 138
+[[services]]
+name = "nbns-dgm"
+
+[services.config]
+respond = true
+respond_names = ["WPAD", "*"]
