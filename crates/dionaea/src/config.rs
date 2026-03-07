@@ -144,8 +144,8 @@ pub struct ModulesConfig {
     /// Enable HTTP upload module (virustotal, hpfeeds, submit_http).
     #[serde(default = "default_true")]
     pub upload: bool,
-    /// Pcap capture settings. Present = enabled, absent = disabled.
-    #[serde(default)]
+    /// Pcap capture settings. Defaults to capturing on all interfaces.
+    #[serde(default = "default_pcap_config")]
     pub pcap: Option<PcapConfig>,
     /// Enable netfilter queue module.
     #[serde(default)]
@@ -270,6 +270,11 @@ fn default_python_imports() -> Vec<String> {
 fn default_pcap_interfaces() -> Vec<String> {
     vec!["any".to_string()]
 }
+fn default_pcap_config() -> Option<PcapConfig> {
+    Some(PcapConfig {
+        interfaces: default_pcap_interfaces(),
+    })
+}
 
 impl Default for LimitsConfig {
     fn default() -> Self {
@@ -317,7 +322,7 @@ impl Default for ModulesConfig {
             python: PythonModuleConfig::default(),
             download: true,
             upload: true,
-            pcap: None,
+            pcap: default_pcap_config(),
             nfq: false,
             netlink: false,
         }
@@ -514,7 +519,7 @@ ihandler_configs = ["/etc/dionaea/ihandlers-enabled/*.toml"]
         assert_eq!(config.logging.targets[0].target_type, "file");
         assert_eq!(config.logging.targets[1].target_type, "stdout");
         assert!(config.modules.download);
-        assert!(config.modules.pcap.is_none());
+        assert!(config.modules.pcap.is_some());
         assert_eq!(config.modules.python.imports, vec!["dionaea"]);
     }
 
@@ -689,13 +694,14 @@ label = "shellcode"
     }
 
     #[test]
-    fn test_pcap_config_none_by_default() {
+    fn test_pcap_config_enabled_by_default() {
         let config = load_from_str(MINIMAL_CONFIG).expect("parse");
-        assert!(config.modules.pcap.is_none());
+        let pcap = config.modules.pcap.as_ref().expect("pcap should be Some");
+        assert_eq!(pcap.interfaces, vec!["any"]);
     }
 
     #[test]
-    fn test_pcap_config_enabled_with_defaults() {
+    fn test_pcap_config_explicit_section() {
         let toml = r#"
 [dionaea]
 [dionaea.listen]
