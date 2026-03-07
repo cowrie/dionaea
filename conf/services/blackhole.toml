@@ -3,6 +3,15 @@
 
 name = "blackhole"
 
+# Discard
+[[config.services]]
+port = 9
+protocol = "tcp"
+
+[[config.services]]
+port = 9
+protocol = "udp"
+
 # Telnet
 [[config.services]]
 port = 23
