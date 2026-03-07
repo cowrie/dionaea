@@ -144,15 +144,23 @@ pub struct ModulesConfig {
     /// Enable HTTP upload module (virustotal, hpfeeds, submit_http).
     #[serde(default = "default_true")]
     pub upload: bool,
-    /// Enable pcap module.
+    /// Pcap capture settings. Present = enabled, absent = disabled.
     #[serde(default)]
-    pub pcap: bool,
+    pub pcap: Option<PcapConfig>,
     /// Enable netfilter queue module.
     #[serde(default)]
     pub nfq: bool,
     /// Enable netlink interface monitoring.
     #[serde(default)]
     pub netlink: bool,
+}
+
+/// Pcap passive capture configuration.
+#[derive(Debug, Clone, Deserialize)]
+pub struct PcapConfig {
+    /// Interfaces to capture on. Use "any" for all interfaces.
+    #[serde(default = "default_pcap_interfaces")]
+    pub interfaces: Vec<String>,
 }
 
 /// Python module configuration.
@@ -259,6 +267,9 @@ fn default_download_size_limit() -> u64 {
 fn default_python_imports() -> Vec<String> {
     vec!["dionaea".to_string()]
 }
+fn default_pcap_interfaces() -> Vec<String> {
+    vec!["any".to_string()]
+}
 
 impl Default for LimitsConfig {
     fn default() -> Self {
@@ -306,7 +317,7 @@ impl Default for ModulesConfig {
             python: PythonModuleConfig::default(),
             download: true,
             upload: true,
-            pcap: false,
+            pcap: None,
             nfq: false,
             netlink: false,
         }
@@ -487,7 +498,6 @@ domains = "*"
 
 [modules]
 download = true
-pcap = false
 
 [modules.python]
 imports = ["dionaea"]
@@ -504,7 +514,7 @@ ihandler_configs = ["/etc/dionaea/ihandlers-enabled/*.toml"]
         assert_eq!(config.logging.targets[0].target_type, "file");
         assert_eq!(config.logging.targets[1].target_type, "stdout");
         assert!(config.modules.download);
-        assert!(!config.modules.pcap);
+        assert!(config.modules.pcap.is_none());
         assert_eq!(config.modules.python.imports, vec!["dionaea"]);
     }
 
@@ -676,5 +686,44 @@ label = "shellcode"
     fn test_no_processors_by_default() {
         let config = load_from_str(MINIMAL_CONFIG).expect("parse");
         assert!(config.processors.is_empty());
+    }
+
+    #[test]
+    fn test_pcap_config_none_by_default() {
+        let config = load_from_str(MINIMAL_CONFIG).expect("parse");
+        assert!(config.modules.pcap.is_none());
+    }
+
+    #[test]
+    fn test_pcap_config_enabled_with_defaults() {
+        let toml = r#"
+[dionaea]
+[dionaea.listen]
+mode = "manual"
+addresses = ["0.0.0.0"]
+[logging]
+[modules]
+[modules.pcap]
+"#;
+        let config = load_from_str(toml).expect("parse pcap config");
+        let pcap = config.modules.pcap.as_ref().expect("pcap should be Some");
+        assert_eq!(pcap.interfaces, vec!["any"]);
+    }
+
+    #[test]
+    fn test_pcap_config_custom_interfaces() {
+        let toml = r#"
+[dionaea]
+[dionaea.listen]
+mode = "manual"
+addresses = ["0.0.0.0"]
+[logging]
+[modules]
+[modules.pcap]
+interfaces = ["eth0", "eth1"]
+"#;
+        let config = load_from_str(toml).expect("parse pcap config");
+        let pcap = config.modules.pcap.as_ref().expect("pcap should be Some");
+        assert_eq!(pcap.interfaces, vec!["eth0", "eth1"]);
     }
 }
