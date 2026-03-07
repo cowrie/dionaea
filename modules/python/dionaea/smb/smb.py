@@ -347,9 +347,7 @@ class smbd(connection):
         self.timeouts.idle = 120
         # self._in.accounting.limit  = 2000*1024
         # self._out.accounting.limit = 2000*1024
-        # Skip self.processors() - SMB handles shellcode detection via DoublePulsar
-        # XOR decode path. Running the stream processor on encrypted data produces
-        # false positives.
+        self.processors()
 
     def _process_doublepulsar_payload(self):
         """Process accumulated DoublePulsar payload data."""
