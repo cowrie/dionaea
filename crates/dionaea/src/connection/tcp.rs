@@ -455,6 +455,9 @@ pub(crate) async fn handle_connection<S>(
 where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
 {
+    /// Cap on partial_buf to prevent memory exhaustion from slow protocol handlers.
+    const MAX_PARTIAL_BUF: usize = 10 * 1024 * 1024; // 10 MB
+
     let mut buf = BytesMut::zeroed(recv_buffer_size);
     let mut partial_buf: Vec<u8> = Vec::new();
     let mut processor_pipeline: Option<crate::processor::ProcessorPipeline> = None;
@@ -592,6 +595,12 @@ where
                             Ok((h, PostCallback::Continue, consumed, io_data)) => {
                                 handler = h;
                                 if consumed < io_data.len() {
+                                    let remaining = io_data.len() - consumed;
+                                    if remaining > MAX_PARTIAL_BUF {
+                                        tracing::warn!(connection_id = %id, remaining, "partial buffer exceeded limit, closing");
+                                        let (h, post) = call_disconnect(handler, id).await;
+                                        return (h, rx, post);
+                                    }
                                     partial_buf = io_data[consumed..].to_vec();
                                 }
                             }
