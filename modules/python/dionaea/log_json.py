@@ -210,12 +210,12 @@ class LogJsonHandler(ihandler):
     def handle_incident_dionaea_connection_tcp_accept(self, icd):
         self._serialize_connection(icd, "accept")
         con = icd.con
-        logger.info(f"accepted connection from {con.remote.host}:{con.remote.port} to {con.local.host}:{con.local.port}")
+        logger.debug(f"accepted connection from {con.remote.host}:{con.remote.port} to {con.local.host}:{con.local.port}")
 
     def handle_incident_dionaea_connection_tls_accept(self, icd):
         self._serialize_connection(icd, "accept")
         con = icd.con
-        logger.info(f"accepted connection from {con.remote.host}:{con.remote.port} to {con.local.host}:{con.local.port}")
+        logger.debug(f"accepted connection from {con.remote.host}:{con.remote.port} to {con.local.host}:{con.local.port}")
 
     def handle_incident_dionaea_connection_tcp_reject(self, icd):
         self._serialize_connection(icd, "reject")
