@@ -89,6 +89,40 @@ impl PyConnection {
         }
     }
 
+    /// Create a lightweight connection for pcap reject incidents.
+    ///
+    /// No send channel, no registry, no ID — used only to carry local/remote
+    /// address info in a `dionaea.connection.tcp.reject` incident.
+    pub fn for_pcap(
+        transport: &str,
+        local_addr: std::net::IpAddr,
+        local_port: u16,
+        remote_addr: std::net::IpAddr,
+        remote_port: u16,
+    ) -> Self {
+        PyConnection {
+            id: None,
+            transport: transport.to_string(),
+            protocol: "pcap".to_string(),
+            status: "none".to_string(),
+            local: PyNodeInfo {
+                host: local_addr.to_string(),
+                port: local_port,
+                hostname: String::new(),
+            },
+            remote: PyNodeInfo {
+                host: remote_addr.to_string(),
+                port: remote_port,
+                hostname: String::new(),
+            },
+            timeouts: PyConnectionTimeouts::new(),
+            send_tx: None,
+            registry: None,
+            limits: None,
+            recv_buffer_size: 0,
+        }
+    }
+
     /// Invalidate this connection (set id to None).
     /// All subsequent property/method access will raise ReferenceError.
     pub fn invalidate(&mut self) {

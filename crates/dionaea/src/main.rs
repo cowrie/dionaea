@@ -211,6 +211,16 @@ async fn async_main(config: config::Config, log_state: LogState) {
         dionaea::upload::register();
     }
 
+    // Start pcap capture threads (before privilege drop — needs raw socket access).
+    #[cfg(feature = "pcap")]
+    let pcap_shutdown = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    #[cfg(feature = "pcap")]
+    let pcap_threads = if let Some(ref pcap_config) = state.config.modules.pcap {
+        Some(dionaea::pcap::start(pcap_config, &pcap_shutdown))
+    } else {
+        None
+    };
+
     // Drop privileges after all ports are bound
     {
         if let Err(e) = dionaea::privileges::raise_nofile_limit() {
@@ -281,6 +291,17 @@ async fn async_main(config: config::Config, log_state: LogState) {
 
     // Graceful shutdown
     state.stop_all_listeners();
+
+    // Stop pcap capture threads.
+    #[cfg(feature = "pcap")]
+    if let Some(threads) = pcap_threads {
+        pcap_shutdown.store(true, std::sync::atomic::Ordering::Relaxed);
+        for handle in threads {
+            let _ = handle.join();
+        }
+        tracing::info!("pcap capture stopped");
+    }
+
     tracing::info!(
         active_connections = registry.len(),
         "listeners stopped, draining connections"

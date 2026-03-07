@@ -16,6 +16,9 @@ pub mod download;
 /// HTTP multipart upload module (virustotal, hpfeeds, submit_http).
 #[cfg(feature = "upload")]
 pub mod upload;
+/// Passive pcap capture for TCP RST rejection detection.
+#[cfg(feature = "pcap")]
+pub mod pcap;
 /// Error types for the dionaea crate.
 pub mod error;
 /// Incident handler dispatch (Rust-side handlers).
