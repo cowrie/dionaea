@@ -36,7 +36,11 @@ class virustotalhandler(ihandler):
     def __init__(self, path, config=None):
         logger.debug(f"{self.__class__.__name__} ready!")
         ihandler.__init__(self, path)
-        self.apikey = config.get("apikey")
+        self.apikey = config.get("apikey", "")
+        if not self.apikey or not self.apikey.strip("."):
+            logger.warning("VirusTotal API key not configured")
+        elif len(self.apikey) != 64 or not all(c in "0123456789abcdef" for c in self.apikey):
+            logger.warning("VirusTotal API key does not look valid (expected 64 hex characters)")
         comment = config.get("comment")
         if comment is None:
             comment = "This sample was captured in the wild and uploaded by the dionaea honeypot.\n#honeypot #malware #networkworm"
