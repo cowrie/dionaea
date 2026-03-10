@@ -1,5 +1,5 @@
-# ABOUTME: Speakeasy-based shellcode detection and analysis for dionaea
-# ABOUTME: Replaces libemu with modern Mandiant Speakeasy emulation framework
+# ABOUTME: Speakeasy-based shellcode emulation and IOC extraction for dionaea.
+# ABOUTME: Analyzes shellcode for downloads, shells, and command execution via Mandiant Speakeasy v2.
 
 from typing import Any
 import logging
@@ -26,15 +26,16 @@ class SpeakeasyShellcodeHandler(ihandler):
     """
     Handles shellcode detection and analysis using Speakeasy emulation framework.
 
-    Receives shellcode.detected incidents from the emu processor and performs
-    comprehensive Windows API emulation to extract IOCs and behavioral patterns.
+    Receives shellcode.detected incidents from the processor pipeline and performs
+    Windows API emulation to extract IOCs and behavioral patterns.
+
+    Requires speakeasy-emulator >= 2.0.0b1.
     """
 
     def __init__(self, path: str, config: dict[str, Any] | None = None) -> None:
         logger.info(f"{self.__class__.__name__} initialized")
         ihandler.__init__(self, path)
 
-        # Import Speakeasy (lazy import to fail gracefully if not installed)
         try:
             import speakeasy
 
@@ -45,54 +46,32 @@ class SpeakeasyShellcodeHandler(ihandler):
             self.speakeasy = None
             self.speakeasy_available = False
             logger.warning(
-                "Speakeasy not available - install with: pip install speakeasy-emulator"
+                "Speakeasy not available - install with: pip install speakeasy-emulator>=2.0.0b1"
             )
 
-        # Configuration
-        # Note: Speakeasy config must be a complete, validated config object
-        # For now we use Speakeasy's defaults (60s timeout, 256k max API calls)
-        # Custom config support can be added later (see doc/speakeasy-future-improvements.md)
         self.config = config or {}
 
+        # Suppress noisy speakeasy internal logging (invalid_read, invalid_write, etc.)
+        logging.getLogger("speakeasy").setLevel(logging.CRITICAL + 10)
+
     def handle_incident_dionaea_shellcode_detected(self, icd: incident) -> None:
-        """
-        Handle shellcode detection incident.
-
-        Receives incident with:
-        - data: shellcode bytes
-        - offset: detected shellcode offset
-        - arch: architecture (x86 or x86_64)
-        - con: connection object
-        """
-
         if not self.speakeasy_available:
             logger.debug("Speakeasy not available, skipping analysis")
             return
 
-        # Extract incident data
         try:
             shellcode_data = icd.get("data")
             con: connection | None = icd.get("con")
-
-            # Get architecture (may be None for old C code without x64 support)
-            arch = icd.get("arch")
-            if arch is None:
-                arch = "x86"  # Default to x86 for backwards compatibility
-
-            # Get detected offset (may be None for old incidents)
-            offset = icd.get("offset")
-            if offset is None:
-                offset = 0
+            arch = icd.get("arch") or "x86"
+            offset = icd.get("offset") or 0
         except (AttributeError, KeyError) as e:
             logger.error("Missing required incident data: %s", e)
             return
 
-        # Speakeasy only supports x86/x64 emulation
         if arch not in ("x86", "x86_64"):
             logger.info(
                 "Shellcode detected: %d bytes (arch: %s) - no emulation available",
-                len(shellcode_data),
-                arch,
+                len(shellcode_data), arch,
             )
             return
 
@@ -101,11 +80,10 @@ class SpeakeasyShellcodeHandler(ihandler):
             len(shellcode_data), arch, offset
         )
 
-        # Analyze with Speakeasy
         try:
-            results = self._analyze_shellcode(shellcode_data, arch, offset)
-            if results:
-                self._process_results(results, con)
+            report = self._analyze_shellcode(shellcode_data, arch, offset)
+            if report:
+                self._process_results(report, con)
         except Exception as e:
             logger.error("Speakeasy analysis failed: %s", e, exc_info=True)
 
@@ -115,69 +93,48 @@ class SpeakeasyShellcodeHandler(ihandler):
         """
         Run Speakeasy emulation on shellcode.
 
-        Args:
-            data: Full stream data (may include protocol headers)
-            arch: Architecture - "x86" for 32-bit or "x86_64" for 64-bit
-            offset: Detected GetPC offset (hint for entry point)
-
-        Returns emulation results with API calls, network activity, file operations, etc.
+        Returns emulation report as a dict (via model_dump), or None on failure.
         """
         try:
             import speakeasy
         except ImportError:
             return None
 
-        logger.debug("Starting Speakeasy emulation (arch: %s, offset: %d)", arch, offset)
-
-        # Validate shellcode data
-        if not data or len(data) == 0:
+        if not data:
             logger.error("Shellcode data is empty or None!")
             return None
 
-        # Create a quiet logger for Speakeasy to reduce log noise
-        # Speakeasy logs many "invalid_read/invalid_write/invalid instruction" errors
-        # at CRITICAL level when emulating malformed or encoded shellcode.
-        # These are expected (false positives, partial shellcode, etc.) and not actual errors.
-        # We suppress them by setting the log level very high.
-        import logging
-
-        speakeasy_logger = logging.getLogger("speakeasy.quiet")
-        speakeasy_logger.setLevel(
-            logging.CRITICAL + 10
-        )  # Suppress everything including CRITICAL
-        speakeasy_logger.addHandler(logging.NullHandler())
-
-        # Map architecture name to Speakeasy format
-        # C code sends "x86" or "x86_64", Speakeasy expects "x86" or "x64"
         speakeasy_arch = "x64" if arch == "x86_64" else "x86"
 
-        # Run shellcode emulation
-        # Try from detected offset first, fall back to offset 0 if no API calls
         report = None
         for try_offset in ([offset, 0] if offset > 0 else [0]):
+            se = None
             try:
-                # Create fresh emulator for each attempt
-                se = speakeasy.Speakeasy(logger=speakeasy_logger, config=None)
+                se = speakeasy.Speakeasy(config=None)
 
-                # Slice data to start from the try_offset
-                if try_offset > 0 and try_offset < len(data):
+                if 0 < try_offset < len(data):
                     shellcode_data = data[try_offset:]
                     logger.debug("Trying from offset %d (%d bytes)", try_offset, len(shellcode_data))
                 else:
                     shellcode_data = data
                     logger.debug("Trying from offset 0 (%d bytes)", len(shellcode_data))
 
-                # Load and execute shellcode
                 sc_addr = se.load_shellcode("shellcode", speakeasy_arch, data=shellcode_data)
                 se.run_shellcode(sc_addr)
 
             except Exception as e:
                 logger.debug("Emulation from offset %d stopped: %s", try_offset, e)
 
-            # Get report for this attempt
-            report = se.get_report()
+            if se is None:
+                continue
+
+            # v2: get_report() returns a Pydantic model; convert to dict for uniform access
+            raw_report = se.get_report()
+            report = raw_report.model_dump() if hasattr(raw_report, "model_dump") else raw_report
+
             total_apis = sum(
-                len(ep.get("apis", [])) for ep in report.get("entry_points", [])
+                len([ev for ev in ep.get("events", []) or [] if ev.get("event") == "api"])
+                for ep in report.get("entry_points", [])
             )
 
             if total_apis > 0:
@@ -189,7 +146,6 @@ class SpeakeasyShellcodeHandler(ihandler):
             else:
                 logger.debug("No API calls from offset %d, trying next", try_offset)
 
-        # No API calls from any offset
         logger.info(
             "Speakeasy emulation completed: 0 API calls across %d entry points",
             len(report.get("entry_points", [])) if report else 0,
@@ -200,101 +156,102 @@ class SpeakeasyShellcodeHandler(ihandler):
         """
         Process Speakeasy emulation results and generate dionaea incidents.
 
-        Analyzes API calls to detect:
-        - Download attempts (URLDownloadToFile, etc.)
-        - Bind shells (socket, bind, listen, accept)
-        - Reverse shells (socket, connect)
-        - Command execution (WinExec, CreateProcess, system)
-        - File operations (CreateFile, WriteFile)
+        Analyzes the unified event stream to detect:
+        - Download attempts (URLDownloadToFile)
+        - Bind shells (socket, bind, listen, accept, CreateProcess)
+        - Reverse shells (socket, connect, CreateProcess)
+        - Command execution (WinExec, CreateProcess)
         """
-
-        # Speakeasy reports have entry_points at top level
         entry_points = results.get("entry_points", [])
         if not entry_points:
             logger.debug("No entry points in emulation report")
             return
 
-        # Process each entry point (shellcode can have multiple execution paths)
-        all_apis = []
+        all_api_events = []
         for ep in entry_points:
             ep_type = ep.get("ep_type", "unknown")
             logger.debug("Processing entry point: %s", ep_type)
 
-            # Extract APIs from this entry point
-            apis = ep.get("apis", [])
-            all_apis.extend(apis)
+            events = ep.get("events") or []
 
-            # Extract network events (structured data for better detection)
-            network_events = ep.get("network_events", {})
+            # Split events by type
+            api_events = [ev for ev in events if ev.get("event") == "api"]
+            net_traffic = [ev for ev in events if ev.get("event") == "net_traffic"]
+            net_dns = [ev for ev in events if ev.get("event") == "net_dns"]
+            process_creates = [ev for ev in events if ev.get("event") == "process_create"]
 
-            # Log API trace for this entry point
-            if apis:
+            all_api_events.extend(api_events)
+
+            if api_events:
                 logger.debug(
-                    "Entry point %s API trace: %s", ep_type, json.dumps(apis, indent=2)
+                    "Entry point %s: %d API calls, %d net events, %d DNS, %d process creates",
+                    ep_type, len(api_events), len(net_traffic), len(net_dns), len(process_creates)
                 )
 
-            # Analyze for specific behaviors in this entry point
-            self._detect_downloads(apis, con)
-            self._detect_bind_shell(apis, con)
-            self._detect_reverse_shell(apis, con)
-            self._detect_command_execution(apis, con)
+            # Detect behaviors from API call sequences
+            self._detect_downloads(api_events, con)
+            self._detect_bind_shell(api_events, con)
+            self._detect_reverse_shell(api_events, con)
+            self._detect_command_execution(api_events, process_creates, con)
 
-            # Process network events separately for more reliable detection
-            self._process_network_events(network_events, con)
+            # Detect from structured network events (more reliable than API arg parsing)
+            self._process_network_events(net_traffic, net_dns, con)
 
-        # Emit generic profile incident with all APIs (compatible with existing handlers)
-        if all_apis:
+        # Emit generic profile incident with all API events
+        if all_api_events:
             i = incident("dionaea.module.emu.profile")
-            i.set("profile", json.dumps(all_apis))
+            i.set("profile", json.dumps(all_api_events))
             if con:
                 i.set("con", con)
             i.report()
 
-    def _detect_downloads(self, apis: list[dict], con: connection | None) -> None:
-        """Detect URL download attempts"""
-        for api in apis:
-            api_name = api.get("api_name", "")
+    def _detect_downloads(self, api_events: list[dict], con: connection | None) -> None:
+        """Detect URL download attempts from API calls."""
+        for ev in api_events:
+            api_name = ev.get("api_name", "")
+            # v2 prefixes module name: "urlmon.URLDownloadToFile"
+            if "URLDownloadToFile" not in api_name:
+                continue
 
-            if api_name == "URLDownloadToFileA" or api_name == "URLDownloadToFileW":
-                args = api.get("args", {})
-                url = args.get("szURL") or args.get("url")
+            args = ev.get("args", [])
+            # URLDownloadToFile(pCaller, szURL, szFileName, dwReserved, lpfnCB)
+            if len(args) < 2:
+                continue
+            url = args[1]
 
-                if url:
-                    logger.info("Detected download: %s", url)
-                    i = incident("dionaea.download.offer")
-                    i.set("url", url)
-                    if con:
-                        i.set("con", con)
-                    i.report()
+            if url:
+                logger.info("Detected download: %s", url)
+                i = incident("dionaea.download.offer")
+                i.set("url", url)
+                if con:
+                    i.set("con", con)
+                i.report()
 
-    def _detect_bind_shell(self, apis: list[dict], con: connection | None) -> None:
-        """Detect bind shell pattern: socket → bind → listen → accept → CreateProcess"""
+    def _detect_bind_shell(self, api_events: list[dict], con: connection | None) -> None:
+        """Detect bind shell pattern: socket -> bind -> listen -> accept -> CreateProcess"""
         state = "NONE"
         host = None
         port = None
 
-        for api in apis:
-            api_name = api.get("api_name", "")
-            args = api.get("args", {})
+        for ev in api_events:
+            api_name = ev.get("api_name", "")
+            args = ev.get("args", [])
 
-            if state == "NONE" and api_name in ["socket", "WSASocketA"]:
+            if state == "NONE" and _api_matches(api_name, ["socket", "WSASocketA", "WSASocketW"]):
                 state = "SOCKET"
-            elif state == "SOCKET" and api_name == "bind":
+            elif state == "SOCKET" and _api_matches(api_name, ["bind"]):
                 state = "BIND"
-                # Extract bind address
-                if "name" in args:
-                    sockaddr = args["name"]
-                    host = sockaddr.get("sin_addr", {}).get("s_addr")
-                    port = sockaddr.get("sin_port")
-            elif state == "BIND" and api_name == "listen":
+                # bind(s, "host:port", namelen) — args[1] is "host:port" string
+                host, port = _parse_host_port(args, 1)
+            elif state == "BIND" and _api_matches(api_name, ["listen"]):
                 state = "LISTEN"
-            elif state == "LISTEN" and api_name == "accept":
+            elif state == "LISTEN" and _api_matches(api_name, ["accept"]):
                 state = "ACCEPT"
-            elif state == "ACCEPT" and api_name in ["CreateProcessA", "CreateProcessW"]:
+            elif state == "ACCEPT" and _api_matches(api_name, ["CreateProcessA", "CreateProcessW"]):
                 logger.info("Detected bind shell on %s:%s", host, port)
                 i = incident("dionaea.service.shell.listen")
-                if port:
-                    i.set("port", int(port))
+                if port is not None:
+                    i.set("port", port)
                 if host:
                     i.set("host", host)
                 if con:
@@ -302,33 +259,27 @@ class SpeakeasyShellcodeHandler(ihandler):
                 i.report()
                 state = "DONE"
 
-    def _detect_reverse_shell(self, apis: list[dict], con: connection | None) -> None:
-        """Detect reverse shell pattern: socket → connect → CreateProcess"""
+    def _detect_reverse_shell(self, api_events: list[dict], con: connection | None) -> None:
+        """Detect reverse shell pattern: socket -> connect -> CreateProcess"""
         state = "NONE"
         host = None
         port = None
 
-        for api in apis:
-            api_name = api.get("api_name", "")
-            args = api.get("args", {})
+        for ev in api_events:
+            api_name = ev.get("api_name", "")
+            args = ev.get("args", [])
 
-            if state == "NONE" and api_name in ["socket", "WSASocketA"]:
+            if state == "NONE" and _api_matches(api_name, ["socket", "WSASocketA", "WSASocketW"]):
                 state = "SOCKET"
-            elif state == "SOCKET" and api_name == "connect":
+            elif state == "SOCKET" and _api_matches(api_name, ["connect", "WSAConnect"]):
                 state = "CONNECT"
-                # Extract connect address
-                if "name" in args:
-                    sockaddr = args["name"]
-                    host = sockaddr.get("sin_addr", {}).get("s_addr")
-                    port = sockaddr.get("sin_port")
-            elif state == "CONNECT" and api_name in [
-                "CreateProcessA",
-                "CreateProcessW",
-            ]:
+                # connect(s, "host:port", namelen) — args[1] is "host:port" string
+                host, port = _parse_host_port(args, 1)
+            elif state == "CONNECT" and _api_matches(api_name, ["CreateProcessA", "CreateProcessW"]):
                 logger.info("Detected reverse shell to %s:%s", host, port)
                 i = incident("dionaea.service.shell.connect")
-                if port:
-                    i.set("port", int(port))
+                if port is not None:
+                    i.set("port", port)
                 if host:
                     i.set("host", host)
                 if con:
@@ -337,70 +288,77 @@ class SpeakeasyShellcodeHandler(ihandler):
                 state = "DONE"
 
     def _detect_command_execution(
-        self, apis: list[dict], con: connection | None
+        self, api_events: list[dict], process_creates: list[dict],
+        con: connection | None,
     ) -> None:
-        """Detect command execution attempts"""
+        """Detect command execution from API calls and process creation events."""
         from dionaea.cmd import cmdexe
 
-        for api in apis:
-            api_name = api.get("api_name", "")
-            args = api.get("args", {})
+        # Check structured ProcessCreateEvent first (v2 only, most reliable)
+        for ev in process_creates:
+            cmdline = ev.get("cmdline", "")
+            if cmdline:
+                logger.info("Detected process create: %s", cmdline)
+                r = cmdexe(None)
+                if con:
+                    r.con = con  # type: ignore[attr-defined]
+                r.handle_io_in(cmdline.encode() + b"\0")
+                return  # One command execution per entry point is enough
 
-            if api_name == "WinExec":
-                cmd = args.get("lpCmdLine", "")
-                if cmd:
+        # Fall back to API event inspection
+        for ev in api_events:
+            api_name = ev.get("api_name", "")
+            args = ev.get("args", [])
+
+            if _api_matches(api_name, ["WinExec"]):
+                # WinExec(lpCmdLine, uCmdShow) — args[0] is command line
+                if args:
+                    cmd = args[0]
                     logger.info("Detected WinExec: %s", cmd)
-                    # Emulate command execution
                     r = cmdexe(None)
                     if con:
                         r.con = con  # type: ignore[attr-defined]
                     r.handle_io_in(cmd.encode() + b"\0")
+                    return
 
-            elif api_name in ["CreateProcessA", "CreateProcessW"]:
-                cmdline = args.get("lpCommandLine", "")
-                if cmdline:
+            elif _api_matches(api_name, ["CreateProcessA", "CreateProcessW"]):
+                # CreateProcess(lpApp, lpCmdLine, ...) — args[1] is command line
+                if len(args) >= 2 and args[1]:
+                    cmdline = args[1]
                     logger.info("Detected CreateProcess: %s", cmdline)
                     r = cmdexe(None)
                     if con:
                         r.con = con  # type: ignore[attr-defined]
                     r.handle_io_in(cmdline.encode() + b"\0")
+                    return
 
     def _process_network_events(
-        self, network_events: dict[str, Any], con: connection | None
+        self, net_traffic: list[dict], net_dns: list[dict],
+        con: connection | None,
     ) -> None:
         """
-        Process structured network events from Speakeasy report.
+        Process structured network events from the event stream.
 
-        Network events provide pre-parsed connection info that's more reliable
-        than trying to extract it from raw API arguments.
+        These are more reliable than parsing API arguments since speakeasy
+        pre-parses the connection details.
         """
-
-        # Process DNS queries
-        dns_queries = network_events.get("dns", [])
-        for query in dns_queries:
-            domain = query.get("request")
+        for query in net_dns:
+            domain = query.get("query")
             if domain:
                 logger.info("DNS query: %s", domain)
 
-        # Process network traffic (connections)
-        traffic = network_events.get("traffic", [])
-        for conn in traffic:
-            proto = conn.get("proto", "unknown")
+        for conn in net_traffic:
             server = conn.get("server")
             port = conn.get("port")
-            conn_type = conn.get("type")  # 'connect', 'bind', etc.
-            method = conn.get("method")  # 'winsock.connect', etc.
+            conn_type = conn.get("type")
+            proto = conn.get("proto", "unknown")
+            method = conn.get("method")
 
             if conn_type == "connect" and server and port:
                 logger.info(
                     "Network connection: %s://%s:%d (method: %s)",
-                    proto,
-                    server,
-                    port,
-                    method,
+                    proto, server, port, method,
                 )
-
-                # Emit reverse shell incident
                 i = incident("dionaea.service.shell.connect")
                 i.set("host", server)
                 i.set("port", int(port))
@@ -410,10 +368,48 @@ class SpeakeasyShellcodeHandler(ihandler):
 
             elif conn_type == "bind" and port:
                 logger.info("Network bind: %s on port %d", proto, port)
-
-                # Emit bind shell incident
                 i = incident("dionaea.service.shell.listen")
                 i.set("port", int(port))
                 if con:
                     i.set("con", con)
                 i.report()
+
+
+def _api_matches(api_name: str, patterns: list[str]) -> bool:
+    """Check if an API name matches any pattern, ignoring module prefix.
+
+    v2 uses "module.function" format (e.g. "ws2_32.connect"),
+    v1 uses bare function names (e.g. "connect").
+    """
+    bare_name = api_name.rsplit(".", 1)[-1] if "." in api_name else api_name
+    return bare_name in patterns
+
+
+def _parse_host_port(args: list[str], index: int) -> tuple[str | None, int | None]:
+    """Parse a "host:port" string from a positional argument list.
+
+    Speakeasy formats bind/connect sockaddr as "host:port" in the args list.
+    Returns (host, port) or (None, None) if parsing fails.
+    """
+    if index >= len(args):
+        return None, None
+    value = args[index]
+    if ":" not in value:
+        return None, None
+    # Handle IPv6 "[::1]:port" and IPv4 "1.2.3.4:port"
+    if value.startswith("["):
+        # IPv6: [addr]:port
+        bracket_end = value.rfind("]")
+        if bracket_end < 0 or bracket_end + 1 >= len(value) or value[bracket_end + 1] != ":":
+            return None, None
+        host = value[1:bracket_end]
+        port_str = value[bracket_end + 2:]
+    else:
+        # IPv4: addr:port
+        last_colon = value.rfind(":")
+        host = value[:last_colon]
+        port_str = value[last_colon + 1:]
+    try:
+        return host, int(port_str)
+    except ValueError:
+        return None, None
