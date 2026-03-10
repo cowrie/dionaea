@@ -415,6 +415,34 @@ fn init_tracing(logging_config: &config::LoggingConfig) -> LogState {
     log_state
 }
 
+/// Parse a `levels` config string into a tracing `LevelFilter`.
+///
+/// Accepts comma-separated level names: `"warning,error,critical"`.
+/// Maps to the most permissive (lowest) level in the list.
+/// Supports dionaea-style names: "critical" → ERROR, "warning" → WARN.
+fn parse_level_filter(levels: &str) -> tracing_subscriber::filter::LevelFilter {
+    use tracing_subscriber::filter::LevelFilter;
+
+    let mut most_permissive = LevelFilter::OFF;
+
+    for level in levels.split(',') {
+        let l = match level.trim().to_lowercase().as_str() {
+            "trace" => LevelFilter::TRACE,
+            "debug" => LevelFilter::DEBUG,
+            "info" => LevelFilter::INFO,
+            "warn" | "warning" => LevelFilter::WARN,
+            "error" | "critical" => LevelFilter::ERROR,
+            s if s.starts_with("all") => LevelFilter::TRACE,
+            _ => continue,
+        };
+        if l > most_permissive {
+            most_permissive = l;
+        }
+    }
+
+    most_permissive
+}
+
 /// Build tracing layers for each configured log target.
 fn build_log_layers<S>(
     targets: &[config::LogTarget],
@@ -423,17 +451,24 @@ fn build_log_layers<S>(
 where
     S: tracing::Subscriber + for<'a> tracing_subscriber::registry::LookupSpan<'a>,
 {
+    use tracing_subscriber::Layer as _;
     use tracing_subscriber::fmt;
 
     let mut layers: Vec<Box<dyn tracing_subscriber::Layer<S> + Send + Sync>> = Vec::new();
 
     for target in targets {
+        let level_filter = parse_level_filter(&target.levels);
+
         match target.target_type.as_str() {
             "stdout" => {
                 if target.format == "json" {
-                    layers.push(Box::new(fmt::layer().json().with_target(true)));
+                    layers.push(Box::new(
+                        fmt::layer().json().with_target(true).with_filter(level_filter),
+                    ));
                 } else {
-                    layers.push(Box::new(fmt::layer().with_target(true)));
+                    layers.push(Box::new(
+                        fmt::layer().with_target(true).with_filter(level_filter),
+                    ));
                 }
             }
             "file" => {
@@ -469,14 +504,16 @@ where
                         fmt::layer()
                             .json()
                             .with_target(true)
-                            .with_writer(writer),
+                            .with_writer(writer)
+                            .with_filter(level_filter),
                     ));
                 } else {
                     layers.push(Box::new(
                         fmt::layer()
                             .with_target(true)
                             .with_ansi(false)
-                            .with_writer(writer),
+                            .with_writer(writer)
+                            .with_filter(level_filter),
                     ));
                 }
             }
@@ -615,5 +652,41 @@ mod tests {
         assert!(!b_new.contains("b1"));
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_parse_level_filter_error_only() {
+        use tracing_subscriber::filter::LevelFilter;
+        assert_eq!(parse_level_filter("error,critical"), LevelFilter::ERROR);
+    }
+
+    #[test]
+    fn test_parse_level_filter_info_and_above() {
+        use tracing_subscriber::filter::LevelFilter;
+        assert_eq!(
+            parse_level_filter("info,warning,error,critical"),
+            LevelFilter::INFO
+        );
+    }
+
+    #[test]
+    fn test_parse_level_filter_debug() {
+        use tracing_subscriber::filter::LevelFilter;
+        assert_eq!(
+            parse_level_filter("debug,info,warning,error,critical"),
+            LevelFilter::DEBUG
+        );
+    }
+
+    #[test]
+    fn test_parse_level_filter_all() {
+        use tracing_subscriber::filter::LevelFilter;
+        assert_eq!(parse_level_filter("all,-debug"), LevelFilter::TRACE);
+    }
+
+    #[test]
+    fn test_parse_level_filter_empty() {
+        use tracing_subscriber::filter::LevelFilter;
+        assert_eq!(parse_level_filter(""), LevelFilter::OFF);
     }
 }

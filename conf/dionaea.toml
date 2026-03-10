@@ -23,7 +23,21 @@ level = "debug"
 [[logging.targets]]
 type = "stdout"
 format = "text"
-levels = "debug,info,warning,error,critical"
+levels = "info,warning,error,critical"
+domains = "*"
+
+[[logging.targets]]
+type = "file"
+path = "var/log/dionaea/dionaea.json"
+format = "json"
+levels = "info,warning,error,critical"
+domains = "*"
+
+[[logging.targets]]
+type = "file"
+path = "var/log/dionaea/error.log"
+format = "text"
+levels = "error,critical"
 domains = "*"
 
 [modules]
