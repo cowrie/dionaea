@@ -37,7 +37,7 @@ domains = "*"
 type = "file"
 path = "var/log/dionaea/error.log"
 format = "text"
-levels = "error,critical"
+levels = "warning,error,critical"
 domains = "*"
 
 [modules]
