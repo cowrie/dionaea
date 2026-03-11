@@ -265,8 +265,22 @@ class virustotalhandler(ihandler):
 
             logger.debug("report %s", j)
 
+            attrs = j.get("data", {}).get("attributes", {})
+            permalink = f"https://www.virustotal.com/gui/file/{sha256_hash}"
+            analysis_date = attrs.get("last_analysis_date", 0)
+            results = attrs.get("last_analysis_results", {})
+
             i = incident("dionaea.modules.python.virustotal.report")
             i.sha256hash = sha256_hash
+            i.permalink = permalink
+            i.analysis_date = analysis_date
+            i.positives = positives
+            i.total = total
+            # Pack scan results: {engine: result_string_or_empty}
+            scans = {}
+            for engine, detail in results.items():
+                scans[engine] = detail.get("result") or ""
+            i.scans = scans
             i.report()
         else:
             logger.warning("VirusTotal unexpected HTTP %d for %s", status_code, sha256_hash[:16])

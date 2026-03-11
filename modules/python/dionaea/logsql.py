@@ -996,33 +996,26 @@ class logsqlhandler(ihandler):
 
     def handle_incident_dionaea_modules_python_virustotal_report(self, icd):
         sha256 = icd.sha256hash
-        with open(icd.path) as f:
-            j = json.load(f)
+        permalink = icd.permalink
+        analysis_date = icd.analysis_date
 
-        if j["response_code"] == 1:  # file was known to virustotal
-            permalink = j["permalink"]
-            date = j["scan_date"]
+        self.cursor.execute(
+            "INSERT INTO virustotals (virustotal_sha256_hash, virustotal_permalink, virustotal_timestamp) VALUES (?,?,?)",
+            (sha256, permalink, analysis_date),
+        )
+        self.dbh.commit()
+
+        virustotal = self.cursor.lastrowid
+
+        scans = icd.scans
+        for av, res in scans.items():
+            if res == "":
+                res = None
             self.cursor.execute(
-                "INSERT INTO virustotals (virustotal_sha256_hash, virustotal_permalink, virustotal_timestamp) VALUES (?,?,strftime('%s',?))",
-                (sha256, permalink, date),
+                """INSERT INTO virustotalscans (virustotal, virustotalscan_scanner, virustotalscan_result) VALUES (?,?,?)""",
+                (virustotal, av, res),
             )
-            self.dbh.commit()
-
-            virustotal = self.cursor.lastrowid
-
-            scans = j["scans"]
-            for av, val in scans.items():
-                res = val["result"]
-                # not detected = '' -> NULL
-                if res == "":
-                    res = None
-
-                self.cursor.execute(
-                    """INSERT INTO virustotalscans (virustotal, virustotalscan_scanner, virustotalscan_result) VALUES (?,?,?)""",
-                    (virustotal, av, res),
-                )
-            #                logger.debug("scanner {} result {}".format(av,scans[av]))
-            self.dbh.commit()
+        self.dbh.commit()
 
     def handle_incident_dionaea_modules_python_mysql_login(self, icd):
         con = icd.con
