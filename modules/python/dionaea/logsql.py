@@ -799,7 +799,7 @@ class logsqlhandler(ihandler):
     def handle_incident_dionaea_connection_tcp_reject(self, icd):
         attackid = self.connection_insert(icd, "reject")
         con = icd.con
-        logger.info(
+        logger.debug(
             f"reject connection from {con.remote.host}:{con.remote.port} to {con.local.host}:{con.local.port} (id={attackid})"
         )
 

@@ -382,7 +382,7 @@ class hpfeedihandler(ihandler):
     def handle_incident_dionaea_connection_tcp_reject(self, icd):
         self.connection_publish(icd, 'reject')
         con=icd.con
-        logger.info(f"reject connection from {con.remote.host}:{con.remote.port} to {self._ownip(icd)}:{con.local.port}")
+        logger.debug(f"reject connection from {con.remote.host}:{con.remote.port} to {self._ownip(icd)}:{con.local.port}")
 
     def handle_incident_dionaea_connection_tcp_pending(self, icd):
         self.connection_publish(icd, 'pending')
