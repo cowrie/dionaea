@@ -289,52 +289,87 @@ async fn async_main(config: config::Config, log_state: LogState) {
         tracing::info!("received Ctrl-C, shutting down");
     }
 
-    // Graceful shutdown
-    state.stop_all_listeners();
+    // Graceful shutdown with timeout. A second SIGINT forces immediate exit.
+    graceful_shutdown(state, registry, #[cfg(feature = "pcap")] pcap_threads, #[cfg(feature = "pcap")] pcap_shutdown).await;
+}
 
-    // Stop pcap capture threads.
-    #[cfg(feature = "pcap")]
-    if let Some(threads) = pcap_threads {
-        pcap_shutdown.store(true, std::sync::atomic::Ordering::Relaxed);
-        for handle in threads {
-            let _ = handle.join();
+/// Shutdown timeout in seconds.
+const SHUTDOWN_TIMEOUT_SECS: u64 = 5;
+
+async fn graceful_shutdown(
+    state: Arc<dionaea::runtime::RuntimeState>,
+    registry: Arc<dionaea::connection::ConnectionRegistry>,
+    #[cfg(feature = "pcap")] pcap_threads: Option<Vec<std::thread::JoinHandle<()>>>,
+    #[cfg(feature = "pcap")] pcap_shutdown: Arc<std::sync::atomic::AtomicBool>,
+) {
+    // Second SIGINT forces immediate exit.
+    #[cfg(unix)]
+    let mut force_sigint =
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::interrupt())
+            .expect("SIGINT handler");
+
+    let shutdown_work = async {
+        state.stop_all_listeners();
+
+        // Stop pcap capture threads.
+        #[cfg(feature = "pcap")]
+        if let Some(threads) = pcap_threads {
+            pcap_shutdown.store(true, std::sync::atomic::Ordering::Relaxed);
+            for handle in threads {
+                let _ = handle.join();
+            }
+            tracing::info!("pcap capture stopped");
         }
-        tracing::info!("pcap capture stopped");
+
+        tracing::info!(
+            active_connections = registry.len(),
+            "listeners stopped, draining connections"
+        );
+
+        // Call Python module stop() functions
+        {
+            let imports = state.config.modules.python.imports.clone();
+            let service_configs = state.config.modules.python.service_configs.clone();
+            let ihandler_configs = state.config.modules.python.ihandler_configs.clone();
+            let python_path = state.config.modules.python.python_path.clone();
+            let _ = tokio::task::spawn_blocking(move || {
+                pyo3::Python::attach(|py| {
+                    let config = dionaea::config::PythonModuleConfig {
+                        imports,
+                        service_configs,
+                        ihandler_configs,
+                        python_path,
+                    };
+                    dionaea::python::loader::shutdown(py, &config);
+                });
+            })
+            .await;
+        }
+
+        // Clear ihandler registry
+        state
+            .ihandler_registry
+            .lock()
+            .expect("registry lock")
+            .clear();
+
+        tracing::info!("shutdown complete");
+    };
+
+    tokio::select! {
+        _ = tokio::time::timeout(
+            std::time::Duration::from_secs(SHUTDOWN_TIMEOUT_SECS),
+            shutdown_work,
+        ) => {}
+        _ = async {
+            #[cfg(unix)]
+            force_sigint.recv().await;
+            #[cfg(not(unix))]
+            tokio::signal::ctrl_c().await.ok();
+        } => {
+            tracing::warn!("forced shutdown");
+        }
     }
-
-    tracing::info!(
-        active_connections = registry.len(),
-        "listeners stopped, draining connections"
-    );
-
-    // Call Python module stop() functions
-    {
-        let imports = state.config.modules.python.imports.clone();
-        let service_configs = state.config.modules.python.service_configs.clone();
-        let ihandler_configs = state.config.modules.python.ihandler_configs.clone();
-        let python_path = state.config.modules.python.python_path.clone();
-        let _ = tokio::task::spawn_blocking(move || {
-            pyo3::Python::attach(|py| {
-                let config = dionaea::config::PythonModuleConfig {
-                    imports,
-                    service_configs,
-                    ihandler_configs,
-                    python_path,
-                };
-                dionaea::python::loader::shutdown(py, &config);
-            });
-        })
-        .await;
-    }
-
-    // Clear ihandler registry
-    state
-        .ihandler_registry
-        .lock()
-        .expect("registry lock")
-        .clear();
-
-    tracing::info!("shutdown complete");
 }
 
 /// Parse command-line arguments. Returns config file path.
