@@ -91,8 +91,8 @@ impl PyConnection {
 
     /// Create a lightweight connection for pcap reject incidents.
     ///
-    /// No send channel, no registry, no ID — used only to carry local/remote
-    /// address info in a `dionaea.connection.tcp.reject` incident.
+    /// Has a real ID (for hashing/dict keys) but no send channel or registry.
+    /// Used only to carry local/remote address info in tcp.reject incidents.
     pub fn for_pcap(
         transport: &str,
         local_addr: std::net::IpAddr,
@@ -101,7 +101,7 @@ impl PyConnection {
         remote_port: u16,
     ) -> Self {
         PyConnection {
-            id: None,
+            id: Some(crate::connection::next_id()),
             transport: transport.to_string(),
             protocol: "pcap".to_string(),
             status: "none".to_string(),
