@@ -40,7 +40,7 @@ impl BiStream {
         let mut chunks = self.chunks.lock().expect("bistream lock");
         let offset = chunks
             .iter()
-            .filter(|c| std::mem::discriminant(&c.direction) == std::mem::discriminant(&direction))
+            .filter(|c| c.direction == direction)
             .map(|c| c.offset + c.data.len())
             .last()
             .unwrap_or(0);
@@ -71,7 +71,7 @@ impl BiStream {
         let chunks = self.chunks.lock().expect("bistream lock");
         chunks
             .iter()
-            .filter(|c| std::mem::discriminant(&c.direction) == std::mem::discriminant(&direction))
+            .filter(|c| c.direction == direction)
             .map(|c| c.data.len())
             .sum()
     }

@@ -332,7 +332,7 @@ pub enum TimeoutKind {
 }
 
 /// Data transfer direction.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
     /// Ingress (data coming in).
     In,
