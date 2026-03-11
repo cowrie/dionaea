@@ -311,14 +311,22 @@ async fn graceful_shutdown(
     let shutdown_work = async {
         state.stop_all_listeners();
 
-        // Stop pcap capture threads.
+        // Signal pcap threads to stop (don't join — they may block on macOS).
         #[cfg(feature = "pcap")]
-        if let Some(threads) = pcap_threads {
-            pcap_shutdown.store(true, std::sync::atomic::Ordering::Relaxed);
-            for handle in threads {
-                let _ = handle.join();
+        {
+            if pcap_threads.is_some() {
+                pcap_shutdown.store(true, std::sync::atomic::Ordering::Relaxed);
             }
-            tracing::info!("pcap capture stopped");
+            // Join in a blocking task so it doesn't block the tokio worker.
+            if let Some(threads) = pcap_threads {
+                let _ = tokio::task::spawn_blocking(move || {
+                    for handle in threads {
+                        let _ = handle.join();
+                    }
+                })
+                .await;
+                tracing::info!("pcap capture stopped");
+            }
         }
 
         tracing::info!(
@@ -357,17 +365,23 @@ async fn graceful_shutdown(
     };
 
     tokio::select! {
-        _ = tokio::time::timeout(
+        result = tokio::time::timeout(
             std::time::Duration::from_secs(SHUTDOWN_TIMEOUT_SECS),
             shutdown_work,
-        ) => {}
+        ) => {
+            if result.is_err() {
+                tracing::warn!("shutdown timed out after {SHUTDOWN_TIMEOUT_SECS}s, forcing exit");
+                std::process::exit(1);
+            }
+        }
         _ = async {
             #[cfg(unix)]
             force_sigint.recv().await;
             #[cfg(not(unix))]
             tokio::signal::ctrl_c().await.ok();
         } => {
-            tracing::warn!("forced shutdown");
+            tracing::warn!("forced shutdown (second signal)");
+            std::process::exit(1);
         }
     }
 }
