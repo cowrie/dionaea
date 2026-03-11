@@ -115,7 +115,16 @@ pub fn shutdown(py: Python<'_>, config: &PythonModuleConfig) {
 fn add_virtualenv_site_packages(py: Python<'_>) -> PyResult<()> {
     let venv = match std::env::var("VIRTUAL_ENV") {
         Ok(v) if !v.is_empty() => v,
-        _ => return Ok(()),
+        _ => {
+            // Detect sudo without -E: SUDO_USER set means we're under sudo,
+            // but VIRTUAL_ENV missing means env vars were stripped.
+            if std::env::var("SUDO_USER").is_ok() {
+                tracing::warn!(
+                    "running under sudo without VIRTUAL_ENV — use `sudo -E` to preserve the virtualenv"
+                );
+            }
+            return Ok(());
+        }
     };
 
     let version_info = py.import(c"sys")?.getattr("version_info")?;
@@ -131,8 +140,8 @@ fn add_virtualenv_site_packages(py: Python<'_>) -> PyResult<()> {
 
     let path = std::path::Path::new(&site_packages);
     if path.is_dir() {
-        let sys_path = py.import(c"sys")?.getattr("path")?;
-        sys_path.call_method1("insert", (0, &site_packages))?;
+        let site = py.import(c"site")?;
+        site.call_method1("addsitedir", (&site_packages,))?;
         tracing::info!(path = %site_packages, "added virtualenv site-packages to sys.path");
     } else {
         tracing::warn!(
