@@ -353,6 +353,16 @@ pub fn load_from_str(content: &str) -> Result<Config> {
     Ok(config)
 }
 
+/// Parse an integer env var into `target`, warning if the value is malformed.
+fn parse_env_int<T: std::str::FromStr + std::fmt::Display>(name: &str, target: &mut T) {
+    if let Ok(val) = std::env::var(name) {
+        match val.parse() {
+            Ok(n) => *target = n,
+            Err(_) => tracing::warn!(var = name, value = %val, "ignoring non-numeric env override"),
+        }
+    }
+}
+
 /// Apply environment variable overrides.
 /// Format: DIONAEA_<SECTION>__<KEY> (double underscore for section separator).
 fn apply_env_overrides(config: &mut Config) {
@@ -368,21 +378,15 @@ fn apply_env_overrides(config: &mut Config) {
     if let Ok(val) = std::env::var("DIONAEA_DIONAEA__GROUP") {
         config.dionaea.group = Some(val);
     }
-    if let Ok(val) = std::env::var("DIONAEA_DIONAEA__LIMITS__MAX_FDS_PCT") {
-        if let Ok(n) = val.parse() {
-            config.dionaea.limits.max_fds_pct = n;
-        }
-    }
-    if let Ok(val) = std::env::var("DIONAEA_DIONAEA__LIMITS__MAX_CONNECTIONS_TOTAL") {
-        if let Ok(n) = val.parse() {
-            config.dionaea.limits.max_connections_total = n;
-        }
-    }
-    if let Ok(val) = std::env::var("DIONAEA_DIONAEA__LIMITS__MAX_CONNECTIONS_PER_IP") {
-        if let Ok(n) = val.parse() {
-            config.dionaea.limits.max_connections_per_ip = n;
-        }
-    }
+    parse_env_int("DIONAEA_DIONAEA__LIMITS__MAX_FDS_PCT", &mut config.dionaea.limits.max_fds_pct);
+    parse_env_int(
+        "DIONAEA_DIONAEA__LIMITS__MAX_CONNECTIONS_TOTAL",
+        &mut config.dionaea.limits.max_connections_total,
+    );
+    parse_env_int(
+        "DIONAEA_DIONAEA__LIMITS__MAX_CONNECTIONS_PER_IP",
+        &mut config.dionaea.limits.max_connections_per_ip,
+    );
 }
 
 /// Validate config consistency.
