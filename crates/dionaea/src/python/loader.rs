@@ -20,7 +20,11 @@ pub fn load(py: Python<'_>, config: &PythonModuleConfig) -> PyResult<()> {
     // Step 1-3: Register dionaea.core in sys.modules
     register_core_module(py)?;
 
-    // Step 4: Add python_path to sys.path
+    // Step 4a: If VIRTUAL_ENV is set, add its site-packages to sys.path.
+    // PyO3's embedded interpreter doesn't detect activated venvs.
+    add_virtualenv_site_packages(py)?;
+
+    // Step 4b: Add python_path to sys.path
     if let Some(ref path) = config.python_path {
         let sys = py.import(c"sys")?;
         let sys_path = sys.getattr("path")?;
@@ -100,6 +104,54 @@ pub fn shutdown(py: Python<'_>, config: &PythonModuleConfig) {
         }
     }
     tracing::info!("Python modules stopped");
+}
+
+/// Add virtualenv site-packages to sys.path if VIRTUAL_ENV is set.
+///
+/// PyO3's embedded interpreter links against a specific libpython and doesn't
+/// detect activated virtualenvs. This reads VIRTUAL_ENV, derives the
+/// site-packages path, and prepends it to sys.path so that venv-installed
+/// packages (like speakeasy) are importable.
+fn add_virtualenv_site_packages(py: Python<'_>) -> PyResult<()> {
+    let venv = match std::env::var("VIRTUAL_ENV") {
+        Ok(v) if !v.is_empty() => v,
+        _ => return Ok(()),
+    };
+
+    let version: String = py
+        .import(c"sys")?
+        .getattr("version_info")?
+        .call_method0("__iter__")?
+        .call_method0("__next__")?
+        .extract::<i64>()
+        .and_then(|major| {
+            let minor: i64 = py
+                .import(c"sys")?
+                .getattr("version_info")?
+                .getattr("minor")?
+                .extract()?;
+            Ok(format!("{major}.{minor}"))
+        })?;
+
+    let site_packages = if cfg!(target_os = "windows") {
+        format!("{venv}/Lib/site-packages")
+    } else {
+        format!("{venv}/lib/python{version}/site-packages")
+    };
+
+    let path = std::path::Path::new(&site_packages);
+    if path.is_dir() {
+        let sys_path = py.import(c"sys")?.getattr("path")?;
+        sys_path.call_method1("insert", (0, &site_packages))?;
+        tracing::info!(path = %site_packages, "added virtualenv site-packages to sys.path");
+    } else {
+        tracing::warn!(
+            path = %site_packages,
+            "VIRTUAL_ENV set but site-packages directory not found"
+        );
+    }
+
+    Ok(())
 }
 
 /// Register `dionaea.core` in sys.modules with all PyO3 classes and aliases.
@@ -205,6 +257,16 @@ mod tests {
                 sys_path.contains(&"/tmp/test_dionaea_modules".to_string()),
                 "python_path should be in sys.path"
             );
+        });
+    }
+
+    #[test]
+    fn test_add_virtualenv_site_packages_no_env() {
+        // When VIRTUAL_ENV is not set (typical CI), should be a no-op.
+        // We can't set/unset env vars (unsafe_code denied), so just verify
+        // the function doesn't fail in the current environment.
+        Python::attach(|py| {
+            add_virtualenv_site_packages(py).expect("should not fail");
         });
     }
 
