@@ -52,6 +52,7 @@ python_path = "modules/python"
 imports = ["dionaea", "dionaea.log", "dionaea.ihandlers", "dionaea.services"]
 service_configs = ["conf/services/*.toml"]
 ihandler_configs = [
+    "conf/ihandlers/store.toml",
     "conf/ihandlers/log_json.toml",
     "conf/ihandlers/log_sqlite.toml",
     "conf/ihandlers/speakeasy.toml",
