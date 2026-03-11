@@ -118,20 +118,10 @@ fn add_virtualenv_site_packages(py: Python<'_>) -> PyResult<()> {
         _ => return Ok(()),
     };
 
-    let version: String = py
-        .import(c"sys")?
-        .getattr("version_info")?
-        .call_method0("__iter__")?
-        .call_method0("__next__")?
-        .extract::<i64>()
-        .and_then(|major| {
-            let minor: i64 = py
-                .import(c"sys")?
-                .getattr("version_info")?
-                .getattr("minor")?
-                .extract()?;
-            Ok(format!("{major}.{minor}"))
-        })?;
+    let version_info = py.import(c"sys")?.getattr("version_info")?;
+    let major: i64 = version_info.getattr("major")?.extract()?;
+    let minor: i64 = version_info.getattr("minor")?.extract()?;
+    let version = format!("{major}.{minor}");
 
     let site_packages = if cfg!(target_os = "windows") {
         format!("{venv}/Lib/site-packages")
