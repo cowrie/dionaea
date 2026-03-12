@@ -130,14 +130,27 @@ fn main() {
     tracing::info!("initializing Python interpreter");
     pyo3::Python::attach(|py| {
         use pyo3::prelude::*;
-        let version: String = py
-            .import(c"sys")
-            .expect("import sys")
+        let sys = py.import(c"sys").expect("import sys");
+        let version: String = sys
             .getattr("version")
             .expect("sys.version")
             .extract()
             .expect("version string");
-        tracing::info!(python_version = %version, "Python initialized");
+
+        // Report whether the GIL is enabled (relevant for Python 3.13t+ free-threading).
+        // sys._is_gil_enabled() was added in Python 3.13; older versions always have GIL.
+        let gil_enabled = sys
+            .call_method0("_is_gil_enabled")
+            .and_then(|v| v.extract::<bool>())
+            .unwrap_or(true);
+        tracing::info!(
+            python_version = %version,
+            gil_enabled = gil_enabled,
+            "Python initialized"
+        );
+        if !gil_enabled {
+            tracing::info!("running with free-threaded Python (GIL disabled)");
+        }
     });
 
     // Build and start tokio runtime
