@@ -11,8 +11,10 @@ license.workspace = true
 [dependencies]
 tokio = { workspace = true }
 pyo3 = { workspace = true }
+pyo3-stub-gen = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+chrono = { workspace = true }
 tracing-appender = { workspace = true }
 serde = { workspace = true }
 toml = { workspace = true }

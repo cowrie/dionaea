@@ -88,6 +88,18 @@ impl LogState {
     }
 }
 
+/// Timestamp formatter that produces RFC 3339 with `Z` suffix instead of `+00:00`.
+struct Rfc3339Utc;
+
+impl tracing_subscriber::fmt::time::FormatTime for Rfc3339Utc {
+    fn format_time(
+        &self,
+        w: &mut tracing_subscriber::fmt::format::Writer<'_>,
+    ) -> std::fmt::Result {
+        write!(w, "{}", chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Micros, true))
+    }
+}
+
 fn main() {
     // Parse CLI args
     let config_path = parse_args();
@@ -444,7 +456,11 @@ fn init_tracing(logging_config: &config::LoggingConfig) -> LogState {
     if logging_config.targets.is_empty() {
         tracing_subscriber::registry()
             .with(env_filter)
-            .with(tracing_subscriber::fmt::layer().with_target(true))
+            .with(
+                tracing_subscriber::fmt::layer()
+                    .with_timer(Rfc3339Utc)
+                    .with_target(true),
+            )
             .init();
         return log_state;
     }
@@ -507,11 +523,18 @@ where
             "stdout" => {
                 if target.format == "json" {
                     layers.push(Box::new(
-                        fmt::layer().json().with_target(true).with_filter(level_filter),
+                        fmt::layer()
+                            .json()
+                            .with_timer(Rfc3339Utc)
+                            .with_target(true)
+                            .with_filter(level_filter),
                     ));
                 } else {
                     layers.push(Box::new(
-                        fmt::layer().with_target(true).with_filter(level_filter),
+                        fmt::layer()
+                            .with_timer(Rfc3339Utc)
+                            .with_target(true)
+                            .with_filter(level_filter),
                     ));
                 }
             }
@@ -547,6 +570,7 @@ where
                     layers.push(Box::new(
                         fmt::layer()
                             .json()
+                            .with_timer(Rfc3339Utc)
                             .with_target(true)
                             .with_writer(writer)
                             .with_filter(level_filter),
@@ -554,6 +578,7 @@ where
                 } else {
                     layers.push(Box::new(
                         fmt::layer()
+                            .with_timer(Rfc3339Utc)
                             .with_target(true)
                             .with_ansi(false)
                             .with_writer(writer)
@@ -569,7 +594,9 @@ where
 
     // If no valid targets were built, add default stdout text
     if layers.is_empty() {
-        layers.push(Box::new(fmt::layer().with_target(true)));
+        layers.push(Box::new(
+            fmt::layer().with_timer(Rfc3339Utc).with_target(true),
+        ));
     }
 
     layers

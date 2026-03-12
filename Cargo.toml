@@ -23,11 +23,15 @@ tokio-openssl = "0.6"
 
 # Python embedding
 pyo3 = { version = "0.28", features = ["auto-initialize"] }
+pyo3-stub-gen = { version = "0.19", default-features = false }
 
 # Logging + observability
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 tracing-appender = "0.2"
+
+# Timestamps
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 
 # Config
 serde = { version = "1", features = ["derive"] }
