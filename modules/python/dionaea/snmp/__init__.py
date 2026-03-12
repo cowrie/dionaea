@@ -55,12 +55,6 @@ COMMON_OIDS = {
 }
 
 # Default/common community strings attackers try
-COMMON_COMMUNITIES = {
-    'public', 'private', 'community', 'admin', 'manager', 'secret',
-    'cisco', 'write', 'read', 'default', 'snmp', 'root', 'guest',
-    'cable-docsis', 'c@t', 'mngt', 'test', 'ilmi', 'ILMI',
-}
-
 # Security limits
 MAX_VARBINDS = 25          # Limit varbinds to prevent amplification
 MAX_COMMUNITY_LEN = 128    # Limit community string length
@@ -410,22 +404,14 @@ class snmpd(connection):
         try:
             pkt = SNMPPacket(data)
 
-            # Determine threat level
-            threat = 'info'
-            if pkt.community in COMMON_COMMUNITIES:
-                threat = 'attack'
-            elif pkt.pdu_type in (PDU_SET_REQUEST,):
-                threat = 'suspicious'
-
             # Log the request (sanitize to prevent log injection)
             oids = ', '.join(oid for oid, _ in pkt.varbinds[:3])
             if len(pkt.varbinds) > 3:
                 oids += f', ... ({len(pkt.varbinds)} total)'
 
-            log_func = logger.warning if threat == 'attack' else logger.info
-            log_func("SNMP %s from %s:%s community='%s' %s OIDs=[%s]",
-                     pkt.pdu_name, self.remote.host, self.remote.port,
-                     sanitize_for_log(pkt.community), pkt.version_string, oids)
+            logger.info("SNMP %s from %s:%s community='%s' %s OIDs=[%s]",
+                        pkt.pdu_name, self.remote.host, self.remote.port,
+                        sanitize_for_log(pkt.community), pkt.version_string, oids)
 
             # Report incident (use different name for traps)
             is_trap = pkt.pdu_type in (PDU_TRAP, PDU_TRAP_V2, PDU_INFORM_REQUEST)
