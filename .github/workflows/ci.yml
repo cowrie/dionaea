@@ -140,6 +140,22 @@ jobs:
         if: failure()
         run: cat /opt/dionaea/var/log/dionaea/*.log 2>/dev/null || true
 
+  spdx-check:
+    name: SPDX License Headers
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Check SPDX headers
+        run: python3 scripts/check-spdx.py .
+
   python-lint:
     name: Lint - Python
     runs-on: ubuntu-latest

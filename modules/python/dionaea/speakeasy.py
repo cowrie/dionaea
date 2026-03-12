@@ -1,6 +1,9 @@
 # ABOUTME: Speakeasy-based shellcode emulation and IOC extraction for dionaea.
 # ABOUTME: Analyzes shellcode for downloads, shells, and command execution via Mandiant Speakeasy v2.
 
+# SPDX-FileCopyrightText: dionaea developers
+# SPDX-License-Identifier: GPL-2.0-or-later
+
 from typing import Any
 import logging
 import json

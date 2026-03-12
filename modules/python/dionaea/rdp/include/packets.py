@@ -1,6 +1,9 @@
 # ABOUTME: RDP protocol wire format parsers and builders.
 # ABOUTME: Handles TPKT, X.224, MCS/GCC, and security PDU construction/parsing.
 
+# SPDX-FileCopyrightText: 2025 Cowrie <cowrie@cowrie.org>
+# SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
+
 import struct
 from typing import NamedTuple
 

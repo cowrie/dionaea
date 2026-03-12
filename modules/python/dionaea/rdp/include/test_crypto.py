@@ -1,6 +1,9 @@
 # ABOUTME: Unit tests for RDP crypto operations.
 # ABOUTME: Tests RSA key generation, session key derivation, and RC4 encryption.
 
+# SPDX-FileCopyrightText: 2025 Cowrie <cowrie@cowrie.org>
+# SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
+
 import struct
 import pytest
 

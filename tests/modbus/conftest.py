@@ -1,6 +1,9 @@
 # ABOUTME: Test fixtures for modbus unit tests
 # ABOUTME: Mocks dionaea.core and dionaea.ServiceLoader so protocol logic is testable standalone
 
+# SPDX-FileCopyrightText: 2025 Cowrie <cowrie@cowrie.org>
+# SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
+
 import sys
 import os
 import types

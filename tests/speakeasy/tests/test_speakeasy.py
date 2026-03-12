@@ -1,6 +1,9 @@
 # ABOUTME: Unit tests for speakeasy shellcode analysis handler.
 # ABOUTME: Tests pure helper functions and detection logic with mocked dionaea runtime.
 
+# SPDX-FileCopyrightText: dionaea developers
+# SPDX-License-Identifier: GPL-2.0-or-later
+
 import sys
 import os
 import json
