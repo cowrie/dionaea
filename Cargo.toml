@@ -21,6 +21,9 @@ tokio = { version = "1", features = ["full"] }
 openssl = "0.10"
 tokio-openssl = "0.6"
 
+# Version from git describe
+git-version = "0.3"
+
 # Python embedding
 pyo3 = { version = "0.28", features = ["auto-initialize"] }
 pyo3-stub-gen = { version = "0.19", default-features = false }

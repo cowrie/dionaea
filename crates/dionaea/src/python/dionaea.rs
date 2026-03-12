@@ -4,18 +4,21 @@
 // ABOUTME: Exposed as g_dionaea to Python protocol handlers and ihandlers.
 
 use crate::runtime;
+use git_version::git_version;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
+
+/// Version derived from git describe at compile time.
+/// Falls back to Cargo.toml version when built outside a git repo.
+pub const VERSION: &str = git_version!(fallback = env!("CARGO_PKG_VERSION"));
 
 /// Global dionaea singleton exposed to Python.
 ///
 /// Provides access to config, interface addresses, and version information.
 #[gen_stub_pyclass]
 #[pyclass(name = "dionaea", module = "dionaea.core")]
-pub struct PyDionaea {
-    version: String,
-}
+pub struct PyDionaea;
 
 impl Default for PyDionaea {
     fn default() -> Self {
@@ -26,9 +29,7 @@ impl Default for PyDionaea {
 impl PyDionaea {
     /// Create the singleton instance.
     pub fn new() -> Self {
-        PyDionaea {
-            version: env!("CARGO_PKG_VERSION").to_string(),
-        }
+        PyDionaea
     }
 }
 
@@ -148,7 +149,7 @@ impl PyDionaea {
 
     /// Return the dionaea version string.
     fn version(&self) -> &str {
-        &self.version
+        VERSION
     }
 }
 
@@ -166,7 +167,7 @@ mod tests {
                 .unwrap()
                 .extract()
                 .unwrap();
-            assert_eq!(version, env!("CARGO_PKG_VERSION"));
+            assert_eq!(version, VERSION);
         });
     }
 

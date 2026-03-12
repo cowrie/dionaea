@@ -117,7 +117,7 @@ fn main() {
     let log_state = init_tracing(&config.logging);
 
     tracing::info!(
-        version = env!("CARGO_PKG_VERSION"),
+        version = dionaea::python::dionaea::VERSION,
         config = %config_path.display(),
         "dionaea starting"
     );
@@ -411,11 +411,11 @@ fn parse_args() -> PathBuf {
                 }
             }
             "-V" | "--version" => {
-                println!("dionaea {}", env!("CARGO_PKG_VERSION"));
+                println!("dionaea {}", dionaea::python::dionaea::VERSION);
                 std::process::exit(0);
             }
             "-h" | "--help" => {
-                println!("dionaea {} - low-interaction honeypot", env!("CARGO_PKG_VERSION"));
+                println!("dionaea {} - low-interaction honeypot", dionaea::python::dionaea::VERSION);
                 println!();
                 println!("Usage: dionaea [OPTIONS]");
                 println!();

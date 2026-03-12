@@ -172,7 +172,7 @@ dlhfn('test.logger', 50, '/tmp/test.py', 46, 'critical message')
                 .unwrap()
                 .extract()
                 .unwrap();
-            assert_eq!(version, env!("CARGO_PKG_VERSION"));
+            assert_eq!(version, super::dionaea::VERSION);
         });
     }
 
