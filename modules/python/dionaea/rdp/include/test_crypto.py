@@ -1,6 +1,8 @@
 # ABOUTME: Unit tests for RDP crypto operations.
 # ABOUTME: Tests RSA key generation, session key derivation, and RC4 encryption.
 
+from __future__ import annotations
+
 import struct
 import pytest
 

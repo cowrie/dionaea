@@ -1,6 +1,8 @@
 # ABOUTME: WireGuard VPN honeypot - detects scanning on UDP 51820
 # ABOUTME: Logs connection attempts and extracts ephemeral keys from handshakes
 
+from __future__ import annotations
+
 import logging
 import os
 import struct

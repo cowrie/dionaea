@@ -4,6 +4,8 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+from __future__ import annotations
+
 from dionaea.core import connection
 
 class echo(connection):
@@ -15,10 +17,8 @@ class echo(connection):
 
     def handle_origin(self, parent: connection) -> None:
         print("origin!")
-        print("parent {:s} {:s}:{:d}".format(
-            parent.protocol, parent.local.host, parent.local.port))
-        print("self {:s} {:s}:{:d} -> {:s}:{:d}".format(self.protocol,
-                                                        self.local.host, self.local.port, self.remote.host, self.remote.port))
+        print(f"parent {parent.protocol:s} {parent.local.host:s}:{parent.local.port:d}")
+        print(f"self {self.protocol:s} {self.local.host:s}:{self.local.port:d} -> {self.remote.host:s}:{self.remote.port:d}")
 
     def handle_established(self) -> None:
         print("new connection to serve!")

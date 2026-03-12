@@ -16,6 +16,8 @@ Based on:
 - Rapid7 DOUBLEPULSAR RDP analysis
 """
 
+from __future__ import annotations
+
 import hashlib
 import logging
 import secrets

@@ -1,6 +1,8 @@
 # ABOUTME: Speakeasy-based shellcode emulation and IOC extraction for dionaea.
 # ABOUTME: Analyzes shellcode for downloads, shells, and command execution via Mandiant Speakeasy v2.
 
+from __future__ import annotations
+
 from typing import Any
 import logging
 import json

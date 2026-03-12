@@ -5,6 +5,8 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+from __future__ import annotations
+
 import logging
 
 from dionaea import IHandlerLoader, load_config_from_files, load_submodules

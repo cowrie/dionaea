@@ -9,6 +9,8 @@
 # Copyright (C) Philippe Biondi <phil@secdev.org>
 # This program is published under a GPLv2 license
 
+from __future__ import annotations
+
 from .asn1.asn1 import ASN1_Class_UNIVERSAL
 from .asn1.asn1 import ASN1_SEQUENCE
 from .asn1.asn1 import ASN1_Codecs

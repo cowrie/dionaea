@@ -10,6 +10,8 @@
 # Copyright (C) Philippe Biondi <phil@secdev.org>
 # This program is published under a GPLv2 license
 
+from __future__ import annotations
+
 import random
 import re
 import socket
@@ -130,7 +132,7 @@ class EnumElement:
         self._key = key
         self._value = value
     def __repr__(self):
-        return "<{} {}[{!r}]>".format(self.__dict__.get("_name", self.__class__.__name__), self._key, self._value)
+        return f"<{self.__dict__.get('_name', self.__class__.__name__)} {self._key}[{self._value!r}]>"
     def __getattr__(self, attr):
         return getattr(self._value, attr)
     def __int__(self):

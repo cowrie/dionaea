@@ -5,6 +5,8 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+from __future__ import annotations
+
 from typing import Any
 from dionaea import ServiceLoader
 from dionaea.exception import ServiceConfigError

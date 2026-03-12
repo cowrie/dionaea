@@ -10,6 +10,8 @@
 # Copyright (C) Philippe Biondi <phil@secdev.org>
 # This program is published under a GPLv2 license
 
+from __future__ import annotations
+
 import struct
 import copy
 import socket
@@ -98,8 +100,7 @@ class Field:
     def getfield(self, pkt, s):
         """Extract an internal value from a string"""
         if len(s) < self.sz:
-            raise struct.error("Not enough data to unpack field '{}': need {} bytes, got {}".format(
-                self.name, self.sz, len(s)))
+            raise struct.error(f"Not enough data to unpack field '{self.name}': need {self.sz} bytes, got {len(s)}")
         return  s[self.sz:], self.m2i(pkt, struct.unpack(self.fmt, s[:self.sz])[0])
     def do_copy(self, x):
         if hasattr(x, "copy"):
@@ -111,7 +112,7 @@ class Field:
                     x[i] = x[i].copy()
         return x
     def __repr__(self):
-        return "<Field ({}).{}>".format(",".join(x.__name__ for x in self.owners),self.name)
+        return f"<Field ({','.join(x.__name__ for x in self.owners)}).{self.name}>"
     def copy(self):
         return copy.deepcopy(self)
     def randval(self):
@@ -1052,7 +1053,7 @@ class FlagsField(BitField):
             if 0 in self.names:
                 return self.names[0]
             else:
-                return "0x{:0{}x}".format(0, int(self._size/4) )
+                return f"0x{0:0{int(self._size/4)}x}"
 
         r = []
         i=0
@@ -1062,7 +1063,7 @@ class FlagsField(BitField):
                 if v in self.names:
                     r.append(self.names[v])
                 else:
-                    r.append("0x{:0{}x}".format(v, int(self._size/4) ) )
+                    r.append(f"0x{v:0{int(self._size/4)}x}")
         r = "+".join(r)
         return r
 

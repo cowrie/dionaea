@@ -1,6 +1,8 @@
 # ABOUTME: RDP standard security crypto operations.
 # ABOUTME: RSA key gen, session key derivation, RC4 encryption, and Client Info PDU parsing.
 
+from __future__ import annotations
+
 import hashlib
 import os
 import struct

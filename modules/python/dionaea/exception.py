@@ -7,6 +7,8 @@
 # ABOUTME: Custom exception classes for dionaea.
 # ABOUTME: Includes loader, service config, and connection error types.
 
+from __future__ import annotations
+
 from typing import Any
 
 class DionaeaError(Exception):

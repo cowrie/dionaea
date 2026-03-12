@@ -9,6 +9,8 @@
 # Copyright (C) Philippe Biondi <phil@secdev.org>
 # This program is published under a GPLv2 license
 
+from __future__ import annotations
+
 from functools import reduce
 import logging
 
@@ -93,14 +95,13 @@ class ASN1F_field(ASN1F_element):
                  or self.ASN1_tag == x.tag ):
                 return x.enc(pkt.ASN1_codec)
             else:
-                raise ASN1_Error("Encoding Error: got {!r} instead of an {!r} for field [{}]".format(
-                    x, self.ASN1_tag, self.name))
+                raise ASN1_Error(f"Encoding Error: got {x!r} instead of an {self.ASN1_tag!r} for field [{self.name}]")
         return self.ASN1_tag.get_codec(pkt.ASN1_codec).enc(x)
 
     def do_copy(self, x):
         if hasattr(x, "copy"):
             return x.copy()
-        if type(x) is list:
+        if isinstance(x, list):
             x = x[:]
             for i in range(len(x)):
                 if isinstance(x[i], BasePacket):
@@ -156,18 +157,18 @@ class ASN1F_enum_INTEGER(ASN1F_INTEGER):
         ASN1F_INTEGER.__init__(self, name, default)
         i2s = self.i2s = {}
         s2i = self.s2i = {}
-        if type(enum) is list:
+        if isinstance(enum, list):
             keys = range(len(enum))
         else:
             keys = list(enum.keys())
-        if [x for x in keys if type(x) is str]:
+        if [x for x in keys if isinstance(x, str)]:
             i2s,s2i = s2i,i2s
         for k in keys:
             i2s[k] = enum[k]
             s2i[enum[k]] = k
 
     def any2i_one(self, pkt, x):
-        if type(x) is str:
+        if isinstance(x, str):
             x = self.s2i[x]
         return x
     def i2repr_one(self, pkt, x):
@@ -180,12 +181,12 @@ class ASN1F_enum_INTEGER(ASN1F_INTEGER):
         return repr(x)
 
     def any2i(self, pkt, x):
-        if type(x) is list:
+        if isinstance(x, list):
             return list(map(lambda z,pkt=pkt:self.any2i_one(pkt,z), x))
         else:
             return self.any2i_one(pkt,x)
     def i2repr(self, pkt, x):
-        if type(x) is list:
+        if isinstance(x, list):
             return list(map(lambda z,pkt=pkt:self.i2repr_one(pkt,z), x))
         else:
             return self.i2repr_one(pkt,x)

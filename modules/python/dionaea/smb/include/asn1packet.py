@@ -9,6 +9,8 @@
 # Copyright (C) Philippe Biondi <phil@secdev.org>
 # This program is published under a GPLv2 license
 
+from __future__ import annotations
+
 from typing import Any
 from .packet import Packet
 
