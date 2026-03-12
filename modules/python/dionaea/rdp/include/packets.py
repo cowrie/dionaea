@@ -368,9 +368,11 @@ MCS_IO_CHANNEL_ID = 0x03EB
 def build_gcc_server_data(
     selected_protocol: int = PROTOCOL_RDP,
     channel_ids: list[int] | None = None,
+    server_security_data: bytes | None = None,
 ) -> bytes:
     """Build GCC server user data blocks (SC_CORE + SC_SECURITY + SC_NET).
 
+    If server_security_data is provided, it replaces the default SC_SECURITY payload.
     Returns raw concatenated user data blocks.
     """
     if channel_ids is None:
@@ -380,13 +382,15 @@ def build_gcc_server_data(
     sc_core_payload = struct.pack("<II", RDP_VERSION_5_PLUS, selected_protocol)
     sc_core = struct.pack("<HH", SC_CORE, 4 + len(sc_core_payload)) + sc_core_payload
 
-    # SC_SECURITY: encryptionMethod(4) + encryptionLevel(4)
-    # For standard RDP security: 40-bit RC4, high level
-    sc_sec_payload = struct.pack("<II",
-        0x00000001,  # ENCRYPTION_METHOD_40BIT
-        0x00000003,  # ENCRYPTION_LEVEL_HIGH (forces encryption)
-    )
-    sc_sec = struct.pack("<HH", SC_SECURITY, 4 + len(sc_sec_payload)) + sc_sec_payload
+    # SC_SECURITY
+    if server_security_data is not None:
+        sc_sec = struct.pack("<HH", SC_SECURITY, 4 + len(server_security_data)) + server_security_data
+    else:
+        sc_sec_payload = struct.pack("<II",
+            0x00000001,  # ENCRYPTION_METHOD_40BIT
+            0x00000003,  # ENCRYPTION_LEVEL_HIGH (forces encryption)
+        )
+        sc_sec = struct.pack("<HH", SC_SECURITY, 4 + len(sc_sec_payload)) + sc_sec_payload
 
     # SC_NET: MCSChannelId(2) + channelCount(2) + channelId[](2 each) + pad
     sc_net_payload = struct.pack("<HH", MCS_IO_CHANNEL_ID, len(channel_ids))
@@ -403,12 +407,13 @@ def build_gcc_server_data(
 def build_mcs_connect_response(
     selected_protocol: int = PROTOCOL_RDP,
     channel_ids: list[int] | None = None,
+    server_security_data: bytes | None = None,
 ) -> bytes:
     """Build complete MCS Connect-Response with GCC Conference Create Response.
 
     Returns TPKT payload (X.224 Data header + BER-encoded MCS).
     """
-    gcc_user_data = build_gcc_server_data(selected_protocol, channel_ids)
+    gcc_user_data = build_gcc_server_data(selected_protocol, channel_ids, server_security_data)
 
     # GCC Conference Create Response wrapper
     # PER: ConferenceCreateResponse

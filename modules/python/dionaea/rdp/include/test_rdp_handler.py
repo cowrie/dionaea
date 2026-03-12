@@ -275,5 +275,90 @@ class TestRdpStateMachine:
         assert sm.state == RdpState.MCS_ERECT_DOMAIN
 
 
+    def _advance_to_security_exchange(self):
+        """Helper to drive a state machine through to SECURITY_EXCHANGE."""
+        sm = RdpStateMachine()
+        sm.feed(build_x224_cr_packet())
+        sm.feed(build_mcs_connect_initial_packet())
+        sm.feed(build_erect_domain_packet())
+        sm.feed(build_attach_user_request_packet())
+        user_id = sm.user_id
+        sm.feed(build_channel_join_request_packet(user_id, user_id))
+        sm.feed(build_channel_join_request_packet(user_id, 0x03EB))
+        assert sm.state == RdpState.SECURITY_EXCHANGE
+        return sm
+
+    def test_security_exchange_decrypts_client_random(self):
+        sm = self._advance_to_security_exchange()
+        assert sm.rsa_key is not None
+
+        # Encrypt a client random with the server's public key
+        from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
+        client_random = b"\x42" * 32
+        pub = sm.rsa_key.public_key()
+        encrypted = pub.encrypt(client_random, asym_padding.PKCS1v15())
+
+        # Build Security Exchange PDU:
+        # X.224 Data header(3) + basic security header(4) + length(4) + encrypted data
+        sec_header = struct.pack("<I", 0x0001)  # SEC_EXCHANGE_PKT flag
+        payload = X224_DATA_HEADER + sec_header + struct.pack("<I", len(encrypted)) + encrypted
+        pkt = build_tpkt(payload)
+
+        consumed, responses = sm.feed(pkt)
+        assert consumed == len(pkt)
+        assert sm.state == RdpState.CLIENT_INFO
+        assert sm.client_random == client_random
+
+    def test_client_info_captures_credentials(self):
+        sm = self._advance_to_security_exchange()
+
+        # Do security exchange
+        from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
+        from dionaea.rdp.include.crypto import rc4_crypt, derive_session_keys
+        client_random = b"\x42" * 32
+        encrypted = sm.rsa_key.public_key().encrypt(client_random, asym_padding.PKCS1v15())
+        sec_header = struct.pack("<I", 0x0001)
+        payload = X224_DATA_HEADER + sec_header + struct.pack("<I", len(encrypted)) + encrypted
+        sm.feed(build_tpkt(payload))
+        assert sm.state == RdpState.CLIENT_INFO
+
+        # Build Client Info PDU
+        domain = "TESTDOMAIN"
+        username = "admin"
+        password = "hunter2"
+        domain_bytes = domain.encode("utf-16-le") + b"\x00\x00"
+        user_bytes = username.encode("utf-16-le") + b"\x00\x00"
+        pass_bytes = password.encode("utf-16-le") + b"\x00\x00"
+        shell_bytes = b"\x00\x00"
+        dir_bytes = b"\x00\x00"
+
+        flags = 0x00000033  # INFO_MOUSE | INFO_UNICODE | INFO_LOGONNOTIFY | INFO_MAXIMIZESHELL
+        info_data = struct.pack("<II HHHHH",
+            0, flags,
+            len(domain_bytes) - 2,
+            len(user_bytes) - 2,
+            len(pass_bytes) - 2,
+            0, 0,
+        ) + domain_bytes + user_bytes + pass_bytes + shell_bytes + dir_bytes
+
+        # Encrypt with the session decrypt key (server decrypts with "decrypt" key)
+        keys = derive_session_keys(client_random, sm.server_random)
+        encrypted_info = rc4_crypt(keys["decrypt"], info_data)
+
+        # Wrap in security header + TPKT
+        sec_flags = struct.pack("<I", 0x0040)  # SEC_INFO_PKT
+        data_sig = b"\x00" * 8  # MAC signature (we skip validation)
+        info_payload = X224_DATA_HEADER + sec_flags + data_sig + encrypted_info
+        pkt = build_tpkt(info_payload)
+
+        consumed, responses = sm.feed(pkt)
+        assert consumed == len(pkt)
+        assert sm.credentials is not None
+        assert sm.credentials.domain == domain
+        assert sm.credentials.username == username
+        assert sm.credentials.password == password
+        assert sm.state == RdpState.ESTABLISHED
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
