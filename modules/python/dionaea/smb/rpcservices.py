@@ -464,6 +464,129 @@ class epmp(RPCService):
 
         return r.get_buffer()
 
+    @classmethod
+    def _parse_tower_interface(cls, tower_bytes):
+        """Extract the interface UUID from floor 1 of a protocol tower.
+
+        Returns (uuid_hex, major_version) or None on parse failure.
+        """
+        try:
+            offset = 0
+            # Floor count
+            floor_count = struct.unpack_from("<H", tower_bytes, offset)[0]
+            offset += 2
+            if floor_count < 1:
+                return None
+
+            # Floor 1 LHS: length(2) + proto_id(1) + UUID(16) + version(2)
+            lhs_len = struct.unpack_from("<H", tower_bytes, offset)[0]
+            offset += 2
+            if lhs_len < 19:  # proto_id(1) + UUID(16) + version(2)
+                return None
+            proto_id = tower_bytes[offset]
+            if proto_id != cls.PROTO_ID_UUID:
+                return None
+            uuid_bytes = tower_bytes[offset + 1 : offset + 17]
+            major_ver = struct.unpack_from("<H", tower_bytes, offset + 17)[0]
+            uuid_hex = UUID(bytes_le=bytes(uuid_bytes)).hex
+            return (uuid_hex, major_ver)
+        except (struct.error, IndexError):
+            return None
+
+    @classmethod
+    def handle_ept_map(cls, con, p):
+        # void ept_map(
+        #   [in] handle_t hEpMapper,
+        #   [in, ptr] UUID* object,
+        #   [in, ptr] twr_p_t map_tower,
+        #   [in, out] ept_lookup_handle_t* entry_handle,
+        #   [in, range(0,500)] unsigned long max_towers,
+        #   [out] unsigned long* num_towers,
+        #   [out, length_is(*num_towers), size_is(max_towers)] twr_p_t towers[],
+        #   [out] error_status* status
+        # );
+
+        requested_uuid = None
+        max_towers = 4
+
+        try:
+            x = make_unpacker(con, p.StubData)
+
+            # object UUID pointer
+            object_ptr = x.unpack_pointer()
+            if object_ptr:
+                x.unpack_raw(16)  # skip object UUID
+
+            # map_tower pointer
+            tower_ptr = x.unpack_pointer()
+
+            # entry_handle (20 bytes: attributes + context handle)
+            x.unpack_long()  # attributes
+            x.unpack_raw(16)  # handle UUID
+
+            max_towers = x.unpack_long()
+
+            # Deferred: tower data (if pointer was non-NULL)
+            if tower_ptr:
+                tower_len = x.unpack_long()  # conformant max_count
+                actual_len = x.unpack_long()  # tower_length field
+                tower_bytes = x.unpack_raw(min(tower_len, actual_len))
+                parsed = cls._parse_tower_interface(tower_bytes)
+                if parsed:
+                    requested_uuid = parsed[0]
+                    req_str = str(UUID(hex=requested_uuid))
+                    rpclog.info(
+                        "ept_map from %s:%d - interface=%s",
+                        con.remote.host,
+                        con.remote.port,
+                        req_str,
+                    )
+        except Exception as e:
+            rpclog.debug("Failed to parse ept_map params: %s", e)
+
+        local_ip = con.local.host if hasattr(con, "local") else "127.0.0.1"
+        local_port = con.local.port if hasattr(con, "local") else 135
+
+        # Find matching services
+        matches = []
+        for svc_uuid, major, minor, annotation in cls.ADVERTISED_SERVICES:
+            if requested_uuid is None or UUID(svc_uuid).hex == requested_uuid:
+                tower = cls._build_tower(svc_uuid, major, minor, local_ip, local_port)
+                matches.append(tower)
+                if len(matches) >= max_towers:
+                    break
+
+        r = make_packer(con)
+
+        # entry_handle (20 bytes NULL = no more results)
+        r.pack_long(0)  # attributes
+        r.pack_raw(b"\x00" * 16)  # NULL context handle
+
+        num_towers = len(matches)
+        r.pack_long(num_towers)
+
+        # NDR array: max_count, offset, actual_count
+        r.pack_long(num_towers)  # max_count
+        r.pack_long(0)  # offset
+        r.pack_long(num_towers)  # actual_count
+
+        # Tower pointers (one per tower)
+        for i in range(num_towers):
+            r.pack_pointer(0x20000 + i * 0x100)
+
+        # Tower data
+        for tower in matches:
+            r.pack_long(len(tower))  # conformant max_count
+            r.pack_long(len(tower))  # tower_length
+            r.pack_raw(tower)
+            if len(tower) % 4:
+                r.pack_raw(b"\x00" * (4 - len(tower) % 4))
+
+        # status - success
+        r.pack_long(0)
+
+        return r.get_buffer()
+
 
 class eventlog(RPCService):
     uuid = UUID("82273fdc-e32a-18c3-3f78-827929dc23ea").hex
