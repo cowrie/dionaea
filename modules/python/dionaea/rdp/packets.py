@@ -242,17 +242,33 @@ class GCCClientData:
     keyboard_layout: int
     client_product_id: int
     requested_color_depth: int
+    desktop_width: int = 0
+    desktop_height: int = 0
+    requested_channels: list[str] | None = None
+
+    def __post_init__(self):
+        if self.requested_channels is None:
+            self.requested_channels = []
 
     @classmethod
     def parse(cls, user_data: bytes) -> 'GCCClientData | None':
         """Parse GCC client data to extract client info."""
-        # Look for CS_CORE (0xc001) block
-        # Format: type (2 bytes LE), length (2 bytes LE), data
-        offset = 4  # Skip "Duca" + length
+        # Skip "Duca" key (4 bytes) and PER length determinant
+        offset = 4
+        if offset >= len(user_data):
+            return None
+        if user_data[offset] & 0x80:
+            offset += 2  # 2-byte PER length
+        else:
+            offset += 1  # 1-byte PER length
+
         if len(user_data) < offset + 4:
             return None
 
-        # Find CS_CORE block
+        # Scan TS_UD blocks: type (2 bytes LE), length (2 bytes LE), data
+        result = None
+        channels = []
+
         while offset + 4 <= len(user_data):
             block_type = struct.unpack('<H', user_data[offset:offset+2])[0]
             block_len = struct.unpack('<H', user_data[offset+2:offset+4])[0]
@@ -260,29 +276,40 @@ class GCCClientData:
             if block_type == 0xc001:  # CS_CORE
                 core_data = user_data[offset+4:offset+block_len]
                 if len(core_data) >= 134:
-                    # version at offset 0-3 (skip)
-                    # desktopWidth at 4-5 (skip)
-                    # desktopHeight at 6-7 (skip)
-                    # colorDepth at 8-9
+                    desktop_width = struct.unpack('<H', core_data[4:6])[0]
+                    desktop_height = struct.unpack('<H', core_data[6:8])[0]
                     color_depth = struct.unpack('<H', core_data[8:10])[0]
-                    # SASSequence at 10-11 (skip)
-                    # keyboardLayout at 12-15
                     kb_layout = struct.unpack('<I', core_data[12:16])[0]
-                    # clientBuild at 16-19
                     client_build = struct.unpack('<I', core_data[16:20])[0]
-                    # clientName at 20-51 (32 bytes, UTF-16LE)
                     client_name_raw = core_data[20:52]
                     client_name = client_name_raw.decode('utf-16-le', errors='replace').rstrip('\x00')
-                    # clientProductId at 132-133
-                    product_id = struct.unpack('<H', core_data[132:134])[0] if len(core_data) >= 134 else 0
+                    product_id = struct.unpack('<H', core_data[132:134])[0]
 
-                    return cls(client_name, client_build, kb_layout, product_id, color_depth)
+                    result = cls(
+                        client_name, client_build, kb_layout, product_id,
+                        color_depth, desktop_width, desktop_height,
+                    )
+
+            elif block_type == 0xc003:  # CS_NET
+                net_data = user_data[offset+4:offset+block_len]
+                if len(net_data) >= 4:
+                    channel_count = struct.unpack('<I', net_data[0:4])[0]
+                    chan_offset = 4
+                    for _ in range(channel_count):
+                        if chan_offset + 12 > len(net_data):
+                            break
+                        # CHANNEL_DEF: name (8 bytes, null-padded) + options (4 bytes)
+                        name = net_data[chan_offset:chan_offset+8].split(b'\x00')[0].decode('ascii', errors='replace')
+                        channels.append(name)
+                        chan_offset += 12
 
             offset += block_len
             if block_len == 0:
                 break
 
-        return None
+        if result is not None:
+            result.requested_channels = channels
+        return result
 
 
 @dataclass

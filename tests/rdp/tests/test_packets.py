@@ -323,5 +323,113 @@ class TestDetectionScriptPackets:
         assert magic_bytes == bytes.fromhex("44372819")
 
 
+class TestGCCClientData:
+    """Tests for GCC Client Data parsing."""
+
+    @staticmethod
+    def _build_cs_core(
+        desktop_width=1920,
+        desktop_height=1080,
+        color_depth=0xca01,
+        keyboard_layout=0x0409,
+        client_build=2600,
+        client_name="TESTPC",
+    ):
+        """Build a CS_CORE (0xc001) block for testing."""
+        core = struct.pack('<I', 0x00080004)  # version (RDP 5.0+)
+        core += struct.pack('<H', desktop_width)
+        core += struct.pack('<H', desktop_height)
+        core += struct.pack('<H', color_depth)
+        core += struct.pack('<H', 0)  # SASSequence
+        core += struct.pack('<I', keyboard_layout)
+        core += struct.pack('<I', client_build)
+        name_bytes = client_name.encode('utf-16-le')
+        core += name_bytes.ljust(32, b'\x00')  # clientName (32 bytes)
+        # Pad remaining fields to reach at least 134 bytes of core data
+        # After clientName (offset 52): keyboardType(4), keyboardSubType(4),
+        # keyboardFunctionKey(4), imeFileName(64), postBeta2ColorDepth(2),
+        # clientProductId(2)
+        core += b'\x00' * 4  # keyboardType
+        core += b'\x00' * 4  # keyboardSubType
+        core += b'\x00' * 4  # keyboardFunctionKey
+        core += b'\x00' * 64  # imeFileName
+        core += struct.pack('<H', 0)  # postBeta2ColorDepth
+        core += struct.pack('<H', 1)  # clientProductId
+        core += struct.pack('<I', 0)  # serialNumber
+        # Total core_data is now 136 bytes (>= 134 required by parser)
+        header = struct.pack('<HH', 0xc001, 4 + len(core))
+        return header + core
+
+    @staticmethod
+    def _build_cs_net(channel_names):
+        """Build a CS_NET (0xc003) block with channel names."""
+        body = struct.pack('<I', len(channel_names))
+        for name in channel_names:
+            # CHANNEL_DEF: name (8 bytes, null-padded) + options (4 bytes)
+            name_bytes = name.encode('ascii')[:7].ljust(8, b'\x00')
+            body += name_bytes + struct.pack('<I', 0)  # options=0
+        header = struct.pack('<HH', 0xc003, 4 + len(body))
+        return header + body
+
+    @staticmethod
+    def _wrap_gcc(blocks_data):
+        """Wrap block data with 'Duca' header and PER length for GCC user data."""
+        length = len(blocks_data)
+        if length < 128:
+            per_len = bytes([length])
+        else:
+            per_len = bytes([0x80 | (length >> 8), length & 0xFF])
+        return b'Duca' + per_len + blocks_data
+
+    def test_parse_desktop_dimensions(self):
+        """Test extracting desktop width and height from CS_CORE."""
+        from packets import GCCClientData
+
+        cs_core = self._build_cs_core(desktop_width=1920, desktop_height=1080)
+        user_data = self._wrap_gcc(cs_core)
+        gcc = GCCClientData.parse(user_data)
+
+        assert gcc is not None
+        assert gcc.desktop_width == 1920
+        assert gcc.desktop_height == 1080
+
+    def test_parse_channel_names(self):
+        """Test extracting virtual channel names from CS_NET."""
+        from packets import GCCClientData
+
+        cs_core = self._build_cs_core()
+        cs_net = self._build_cs_net(["cliprdr", "rdpdr", "rdpsnd"])
+        user_data = self._wrap_gcc(cs_core + cs_net)
+        gcc = GCCClientData.parse(user_data)
+
+        assert gcc is not None
+        assert "cliprdr" in gcc.requested_channels
+        assert "rdpdr" in gcc.requested_channels
+        assert "rdpsnd" in gcc.requested_channels
+
+    def test_parse_no_cs_net(self):
+        """Test parsing without CS_NET block returns empty channels."""
+        from packets import GCCClientData
+
+        cs_core = self._build_cs_core()
+        user_data = self._wrap_gcc(cs_core)
+        gcc = GCCClientData.parse(user_data)
+
+        assert gcc is not None
+        assert gcc.requested_channels == []
+
+    def test_parse_empty_cs_net(self):
+        """Test parsing CS_NET with zero channels."""
+        from packets import GCCClientData
+
+        cs_core = self._build_cs_core()
+        cs_net = self._build_cs_net([])
+        user_data = self._wrap_gcc(cs_core + cs_net)
+        gcc = GCCClientData.parse(user_data)
+
+        assert gcc is not None
+        assert gcc.requested_channels == []
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
