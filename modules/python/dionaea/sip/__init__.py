@@ -80,7 +80,7 @@ class SIPService(ServiceLoader):
         if len(daemons) > 0:
             global g_timer_cleanup
             if g_timer_cleanup is None:
-                logger.info("Starting cleanup loop")
+                logger.debug("starting cleanup loop")
                 g_timer_cleanup = Timer(
                     60,
                     cleanup,
