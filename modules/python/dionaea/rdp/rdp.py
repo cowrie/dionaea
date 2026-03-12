@@ -269,3 +269,75 @@ class RdpStateMachine:
 
         self.state = RdpState.ESTABLISHED
         return []
+
+
+class rdpd:
+    """RDP honeypot connection handler.
+
+    Wraps RdpStateMachine and integrates with the dionaea connection class.
+    When used with dionaea, subclass both rdpd and connection.
+    When used standalone (testing), just instantiate rdpd directly.
+    """
+
+    def __init__(self) -> None:
+        self._sm = RdpStateMachine()
+        self._buf = b""
+
+    @property
+    def state_machine(self) -> RdpStateMachine:
+        return self._sm
+
+    def handle_established(self) -> None:
+        self.timeouts.idle = 120
+        self.processors()
+
+    def handle_io_in(self, data: bytes) -> int:
+        self._buf += data
+        consumed, responses = self._sm.feed(self._buf)
+        self._buf = self._buf[consumed:]
+
+        for response in responses:
+            self.send(response)
+
+        # Report credentials once captured
+        if self._sm.credentials and self._sm.state == RdpState.ESTABLISHED:
+            self._report_credentials()
+            self._sm.state = RdpState.CLOSED
+            self.close()
+
+        if self._sm.state == RdpState.CLOSED:
+            self.close()
+
+        return len(data)
+
+    def _report_credentials(self) -> None:
+        try:
+            from dionaea.core import incident
+        except ImportError:
+            logger.debug("dionaea.core not available, skipping incident report")
+            return
+
+        creds = self._sm.credentials
+        if creds is None:
+            return
+
+        i = incident("dionaea.modules.python.rdp.login")
+        i.con = self
+        i.username = creds.username
+        i.password = creds.password
+        i.hostname = ""
+        if self._sm.client_core:
+            i.hostname = self._sm.client_core.client_name
+
+        i.report()
+
+        logger.info(
+            "RDP login: domain=%r user=%r host=%r",
+            creds.domain, creds.username, i.hostname,
+        )
+
+    def handle_timeout_idle(self) -> bool:
+        return False
+
+    def handle_disconnect(self) -> bool:
+        return False
