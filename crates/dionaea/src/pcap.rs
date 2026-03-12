@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
 // SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: Passive pcap capture for detecting TCP RST rejections.
 // ABOUTME: Sniffs interfaces for RST packets from honeypot IPs and emits tcp.reject incidents.

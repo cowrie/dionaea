@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
 // SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: Incident handler registry with wildcard pattern matching.
 // ABOUTME: Dispatches incidents to registered handlers based on origin glob patterns.

@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
 // SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: Privilege dropping after port binding.
 // ABOUTME: Resolves user/group names, sets RLIMIT_NOFILE, drops uid/gid.

@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
 // SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: Connection lifecycle state machine and metadata registry.
 // ABOUTME: Owns ConnectionMeta (shared via DashMap) and defines state transitions.

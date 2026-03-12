@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
 // SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: Integration test for the ihandler loading and dispatch chain.
 // ABOUTME: Verifies that incidents flow from connections through to ihandler callbacks.

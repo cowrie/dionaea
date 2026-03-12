@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
 // SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: Dionaea honeypot core library.
 // ABOUTME: Re-exports public types for integration tests and the binary.

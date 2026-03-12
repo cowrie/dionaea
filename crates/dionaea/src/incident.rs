@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
 // SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: Incident data model for event dispatch between components.
 // ABOUTME: OpaqueData supports int, string, bytes, connection ref, list, dict, and None.

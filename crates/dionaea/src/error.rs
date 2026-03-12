@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
 // SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: Central error type for the dionaea crate.
 // ABOUTME: Converts between Rust, Python, I/O, TLS, and config errors.

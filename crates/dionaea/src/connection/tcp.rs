@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
 // SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: TCP listener, accept loop, and per-connection I/O handler task.
 // ABOUTME: Wires Python protocol callbacks to live sockets via spawn_blocking + GIL.

@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
 // SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: Python callback error recovery matching binding.pyx behavior.
 // ABOUTME: Each callback type has specific error handling (continue, close, propagate).

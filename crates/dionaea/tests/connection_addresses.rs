@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
 // SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: Integration test verifying accepted connections have correct addresses.
 // ABOUTME: Ensures the Python handler's local/remote fields reflect actual socket endpoints.

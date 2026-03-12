@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
 // SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: Integration test for the full service loading chain.
 // ABOUTME: Loads dionaea + services modules, starts blackhole + HTTP services via ServiceLoader.

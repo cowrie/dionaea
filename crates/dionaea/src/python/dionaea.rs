@@ -1,3 +1,4 @@
+// SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
 // SPDX-License-Identifier: GPL-3.0-only
 // ABOUTME: Python-visible dionaea singleton for global config and version access.
 // ABOUTME: Exposed as g_dionaea matching the binding.pyx dionaea class.
