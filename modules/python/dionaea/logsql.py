@@ -697,12 +697,17 @@ class logsqlhandler(ihandler):
         except Exception:
             logger.debug("... not required")
 
-    def __del__(self):
+    def stop(self):
         logger.debug("Closing sqlite handle")
-        self.cursor.close()
-        self.cursor = None
-        self.dbh.close()
-        self.dbh = None
+        if self.cursor is not None:
+            self.cursor.close()
+            self.cursor = None
+        if self.dbh is not None:
+            self.dbh.close()
+            self.dbh = None
+
+    def __del__(self):
+        self.stop()
 
     def _handle_credentials(self, icd):
         """

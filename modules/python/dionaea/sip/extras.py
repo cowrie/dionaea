@@ -144,6 +144,11 @@ class SipConfig:
 
         self.actions = config.get("actions", {})
 
+    def close(self):
+        if self._conn is not None:
+            self._conn.close()
+            self._conn = None
+
     def _table_exists(self, name):
         """
         Check if table exists
@@ -182,40 +187,42 @@ class SipConfig:
             return regex.match(value) is not None
 
         conn = sqlite3.connect(self.users, check_same_thread=False)
+        try:
+            sqlite3.enable_callback_tracebacks(True)
+            conn.create_function("regexp", 2, regexp)
 
-        sqlite3.enable_callback_tracebacks(True)
-        conn.create_function("regexp", 2, regexp)
+            if username is None:
+                username = b""
 
-        if username is None:
-            username = b""
+            username = username.decode("utf-8")
 
-        username = username.decode("utf-8")
+            cur = conn.cursor()
+            cur.execute("SELECT username, password, pickup_delay_min, pickup_delay_max, action, sdp FROM users WHERE personality = ? AND ? REGEXP username", (personality, username))
+            row = cur.fetchone()
 
-        cur = conn.cursor()
-        cur.execute("SELECT username, password, pickup_delay_min, pickup_delay_max, action, sdp FROM users WHERE personality = ? AND ? REGEXP username", (personality, username))
-        row = cur.fetchone()
+            if row is None:
+                return None
 
-        if row is None:
-            return None
+            password = row[1]
+            if isinstance(password, int):
+                password = str(password)
 
-        password = row[1]
-        if isinstance(password, int):
-            password = str(password)
+            # ToDo: sdp is not used! Recheck!!!
+            sdp = row[5]
+            if sdp == '' or sdp is None:
+                sdp = self.personalities[personality].default_sdp
 
-        # ToDo: sdp is not used! Recheck!!!
-        sdp = row[5]
-        if sdp == '' or sdp is None:
-            sdp = self.personalities[personality].default_sdp
-
-        return User(
-            username=username,
-            username_regex=row[0],
-            password=password,
-            pickup_delay_min=row[2],
-            pickup_delay_max=row[3],
-            action=row[4],
-            sdp=row[5]
-        )
+            return User(
+                username=username,
+                username_regex=row[0],
+                password=password,
+                pickup_delay_min=row[2],
+                pickup_delay_max=row[3],
+                action=row[4],
+                sdp=row[5]
+            )
+        finally:
+            conn.close()
 
     def get_personality_by_address(self, address):
         for pers_name, personality in self.personalities.items():

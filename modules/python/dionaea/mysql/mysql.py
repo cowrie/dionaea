@@ -116,6 +116,10 @@ class mysqld(connection):
             self.dbh.close()
             self.dbh = None
 
+    def handle_disconnect(self):
+        self._close_db()
+        return False
+
     def _handle_COM_INIT_DB(self, p):
         Database = p.Database.decode("utf-8")
         if self._open_db(Database):

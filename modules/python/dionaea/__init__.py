@@ -18,6 +18,10 @@ import tomllib
 logger = logging.getLogger('dionaea')
 logger.setLevel(logging.DEBUG)
 
+# Route Python warnings (e.g. ResourceWarning) through the logging framework
+# instead of printing directly to stderr.
+logging.captureWarnings(True)
+
 loaded_submodules: list[str] = []
 
 
