@@ -58,6 +58,20 @@ requested screen resolution, client build number (OS fingerprint), cookie string
 RDP protocol layers: TPKT → X.224 → MCS/T.125 (GCC conference) → Security →
 Client Info PDU (credentials here) → Capability Exchange → Bitmap Updates.
 
+### RDP Clipboard Redirection (MS-RDPECLIP)
+- Clients request "cliprdr" virtual channel during MCS Connect Initial
+- Full implementation would require clipboard format negotiation and data exchange
+- Clipboard exfiltration is a real attack vector in RDP MITM scenarios (PyRDP uses it)
+- Detection: parse CS_NET block for "cliprdr" channel name — already possible with
+  current GCC parsing, no protocol implementation needed
+
+### RDP File System Redirection (MS-RDPEFS)
+- Clients request "rdpdr" virtual channel during MCS Connect Initial
+- Full implementation would require device I/O request/response protocol
+- Drive redirection enables file transfer between client and server
+- Detection: parse CS_NET block for "rdpdr" channel name — same as clipboard above
+- Could capture file transfer attempts if we respond to the channel setup
+
 ### Telnet Emulation
 - IoT botnets (Mirai variants) target telnet
 - Would capture significant additional malware
