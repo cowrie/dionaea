@@ -1414,7 +1414,7 @@ class smbd(connection):
             r = SMB_Delete_Response()
         elif Command == SMB_COM_TRANSACTION2_SECONDARY:
             h = p.getlayer(SMB_Trans2_Secondary_Request)
-            smblog.info(
+            smblog.debug(
                 "SMB Transaction2 Secondary from %s:%d - params: %d/%d, data: %d/%d",
                 self.remote.host,
                 self.remote.port,
