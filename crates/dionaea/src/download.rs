@@ -33,13 +33,10 @@ fn reject_dangerous_ip(ip: std::net::IpAddr) -> Result<(), String> {
             }
         }
         std::net::IpAddr::V6(v6) => {
-            let seg0 = v6.segments()[0];
-            // fe80::/10 link-local
-            if seg0 & 0xffc0 == 0xfe80 {
+            if v6.is_unicast_link_local() {
                 return Err(format!("link-local address rejected: {ip}"));
             }
-            // fc00::/7 unique-local (private)
-            if seg0 & 0xfe00 == 0xfc00 {
+            if v6.is_unique_local() {
                 return Err(format!("unique-local address rejected: {ip}"));
             }
         }

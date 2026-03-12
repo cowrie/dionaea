@@ -259,6 +259,9 @@ class LogJsonHandler(ihandler):
     def handle_incident_dionaea_modules_python_mysql_login(self, icd):
         self._append_credentials(icd)
 
+    def handle_incident_dionaea_connection_rdp_login(self, icd):
+        self._append_credentials(icd)
+
     def handle_incident_dionaea_modules_python_snmp_request(self, icd):
         con = icd.con
         data = self.attacks.get(con)

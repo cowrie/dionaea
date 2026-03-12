@@ -32,6 +32,7 @@ def dionaea_ports():
     - DIONAEA_HTTP_PORT
     - DIONAEA_MYSQL_PORT
     - DIONAEA_EPMAP_PORT
+    - DIONAEA_RDP_PORT
     """
     return {
         "tftp": int(os.environ.get("DIONAEA_TFTP_PORT", 69)),
@@ -41,4 +42,5 @@ def dionaea_ports():
         "mysql": int(os.environ.get("DIONAEA_MYSQL_PORT", 3306)),
         "epmap": int(os.environ.get("DIONAEA_EPMAP_PORT", 135)),
         "nbns": int(os.environ.get("DIONAEA_NBNS_PORT", 137)),
+        "rdp": int(os.environ.get("DIONAEA_RDP_PORT", 3389)),
     }

@@ -385,6 +385,26 @@ class logsqlhandler(ihandler):
             ON mssql_commands (mssql_command_{})""".format(idx, idx)
             )
 
+        self.cursor.execute("""CREATE TABLE IF NOT EXISTS
+            rdp_fingerprints (
+                rdp_fingerprint INTEGER PRIMARY KEY,
+                connection INTEGER,
+                rdp_fingerprint_hostname TEXT,
+                rdp_fingerprint_domain TEXT,
+                rdp_fingerprint_client_build INTEGER,
+                rdp_fingerprint_desktop_width INTEGER,
+                rdp_fingerprint_desktop_height INTEGER,
+                rdp_fingerprint_keyboard_layout INTEGER,
+                rdp_fingerprint_cookie TEXT
+                -- CONSTRAINT rdp_fingerprints_connection_fkey FOREIGN KEY (connection) REFERENCES connections (connection)
+            )""")
+
+        for idx in ["hostname", "domain"]:
+            self.cursor.execute(
+                """CREATE INDEX IF NOT EXISTS rdp_fingerprints_{}_idx
+            ON rdp_fingerprints (rdp_fingerprint_{})""".format(idx, idx)
+            )
+
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS virustotals (
                 virustotal INTEGER PRIMARY KEY,
                 virustotal_sha256_hash TEXT NOT NULL,
@@ -659,6 +679,7 @@ class logsqlhandler(ihandler):
             "mqtt_subscribe_commands",
             "nbns_queries",
             "snmp_requests",
+            "rdp_fingerprints",
         ]:
             self.cursor.execute(
                 f"""CREATE INDEX IF NOT EXISTS {idx}_connection_idx    ON {idx} (connection)"""
@@ -1039,6 +1060,20 @@ class logsqlhandler(ihandler):
             self.cursor.execute(
                 "INSERT INTO logins (connection, login_username, login_password) VALUES (?,?,?)",
                 (attackid, icd.username, icd.password),
+            )
+            self.dbh.commit()
+
+    def handle_incident_dionaea_connection_rdp_login(self, icd):
+        con = icd.con
+        if con in self.attacks:
+            attackid = self.attacks[con][1]
+            self.cursor.execute(
+                "INSERT INTO logins (connection, login_username, login_password) VALUES (?,?,?)",
+                (attackid, icd.get("username"), icd.get("password")),
+            )
+            self.cursor.execute(
+                "INSERT INTO rdp_fingerprints (connection, rdp_fingerprint_hostname, rdp_fingerprint_domain) VALUES (?,?,?)",
+                (attackid, icd.get("hostname") or "", icd.get("domain") or ""),
             )
             self.dbh.commit()
 

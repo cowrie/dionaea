@@ -1,34 +1,35 @@
-# ABOUTME: RDP honeypot service loader for dionaea.
-# ABOUTME: Registers the RDP service and starts listeners on port 3389.
+# ABOUTME: RDP honeypot service registration for dionaea.
+# ABOUTME: Registers the RDP service with dionaea's service loader.
 
-from __future__ import annotations
+# This file is part of the dionaea honeypot
+#
+# SPDX-FileCopyrightText: 2025 Michel
+#
+# SPDX-License-Identifier: GPL-2.0-or-later
 
-import logging
 from typing import Any
-
-logger = logging.getLogger('RDP')
 
 try:
     from dionaea import ServiceLoader
-    from dionaea.core import connection
-    from .rdp import rdpd
-
-    class rdpd_connection(rdpd, connection):
-        """RDP connection combining the protocol handler with dionaea's connection class."""
-
-        def __init__(self) -> None:
-            connection.__init__(self, "tcp")
-            rdpd.__init__(self)
+    from dionaea.exception import ServiceConfigError
+    from .rdp import rdpd, rdplog
 
     class RDPService(ServiceLoader):
+        """RDP honeypot service."""
+
         name = "rdp"
 
         @classmethod
-        def start(cls, addr: str, iface: str | None = None, config: dict[str, Any] | None = None) -> rdpd_connection:
-            daemon = rdpd_connection()
-            daemon.apply_config(config or {})
-            port = (config or {}).get("port", 3389)
-            daemon.bind(addr, port, iface=iface)
+        def start(
+            cls, addr: str, iface: str | None = None, config: dict[str, Any] | None = None
+        ) -> rdpd | None:
+            daemon = rdpd()
+            try:
+                daemon.apply_config(config=config)
+            except ServiceConfigError as e:
+                rdplog.error(e.msg, *e.args)
+                return None
+            daemon.bind(addr, daemon.config.port, iface=iface)
             daemon.listen()
             return daemon
 
