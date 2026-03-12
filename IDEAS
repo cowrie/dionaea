@@ -234,3 +234,14 @@ EternalBlue still accounts for ~92% of SMB exploit traffic seen by honeypots.
 Consider adding specific detection/logging for DoublePulsar backdoor installation
 attempts (the second stage after EternalBlue exploitation). This is the one
 "legacy" shellcode family that still generates actionable intelligence.
+
+## Project Rename
+
+The v2 Rust rewrite shares almost no code with the original C dionaea. A new name
+would reduce confusion and reflect the new architecture.
+
+### Candidate: Drosera
+- *Drosera* (sundew) — another genus of carnivorous plants, like *Dionaea* (Venus flytrap)
+- Maintains the carnivorous-plant lineage while signaling a fresh start
+- Short, pronounceable, memorable, no namespace conflicts on crates.io or PyPI
+- Domain: drosera.io is taken, but drosera-honeypot.org or similar are available
