@@ -201,6 +201,8 @@ class virustotalhandler(ihandler):
     def stop(self):
         self.backlog_timer.cancel()
         self.backlog_timer = None
+        self.cursor.close()
+        self.dbh.close()
 
     def handle_incident(self, icd):
         pass

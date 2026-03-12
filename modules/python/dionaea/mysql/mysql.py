@@ -98,6 +98,7 @@ class mysqld(connection):
 
     def _open_db(self, Database):
         try:
+            self._close_db()
             p = self.config[Database]["path"]
             logger.debug(f"Opening database {Database} ({p})")
             self.dbh = sqlite3.connect(p, check_same_thread=False)
@@ -106,6 +107,14 @@ class mysqld(connection):
             return True
         except Exception:
             return False
+
+    def _close_db(self):
+        if hasattr(self, 'cursor') and self.cursor is not None:
+            self.cursor.close()
+            self.cursor = None
+        if hasattr(self, 'dbh') and self.dbh is not None:
+            self.dbh.close()
+            self.dbh = None
 
     def _handle_COM_INIT_DB(self, p):
         Database = p.Database.decode("utf-8")
@@ -263,6 +272,22 @@ class mysqld(connection):
                 Message="#1064 - You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use"
             )
 
+        elif re.match(rb"use\s+\S", p.Query, re.I):
+            m = re.match(rb"use\s+`?(\w+)`?", p.Query, re.I)
+            dbname = m.group(1).decode("utf-8") if m else "unknown"
+            if self._open_db(dbname):
+                r = MySQL_Result_OK()
+            else:
+                r = MySQL_Result_Error(
+                    Message=f"ERROR 1049 (42000): Unknown database '{dbname}'"
+                )
+
+        elif re.match(rb"(prepare|execute|deallocate)\s+", p.Query, re.I):
+            r = MySQL_Result_OK()
+
+        elif re.match(rb"(create|drop)\s+function\s+", p.Query, re.I):
+            r = MySQL_Result_OK()
+
         else:
             p.show()
             try:
@@ -403,6 +428,11 @@ class mysqld(connection):
                 i.con = self
                 i.url = m_url.group("url")
                 i.report()
+            return True
+
+        # Handle SELECT ... INTO DUMPFILE/OUTFILE (table-based UDF attack)
+        if re.search(rb"\binto\s+(dumpfile|outfile)\b", p.Query, re.I):
+            logger.info("SELECT INTO DUMPFILE/OUTFILE: %s", p.Query)
             return True
 
         return False
