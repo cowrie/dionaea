@@ -263,6 +263,17 @@ class LogJsonHandler(ihandler):
     def handle_incident_dionaea_modules_python_mysql_login(self, icd):
         self._append_credentials(icd)
 
+    def handle_incident_dionaea_modules_python_snmp_request(self, icd):
+        con = icd.con
+        data = self.attacks.get(con)
+        if data:
+            data["snmp"] = {
+                "version": icd.version,
+                "community": icd.community,
+                "pdu_type": icd.pdu_type,
+                "oids": icd.oids,
+            }
+
     def handle_incident_dionaea_modules_python_p0f(self, icd):
         con = icd.con
         data = self.attacks.get(con)

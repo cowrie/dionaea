@@ -623,6 +623,23 @@ class logsqlhandler(ihandler):
             ON nbns_queries (nbns_query_{})""".format(idx, idx)
             )
 
+        self.cursor.execute("""CREATE TABLE IF NOT EXISTS
+            snmp_requests (
+                snmp_request INTEGER PRIMARY KEY,
+                connection INTEGER,
+                snmp_version TEXT,
+                snmp_community TEXT,
+                snmp_pdu_type TEXT,
+                snmp_oids TEXT
+                -- CONSTRAINT snmp_requests_connection_fkey FOREIGN KEY (connection) REFERENCES connections (connection)
+            )""")
+
+        for idx in ["community", "pdu_type"]:
+            self.cursor.execute(
+                """CREATE INDEX IF NOT EXISTS snmp_requests_{}_idx
+            ON snmp_requests (snmp_{})""".format(idx, idx)
+            )
+
         # connection index for all
         for idx in [
             "dcerpcbinds",
@@ -641,6 +658,7 @@ class logsqlhandler(ihandler):
             "mqtt_publish_commands",
             "mqtt_subscribe_commands",
             "nbns_queries",
+            "snmp_requests",
         ]:
             self.cursor.execute(
                 f"""CREATE INDEX IF NOT EXISTS {idx}_connection_idx    ON {idx} (connection)"""
@@ -1255,5 +1273,15 @@ class logsqlhandler(ihandler):
                     icd.qtype,
                     1 if icd.is_wpad else 0,
                 ),
+            )
+            self.dbh.commit()
+
+    def handle_incident_dionaea_modules_python_snmp_request(self, icd):
+        con = icd.con
+        if con in self.attacks:
+            attackid = self.attacks[con][1]
+            self.cursor.execute(
+                "INSERT INTO snmp_requests (connection, snmp_version, snmp_community, snmp_pdu_type, snmp_oids) VALUES (?,?,?,?,?)",
+                (attackid, icd.version, icd.community, icd.pdu_type, icd.oids),
             )
             self.dbh.commit()
