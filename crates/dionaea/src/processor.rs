@@ -627,45 +627,21 @@ fn emit_shellcode_incident(arch: String, offset: usize, hash: String, path: Stri
 /// Expand strftime-style patterns in a path string.
 /// Supports: %Y (year), %m (month), %d (day), %H (hour), %M (minute), %S (second).
 pub fn expand_strftime(pattern: &str) -> String {
-    use std::time::SystemTime;
-
-    let secs = SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-
-    expand_strftime_with_epoch(pattern, secs)
+    expand_strftime_with_dt(pattern, chrono::Utc::now())
 }
 
-/// Expand strftime patterns using a specific epoch timestamp (for testing).
-fn expand_strftime_with_epoch(pattern: &str, epoch_secs: u64) -> String {
-    // Convert epoch seconds to date components
-    // Algorithm from Howard Hinnant's civil_from_days
-    let days = (epoch_secs / 86400) as i64;
-    let time_of_day = epoch_secs % 86400;
-
-    let z = days + 719_468;
-    let era = z.div_euclid(146_097);
-    let doe = z.rem_euclid(146_097) as u64;
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
-    let y = (yoe as i64) + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = doy - (153 * mp + 2) / 5 + 1;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 };
-    let y = if m <= 2 { y + 1 } else { y };
-
-    let hour = time_of_day / 3600;
-    let minute = (time_of_day % 3600) / 60;
-    let second = time_of_day % 60;
+/// Expand strftime patterns using a specific datetime (for testing).
+fn expand_strftime_with_dt(pattern: &str, dt: chrono::DateTime<chrono::Utc>) -> String {
+    use chrono::Datelike as _;
+    use chrono::Timelike as _;
 
     pattern
-        .replace("%Y", &format!("{y:04}"))
-        .replace("%m", &format!("{m:02}"))
-        .replace("%d", &format!("{d:02}"))
-        .replace("%H", &format!("{hour:02}"))
-        .replace("%M", &format!("{minute:02}"))
-        .replace("%S", &format!("{second:02}"))
+        .replace("%Y", &format!("{:04}", dt.year()))
+        .replace("%m", &format!("{:02}", dt.month()))
+        .replace("%d", &format!("{:02}", dt.day()))
+        .replace("%H", &format!("{:02}", dt.hour()))
+        .replace("%M", &format!("{:02}", dt.minute()))
+        .replace("%S", &format!("{:02}", dt.second()))
 }
 
 #[cfg(test)]
@@ -862,15 +838,17 @@ mod tests {
 
     #[test]
     fn strftime_expansion() {
-        // 2024-01-15 12:30:45 UTC = epoch 1705318245
-        let result = expand_strftime_with_epoch("var/lib/%Y-%m-%d/bistreams", 1_705_318_245);
+        use chrono::TimeZone as _;
+        let dt = chrono::Utc.with_ymd_and_hms(2024, 1, 15, 11, 30, 45).unwrap();
+        let result = expand_strftime_with_dt("var/lib/%Y-%m-%d/bistreams", dt);
         assert_eq!(result, "var/lib/2024-01-15/bistreams");
     }
 
     #[test]
     fn strftime_time_components() {
-        // 2024-01-15 11:30:45 UTC = epoch 1705318245
-        let result = expand_strftime_with_epoch("%H-%M-%S", 1_705_318_245);
+        use chrono::TimeZone as _;
+        let dt = chrono::Utc.with_ymd_and_hms(2024, 1, 15, 11, 30, 45).unwrap();
+        let result = expand_strftime_with_dt("%H-%M-%S", dt);
         assert_eq!(result, "11-30-45");
     }
 
