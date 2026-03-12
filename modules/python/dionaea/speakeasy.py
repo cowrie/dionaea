@@ -33,7 +33,6 @@ class SpeakeasyShellcodeHandler(ihandler):
     """
 
     def __init__(self, path: str, config: dict[str, Any] | None = None) -> None:
-        logger.info(f"{self.__class__.__name__} initialized")
         ihandler.__init__(self, path)
 
         try:
@@ -41,7 +40,7 @@ class SpeakeasyShellcodeHandler(ihandler):
 
             self.speakeasy = speakeasy
             self.speakeasy_available = True
-            logger.info("Speakeasy emulation framework loaded successfully")
+            logger.info("Speakeasy emulation framework loaded")
         except ImportError:
             self.speakeasy = None
             self.speakeasy_available = False
