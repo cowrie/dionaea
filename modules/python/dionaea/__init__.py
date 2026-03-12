@@ -10,6 +10,7 @@ from __future__ import annotations
 import glob
 import logging
 import pkgutil
+import threading
 import traceback
 from threading import Event, Thread
 from collections.abc import Callable
@@ -25,19 +26,24 @@ logger.setLevel(logging.DEBUG)
 logging.captureWarnings(True)
 
 loaded_submodules: list[str] = []
+_submodules_lock = threading.Lock()
 
 
 class RegisterClasses(type):
+    _registry_lock = threading.Lock()
+
     def __init__(cls, name: str, bases: tuple[type, ...], nmspc: dict[str, Any]) -> None:
         super().__init__(name, bases, nmspc)
-        if not hasattr(cls, 'registry'):
-            cls.registry: set[type] = set()
+        with RegisterClasses._registry_lock:
+            if not hasattr(cls, 'registry'):
+                cls.registry: set[type] = set()
 
-        cls.registry.add(cls)
-        cls.registry -= set(bases)
+            cls.registry.add(cls)
+            cls.registry -= set(bases)
 
     def __iter__(cls) -> Any:
-        return iter(cls.registry)
+        with RegisterClasses._registry_lock:
+            return iter(list(cls.registry))
 
 
 class ServiceLoader(metaclass=RegisterClasses):
@@ -145,8 +151,10 @@ def load_submodules(base_pkg: Any = None) -> None:
 
     prefix = base_pkg.__name__ + "."
     for importer, modname, ispkg in pkgutil.iter_modules(base_pkg.__path__, prefix):
-        if modname in loaded_submodules:
-            continue
+        with _submodules_lock:
+            if modname in loaded_submodules:
+                continue
+            loaded_submodules.append(modname)
 
         logger.info("Import module %s", modname)
         try:
@@ -154,8 +162,6 @@ def load_submodules(base_pkg: Any = None) -> None:
         except Exception as e:
             logger.warning(f"Error loading module: {str(e)}")
             logger.warning(traceback.format_exc())
-
-        loaded_submodules.append(modname)
 
 
 def load_config_from_files(filename_patterns: list[str]) -> list[dict[str, Any]]:

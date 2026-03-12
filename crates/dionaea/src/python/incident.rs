@@ -14,8 +14,8 @@ use pyo3::types::PyList;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use std::cell::Cell;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::{Condvar, Mutex};
 
 /// Incident exposed to Python protocol handlers and ihandlers.
 ///
@@ -60,36 +60,56 @@ impl PyIncident {
 ///
 /// Python handlers (logsql, etc.) share mutable state that isn't thread-safe.
 /// sqlite3 releases the GIL during cursor operations, which allows concurrent
-/// dispatch from different spawn_blocking threads. This flag ensures only one
+/// dispatch from different spawn_blocking threads. This lock ensures only one
 /// thread dispatches at a time, matching the C single-threaded event loop model.
 ///
-/// The GIL is released while waiting (via `detach`) to prevent deadlock
-/// with threads that hold this flag and are waiting to reacquire the GIL.
-static DISPATCH_ACTIVE: AtomicBool = AtomicBool::new(false);
+/// Uses a Mutex+Condvar pair instead of an AtomicBool spinlock. This is critical
+/// for free-threaded Python (3.13t+) where threads run truly in parallel — a
+/// spinlock would burn CPU cycles, while a condvar blocks efficiently.
+///
+/// Under normal (GIL) Python, the GIL is released via `py.detach()` while
+/// blocking on the condvar. Under free-threaded Python, `py.detach()` detaches
+/// the thread state, and the condvar blocks the OS thread directly.
+static DISPATCH_LOCK: Mutex<bool> = Mutex::new(false);
+static DISPATCH_CONDVAR: Condvar = Condvar::new();
 
 // Per-thread flag to detect reentrant dispatch (handler reports another incident).
 thread_local! {
     static DISPATCH_REENTRANT: Cell<bool> = const { Cell::new(false) };
 }
 
-/// Acquire the dispatch lock, releasing the GIL while waiting.
-fn acquire_dispatch(py: Python<'_>) {
-    loop {
-        if DISPATCH_ACTIVE
-            .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
-            .is_ok()
-        {
-            return;
-        }
-        // Release GIL so the dispatching thread can finish its Python work,
-        // then try again.
-        py.detach(|| std::thread::yield_now());
+/// Acquire the dispatch lock, releasing the GIL (if present) while waiting.
+///
+/// Returns `true` if the lock was acquired, or `false` for reentrant
+/// dispatch (same thread already holds the lock).
+fn acquire_dispatch(py: Python<'_>) -> bool {
+    if DISPATCH_REENTRANT.with(|f| f.get()) {
+        return false;
     }
+    // Release GIL (or detach thread state under free-threading) while blocking
+    // on the condvar. This prevents deadlock: the thread holding the dispatch
+    // lock may need the GIL to complete its Python handler callbacks.
+    py.detach(|| {
+        let mut active = DISPATCH_LOCK.lock().expect("dispatch lock poisoned");
+        while *active {
+            active = DISPATCH_CONDVAR
+                .wait(active)
+                .expect("dispatch condvar poisoned");
+        }
+        *active = true;
+    });
+    DISPATCH_REENTRANT.with(|f| f.set(true));
+    true
 }
 
 /// Release the dispatch lock.
-fn release_dispatch() {
-    DISPATCH_ACTIVE.store(false, Ordering::Release);
+fn release_dispatch(acquired: bool) {
+    if acquired {
+        DISPATCH_REENTRANT.with(|f| f.set(false));
+        let mut active = DISPATCH_LOCK.lock().expect("dispatch lock poisoned");
+        *active = false;
+        DISPATCH_CONDVAR.notify_one();
+    }
 }
 
 #[gen_stub_pymethods]
@@ -157,14 +177,13 @@ impl PyIncident {
         // because Python C extensions (sqlite3, etc.) can release it during I/O,
         // allowing another thread to enter dispatch concurrently.
         //
+        // Under free-threaded Python (no GIL), this serialization is even more
+        // critical since threads run truly in parallel.
+        //
         // Reentrant dispatch (handler reports another incident on the same thread)
-        // is allowed via a thread-local flag — the outer call already holds
-        // the dispatch lock.
-        let reentrant = DISPATCH_REENTRANT.with(|f| f.get());
-        if !reentrant {
-            acquire_dispatch(py);
-            DISPATCH_REENTRANT.with(|f| f.set(true));
-        }
+        // is allowed — acquire_dispatch returns None when the current thread
+        // already holds the lock.
+        let guard = acquire_dispatch(py);
 
         tracing::debug!(
             origin = %self.origin,
@@ -188,10 +207,7 @@ impl PyIncident {
             }
         }
 
-        if !reentrant {
-            DISPATCH_REENTRANT.with(|f| f.set(false));
-            release_dispatch();
-        }
+        release_dispatch(guard);
 
         Ok(())
     }
@@ -256,6 +272,7 @@ impl PyIncident {
 mod tests {
     use super::*;
     use pyo3::types::{PyBytes, PyDict};
+    use std::sync::Arc;
 
     #[test]
     fn test_incident_create_and_origin() {
@@ -421,5 +438,80 @@ mod tests {
             Some(&OpaqueData::String("http://evil.com/mal.exe".into()))
         );
         assert_eq!(back.get("size"), Some(&OpaqueData::Int(1024)));
+    }
+
+    /// Verify that the dispatch lock serializes concurrent access from multiple threads.
+    ///
+    /// This test is critical for free-threaded Python (3.13t+) where threads run
+    /// truly in parallel without the GIL. It spawns multiple OS threads that each
+    /// acquire/release the dispatch lock and verifies no concurrent execution occurs.
+    #[test]
+    fn test_dispatch_lock_serializes_threads() {
+        use std::sync::atomic::{AtomicU32, Ordering};
+
+        // Counter that tracks how many threads are inside the "critical section"
+        let concurrent_count = Arc::new(AtomicU32::new(0));
+        let max_concurrent = Arc::new(AtomicU32::new(0));
+        let barrier = Arc::new(std::sync::Barrier::new(4));
+
+        let handles: Vec<_> = (0..4)
+            .map(|_| {
+                let concurrent = concurrent_count.clone();
+                let max = max_concurrent.clone();
+                let bar = barrier.clone();
+                std::thread::spawn(move || {
+                    bar.wait(); // Synchronize thread start
+                    for _ in 0..10 {
+                        Python::attach(|py| {
+                            let guard = acquire_dispatch(py);
+
+                            // We're inside the critical section
+                            let count = concurrent.fetch_add(1, Ordering::SeqCst) + 1;
+                            // Track maximum concurrent entries
+                            max.fetch_max(count, Ordering::SeqCst);
+
+                            // Simulate some work
+                            std::thread::yield_now();
+
+                            concurrent.fetch_sub(1, Ordering::SeqCst);
+                            release_dispatch(guard);
+                        });
+                    }
+                })
+            })
+            .collect();
+
+        for h in handles {
+            h.join().expect("thread panicked");
+        }
+
+        // Under correct serialization, max concurrent should be exactly 1
+        assert_eq!(
+            max_concurrent.load(Ordering::SeqCst),
+            1,
+            "dispatch lock must serialize access: max concurrent was > 1"
+        );
+    }
+
+    /// Verify that reentrant dispatch (same thread) doesn't deadlock.
+    #[test]
+    fn test_dispatch_lock_allows_reentrancy() {
+        Python::attach(|py| {
+            // Outer acquire
+            let outer = acquire_dispatch(py);
+            assert!(outer, "first acquire should return true");
+
+            // Inner acquire (reentrant) — should return false, not deadlock
+            let inner = acquire_dispatch(py);
+            assert!(!inner, "reentrant acquire should return false");
+
+            release_dispatch(inner);
+            release_dispatch(outer);
+
+            // After release, should be able to acquire again
+            let again = acquire_dispatch(py);
+            assert!(again, "acquire after release should succeed");
+            release_dispatch(again);
+        });
     }
 }

@@ -1,5 +1,6 @@
 # ABOUTME: CI workflow for the Rust + Python dionaea honeypot.
 # ABOUTME: Runs formatting, linting, tests, build, Python lint, and Sphinx docs.
+# ABOUTME: Tests against multiple Python versions including free-threaded builds.
 ---
 # SPDX-FileCopyrightText: none
 # SPDX-License-Identifier: CC0-1.0
@@ -43,26 +44,56 @@ jobs:
         run: cargo clippy --all-features -- -D warnings
 
   test:
-    name: Tests
+    name: Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12', '3.13', '3.14']
+        free-threaded: [false]
+        include:
+          - python-version: '3.13t'
+            free-threaded: true
+          - python-version: '3.14t'
+            free-threaded: true
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
 
       - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libssl-dev \
-            pkg-config \
-            python3-dev
+            pkg-config
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
+        with:
+          # Separate cache per Python version since PyO3 links against specific libpython
+          key: py-${{ matrix.python-version }}
+
+      - name: Configure PyO3 Python
+        run: |
+          PYTHON_PATH=$(python -c "import sys; print(sys.executable)")
+          echo "PYO3_PYTHON=$PYTHON_PATH" >> "$GITHUB_ENV"
+          python -c "import sys; print(f'Python {sys.version}')"
+          python -c "
+          import sys
+          if hasattr(sys, '_is_gil_enabled'):
+              print(f'GIL enabled: {sys._is_gil_enabled()}')
+          else:
+              print('GIL enabled: true (pre-3.13)')
+          "
 
       - name: Run tests
         run: cargo test --features download,upload,tls
@@ -93,27 +124,47 @@ jobs:
         run: cargo build --release
 
   integration:
-    name: Integration tests
+    name: Integration (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12', '3.13']
+        free-threaded: [false]
+        include:
+          - python-version: '3.13t'
+            free-threaded: true
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
 
       - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libssl-dev \
-            pkg-config \
-            python3-dev
+            pkg-config
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
+        with:
+          key: py-${{ matrix.python-version }}
+
+      - name: Configure PyO3 Python
+        run: |
+          PYTHON_PATH=$(python -c "import sys; print(sys.executable)")
+          echo "PYO3_PYTHON=$PYTHON_PATH" >> "$GITHUB_ENV"
+          python -c "import sys; print(f'Python {sys.version}')"
 
       - name: Build and install
         run: |
