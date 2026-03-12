@@ -405,6 +405,19 @@ class logsqlhandler(ihandler):
             ON rdp_fingerprints (rdp_fingerprint_{})""".format(idx, idx)
             )
 
+        self.cursor.execute("""CREATE TABLE IF NOT EXISTS
+            doublepulsar_events (
+                doublepulsar_event INTEGER PRIMARY KEY,
+                connection INTEGER,
+                doublepulsar_event_type TEXT,
+                doublepulsar_event_raw_sha256 TEXT,
+                doublepulsar_event_decoded_sha256 TEXT,
+                doublepulsar_event_payload_size INTEGER,
+                doublepulsar_event_raw_path TEXT,
+                doublepulsar_event_decoded_path TEXT
+                -- CONSTRAINT doublepulsar_events_connection_fkey FOREIGN KEY (connection) REFERENCES connections (connection)
+            )""")
+
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS virustotals (
                 virustotal INTEGER PRIMARY KEY,
                 virustotal_sha256_hash TEXT NOT NULL,
@@ -680,6 +693,7 @@ class logsqlhandler(ihandler):
             "nbns_queries",
             "snmp_requests",
             "rdp_fingerprints",
+            "doublepulsar_events",
         ]:
             self.cursor.execute(
                 f"""CREATE INDEX IF NOT EXISTS {idx}_connection_idx    ON {idx} (connection)"""
@@ -1072,8 +1086,62 @@ class logsqlhandler(ihandler):
                 (attackid, icd.get("username"), icd.get("password")),
             )
             self.cursor.execute(
-                "INSERT INTO rdp_fingerprints (connection, rdp_fingerprint_hostname, rdp_fingerprint_domain) VALUES (?,?,?)",
-                (attackid, icd.get("hostname") or "", icd.get("domain") or ""),
+                """INSERT INTO rdp_fingerprints (
+                    connection, rdp_fingerprint_hostname, rdp_fingerprint_domain,
+                    rdp_fingerprint_client_build, rdp_fingerprint_desktop_width,
+                    rdp_fingerprint_desktop_height, rdp_fingerprint_keyboard_layout,
+                    rdp_fingerprint_cookie
+                ) VALUES (?,?,?,?,?,?,?,?)""",
+                (
+                    attackid,
+                    icd.get("hostname") or "",
+                    icd.get("domain") or "",
+                    icd.get("client_build"),
+                    icd.get("desktop_width"),
+                    icd.get("desktop_height"),
+                    icd.get("keyboard_layout"),
+                    icd.get("cookie") or "",
+                ),
+            )
+            self.dbh.commit()
+
+    def handle_incident_dionaea_connection_rdp_doublepulsar_ping(self, icd):
+        con = icd.con
+        if con in self.attacks:
+            attackid = self.attacks[con][1]
+            self.cursor.execute(
+                "INSERT INTO doublepulsar_events (connection, doublepulsar_event_type) VALUES (?,?)",
+                (attackid, "ping"),
+            )
+            self.dbh.commit()
+
+    def handle_incident_dionaea_connection_rdp_doublepulsar_exec(self, icd):
+        con = icd.con
+        if con in self.attacks:
+            attackid = self.attacks[con][1]
+            self.cursor.execute(
+                """INSERT INTO doublepulsar_events (
+                    connection, doublepulsar_event_type,
+                    doublepulsar_event_raw_sha256, doublepulsar_event_decoded_sha256,
+                    doublepulsar_event_payload_size,
+                    doublepulsar_event_raw_path, doublepulsar_event_decoded_path
+                ) VALUES (?,?,?,?,?,?,?)""",
+                (
+                    attackid, "exec",
+                    icd.get("raw_sha256"), icd.get("decoded_sha256"),
+                    icd.get("size"),
+                    icd.get("raw_path"), icd.get("decoded_path"),
+                ),
+            )
+            self.dbh.commit()
+
+    def handle_incident_dionaea_connection_rdp_doublepulsar_burn(self, icd):
+        con = icd.con
+        if con in self.attacks:
+            attackid = self.attacks[con][1]
+            self.cursor.execute(
+                "INSERT INTO doublepulsar_events (connection, doublepulsar_event_type) VALUES (?,?)",
+                (attackid, "burn"),
             )
             self.dbh.commit()
 

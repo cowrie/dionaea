@@ -262,6 +262,35 @@ class LogJsonHandler(ihandler):
     def handle_incident_dionaea_connection_rdp_login(self, icd):
         self._append_credentials(icd)
 
+    def handle_incident_dionaea_connection_rdp_doublepulsar_ping(self, icd):
+        con = icd.con
+        data = self.attacks.get(con)
+        if data:
+            if "doublepulsar" not in data:
+                data["doublepulsar"] = []
+            data["doublepulsar"].append({"type": "ping"})
+
+    def handle_incident_dionaea_connection_rdp_doublepulsar_exec(self, icd):
+        con = icd.con
+        data = self.attacks.get(con)
+        if data:
+            if "doublepulsar" not in data:
+                data["doublepulsar"] = []
+            data["doublepulsar"].append({
+                "type": "exec",
+                "raw_sha256": self._prepare_value(icd.raw_sha256),
+                "decoded_sha256": self._prepare_value(icd.decoded_sha256),
+                "size": icd.size,
+            })
+
+    def handle_incident_dionaea_connection_rdp_doublepulsar_burn(self, icd):
+        con = icd.con
+        data = self.attacks.get(con)
+        if data:
+            if "doublepulsar" not in data:
+                data["doublepulsar"] = []
+            data["doublepulsar"].append({"type": "burn"})
+
     def handle_incident_dionaea_modules_python_snmp_request(self, icd):
         con = icd.con
         data = self.attacks.get(con)
