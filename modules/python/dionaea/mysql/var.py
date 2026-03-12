@@ -4,6 +4,8 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+from __future__ import annotations
+
 CFG_VARS = [
     {
         "name": "authentication_windows_log_level",

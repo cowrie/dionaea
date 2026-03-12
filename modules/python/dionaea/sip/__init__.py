@@ -10,10 +10,12 @@
 #  Sipvicious (c) Sandro Gaucci: http://code.google.com/p/sipvicious
 ################################################################################
 
+from __future__ import annotations
+
 import logging
 import random
-import os
 import datetime
+from pathlib import Path
 import tempfile
 
 from dionaea.core import connection, g_dionaea, incident
@@ -166,8 +168,8 @@ class RtpUdpStream(connection):
         #i.dumpfile = self.__streamDumpFileIn
         #i.report()
 
-        logger.info("Created RTP channel on ports :{} <-> :{}".format(
-            self.local.port, self.remote.port))
+        logger.info("Created RTP channel on ports :%s <-> :%s",
+            self.local.port, self.remote.port)
 
     def close(self):
         logger.debug(f"{self!s} close")
@@ -179,9 +181,9 @@ class RtpUdpStream(connection):
 
         now = datetime.datetime.now()
         dirname = f"{now.year:04d}-{now.month:02d}-{now.day:02d}"
-        bistream_path = os.path.join(g_dionaea.config()['bistreams']['python']['dir'], dirname)
-        if not os.path.exists(bistream_path):
-            os.makedirs(bistream_path)
+        bistream_path = str(Path(g_dionaea.config()['bistreams']['python']['dir']) / dirname)
+        if not Path(bistream_path).exists():
+            Path(bistream_path).mkdir(parents=True, exist_ok=True)
 
         fp = tempfile.NamedTemporaryFile(
             delete = False,
@@ -875,6 +877,6 @@ class SipSession(connection):
     def send(self, s):
         logger.debug(f"{self!s} send")
 
-        logger.debug('Sending message "{}" to ({}:{})'.format(
-            s, self.remote.host, self.remote.port))
+        logger.debug('Sending message "%s" to (%s:%s)',
+            s, self.remote.host, self.remote.port)
         connection.send(self, s)

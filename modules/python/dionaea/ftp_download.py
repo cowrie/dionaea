@@ -6,6 +6,8 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 # ftp client
+from __future__ import annotations
+
 import re
 import random
 import urllib.parse

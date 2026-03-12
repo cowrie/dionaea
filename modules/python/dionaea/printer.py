@@ -9,11 +9,14 @@
 # Copyright (c) 2019 Michael Neu
 
 # pjl/pcl server (printer)
+from __future__ import annotations
+
 from dionaea import ServiceLoader
 from dionaea.core import connection, g_dionaea, incident
 from dionaea.exception import ServiceConfigError
 import logging
 import os
+from pathlib import Path
 import re
 import time
 
@@ -321,7 +324,7 @@ class Printerd(connection):
 
         if self.download_dir is None:
             raise ServiceConfigError("download_dir not defined")
-        if not os.path.isdir(self.download_dir):
+        if not Path(self.download_dir).is_dir():
             raise ServiceConfigError(
                 f"The PCL output directory '{self.download_dir}' is not a directory"
             )
@@ -334,7 +337,7 @@ class Printerd(connection):
 
         if self.root is None:
             raise ServiceConfigError("root not defined")
-        if not os.path.isdir(self.root):
+        if not Path(self.root).is_dir():
             raise ServiceConfigError(
                 f"The PJL filesystem '{self.root}' is not a directory"
             )
@@ -527,7 +530,7 @@ class Printerd(connection):
             if part.strip() not in ["", "/", "\\"]
             and part.replace(".", " ").strip() != ""
         ]
-        full_path = os.path.join(*path_parts)
+        full_path = str(Path(*path_parts))
 
         while "../" in full_path:
             full_path = full_path.replace("../", "")
@@ -541,19 +544,19 @@ class Printerd(connection):
         directory, a directory listing will be sent, whereas a file will only yield
         its name and size according to the PJL specification.
         """
-        actual_path = os.path.join(self.root, path)
+        actual_path = str(Path(self.root) / path)
 
-        if not os.path.exists(actual_path):
+        if not Path(actual_path).exists():
             self.reply("FILEERROR=1")
             return
 
-        if os.path.isfile(actual_path):
-            stat = os.stat(actual_path)
-            basename = os.path.basename(actual_path)
+        if Path(actual_path).is_file():
+            stat = Path(actual_path).stat()
+            basename = Path(actual_path).name
 
             self.reply(f"{basename} TYPE=FILE SIZE={stat.st_size}")
-        elif os.path.isdir(actual_path):
-            directory_entries = sorted(os.listdir(actual_path))
+        elif Path(actual_path).is_dir():
+            directory_entries = sorted([f.name for f in Path(actual_path).iterdir()])
 
             files = []
             directories = [". TYPE=DIR"]
@@ -562,12 +565,12 @@ class Printerd(connection):
                 directories.append(".. TYPE=DIR")
 
             for entry in directory_entries:
-                entry_path = os.path.join(actual_path, entry)
+                entry_path = str(Path(actual_path) / entry)
 
-                if os.path.isfile(entry_path):
-                    stat = os.stat(entry_path)
+                if Path(entry_path).is_file():
+                    stat = Path(entry_path).stat()
                     files.append(f"{entry} TYPE=FILE SIZE={stat.st_size}")
-                elif os.path.isdir(entry_path):
+                elif Path(entry_path).is_dir():
                     directories.append(f"{entry} TYPE=DIR")
 
             listing = directories + files
@@ -593,7 +596,7 @@ class Printerd(connection):
         """
         if self.pcl_file_handle is None:
             filename = f"print-{int(time.time())}.pcl"
-            path = os.path.join(self.download_dir, filename)
+            path = str(Path(self.download_dir) / filename)
             logger.info("printing to '%s'", path)
             self.pcl_file_handle = open(path, "wb")
 

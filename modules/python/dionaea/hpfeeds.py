@@ -4,6 +4,8 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+from __future__ import annotations
+
 from dionaea import IHandlerLoader, Timer
 from dionaea.core import ihandler, incident, connection
 from dionaea.util import sha512file
@@ -73,7 +75,7 @@ def strpack8(x):
     if isinstance(x, str):
         x = x.encode('latin1')
     if len(x) > 255:
-        raise BadClient('strpack8: string too long (%d bytes)' % len(x))
+        raise BadClient(f'strpack8: string too long ({len(x)} bytes)')
     return struct.pack('!B', len(x)) + x
 
 
@@ -83,7 +85,7 @@ def strunpack8(x):
         raise BadClient('strunpack8: buffer too short for length field')
     length = x[0]
     if len(x) < 1 + length:
-        raise BadClient('strunpack8: buffer too short (need %d, have %d)' % (1 + length, len(x)))
+        raise BadClient(f'strunpack8: buffer too short (need {1 + length}, have {len(x)})')
     return x[1:1+length], x[1+length:]
 
 

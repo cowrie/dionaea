@@ -10,6 +10,8 @@
 # Copyright (C) Philippe Biondi <phil@secdev.org>
 # This program is published under a GPLv2 license
 
+from __future__ import annotations
+
 import time
 import itertools
 import logging
@@ -123,7 +125,7 @@ class Packet(BasePacket, metaclass=Packet_metaclass):
                 self.dissection_done(self)
         for f in list(fields.keys()):
             self.fields[f] = self.get_field(f).any2i(self,fields[f])
-        if type(post_transform) is list:
+        if isinstance(post_transform, list):
             self.post_transforms = post_transform
         elif post_transform is None:
             self.post_transforms = []
@@ -168,7 +170,7 @@ class Packet(BasePacket, metaclass=Packet_metaclass):
                     if t in payload.overload_fields:
                         self.overloaded_fields = payload.overload_fields[t]
                         break
-            elif type(payload) is str:
+            elif isinstance(payload, str):
                 self.__dict__["payload"] = Raw(load=payload)
             else:
                 raise TypeError(
@@ -285,9 +287,7 @@ class Packet(BasePacket, metaclass=Packet_metaclass):
             else:
                 continue
 
-            s += " {}{}{}".format(f.name,
-                              "=",
-                              val)
+            s += f" {f.name}={val}"
         return f"<{self.__class__.__name__} {s} |{self.payload!r}>"
     def __truediv__(self, other):
         if isinstance(other, Packet):
@@ -295,17 +295,17 @@ class Packet(BasePacket, metaclass=Packet_metaclass):
             cloneB = other.copy()
             cloneA.add_payload(cloneB)
             return cloneA
-        elif type(other) is str:
+        elif isinstance(other, str):
             return self/Raw(load=other)
         else:
             return other.__rdiv__(self)
     def __rdiv__(self, other):
-        if type(other) is str:
+        if isinstance(other, str):
             return Raw(load=other)/self
         else:
             raise TypeError
     def __mul__(self, other):
-        if type(other) is int:
+        if isinstance(other, int):
             return  [self]*other
         else:
             raise TypeError
@@ -380,8 +380,7 @@ class Packet(BasePacket, metaclass=Packet_metaclass):
                 if isinstance(cls,type) and issubclass(cls,Packet):
                     logger.debug(f"{cls.name} dissector failed")
                 else:
-                    logger.debug("{}.guess_payload_class() returned [{}]".format(
-                        self.__class__.__name__,repr(cls)))
+                    logger.debug(f"{self.__class__.__name__}.guess_payload_class() returned [{cls!r}]")
                 if cls is not None:
                     raise
                 p = Raw(s, _internal=1, _underlayer=self)
@@ -474,7 +473,7 @@ class Packet(BasePacket, metaclass=Packet_metaclass):
         """True if other is an answer from self (self ==> other)."""
         if isinstance(other, Packet):
             return other < self
-        elif type(other) is str:
+        elif isinstance(other, str):
             return 1
         else:
             raise TypeError((self, other))
@@ -482,7 +481,7 @@ class Packet(BasePacket, metaclass=Packet_metaclass):
         """True if self is an answer from other (other ==> self)."""
         if isinstance(other, Packet):
             return self.answers(other)
-        elif type(other) is str:
+        elif isinstance(other, str):
             return 1
         else:
             raise TypeError((self, other))
@@ -527,10 +526,10 @@ class Packet(BasePacket, metaclass=Packet_metaclass):
         return self.payload.haslayer(cls)
     def getlayer(self, cls, nb=1, _track=None):
         """Return the nb^th layer that is an instance of cls."""
-        if type(cls) is int:
+        if isinstance(cls, int):
             nb = cls+1
             cls = None
-        if type(cls) is str and "." in cls:
+        if isinstance(cls, str) and "." in cls:
             ccls,fld = cls.split(".",1)
         else:
             ccls,fld = cls,None
@@ -564,7 +563,7 @@ class Packet(BasePacket, metaclass=Packet_metaclass):
         return q
 
     def __getitem__(self, cls):
-        if type(cls) is slice:
+        if isinstance(cls, slice):
             lname = cls.start
             if cls.stop:
                 ret = self.getlayer(cls.start, cls.stop)
@@ -576,9 +575,9 @@ class Packet(BasePacket, metaclass=Packet_metaclass):
             lname=cls
             ret = self.getlayer(cls)
         if ret is None:
-            if type(lname) is Packet_metaclass:
+            if isinstance(lname, Packet_metaclass):
                 lname = lname.__name__
-            elif type(lname) is not str:
+            elif not isinstance(lname, str):
                 lname = repr(lname)
             raise IndexError(f"Layer [{lname}] not found")
         return ret
@@ -619,7 +618,7 @@ class Packet(BasePacket, metaclass=Packet_metaclass):
             if isinstance(f, ConditionalField) and not f._evalcond(self):
                 continue
             fvalue = self.getfieldval(f.name)
-            if isinstance(fvalue, Packet) or (f.islist and f.holds_packets and type(fvalue) is list):
+            if isinstance(fvalue, Packet) or (f.islist and f.holds_packets and isinstance(fvalue, list)):
                 logger.debug(f"{label_lvl}{lvl}  \\{f.name:<10}\\")
                 fvalue_gen = SetGen(fvalue,_iterpacket=0)
                 for fvalue in fvalue_gen:
@@ -719,7 +718,7 @@ A side effect is that, to obtain "{" and "}" characters, you must use
                 fmt = fmt[i+1:]
             except Exception:
                 raise Exception(
-                    "Bad format string [%{}{}]".format(fmt[:25], fmt[25:] and "..."))
+                    f"Bad format string [%{fmt[:25]}{fmt[25:] and '...'}]")
             else:
                 if fld == "time":
                     val = time.strftime("%H:%M:%S.%%06i", time.localtime(self.time)) % int(
@@ -761,7 +760,7 @@ A side effect is that, to obtain "{" and "}" characters, you must use
         ret = ""
         if not found or self.__class__ in needed:
             ret = self.mysummary()
-            if type(ret) is tuple:
+            if isinstance(ret, tuple):
                 ret,n = ret
                 needed += n
         if ret or needed:
@@ -790,12 +789,12 @@ A side effect is that, to obtain "{" and "}" characters, you must use
             fld = self.get_field(fn)
             if isinstance(fv, Packet):
                 fv = fv.command()
-            elif fld.islist and fld.holds_packets and type(fv) is list:
+            elif fld.islist and fld.holds_packets and isinstance(fv, list):
                 fv = f"[{','.join(map(Packet.command, fv))}]"
             else:
                 fv = repr(fv)
             f.append(f"{fn}={fv}")
-        c = "{}({})".format(self.__class__.__name__, ", ".join(f))
+        c = f"{self.__class__.__name__}({', '.join(f)})"
         pc = self.payload.command()
         if pc:
             c += "/"+pc

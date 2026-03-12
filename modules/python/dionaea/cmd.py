@@ -7,6 +7,8 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+from __future__ import annotations
+
 from dionaea.core import incident
 from dionaea.core import connection
 import logging

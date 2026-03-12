@@ -4,6 +4,8 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+from __future__ import annotations
+
 from typing import Any, TextIO
 from datetime import datetime, timezone
 import hashlib

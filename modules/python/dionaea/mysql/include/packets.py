@@ -4,6 +4,8 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+from __future__ import annotations
+
 from dionaea.smb.include.packet import Packet, bind_bottom_up
 from dionaea.smb.include.fieldtypes import ByteField, StrNullField, IntField
 from dionaea.smb.include.fieldtypes import StrFixedLenField, FlagsField

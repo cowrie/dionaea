@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from pathlib import Path
 import sys
 import io
 import html
@@ -18,7 +19,7 @@ import urllib.parse
 import re
 import tempfile
 from datetime import datetime
-from email import message_from_binary_file
+from email.parser import BytesParser
 from email.policy import HTTP
 
 from dionaea import ServiceLoader
@@ -85,7 +86,7 @@ class MultipartParser:
             combined.seek(0)
 
             # Parse using email module
-            msg = message_from_binary_file(combined, policy=HTTP)
+            msg = BytesParser(policy=HTTP).parse(combined)
 
             field_count = 0
             for part in msg.walk():
@@ -151,11 +152,11 @@ class FileListItem:
 
     @property
     def fullname(self):
-        return os.path.join(self.path, self.name)
+        return str(Path(self.path) / self.name)
 
     @property
     def is_dir(self) -> bool:
-        return os.path.isdir(self.fullname)
+        return Path(self.fullname).is_dir()
 
     @property
     def mtime(self):
@@ -163,7 +164,7 @@ class FileListItem:
 
     @property
     def is_link(self) -> bool:
-        return os.path.islink(self.fullname)
+        return Path(self.fullname).is_symlink()
 
     @property
     def size(self):
@@ -172,7 +173,7 @@ class FileListItem:
     @property
     def stat(self):
         if self._stat is None:
-            self._stat = os.stat(self.fullname)
+            self._stat = Path(self.fullname).stat()
         return self._stat
 
 
@@ -392,7 +393,7 @@ class httpd(connection):
         if tpl_path is None:
             logger.warning("Template path not set")
             return False
-        if not os.path.isdir(tpl_path):
+        if not Path(tpl_path).is_dir():
             logger.warning("Configured template path '%s' is not a directory", tpl_path)
             return False
 
@@ -443,7 +444,7 @@ class httpd(connection):
 
         logger.debug("%s %s", filename, self.root)
 
-        filename = filename[len(os.path.abspath(self.root)):] + self.template_file_extension
+        filename = filename[len(str(Path(self.root).resolve())):] + self.template_file_extension
         filename = filename.lstrip("/")
         try:
             template = self.file_template.get_template(filename)
@@ -583,7 +584,7 @@ class httpd(connection):
         if self.root is None:
             logger.warning("Root directory not configured")
         else:
-            if not os.path.isdir(self.root):
+            if not Path(self.root).is_dir():
                 logger.warning("Root path '%s' is not a directory", self.root)
             elif not os.access(self.root, os.R_OK):
                 logger.warning("Unable to read content of root directory '%s'", self.root)
@@ -907,10 +908,10 @@ class httpd(connection):
         self.handle_io_out()
 
     def send_head(self):
-        rpath = os.path.normpath(self.header.path)
-        fpath = os.path.join(self.root, rpath[1:])
-        apath = os.path.abspath(fpath)
-        aroot = os.path.abspath(self.root)
+        rpath = str(Path(self.header.path))
+        fpath = str(Path(self.root) / rpath[1:])
+        apath = str(Path(fpath).resolve())
+        aroot = str(Path(self.root).resolve())
         logger.debug(
             "root {} aroot {} rpath {} fpath {} apath {}".format(
                 self.root,
@@ -924,10 +925,10 @@ class httpd(connection):
         if not apath.startswith(aroot):
             return self.send_error(404, "File not found")
 
-        if os.path.isdir(apath):
+        if Path(apath).is_dir():
             if self.header.path.endswith('/'):
-                testpath = os.path.join(apath, "index.html")
-                if os.path.isfile(testpath) or os.path.isfile(testpath + self.template_file_extension):
+                testpath = str(Path(apath) / "index.html")
+                if Path(testpath).is_file() or Path(testpath + self.template_file_extension).is_file():
                     apath = testpath
             else:
                 self.send_response(301)
@@ -943,10 +944,10 @@ class httpd(connection):
                 self.close()
                 return None
 
-        if os.path.isdir(apath):
+        if Path(apath).is_dir():
             return self.list_directory(apath)
 
-        elif os.path.isfile(apath) or os.path.isfile(apath + self.template_file_extension):
+        elif Path(apath).is_file() or Path(apath + self.template_file_extension).is_file():
             if apath.endswith(self.template_file_extension):
                 # Don't return raw template files
                 return self.send_error(404)
@@ -966,7 +967,7 @@ class httpd(connection):
                 content_length = len(content)
             else:
                 f = open(apath, "rb")
-                content_length = os.stat(apath).st_size
+                content_length = Path(apath).stat().st_size
 
             content_type = self.default_content_type
             if self.detect_content_type:
@@ -1013,7 +1014,7 @@ class httpd(connection):
 
         """
         try:
-            filenames = os.listdir(path)
+            filenames = [f.name for f in Path(path).iterdir()]
         except OSError:
             self.send_error(404, "No permission to list directory")
             return None
@@ -1053,10 +1054,7 @@ class httpd(connection):
                     displayname = file.name + "@"
                     # Note: a link to a directory displays with @ and links with /
                 r.append(
-                    '<li><a href="{}">{}</a>\n'.format(
-                        urllib.parse.quote(linkname),
-                        html.escape(displayname)
-                    )
+                    f'<li><a href="{urllib.parse.quote(linkname)}">{html.escape(displayname)}</a>\n'
                 )
 
             r.append("</ul>\n<hr>\n</body>\n</html>\n")

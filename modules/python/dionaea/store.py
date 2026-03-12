@@ -4,6 +4,8 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+from __future__ import annotations
+
 from typing import Any
 from dionaea import IHandlerLoader
 from dionaea.core import ihandler, incident, g_dionaea
@@ -11,6 +13,7 @@ from dionaea.exception import LoaderError
 from dionaea.util import md5file, sha256file
 
 import os
+from pathlib import Path
 import logging
 logger = logging.getLogger('store')
 logger.setLevel(logging.DEBUG)
@@ -38,7 +41,7 @@ class storehandler(ihandler):
         if self.download_dir is None:
             raise LoaderError("Setting download.dir not configured")
         else:
-            if not os.path.isdir(self.download_dir):
+            if not Path(self.download_dir).is_dir():
                 raise LoaderError("'%s' is not a directory", self.download_dir)
             if not os.access(self.download_dir, os.W_OK):
                 raise LoaderError("Not allowed to create files in the '%s' directory", self.download_dir)
@@ -50,7 +53,7 @@ class storehandler(ihandler):
         md5 = md5file(p)
         sha256 = sha256file(p)
         assert self.download_dir is not None  # For mypy
-        n = os.path.join(self.download_dir, sha256)
+        n = str(Path(self.download_dir) / sha256)
         i = incident("dionaea.download.complete.hash")
         i.file = n
         i.url = icd.url
@@ -61,12 +64,12 @@ class storehandler(ihandler):
         i.report()
 
         try:
-            os.stat(n)
+            Path(n).stat()
             i = incident("dionaea.download.complete.again")
             logger.debug(f"file {sha256} already existed")
         except OSError:
             logger.debug(f"saving new file {sha256} to {n}")
-            os.link(p, n)
+            Path(n).hardlink_to(p)
             i = incident("dionaea.download.complete.unique")
         i.file = n
         if hasattr(icd, 'con'):

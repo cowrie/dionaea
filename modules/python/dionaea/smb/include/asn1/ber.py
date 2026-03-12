@@ -9,6 +9,8 @@
 # Copyright (C) Philippe Biondi <phil@secdev.org>
 # This program is published under a GPLv2 license
 
+from __future__ import annotations
+
 import logging
 
 # from scapy.error import warning
@@ -137,7 +139,7 @@ def BER_identifier_dec(data):
         tag = val & 0x1F
     except Exception as e:
         raise BER_Exception(
-            "BER_Exception: {}, val is {}".format(format(e), format(val))
+            f"BER_Exception: {e}, val is {val}"
         )
 
     if tag == 0x1F:
@@ -294,7 +296,7 @@ class BERcodec_Object(metaclass=BERcodec_metaclass):
             if len(t) > 18:
                 t = t[:15] + b"..."
             raise BER_Decoding_Error(
-                "Unknown prefix [{:02x}] for [{!r}]".format(p, t), remaining=s
+                f"Unknown prefix [{p:02x}] for [{t!r}]", remaining=s
             )
         codec = context[p].get_codec(ASN1_Codecs.BER)
         return codec.dec(s, context, safe)
@@ -319,7 +321,7 @@ class BERcodec_Object(metaclass=BERcodec_metaclass):
 
     @classmethod
     def enc(cls, s):
-        if type(s) is str:
+        if isinstance(s, str):
             return BERcodec_STRING.enc(s)
         else:
             return BERcodec_INTEGER.enc(int(s))
@@ -480,7 +482,7 @@ class BERcodec_SEQUENCE(BERcodec_Object):
 
     @classmethod
     def enc(cls, items):
-        if type(items) is not bytes:
+        if not isinstance(items, bytes):
             items = b"".join([x.enc(cls.codec) for x in items])
         return struct.pack("B", int(cls.tag)) + BER_len_enc(len(items)) + items
 

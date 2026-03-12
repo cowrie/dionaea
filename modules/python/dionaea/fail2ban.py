@@ -4,6 +4,8 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+from __future__ import annotations
+
 from typing import Any, TextIO
 from dionaea import IHandlerLoader
 from dionaea.core import ihandler, incident
@@ -46,14 +48,12 @@ class fail2banhandler(ihandler):
             raise LoaderError("Unable to open file %s Error message '%s'", downloads, e.strerror)
 
     def handle_incident_dionaea_download_offer(self, icd: incident) -> None:
-        data = "{} {} {} {}\n".format(datetime.datetime.now().isoformat(
-        ), icd.con.local.host, icd.con.remote.host, icd.url)  # type: ignore[union-attr,str-bytes-safe]
+        data = f"{datetime.datetime.now().isoformat()} {icd.con.local.host} {icd.con.remote.host} {icd.url}\n"  # type: ignore[union-attr,str-bytes-safe]
         self.offers.write(data)
         self.offers.flush()
 
     def handle_incident_dionaea_download_complete_hash(self, icd: incident) -> None:
-        data = "{} {} {} {} {}\n".format(datetime.datetime.now().isoformat(
-        ), icd.con.local.host, icd.con.remote.host, icd.url, icd.md5hash)  # type: ignore[union-attr,str-bytes-safe]
+        data = f"{datetime.datetime.now().isoformat()} {icd.con.local.host} {icd.con.remote.host} {icd.url} {icd.md5hash}\n"  # type: ignore[union-attr,str-bytes-safe]
         self.downloads.write(data)
         self.downloads.flush()
 

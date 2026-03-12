@@ -11,6 +11,8 @@ RFC2617
 
 """
 
+from __future__ import annotations
+
 import hashlib
 import re
 

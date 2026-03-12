@@ -1,6 +1,8 @@
 # ABOUTME: Unit tests for RDP wire format parsers and builders.
 # ABOUTME: Verifies TPKT, X.224, and MCS packet handling against known byte sequences.
 
+from __future__ import annotations
+
 import struct
 import pytest
 

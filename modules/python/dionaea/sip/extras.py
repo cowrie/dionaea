@@ -7,9 +7,11 @@
 """
 Some helper functions.
 """
+from __future__ import annotations
+
 import datetime
 import logging
-import os
+from pathlib import Path
 import pprint
 import re
 import sqlite3
@@ -81,11 +83,11 @@ class SipConfig:
         if config is None:
             config = {}
 
-        self.root_path = os.getcwd()
+        self.root_path = Path.cwd()
 
-        self.users = os.path.join(self.root_path, config.get("users", "var/lib/dionaea/sip/accounts.sqlite"))
+        self.users = str(Path(self.root_path) / config.get("users", "var/lib/dionaea/sip/accounts.sqlite"))
 
-        os.makedirs(os.path.dirname(self.users), exist_ok=True)
+        Path(self.users).parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(self.users, check_same_thread=False)
         self._cur = self._conn.cursor()
 
@@ -118,7 +120,7 @@ class SipConfig:
 
             for n in ["domain", "name", "personality", "serve", "default_sdp", "handle"]:
                 v = personality.get(n, self.personalities["default"][n])
-                if type(v) is not type(self.personalities["default"][n]):
+                if not isinstance(v, type(self.personalities["default"][n])):
                     v = self.personalities["default"][n]
                 # convert values
                 if n == "handle":
@@ -331,15 +333,15 @@ class PCAP:
         filename = filename.format(**params)
         # ToDo: error check
         try:
-            if not os.path.exists(path):
-                os.makedirs(path)
+            if not Path(path).exists():
+                Path(path).mkdir(parents=True, exist_ok=True)
         except Exception:
             logger.info("Can't create RTP-Dump dir: %s", path)
 
         try:
-            self._fp = open(os.path.join(path, filename), "wb")
+            self._fp = open(Path(path) / filename, "wb")
         except Exception:
-            logger.warning("Can't create RTP-Dump file: %s", os.path.join(path, filename))
+            logger.warning("Can't create RTP-Dump file: %s", Path(path) / filename)
 
         if self._fp is None:
             return False

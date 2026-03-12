@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 # SPDX-FileCopyrightText: none
 # SPDX-License-Identifier: CC0-1.0
 #

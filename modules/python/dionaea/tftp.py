@@ -12,11 +12,14 @@
 #
 # Based on tftpy by Michael P. Soulier - https://github.com/msoulier/tftpy
 
+from __future__ import annotations
+
 import tempfile
 import struct
 import logging
 import os
 import hashlib
+from pathlib import Path
 import shutil
 from typing import Any
 from urllib import parse
@@ -702,12 +705,12 @@ class TftpServerHandler(TftpSession):
 
         if self.state.state == 'rrq':
             logger.debug("Received RRQ. Composing response.")
-            self.filename = self.root + os.sep + recvpkt.filename
+            self.filename = str(Path(self.root) / recvpkt.filename)
             logger.debug(f"The path to the desired file is {self.filename}")
-            self.filename = os.path.abspath(self.filename)
+            self.filename = str(Path(self.filename).resolve())
             logger.debug(f"The absolute path is {self.filename}")
             # Security check. Make sure it's prefixed by the tftproot.
-            if self.filename.startswith(os.path.abspath(self.root)):
+            if self.filename.startswith(str(Path(self.root).resolve())):
                 logger.debug(f"The path appears to be safe: {self.filename}")
             else:
                 self.errors += 1
@@ -717,7 +720,7 @@ class TftpServerHandler(TftpSession):
                 return len(data)
 
             # Does the file exist?
-            if os.path.exists(self.filename):
+            if Path(self.filename).exists():
                 logger.debug(f"File {self.filename} exists.")
 
                 # Check options
@@ -735,7 +738,7 @@ class TftpServerHandler(TftpSession):
 
                 if 'tsize' in recvpkt.options:
                     logger.info('RRQ includes tsize option')
-                    self.options['tsize'] = os.stat(self.filename).st_size
+                    self.options['tsize'] = Path(self.filename).stat().st_size
                     del recvpkt.options['tsize']
 
                 if 'rollover' in recvpkt.options:
@@ -796,8 +799,8 @@ class TftpServerHandler(TftpSession):
             self.original_filename = recvpkt.filename
 
             # Check disk space
-            upload_dir = self.root + os.sep + "uploads"
-            if os.path.exists(upload_dir):
+            upload_dir = str(Path(self.root) / "uploads")
+            if Path(upload_dir).exists():
                 free_space = shutil.disk_usage(upload_dir).free
                 if free_space < MIN_FREE_DISK_SPACE:
                     logger.error(f"Insufficient disk space: {free_space} bytes free")
@@ -806,9 +809,9 @@ class TftpServerHandler(TftpSession):
                     return len(data)
 
             # Create uploads directory if it doesn't exist
-            if not os.path.exists(upload_dir):
+            if not Path(upload_dir).exists():
                 try:
-                    os.makedirs(upload_dir)
+                    Path(upload_dir).mkdir(parents=True, exist_ok=True)
                 except OSError as e:
                     logger.error(f"Failed to create uploads directory: {e}")
                     self.senderror(TftpErrors.AccessViolation)
@@ -817,14 +820,14 @@ class TftpServerHandler(TftpSession):
 
             # We'll use a temporary filename until we compute the final hash
             # For now, create a temp file to write to
-            safe_filename = os.path.basename(recvpkt.filename)
-            temp_filename = os.path.join(upload_dir, ".tmp_" + safe_filename)
+            safe_filename = Path(recvpkt.filename).name
+            temp_filename = str(Path(upload_dir) / (".tmp_" + safe_filename))
             self.filename = temp_filename
             logger.debug(f"Will save uploaded file to temporary location: {self.filename}")
 
             # Security check - make sure it's in uploads directory
-            self.filename = os.path.abspath(self.filename)
-            if not self.filename.startswith(os.path.abspath(upload_dir)):
+            self.filename = str(Path(self.filename).resolve())
+            if not self.filename.startswith(str(Path(upload_dir).resolve())):
                 logger.warning(f"Insecure upload path: {self.filename}")
                 self.senderror(TftpErrors.AccessViolation)
                 self.close()
@@ -998,11 +1001,11 @@ class TftpServerHandler(TftpSession):
                 logger.info(f"Upload SHA256: {file_hash}")
 
                 # Determine final filename based on hash
-                upload_dir = os.path.dirname(self.filename)
-                hash_filename = os.path.join(upload_dir, file_hash)
+                upload_dir = str(Path(self.filename).parent)
+                hash_filename = str(Path(upload_dir) / file_hash)
 
                 # Check if file with this hash already exists
-                if os.path.exists(hash_filename):
+                if Path(hash_filename).exists():
                     logger.info(f"File with hash {file_hash} already exists, discarding duplicate")
                     # Remove temp file
                     try:
@@ -1024,10 +1027,10 @@ class TftpServerHandler(TftpSession):
                 icd = incident("dionaea.upload.complete")
                 icd.path = final_path
                 icd.con = self
-                icd.url = "tftp://{}/{}".format(self.local.host, self.original_filename or "unknown")
+                icd.url = f"tftp://{self.local.host}/{self.original_filename or 'unknown'}"
                 # Add custom fields for hash and original filename
                 icd.sha256 = file_hash
-                icd.origin_filename = self.original_filename or os.path.basename(final_path)
+                icd.origin_filename = self.original_filename or Path(final_path).name
                 icd.report()
 
                 # Set state to 'fin' instead of closing immediately
@@ -1161,7 +1164,7 @@ class TftpServer(TftpSession):
         self.root = config.get("root", self.root)
         if self.root is None:
             raise ServiceConfigError("Root path not defined")
-        if not os.path.isdir(self.root):
+        if not Path(self.root).is_dir():
             raise ServiceConfigError("Root path '%s' is not a directory", self.root)
         if not os.access(self.root, os.R_OK):
             raise ServiceConfigError("Unable to list files in the '%s' directory", self.root)

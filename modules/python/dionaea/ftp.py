@@ -61,8 +61,11 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+from __future__ import annotations
+
 import logging
 import os
+from pathlib import Path
 import stat
 import time
 
@@ -174,7 +177,7 @@ class FTPd(connection):
         self.basedir = config.get("root")
         if self.basedir is None:
             raise ServiceConfigError("basedir not defined")
-        if not os.path.isdir(self.basedir):
+        if not Path(self.basedir).is_dir():
             raise ServiceConfigError("The basedir '%s' is not a directory", self.basedir)
         if not os.access(self.basedir, os.R_OK):
             raise ServiceConfigError("Unable to read files in the '%s' directory", self.basedir)
@@ -335,14 +338,14 @@ class FTPd(connection):
 
     def real_path(self, p=None):
         if p:
-            name = os.path.join(self.cwd, p)
+            name = str(Path(self.cwd) / p)
         else:
             name = self.cwd
 
         if len(name) >= 1 and name[0] == '/':
             name = name[1:]
-        name = os.path.join(self.basedir, name)
-        name = os.path.normpath(name)
+        name = str(Path(self.basedir) / name)
+        name = str(Path(name).resolve())
         return name
 
     def ftp_RETR(self, p):
@@ -355,7 +358,7 @@ class FTPd(connection):
             self.reply("permission_denied", path=p)
             return
 
-        if os.path.exists(name) and os.path.isfile(name):
+        if Path(name).exists() and Path(name).is_file():
             if self.dtp:
                 if self.dtp.status == 'established':
                     self.reply("file_status_ok_open_data_cnx")
@@ -386,7 +389,7 @@ class FTPd(connection):
             return
 
         file = self.real_path(p)
-        if os.path.exists(file):
+        if Path(file).exists():
             self.reply("permission_denied", path=p)
             return
 
@@ -431,7 +434,7 @@ class FTPd(connection):
             self.reply("file_not_found", filename=p)
             return
 
-        if os.path.exists(name):
+        if Path(name).exists():
             if self.dtp:
                 if self.dtp.status == 'established':
                     self.reply("file_status_ok_open_data_cnx")
@@ -470,7 +473,7 @@ class FTPd(connection):
         if self.cwd == "":
             self.cwd = "/"
 
-        if os.path.exists(cwd) and os.path.isdir(cwd):
+        if Path(cwd).exists() and Path(cwd).is_dir():
             self.reply("req_file_actn_completed_ok")
             return
 
@@ -493,8 +496,8 @@ class FTPd(connection):
             self.reply("file_not_found", filename=p)
             return
 
-        if os.path.exists(file) and os.path.isfile(file):
-            self.reply("file_status", value=str(os.stat(file).st_size))
+        if Path(file).exists() and Path(file).is_file():
+            self.reply("file_status", value=str(Path(file).stat().st_size))
             return
 
         self.reply("file_not_found", filename=p)
@@ -509,10 +512,10 @@ class FTPd(connection):
             self.reply("file_not_found", filename=p)
             return
 
-        if os.path.exists(file) and os.path.isfile(file):
+        if Path(file).exists() and Path(file).is_file():
             self.reply(
                 "file_status",
-                value=time.strftime('%Y%m%d%H%M%S', time.gmtime(os.stat(file).st_mtime))
+                value=time.strftime('%Y%m%d%H%M%S', time.gmtime(Path(file).stat().st_mtime))
             )
             return
 
@@ -528,8 +531,8 @@ class FTPd(connection):
             self.reply("file_not_found", filename=p)
             return
 
-        if os.path.exists(dir) and os.path.isdir(dir):
-            os.rmdir(dir)
+        if Path(dir).exists() and Path(dir).is_dir():
+            Path(dir).rmdir()
             self.reply("req_file_actn_completed_ok")
             return
 
@@ -545,11 +548,11 @@ class FTPd(connection):
             self.reply("file_not_found", filename=p)
             return
 
-        if os.path.isdir(dir):
+        if Path(dir).is_dir():
             self.reply("permission_denied", path=p)
             return
 
-        os.mkdir(dir)
+        Path(dir).mkdir()
         self.reply("req_file_actn_completed_ok")
 
     def handle_error(self, err):
@@ -585,7 +588,7 @@ class FTPDataCon(connection):
         def ls(f, r):
             logger.debug(f"stat {f}")
             name = f[r:]
-            s=os.stat(f)
+            s=Path(f).stat()
             size = s.st_size
             directory = stat.S_ISDIR(s.st_mode)
             permissions = stat.S_IMODE(s[stat.ST_MODE])
@@ -613,9 +616,9 @@ class FTPDataCon(connection):
             )
 
         self.mode = 'list'
-        if os.path.isdir(p):
-            self.data = [ls(os.path.join(p,f), rm) for f in os.listdir(p)]
-        elif os.path.isfile(p):
+        if Path(p).is_dir():
+            self.data = [ls(str(Path(p) / f.name), rm) for f in Path(p).iterdir()]
+        elif Path(p).is_file():
             self.data = [ls(p)]
 
         logger.debug(f"p {p} len {len(self.data)}")

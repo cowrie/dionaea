@@ -1,6 +1,8 @@
 # ABOUTME: RDP protocol wire format parsers and builders.
 # ABOUTME: Handles TPKT, X.224, MCS/GCC, and security PDU construction/parsing.
 
+from __future__ import annotations
+
 import struct
 from typing import NamedTuple
 

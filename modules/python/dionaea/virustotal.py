@@ -4,12 +4,14 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+from __future__ import annotations
+
 from dionaea import IHandlerLoader, Timer
 from dionaea.core import ihandler, incident
 
 import logging
 import json
-import os
+from pathlib import Path
 import sqlite3
 
 logger = logging.getLogger("virustotal")
@@ -99,7 +101,7 @@ class virustotalhandler(ihandler):
         from urllib.error import URLError, HTTPError
 
         boundary = "----DionaeaUploadBoundary"
-        filename = os.path.basename(file_path)
+        filename = Path(file_path).name
 
         with open(file_path, "rb") as f:
             file_data = f.read()

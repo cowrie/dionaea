@@ -14,6 +14,8 @@ RDP packet structures based on:
 - Rapid7 DOUBLEPULSAR RDP analysis
 """
 
+from __future__ import annotations
+
 import struct
 from dataclasses import dataclass
 from enum import IntEnum

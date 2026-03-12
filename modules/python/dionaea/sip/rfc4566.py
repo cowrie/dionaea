@@ -10,6 +10,8 @@ This package implements RFC 4566
 :See: http://tools.ietf.org/html/rfc4566
 """
 
+from __future__ import annotations
+
 import logging
 import re
 

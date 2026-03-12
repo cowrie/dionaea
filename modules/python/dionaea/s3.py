@@ -4,6 +4,8 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+from __future__ import annotations
+
 from typing import Any
 from dionaea.core import ihandler, incident
 from dionaea import IHandlerLoader
