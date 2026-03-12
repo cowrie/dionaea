@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 // ABOUTME: Global runtime state shared between main.rs and Python-initiated listeners.
 // ABOUTME: Holds the connection registry, limits, and tracks listener abort handles.
 

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 // ABOUTME: Integration test for the real FTP protocol.
 // ABOUTME: Verifies banner, USER/PASS login, PWD, and CWD commands.
 

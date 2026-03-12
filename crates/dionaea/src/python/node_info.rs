@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 // ABOUTME: Python-visible network address info for connections.
 // ABOUTME: Exposes host, port, and hostname properties matching binding.pyx node_info.
 

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 // ABOUTME: Integration test loading the real http.py Python protocol module.
 // ABOUTME: Verifies HTTP GET against a temp directory with a static HTML file.
 

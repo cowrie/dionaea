@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 // ABOUTME: HTTP download module for capturing malware binaries.
 // ABOUTME: Listens for dionaea.download.offer incidents and fetches URLs via reqwest.
 

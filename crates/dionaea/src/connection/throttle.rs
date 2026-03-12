@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 // ABOUTME: Token bucket bandwidth limiter and cumulative byte accounting.
 // ABOUTME: Pure logic — no I/O, no async. Used by TCP/UDP handler tasks.
 

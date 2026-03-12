@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 // ABOUTME: Integration test for the download module end-to-end flow.
 // ABOUTME: Verifies: URL validation, HTTP download, SHA256 file naming.
 

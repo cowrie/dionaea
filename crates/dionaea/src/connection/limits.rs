@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 // ABOUTME: Per-IP connection counting, global FD/total checks, and IP deny list.
 // ABOUTME: Pure logic — injectable FD count for testability. Deny list behind feature flag.
 

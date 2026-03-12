@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only
 // ABOUTME: Bidirectional stream buffer for recording connection I/O.
 // ABOUTME: Thread-safe storage of ordered data chunks with direction metadata.
 
