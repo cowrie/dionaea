@@ -310,28 +310,21 @@ async fn graceful_shutdown(
 
     let shutdown_work = async {
         state.stop_all_listeners();
+        tracing::debug!("listeners stopped");
 
-        // Signal pcap threads to stop (don't join — they may block on macOS).
+        // Signal pcap threads to stop. Don't join — pcap_next_packet blocks
+        // indefinitely on macOS despite the configured timeout. The threads
+        // will exit on their own or be cleaned up at process exit.
         #[cfg(feature = "pcap")]
         {
-            if pcap_threads.is_some() {
-                pcap_shutdown.store(true, std::sync::atomic::Ordering::Relaxed);
-            }
-            // Join in a blocking task so it doesn't block the tokio worker.
-            if let Some(threads) = pcap_threads {
-                let _ = tokio::task::spawn_blocking(move || {
-                    for handle in threads {
-                        let _ = handle.join();
-                    }
-                })
-                .await;
-                tracing::info!("pcap capture stopped");
-            }
+            pcap_shutdown.store(true, std::sync::atomic::Ordering::Relaxed);
+            drop(pcap_threads);
+            tracing::debug!("pcap signaled");
         }
 
         tracing::info!(
             active_connections = registry.len(),
-            "listeners stopped, draining connections"
+            "draining connections"
         );
 
         // Call Python module stop() functions
@@ -352,6 +345,7 @@ async fn graceful_shutdown(
                 });
             })
             .await;
+            tracing::debug!("python modules stopped");
         }
 
         // Clear ihandler registry
