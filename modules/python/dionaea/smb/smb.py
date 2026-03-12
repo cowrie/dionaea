@@ -1202,7 +1202,7 @@ class smbd(connection):
             # Skip generic logging for SMB_TRANS2_SESSION_SETUP (DoublePulsar)
             # since that path has its own specific logging
             if setup_code != SMB_TRANS2_SESSION_SETUP:
-                smblog.info(
+                smblog.debug(
                     "SMB Transaction2 from %s:%d - setup: 0x%04x, params: %d/%d, data: %d/%d",
                     self.remote.host,
                     self.remote.port,
