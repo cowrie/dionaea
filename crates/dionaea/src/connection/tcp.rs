@@ -492,6 +492,7 @@ where
     let mut handler = match post {
         Ok((h, PostCallback::Continue)) => h,
         Ok((h, _)) => {
+            let (h, _post) = call_disconnect(h, id).await;
             return (h, rx, PostCallback::Close);
         }
         Err(e) => {
@@ -519,7 +520,8 @@ where
     for data in pending_data {
         if let Err(e) = stream.write_all(&data).await {
             tracing::debug!(connection_id = %id, err = %e, "write error flushing established data");
-            return (handler, rx, PostCallback::Close);
+            let (h, _post) = call_disconnect(handler, id).await;
+            return (h, rx, PostCallback::Close);
         }
         if let Some(mut meta) = registry.get_mut(id) {
             meta.stats.bytes_out += data.len() as u64;
@@ -606,6 +608,7 @@ where
                                 }
                             }
                             Ok((h, _, _, _)) => {
+                                let (h, _post) = call_disconnect(h, id).await;
                                 return (h, rx, PostCallback::Close);
                             }
                             Err(e) => {
@@ -667,6 +670,7 @@ where
                                 handler = h;
                             }
                             Ok((h, _)) => {
+                                let (h, _post) = call_disconnect(h, id).await;
                                 return (h, rx, PostCallback::Close);
                             }
                             Err(e) => {
@@ -741,6 +745,7 @@ where
                         );
                     }
                     Ok((h, _)) => {
+                        let (h, _post) = call_disconnect(h, id).await;
                         return (h, rx, PostCallback::Close);
                     }
                     Err(e) => {
@@ -770,6 +775,7 @@ where
                         );
                     }
                     Ok((h, _)) => {
+                        let (h, _post) = call_disconnect(h, id).await;
                         return (h, rx, PostCallback::Close);
                     }
                     Err(e) => {
