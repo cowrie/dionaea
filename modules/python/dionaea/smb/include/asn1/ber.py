@@ -139,7 +139,7 @@ def BER_identifier_dec(data):
         tag = val & 0x1F
     except Exception as e:
         raise BER_Exception(
-            "BER_Exception: {}, val is {}".format(format(e), format(val))
+            f"BER_Exception: {e}, val is {val}"
         )
 
     if tag == 0x1F:
@@ -296,7 +296,7 @@ class BERcodec_Object(metaclass=BERcodec_metaclass):
             if len(t) > 18:
                 t = t[:15] + b"..."
             raise BER_Decoding_Error(
-                "Unknown prefix [{:02x}] for [{!r}]".format(p, t), remaining=s
+                f"Unknown prefix [{p:02x}] for [{t!r}]", remaining=s
             )
         codec = context[p].get_codec(ASN1_Codecs.BER)
         return codec.dec(s, context, safe)

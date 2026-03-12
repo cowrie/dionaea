@@ -168,8 +168,8 @@ class RtpUdpStream(connection):
         #i.dumpfile = self.__streamDumpFileIn
         #i.report()
 
-        logger.info("Created RTP channel on ports :{} <-> :{}".format(
-            self.local.port, self.remote.port))
+        logger.info("Created RTP channel on ports :%s <-> :%s",
+            self.local.port, self.remote.port)
 
     def close(self):
         logger.debug(f"{self!s} close")
@@ -877,6 +877,6 @@ class SipSession(connection):
     def send(self, s):
         logger.debug(f"{self!s} send")
 
-        logger.debug('Sending message "{}" to ({}:{})'.format(
-            s, self.remote.host, self.remote.port))
+        logger.debug('Sending message "%s" to (%s:%s)',
+            s, self.remote.host, self.remote.port)
         connection.send(self, s)
