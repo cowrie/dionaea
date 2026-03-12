@@ -171,7 +171,7 @@ def new() -> None:
 
 
 def start() -> None:
-    logger.info("Starting services ...")
+    logger.debug("starting services")
     assert g_slave is not None  # For mypy
     g_slave.start()
 

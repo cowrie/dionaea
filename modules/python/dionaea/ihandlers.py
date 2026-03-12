@@ -22,7 +22,7 @@ g_handler_configs: list = []
 
 def new() -> None:
     global g_handler_configs
-    logger.info("Load iHandlers")
+    logger.debug("loading ihandlers")
     load_submodules()
 
     module_config = g_dionaea.config().get("module", {})
@@ -33,7 +33,7 @@ def new() -> None:
 def start() -> None:
     global g_handlers
     g_handlers = {}
-    logger.info("START THE IHANDLERS")
+    logger.debug("starting ihandlers")
 
     for ihandler_config in g_handler_configs:
         for h in IHandlerLoader:
