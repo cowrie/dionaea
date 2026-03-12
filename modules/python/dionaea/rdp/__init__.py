@@ -3,9 +3,9 @@
 
 # This file is part of the dionaea honeypot
 #
-# SPDX-FileCopyrightText: 2025 Michel
+# SPDX-FileCopyrightText: 2025 Cowrie <cowrie@cowrie.org>
 #
-# SPDX-License-Identifier: GPL-2.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
 
 from typing import Any
 

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
 // ABOUTME: TLS listener, self-signed cert generation, and SSL context setup.
 // ABOUTME: Wraps TCP accept with TLS handshake, reuses generic handle_connection for I/O.
 

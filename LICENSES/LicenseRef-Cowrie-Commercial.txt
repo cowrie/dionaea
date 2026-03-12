@@ -1,0 +1,94 @@
+Cowrie Commercial License
+
+Version 1.0, 2026
+
+Copyright (C) 2026 Cowrie <cowrie@cowrie.org>. All rights reserved.
+
+NOTICE: This is a license template. A binding commercial license agreement
+requires a signed contract between you (or your organization) and Cowrie.
+Contact sales@cowrie.org for terms and pricing.
+
+------------------------------------------------------------------------
+
+1. GRANT OF LICENSE
+
+   Subject to the terms of a signed Commercial License Agreement and
+   payment of applicable fees, Cowrie grants you a non-exclusive,
+   non-transferable, worldwide license to:
+
+   a) Use and run the Licensed Software (the components of the Dionaea
+      honeypot identified by SPDX header "AGPL-3.0-only OR
+      LicenseRef-Cowrie-Commercial") for your internal business
+      purposes, without the obligation to disclose source code under
+      the AGPL-3.0.
+
+   b) Make copies of the Licensed Software solely for backup, archival,
+      or internal deployment purposes.
+
+2. RESTRICTIONS ON MODIFICATION AND REDISTRIBUTION
+
+   a) You may NOT modify, adapt, or create derivative works of the
+      Licensed Software.
+
+   b) You may NOT redistribute, sublicense, sell, lease, or otherwise
+      transfer the Licensed Software (in source or binary form) to
+      third parties, whether as a standalone product or as part of
+      another product or service.
+
+   c) You may NOT reverse engineer, decompile, or disassemble the
+      Licensed Software beyond what is permitted by applicable law.
+
+3. SCOPE
+
+   This license applies ONLY to source files bearing the SPDX identifier
+   "AGPL-3.0-only OR LicenseRef-Cowrie-Commercial". Files under other
+   licenses (GPL-2.0-only, GPL-2.0-or-later, MIT, CC0-1.0) are NOT
+   covered by this commercial license and remain subject to their
+   respective terms.
+
+4. ADDITIONAL RESTRICTIONS
+
+   a) You may not sublicense, sell, or transfer the commercial license
+      itself to third parties without written consent from Cowrie.
+
+   b) You may not remove or alter copyright notices or SPDX headers in
+      the Licensed Software.
+
+   c) The license does not grant rights to use the "Cowrie", "Dionaea",
+      or related trademarks except as required for reasonable attribution.
+
+5. THIRD-PARTY COMPONENTS
+
+   The Dionaea project includes third-party components (notably the
+   Python protocol modules under modules/) licensed under GPL-2.0-only,
+   GPL-2.0-or-later, and MIT terms. This commercial license does NOT
+   extend to those components. You are responsible for complying with
+   their respective licenses independently.
+
+6. SUPPORT AND UPDATES
+
+   Support, maintenance, and update terms are defined in your signed
+   Commercial License Agreement and are not governed by this document.
+
+7. WARRANTY DISCLAIMER
+
+   THE LICENSED SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+   KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+   OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+   NONINFRINGEMENT. IN NO EVENT SHALL COWRIE BE LIABLE FOR ANY CLAIM,
+   DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT,
+   OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE
+   LICENSED SOFTWARE OR THE USE OR OTHER DEALINGS IN THE LICENSED
+   SOFTWARE.
+
+8. TERMINATION
+
+   This license terminates automatically if you breach any of its terms.
+   Upon termination, you must cease all use and distribution of the
+   Licensed Software under this commercial license. You may continue to
+   use the software under the AGPL-3.0-only terms if you comply with
+   that license.
+
+------------------------------------------------------------------------
+
+For commercial licensing inquiries: sales@cowrie.org

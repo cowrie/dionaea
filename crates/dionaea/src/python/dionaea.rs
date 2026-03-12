@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
 // ABOUTME: Python-visible dionaea singleton for global config and version access.
 // ABOUTME: Exposed as g_dionaea to Python protocol handlers and ihandlers.
 

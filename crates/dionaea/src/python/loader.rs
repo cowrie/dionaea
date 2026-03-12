@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
 // ABOUTME: Python module loader that registers dionaea.core and imports Python packages.
 // ABOUTME: Replicates the C module.c loading sequence: register classes, set sys.path, import, new(), start().
 

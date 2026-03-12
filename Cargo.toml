@@ -11,7 +11,7 @@ members = [
 [workspace.package]
 edition = "2024"
 rust-version = "1.85"
-license = "AGPL-3.0-only"
+license = "AGPL-3.0-only OR LicenseRef-Cowrie-Commercial"
 
 [workspace.dependencies]
 # Async runtime
