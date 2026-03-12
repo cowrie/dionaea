@@ -157,22 +157,22 @@ fn add_virtualenv_site_packages(py: Python<'_>) -> PyResult<()> {
 /// Register `dionaea.core` in sys.modules with all PyO3 classes and aliases.
 ///
 /// Python code does `from dionaea.core import connection, ihandler, incident, g_dionaea`.
-/// The aliases map Cython-era names to our PyO3 class names.
+/// The lowercase aliases match the names expected by Python protocol code.
 fn register_core_module(py: Python<'_>) -> PyResult<()> {
     let core = PyModule::new(py, "dionaea.core")?;
 
     // Register all PyO3 classes
     super::register_classes(&core)?;
 
-    // Add Cython-compatible aliases: Python code uses lowercase names
-    let connection = core.getattr("PyConnection")?;
-    core.add("connection", connection)?;
+    // Add aliases with Py-prefixed names for backward compatibility
+    let connection = core.getattr("connection")?;
+    core.add("PyConnection", connection)?;
 
-    let ihandler = core.getattr("PyIHandler")?;
-    core.add("ihandler", ihandler)?;
+    let ihandler = core.getattr("ihandler")?;
+    core.add("PyIHandler", ihandler)?;
 
-    let incident = core.getattr("PyIncident")?;
-    core.add("incident", incident)?;
+    let incident = core.getattr("incident")?;
+    core.add("PyIncident", incident)?;
 
     // Register in sys.modules
     let sys = py.import(c"sys")?;

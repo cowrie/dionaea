@@ -83,7 +83,7 @@ fn test_tcp_listen_via_python() {
 
                 py.run(
                     c"
-from listen_integ import PyConnection
+from listen_integ import connection as PyConnection
 
 class EchoService(PyConnection):
     events = []
@@ -175,7 +175,7 @@ port = listener.local.port
             Python::attach(|py| {
                 py.run(
                     c"
-from listen_integ import PyIHandler, PyIncident
+from listen_integ import ihandler as PyIHandler, incident as PyIncident
 
 class LogHandler(PyIHandler):
     received = []

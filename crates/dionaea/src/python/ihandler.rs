@@ -4,6 +4,7 @@
 // ABOUTME: Dispatches to handle_incident_<origin_with_underscores>() or fallback handle_incident().
 
 use pyo3::prelude::*;
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::ihandler::{HandlerCallback, IHandler, WildcardPattern};
 use crate::python::incident::PyIncident;
@@ -16,8 +17,8 @@ use crate::runtime;
 /// logic replaces dots with underscores and looks for a specific method first,
 /// falling back to `handle_incident(incident)`.
 ///
-/// Matches the Cython `ihandler` class in binding.pyx.
-#[pyclass(subclass)]
+#[gen_stub_pyclass]
+#[pyclass(subclass, name = "ihandler", module = "dionaea.core")]
 pub struct PyIHandler {
     pattern: String,
 }
@@ -31,6 +32,7 @@ impl PyIHandler {
     }
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl PyIHandler {
     /// Accept any args/kwargs from Python subclass constructors.
@@ -112,7 +114,7 @@ impl PyIHandler {
 /// Tries `handle_incident_<origin_with_dots_replaced_by_underscores>(incident)` first.
 /// Falls back to `handle_incident(incident)` if the specific method doesn't exist.
 ///
-/// This matches the exact dispatch logic in binding.pyx `c_python_ihandler_cb`.
+/// This matches the C dispatch logic in `c_python_ihandler_cb`.
 pub fn dispatch_to_handler(
     py: Python<'_>,
     handler: &Bound<'_, PyAny>,
@@ -176,7 +178,7 @@ mod tests {
 
             py.run(
                 c"
-from dionaea_ih_test1 import PyIHandler, PyIncident
+from dionaea_ih_test1 import ihandler as PyIHandler, incident as PyIncident
 
 class TestHandler(PyIHandler):
     def __init__(self):
@@ -220,7 +222,7 @@ class TestHandler(PyIHandler):
 
             py.run(
                 c"
-from dionaea_ih_test2 import PyIHandler, PyIncident
+from dionaea_ih_test2 import ihandler as PyIHandler, incident as PyIncident
 
 class FallbackHandler(PyIHandler):
     def __init__(self):
@@ -261,7 +263,7 @@ class FallbackHandler(PyIHandler):
 
             py.run(
                 c"
-from dionaea_ih_test3 import PyIHandler, PyIncident
+from dionaea_ih_test3 import ihandler as PyIHandler, incident as PyIncident
 
 class DataHandler(PyIHandler):
     def __init__(self):
@@ -316,8 +318,8 @@ class DataHandler(PyIHandler):
 
             py.run(
                 c"
-from dionaea_ih_test_pyrefs import PyIHandler, PyIncident
-from dionaea_ih_test_pyrefs_conn import PyConnection
+from dionaea_ih_test_pyrefs import ihandler as PyIHandler, incident as PyIncident
+from dionaea_ih_test_pyrefs_conn import connection as PyConnection
 
 class ConnHandler(PyIHandler):
     def __init__(self):
@@ -360,7 +362,7 @@ class ConnHandler(PyIHandler):
                 .unwrap()
                 .extract()
                 .unwrap();
-            assert_eq!(con_type, "PyConnection");
+            assert_eq!(con_type, "connection");
         });
     }
 
@@ -371,7 +373,7 @@ class ConnHandler(PyIHandler):
 
             py.run(
                 c"
-from dionaea_ih_test4 import PyIHandler
+from dionaea_ih_test4 import ihandler as PyIHandler
 
 class LifecycleHandler(PyIHandler):
     def __init__(self):

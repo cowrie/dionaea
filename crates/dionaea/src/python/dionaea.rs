@@ -1,17 +1,18 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
 // SPDX-License-Identifier: AGPL-3.0-only
 // ABOUTME: Python-visible dionaea singleton for global config and version access.
-// ABOUTME: Exposed as g_dionaea matching the binding.pyx dionaea class.
+// ABOUTME: Exposed as g_dionaea to Python protocol handlers and ihandlers.
 
 use crate::runtime;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 /// Global dionaea singleton exposed to Python.
 ///
 /// Provides access to config, interface addresses, and version information.
-/// Matches the Cython `dionaea` class in binding.pyx.
-#[pyclass]
+#[gen_stub_pyclass]
+#[pyclass(name = "dionaea", module = "dionaea.core")]
 pub struct PyDionaea {
     version: String,
 }
@@ -31,6 +32,7 @@ impl PyDionaea {
     }
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl PyDionaea {
     /// Return the parsed configuration as a Python dict.

@@ -395,7 +395,7 @@ mod tests {
         register_test_module(py, module_name);
         let code = format!(
             "
-from {module_name} import PyConnection
+from {module_name} import connection as PyConnection
 class TlsEchoProtocol(PyConnection):
     def __init__(self, proto=None):
         super().__init__(proto)

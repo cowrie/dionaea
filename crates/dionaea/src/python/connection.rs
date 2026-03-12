@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
 // SPDX-License-Identifier: AGPL-3.0-only
 // ABOUTME: PyO3 connection class that Python protocol handlers subclass.
-// ABOUTME: Full API surface matching binding.pyx connection class.
+// ABOUTME: Full API surface for bind, listen, connect, send, close, and I/O callbacks.
 
 use std::cell::Cell;
 use std::sync::Arc;
@@ -9,6 +9,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use tokio::sync::mpsc;
 
 use crate::connection::limits::ConnectionLimits;
@@ -33,7 +34,8 @@ thread_local! {
 ///
 /// The I/O task owns the receiver end of the send channel.
 /// Python's `send()` pushes data through the sender.
-#[pyclass(subclass, weakref)]
+#[gen_stub_pyclass]
+#[pyclass(subclass, weakref, name = "connection", module = "dionaea.core")]
 pub struct PyConnection {
     /// Connection ID. None after invalidation (connection freed/disconnected).
     pub(crate) id: Option<ConnectionId>,
@@ -60,7 +62,7 @@ pub struct PyConnection {
 }
 
 /// Check that the connection is still valid (not freed/disconnected).
-/// Returns `ReferenceError` if invalidated, matching Cython behavior.
+/// Returns `ReferenceError` if invalidated, matching C behavior.
 fn check_valid(id: &Option<ConnectionId>) -> PyResult<ConnectionId> {
     id.ok_or_else(|| {
         pyo3::exceptions::PyReferenceError::new_err("the object requested does not exist")
@@ -137,6 +139,7 @@ impl PyConnection {
     }
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl PyConnection {
     /// Construct the Rust struct. Python subclasses call __init__ via super().
@@ -858,7 +861,7 @@ mod tests {
 
             py.run(
                 c"
-from dionaea_core import PyConnection
+from dionaea_core import connection as PyConnection
 
 class EchoProtocol(PyConnection):
     def __init__(self, proto=None):
@@ -953,7 +956,7 @@ class EchoProtocol(PyConnection):
 
             py.run(
                 c"
-from dionaea_core2 import PyConnection
+from dionaea_core2 import connection as PyConnection
 
 class CustomProto(PyConnection):
     def __init__(self, proto=None):
@@ -1002,7 +1005,7 @@ class CustomProto(PyConnection):
 
             py.run(
                 c"
-from dionaea_core3 import PyConnection
+from dionaea_core3 import connection as PyConnection
 
 class BaseProto(PyConnection):
     def handle_io_in(self, data):
@@ -1049,7 +1052,7 @@ class DerivedProto(BaseProto):
             register_test_module(py, "dionaea_core_inv");
 
             let conn = py
-                .eval(c"__import__('dionaea_core_inv').PyConnection('tcp')", None, None)
+                .eval(c"__import__('dionaea_core_inv').connection('tcp')", None, None)
                 .expect("create connection");
 
             // Connection starts with a valid ID
@@ -1078,7 +1081,7 @@ class DerivedProto(BaseProto):
 
             py.run(
                 c"
-from dionaea_core_hash import PyConnection
+from dionaea_core_hash import connection as PyConnection
 
 a = PyConnection('tcp')
 b = PyConnection('tcp')
@@ -1132,7 +1135,7 @@ b = PyConnection('tcp')
 
             py.run(
                 c"
-from dionaea_core_factory import PyConnection
+from dionaea_core_factory import connection as PyConnection
 
 class SMBProtocol(PyConnection):
     shared_config_values = ['max_connections']
@@ -1194,7 +1197,7 @@ parent = SMBProtocol('tcp')
 
             let conn = py
                 .eval(
-                    c"__import__('dionaea_core_udp').PyConnection('udp')",
+                    c"__import__('dionaea_core_udp').connection('udp')",
                     None,
                     None,
                 )
@@ -1211,7 +1214,7 @@ parent = SMBProtocol('tcp')
             py.run(
                 c"
 import dionaea_core_udp
-conn = dionaea_core_udp.PyConnection.__new__(dionaea_core_udp.PyConnection)
+conn = dionaea_core_udp.connection.__new__(dionaea_core_udp.connection)
 ",
                 None,
                 None,
@@ -1273,7 +1276,7 @@ conn = dionaea_core_udp.PyConnection.__new__(dionaea_core_udp.PyConnection)
 
                 py.run(
                     c"
-from dionaea_core4 import PyConnection
+from dionaea_core4 import connection as PyConnection
 
 class BenchProto(PyConnection):
     def handle_io_in(self, data):
@@ -1367,7 +1370,7 @@ class BenchProto(PyConnection):
 
             py.run(
                 c"
-from dionaea_core_bind import PyConnection
+from dionaea_core_bind import connection as PyConnection
 conn = PyConnection('tcp')
 conn.bind('127.0.0.1', 8080)
 assert conn.local.host == '127.0.0.1', f'expected 127.0.0.1, got {conn.local.host}'

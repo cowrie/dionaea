@@ -1001,7 +1001,7 @@ mod tests {
         register_test_module(py, module_name);
         let code = format!(
             "
-from {module_name} import PyConnection
+from {module_name} import connection as PyConnection
 class EchoProtocol(PyConnection):
     def __init__(self, proto=None):
         super().__init__(proto)
@@ -1108,7 +1108,7 @@ factory = EchoProtocol('tcp')
             let factory = Python::attach(|py| {
                 register_test_module(py, "tcp_evt_t");
                 py.run(c"
-from tcp_evt_t import PyConnection
+from tcp_evt_t import connection as PyConnection
 class EventProto(PyConnection):
     events = []
     def __init__(self, proto=None):
@@ -1190,7 +1190,7 @@ factory = EventProto('tcp')
             let factory = Python::attach(|py| {
                 register_test_module(py, "tcp_idle_t");
                 py.run(c"
-from tcp_idle_t import PyConnection
+from tcp_idle_t import connection as PyConnection
 class IdleProto(PyConnection):
     idle_fired = False
     def __init__(self, proto=None):
@@ -1244,7 +1244,7 @@ factory = IdleProto('tcp')
             let factory = Python::attach(|py| {
                 register_test_module(py, "tcp_exc_t");
                 py.run(c"
-from tcp_exc_t import PyConnection
+from tcp_exc_t import connection as PyConnection
 class FailProto(PyConnection):
     def __init__(self, proto=None):
         super().__init__(proto)
@@ -1315,7 +1315,7 @@ factory = FailProto('tcp')
                 register_test_module(py, "tcp_outconn_t");
                 py.run(
                     c"
-from tcp_outconn_t import PyConnection
+from tcp_outconn_t import connection as PyConnection
 class OutProto(PyConnection):
     events = []
     def __init__(self, proto=None):
@@ -1453,7 +1453,7 @@ proto = OutProto('tcp')
                 register_test_module(py, "tcp_cfail_t");
                 py.run(
                     c"
-from tcp_cfail_t import PyConnection
+from tcp_cfail_t import connection as PyConnection
 class FailProto(PyConnection):
     events = []
     def __init__(self, proto=None):
@@ -1537,7 +1537,7 @@ proto = FailProto('tcp')
                 register_test_module(py, "tcp_ctmo_t");
                 py.run(
                     c"
-from tcp_ctmo_t import PyConnection
+from tcp_ctmo_t import connection as PyConnection
 class TmoProto(PyConnection):
     events = []
     def __init__(self, proto=None):

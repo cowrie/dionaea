@@ -1,0 +1,11 @@
+# ABOUTME: Minimal pyproject.toml for pyo3-stub-gen stub generation.
+# ABOUTME: Tells pyo3-stub-gen where to write dionaea.core.pyi.
+
+[project]
+name = "dionaea"
+version = "2.0.0-alpha.1"
+requires-python = ">=3.10"
+
+[tool.maturin]
+module-name = "dionaea.core"
+python-source = "../../modules/python"

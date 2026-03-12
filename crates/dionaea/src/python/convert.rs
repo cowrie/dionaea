@@ -44,7 +44,7 @@ const MAX_NESTING_DEPTH: usize = 100;
 
 /// Convert a Python object to a Rust `OpaqueData` value.
 ///
-/// Type dispatch order matches binding.pyx: connection, int, str, bytes, list/tuple, dict, None.
+/// Type dispatch order: connection, int, str, bytes, list/tuple, dict, None.
 /// Since we don't have access to PyConnection here (it would create a circular dependency),
 /// connection detection is handled by the caller.
 pub fn py_to_opaque(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<OpaqueData> {
@@ -86,7 +86,7 @@ fn py_to_opaque_inner(py: Python<'_>, obj: &Bound<'_, PyAny>, depth: usize) -> P
         }
         return Ok(OpaqueData::List(items));
     }
-    // Check for tuple (binding.pyx treats list and tuple the same)
+    // Check for tuple (list and tuple convert to the same OpaqueData::List)
     if obj.is_instance_of::<pyo3::types::PyTuple>() {
         let items: Vec<Bound<'_, PyAny>> = obj.extract()?;
         let mut result = Vec::with_capacity(items.len());

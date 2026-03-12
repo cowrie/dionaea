@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
 // SPDX-License-Identifier: AGPL-3.0-only
 // ABOUTME: Python-visible incident class for event dispatch between components.
-// ABOUTME: Supports dynamic attribute access (__getattr__/__setattr__) matching binding.pyx.
+// ABOUTME: Supports dynamic attribute access via __getattr__/__setattr__.
 
 use crate::ihandler::HandlerCallback;
 use crate::incident::{Incident, OpaqueData};
@@ -11,6 +11,7 @@ use crate::python::ihandler::dispatch_to_handler;
 use crate::runtime;
 use pyo3::prelude::*;
 use pyo3::types::PyList;
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -25,8 +26,8 @@ use std::sync::Arc;
 /// handlers get back the original object (with .protocol, .transport, etc.)
 /// instead of a bare connection ID integer.
 ///
-/// Matches the Cython `incident` class in binding.pyx.
-#[pyclass(subclass)]
+#[gen_stub_pyclass]
+#[pyclass(subclass, name = "incident", module = "dionaea.core")]
 pub struct PyIncident {
     origin: String,
     pub(crate) data: HashMap<String, OpaqueData>,
@@ -91,6 +92,7 @@ fn release_dispatch() {
     DISPATCH_ACTIVE.store(false, Ordering::Release);
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl PyIncident {
     /// Create an incident with an optional origin path.

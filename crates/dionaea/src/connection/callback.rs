@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
 // SPDX-License-Identifier: AGPL-3.0-only
-// ABOUTME: Python callback error recovery matching binding.pyx behavior.
+// ABOUTME: Python callback error recovery for connection I/O events.
 // ABOUTME: Each callback type has specific error handling (continue, close, propagate).
 
 use pyo3::prelude::*;
@@ -21,7 +21,7 @@ pub enum PostCallback {
 
 /// Call `handle_origin(parent)` on the Python connection object.
 ///
-/// Binding.pyx behavior: catch all exceptions, log, continue (no close).
+/// On exception: log and continue (no close).
 pub fn call_handle_origin(conn: &Bound<'_, PyAny>, parent: &Bound<'_, PyAny>) -> PostCallback {
     match conn.call_method1("handle_origin", (parent,)) {
         Ok(_) => PostCallback::Continue,
@@ -34,7 +34,7 @@ pub fn call_handle_origin(conn: &Bound<'_, PyAny>, parent: &Bound<'_, PyAny>) ->
 
 /// Call `handle_established()` on the Python connection object.
 ///
-/// Binding.pyx behavior: catch all exceptions, log, continue (no close).
+/// On exception: log and continue (no close).
 pub fn call_handle_established(conn: &Bound<'_, PyAny>) -> PostCallback {
     match conn.call_method0("handle_established") {
         Ok(_) => PostCallback::Continue,
@@ -47,7 +47,7 @@ pub fn call_handle_established(conn: &Bound<'_, PyAny>) -> PostCallback {
 
 /// Call `handle_io_in(data)` on the Python connection object.
 ///
-/// Binding.pyx behavior: catch exception → log, close connection, return len(data).
+/// On exception: log, close connection, return len(data).
 /// Returns `(PostCallback, bytes_consumed)`.
 pub fn call_handle_io_in(conn: &Bound<'_, PyAny>, data: &[u8]) -> (PostCallback, usize) {
     let py = conn.py();
@@ -66,7 +66,7 @@ pub fn call_handle_io_in(conn: &Bound<'_, PyAny>, data: &[u8]) -> (PostCallback,
 
 /// Call `handle_io_out()` on the Python connection object.
 ///
-/// Binding.pyx behavior: catch exception → log, close connection.
+/// On exception: log, close connection.
 pub fn call_handle_io_out(conn: &Bound<'_, PyAny>) -> PostCallback {
     match conn.call_method0("handle_io_out") {
         Ok(_) => PostCallback::Continue,
@@ -79,8 +79,7 @@ pub fn call_handle_io_out(conn: &Bound<'_, PyAny>) -> PostCallback {
 
 /// Call `handle_disconnect()` on the Python connection object.
 ///
-/// Binding.pyx behavior: NO try/except — exceptions propagate to C via `except *`.
-/// In Rust, we treat an exception as "don't reconnect" and close.
+/// On exception: treat as "don't reconnect" and close.
 /// Returns `PostCallback::Reconnect` if the handler returns `True`.
 pub fn call_handle_disconnect(conn: &Bound<'_, PyAny>) -> PostCallback {
     match conn.call_method0("handle_disconnect") {
@@ -101,7 +100,7 @@ pub fn call_handle_disconnect(conn: &Bound<'_, PyAny>) -> PostCallback {
 
 /// Call `handle_timeout_idle()` on the Python connection object.
 ///
-/// Binding.pyx behavior: NO try/except — exceptions propagate.
+/// On exception: close the connection.
 /// Returns `true` if the handler says to keep the connection alive.
 pub fn call_handle_timeout_idle(conn: &Bound<'_, PyAny>) -> PostCallback {
     match conn.call_method0("handle_timeout_idle") {
@@ -122,7 +121,7 @@ pub fn call_handle_timeout_idle(conn: &Bound<'_, PyAny>) -> PostCallback {
 
 /// Call `handle_timeout_sustain()` on the Python connection object.
 ///
-/// Binding.pyx behavior: NO try/except — exceptions propagate.
+/// On exception: close the connection.
 /// Returns `true` if the handler says to keep the connection alive.
 pub fn call_handle_timeout_sustain(conn: &Bound<'_, PyAny>) -> PostCallback {
     match conn.call_method0("handle_timeout_sustain") {
@@ -143,7 +142,7 @@ pub fn call_handle_timeout_sustain(conn: &Bound<'_, PyAny>) -> PostCallback {
 
 /// Call `handle_timeout_listen()` on the Python connection object.
 ///
-/// Binding.pyx behavior: NO try/except — exceptions propagate.
+/// On exception: close the connection.
 /// Returns `true` if the handler says to keep listening.
 pub fn call_handle_timeout_listen(conn: &Bound<'_, PyAny>) -> PostCallback {
     match conn.call_method0("handle_timeout_listen") {
@@ -187,7 +186,7 @@ pub fn emit_connection_incident(py: Python<'_>, conn: &Bound<'_, PyAny>, origin:
 
 /// Call `handle_error(err)` on the Python connection object.
 ///
-/// Not in binding.pyx callbacks but used by outbound connect failure path.
+/// Called on outbound connect failure.
 /// Returns `Reconnect` if the handler returns a truthy value (matching C behavior
 /// where `handle_error` can request reconnection on connect failure).
 /// Exceptions are logged and result in `Continue` (no reconnect).
@@ -237,7 +236,7 @@ mod tests {
             register_test_module(py, "cb_test_origin");
             py.run(
                 c"
-from cb_test_origin import PyConnection
+from cb_test_origin import connection as PyConnection
 class FailOrigin(PyConnection):
     def handle_origin(self, parent):
         raise RuntimeError('origin boom')
@@ -261,7 +260,7 @@ conn = FailOrigin('tcp')
             register_test_module(py, "cb_test_est");
             py.run(
                 c"
-from cb_test_est import PyConnection
+from cb_test_est import connection as PyConnection
 class FailEstablished(PyConnection):
     def handle_established(self):
         raise RuntimeError('established boom')
@@ -284,7 +283,7 @@ conn = FailEstablished('tcp')
             register_test_module(py, "cb_test_io_in");
             py.run(
                 c"
-from cb_test_io_in import PyConnection
+from cb_test_io_in import connection as PyConnection
 class FailIoIn(PyConnection):
     def handle_io_in(self, data):
         raise RuntimeError('io_in boom')
@@ -308,7 +307,7 @@ conn = FailIoIn('tcp')
             register_test_module(py, "cb_test_io_in_ok");
             py.run(
                 c"
-from cb_test_io_in_ok import PyConnection
+from cb_test_io_in_ok import connection as PyConnection
 class PartialConsume(PyConnection):
     def handle_io_in(self, data):
         return 3  # only consume 3 bytes
@@ -332,7 +331,7 @@ conn = PartialConsume('tcp')
             register_test_module(py, "cb_test_io_out");
             py.run(
                 c"
-from cb_test_io_out import PyConnection
+from cb_test_io_out import connection as PyConnection
 class FailIoOut(PyConnection):
     def handle_io_out(self):
         raise RuntimeError('io_out boom')
@@ -355,7 +354,7 @@ conn = FailIoOut('tcp')
             register_test_module(py, "cb_test_disc");
             py.run(
                 c"
-from cb_test_disc import PyConnection
+from cb_test_disc import connection as PyConnection
 class ReconnectProto(PyConnection):
     def handle_disconnect(self):
         return True
@@ -384,7 +383,7 @@ close = CloseProto('tcp')
             register_test_module(py, "cb_test_disc_err");
             py.run(
                 c"
-from cb_test_disc_err import PyConnection
+from cb_test_disc_err import connection as PyConnection
 class FailDisconnect(PyConnection):
     def handle_disconnect(self):
         raise RuntimeError('disconnect boom')
@@ -406,7 +405,7 @@ conn = FailDisconnect('tcp')
             register_test_module(py, "cb_test_timeout");
             py.run(
                 c"
-from cb_test_timeout import PyConnection
+from cb_test_timeout import connection as PyConnection
 class KeepAlive(PyConnection):
     def handle_timeout_idle(self):
         return True
@@ -435,7 +434,7 @@ die = LetDie('tcp')
             register_test_module(py, "cb_test_error");
             py.run(
                 c"
-from cb_test_error import PyConnection
+from cb_test_error import connection as PyConnection
 class ErrorHandler(PyConnection):
     def handle_error(self, err):
         self.last_error = str(err)
@@ -465,7 +464,7 @@ conn = ErrorHandler('tcp')
             register_test_module(py, "cb_test_error_recon");
             py.run(
                 c"
-from cb_test_error_recon import PyConnection
+from cb_test_error_recon import connection as PyConnection
 class ReconnectOnError(PyConnection):
     def handle_error(self, err):
         return True

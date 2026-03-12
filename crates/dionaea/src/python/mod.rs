@@ -21,11 +21,12 @@ pub mod node_info;
 pub mod stats;
 
 use pyo3::prelude::*;
+use pyo3_stub_gen::derive::gen_stub_pyfunction;
 
 /// Register all dionaea bridge classes into a Python module.
 ///
 /// Called during Python interpreter initialization to make the Rust types
-/// available as `from dionaea_core import PyConnection, ...` (or whatever
+/// available as `from dionaea_core import connection, ...` (or whatever
 /// the module is named).
 pub fn register_classes(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<connection::PyConnection>()?;
@@ -56,6 +57,7 @@ pub fn register_classes(module: &Bound<'_, PyModule>) -> PyResult<()> {
 /// Called by `dionaea/log.py` as `dlhfn(name, number, path, line, msg)`.
 /// Maps Python log levels (DEBUG=10, INFO=20, WARNING=30, ERROR=40, CRITICAL=50)
 /// to tracing levels.
+#[gen_stub_pyfunction]
 #[pyfunction]
 fn dlhfn(name: &str, number: i32, path: &str, line: i32, msg: &str) {
     let file = strip_to_relative(path);
@@ -82,7 +84,7 @@ fn strip_to_relative(path: &str) -> &str {
 }
 
 /// Factory function for creating connections from Python.
-/// Returns a weakref proxy, matching the Cython `connection_new()`.
+#[gen_stub_pyfunction]
 #[pyfunction]
 fn connection_new(py: Python<'_>, con_type: String) -> PyResult<Py<PyAny>> {
     let empty_tuple = pyo3::types::PyTuple::empty(py);
@@ -120,15 +122,15 @@ mod tests {
         Python::attach(|py| {
             let module = setup_module(py, "dionaea_reg_test");
             // Verify all classes are registered
-            assert!(module.getattr("PyConnection").is_ok());
-            assert!(module.getattr("PyIncident").is_ok());
-            assert!(module.getattr("PyIHandler").is_ok());
-            assert!(module.getattr("PyNodeInfo").is_ok());
-            assert!(module.getattr("PyConnectionTimeouts").is_ok());
-            assert!(module.getattr("PyConnectionSpeed").is_ok());
-            assert!(module.getattr("PyConnectionAccounting").is_ok());
-            assert!(module.getattr("PyConnectionStats").is_ok());
-            assert!(module.getattr("PyDionaea").is_ok());
+            assert!(module.getattr("connection").is_ok());
+            assert!(module.getattr("incident").is_ok());
+            assert!(module.getattr("ihandler").is_ok());
+            assert!(module.getattr("node_info").is_ok());
+            assert!(module.getattr("connection_timeouts").is_ok());
+            assert!(module.getattr("connection_speed").is_ok());
+            assert!(module.getattr("connection_accounting").is_ok());
+            assert!(module.getattr("connection_stats").is_ok());
+            assert!(module.getattr("dionaea").is_ok());
             assert!(module.getattr("g_dionaea").is_ok());
             assert!(module.getattr("connection_new").is_ok());
             assert!(module.getattr("dlhfn").is_ok());
@@ -182,7 +184,7 @@ dlhfn('test.logger', 50, '/tmp/test.py', 46, 'critical message')
 
             py.run(
                 c"
-from dionaea_integration import PyConnection, PyIncident, PyIHandler
+from dionaea_integration import connection as PyConnection, incident as PyIncident, ihandler as PyIHandler
 
 # Define a simple protocol
 class EchoService(PyConnection):

@@ -1,18 +1,20 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
 // SPDX-License-Identifier: AGPL-3.0-only
 // ABOUTME: Python-visible connection statistics and timeout configuration.
-// ABOUTME: Maps to binding.pyx connection_timeouts, connection_speed, connection_accounting, connection_stats.
+// ABOUTME: Exposes connection_timeouts, connection_speed, connection_accounting, and connection_stats to Python.
 
 use pyo3::prelude::*;
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use tokio::sync::mpsc;
 
 use crate::connection::{Direction, SendMessage, TimeoutKind};
 
 /// Connection timeout configuration exposed to Python.
 ///
-/// Matches the Cython `connection_timeouts` class. All values are in seconds (f64).
+/// All values are in seconds (f64).
 /// Read/write: gets snapshot from metadata, writes send control messages through the channel.
-#[pyclass]
+#[gen_stub_pyclass]
+#[pyclass(name = "connection_timeouts", module = "dionaea.core")]
 pub struct PyConnectionTimeouts {
     /// Idle timeout (seconds).
     pub idle: f64,
@@ -48,6 +50,7 @@ impl PyConnectionTimeouts {
     }
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl PyConnectionTimeouts {
     /// Create timeouts with default values.
@@ -147,9 +150,8 @@ impl PyConnectionTimeouts {
 }
 
 /// Speed (throughput) statistics for one direction.
-///
-/// Matches the Cython `connection_speed` class.
-#[pyclass]
+#[gen_stub_pyclass]
+#[pyclass(name = "connection_speed", module = "dionaea.core")]
 pub struct PyConnectionSpeed {
     bps: f64,
     limit: f64,
@@ -164,6 +166,7 @@ impl PyConnectionSpeed {
     }
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl PyConnectionSpeed {
     /// Current speed in bytes per second.
@@ -191,9 +194,8 @@ impl PyConnectionSpeed {
 }
 
 /// Byte accounting for one direction.
-///
-/// Matches the Cython `connection_accounting` class.
-#[pyclass]
+#[gen_stub_pyclass]
+#[pyclass(name = "connection_accounting", module = "dionaea.core")]
 pub struct PyConnectionAccounting {
     bytes: f64,
     limit: f64,
@@ -208,6 +210,7 @@ impl PyConnectionAccounting {
     }
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl PyConnectionAccounting {
     /// Bytes transferred so far.
@@ -235,9 +238,8 @@ impl PyConnectionAccounting {
 }
 
 /// Combined stats for one direction (speed + accounting).
-///
-/// Matches the Cython `connection_stats` class.
-#[pyclass]
+#[gen_stub_pyclass]
+#[pyclass(name = "connection_stats", module = "dionaea.core")]
 pub struct PyConnectionStats {
     speed: Py<PyConnectionSpeed>,
     accounting: Py<PyConnectionAccounting>,
@@ -253,6 +255,7 @@ impl PyConnectionStats {
     }
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl PyConnectionStats {
     /// Speed statistics for this direction.

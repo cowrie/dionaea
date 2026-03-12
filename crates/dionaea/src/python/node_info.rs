@@ -1,15 +1,16 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
 // SPDX-License-Identifier: AGPL-3.0-only
 // ABOUTME: Python-visible network address info for connections.
-// ABOUTME: Exposes host, port, and hostname properties matching binding.pyx node_info.
+// ABOUTME: Exposes host, port, and hostname properties to Python protocol handlers.
 
 use pyo3::prelude::*;
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 /// Network endpoint address exposed to Python protocol handlers.
 ///
-/// Properties match the Cython `node_info` class in binding.pyx.
 /// The `host` and `port` properties are read-write; `hostname` is read-only.
-#[pyclass]
+#[gen_stub_pyclass]
+#[pyclass(name = "node_info", module = "dionaea.core")]
 pub struct PyNodeInfo {
     /// IP address as string.
     pub host: String,
@@ -39,6 +40,7 @@ impl PyNodeInfo {
     }
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl PyNodeInfo {
     /// Create a node info defaulting to 0.0.0.0:0.
@@ -62,7 +64,7 @@ impl PyNodeInfo {
         self.host = addr;
     }
 
-    /// The node's hostname (empty string if unset, matching Cython behavior).
+    /// The node's hostname (empty string if unset, matching C behavior).
     #[getter]
     fn hostname(&self) -> &str {
         &self.hostname

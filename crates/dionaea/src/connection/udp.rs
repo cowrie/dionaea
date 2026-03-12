@@ -419,7 +419,7 @@ mod tests {
         register_test_module(py, module_name);
         let code = format!(
             "
-from {module_name} import PyConnection
+from {module_name} import connection as PyConnection
 class UdpEchoProtocol(PyConnection):
     events = []
     def __init__(self, proto=None):
@@ -530,7 +530,7 @@ factory = UdpEchoProtocol('udp')
             let factory = Python::attach(|py| {
                 register_test_module(py, "udp_idle_t");
                 let code = "
-from udp_idle_t import PyConnection
+from udp_idle_t import connection as PyConnection
 class UdpIdleProto(PyConnection):
     events = []
     def __init__(self, proto=None):

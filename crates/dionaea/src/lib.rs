@@ -36,3 +36,5 @@ pub mod processor;
 pub mod python;
 /// Global runtime state (registry, limits, config) shared across tasks.
 pub mod runtime;
+
+pyo3_stub_gen::define_stub_info_gatherer!(stub_info);
