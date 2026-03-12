@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
 // ABOUTME: Network address metadata for connections (IP, port, hostname).
 // ABOUTME: Used by ConnectionMeta and exposed to Python via PyNodeInfo.
 

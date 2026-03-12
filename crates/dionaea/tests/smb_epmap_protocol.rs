@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
 // ABOUTME: Integration tests for SMB and EPMAP (DCE/RPC) protocols.
 // ABOUTME: Verifies negotiate response (SMB) and DCERPC bind_ack (EPMAP).
 

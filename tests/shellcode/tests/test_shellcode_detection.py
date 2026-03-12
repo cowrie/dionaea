@@ -1,6 +1,9 @@
 # ABOUTME: Smoke tests for shellcode detection via the processor pipeline.
 # ABOUTME: Sends shellcode payloads over HTTP and verifies the connection succeeds.
 
+# SPDX-FileCopyrightText: 2025 Cowrie <cowrie@cowrie.org>
+# SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
+
 import socket
 
 

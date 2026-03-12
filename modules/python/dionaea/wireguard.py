@@ -1,6 +1,9 @@
 # ABOUTME: WireGuard VPN honeypot - detects scanning on UDP 51820
 # ABOUTME: Logs connection attempts and extracts ephemeral keys from handshakes
 
+# SPDX-FileCopyrightText: 2025 Cowrie <cowrie@cowrie.org>
+# SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
+
 from __future__ import annotations
 
 import logging

@@ -27,6 +27,19 @@ Pull Requests
 - Update documentation for new functionality
 - Make sure pre-commit hooks pass
 
+Licensing of Contributions
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+By submitting a pull request you agree to the following:
+
+- Contributions to files under ``crates/`` are licensed under
+  ``AGPL-3.0-only OR LicenseRef-Cowrie-Commercial`` (dual license).
+- Contributions to files under ``modules/`` are licensed under the
+  existing license of the file being modified.
+- You certify that your contribution is your original work or that you
+  have the right to submit it under the applicable license terms
+  (`Developer Certificate of Origin`_).
+
 Setup
 ^^^^^
 
@@ -52,3 +65,4 @@ All pull requests require review before merging. Reviewing others' PRs is encour
 
 .. _GitHub issue tracker: https://github.com/cowrie/dionaea/issues
 .. _PEP 8: https://www.python.org/dev/peps/pep-0008/
+.. _Developer Certificate of Origin: https://developercertificate.org/

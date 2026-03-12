@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
 // ABOUTME: PyO3 bridge between Rust core and Python protocol handlers.
 // ABOUTME: Defines #[pyclass] types that Python protocol modules subclass.
 

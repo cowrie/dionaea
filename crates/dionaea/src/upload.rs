@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
 // ABOUTME: HTTP multipart upload module for submitting captured data to external services.
 // ABOUTME: Handles dionaea.upload.request incidents from Python ihandlers (virustotal, hpfeeds, etc).
 

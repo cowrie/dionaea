@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
 // ABOUTME: Python-visible incident class for event dispatch between components.
 // ABOUTME: Supports dynamic attribute access via __getattr__/__setattr__.
 

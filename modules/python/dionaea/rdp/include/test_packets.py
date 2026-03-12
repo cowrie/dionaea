@@ -1,6 +1,9 @@
 # ABOUTME: Unit tests for RDP wire format parsers and builders.
 # ABOUTME: Verifies TPKT, X.224, and MCS packet handling against known byte sequences.
 
+# SPDX-FileCopyrightText: 2025 Cowrie <cowrie@cowrie.org>
+# SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
+
 from __future__ import annotations
 
 import struct

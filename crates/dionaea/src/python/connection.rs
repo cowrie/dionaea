@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
 // ABOUTME: PyO3 connection class that Python protocol handlers subclass.
 // ABOUTME: Full API surface for bind, listen, connect, send, close, and I/O callbacks.
 

@@ -1,6 +1,9 @@
 # ABOUTME: Unit tests for SNMP BER encoding/decoding functions
 # ABOUTME: Tests packet parsing, OID handling, and response building
 
+# SPDX-FileCopyrightText: dionaea developers
+# SPDX-License-Identifier: GPL-2.0-or-later
+
 import pytest
 import sys
 import os

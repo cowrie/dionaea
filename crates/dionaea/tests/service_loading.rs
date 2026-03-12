@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
 // ABOUTME: Integration test for the full service loading chain.
 // ABOUTME: Loads dionaea + services modules, starts blackhole + HTTP services via ServiceLoader.
 
