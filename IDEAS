@@ -33,6 +33,31 @@ Options to consider:
 
 ## Protocol Additions
 
+### RDP Honeypot (port 3389)
+RDP is one of the most scanned ports on the internet. No good standalone RDP
+honeypot exists — the field is wide open.
+
+**Existing projects (all dead or require real Windows backend):**
+- rdpy (Python 2, dead since 2020): full RDP stack, session replay honeypot, no server-side NLA
+- rdppot (dead, 2 commits 2019): TCP proxy to real Windows XP QEMU VMs, zero protocol impl
+- PyRDP (active, Twisted): full MITM proxy, needs a real RDP backend server
+- rdpy3 (all 3 forks abandoned): "everything is expected to be broken"
+- qeeqbox/honeypots: minimal socket listener, captures creds only
+- Amun: X.224 + MCS negotiation only (~300 lines), too shallow
+
+**Approach options for dionaea:**
+1. Low interaction (~500-800 lines): X.224 connection negotiation + MCS conference +
+   credential capture from Client Info PDU. Catches scanners and brute-forcers.
+   Would be a `connection` subclass like FTP/HTTP.
+2. Medium interaction (~1500-2000 lines): Add capability exchange + bitmap replay
+   from pre-recorded sessions (like rdpy's approach). Keeps sessions alive longer.
+
+**What to capture:** source IP, client hostname, credentials (domain/user/pass),
+requested screen resolution, client build number (OS fingerprint), cookie string.
+
+RDP protocol layers: TPKT → X.224 → MCS/T.125 (GCC conference) → Security →
+Client Info PDU (credentials here) → Capability Exchange → Bitmap Updates.
+
 ### Telnet Emulation
 - IoT botnets (Mirai variants) target telnet
 - Would capture significant additional malware
@@ -166,3 +191,46 @@ Options to consider:
 - Could potentially add to existing SPOOLSS handler
 
 Note: SMB2/SMB3 exploits require protocol support dionaea doesn't have.
+
+## Shellcode & Exploit Pipeline
+
+### Bind-Port Catcher (from Amun honeypot)
+When shellcode analysis detects a bindshell payload (port extracted from binary),
+open a secondary listener on that port with a fake Windows cmd.exe shell to capture
+follow-up interaction. Amun implemented this as `amun_bindport_core.py`.
+
+**Current state in dionaea:** Phase 6 shellcode detection (GetPC heuristics via
+`shell_detect`) identifies shellcode presence but does not extract bind ports or
+connect-back addresses. Speakeasy emulation can detect bind/connectback behavior
+but we don't act on it by opening a secondary listener.
+
+**Relevance (2025):** Bind shells are mostly replaced by reverse shells in modern
+exploits. The traffic that still triggers bind-shell detection is overwhelmingly
+automated zombie noise (EternalBlue variants, legacy worms). Not zero traffic, but
+declining. Low priority — implement for completeness eventually, don't let it block
+acceptance testing.
+
+### Shellcode Decoder Pattern Library (from Amun honeypot)
+Amun had ~40 named x86 shellcode decoder patterns (Rothenburg, Mainz, Koeln, etc.)
+that detect specific XOR decoder stubs and extract connect-back IPs/ports from
+binary payloads. These go beyond GetPC detection to identify specific shellcode
+families and extract IOCs.
+
+**Relevance (2025):** Marginal. These patterns target pre-DEP/ASLR exploitation
+techniques (2005-2012 era). Modern shellcode uses ROP chains, reflective DLL
+injection, or position-independent loaders that these regexes cannot detect.
+The vulnerabilities they target (MS04-011, MS06-040, MS08-067) exist only on
+Windows XP/2003 which is ~0.3% market share.
+
+EternalBlue/DoublePulsar is the one exception — still generates significant
+automated traffic. Dionaea already handles this via SMB protocol emulation.
+
+**Recommendation:** Skip porting. The GetPC heuristic approach (already in Phase 6)
+is more general-purpose. If we want deeper shellcode analysis, invest in Speakeasy
+emulation depth rather than static regex patterns.
+
+### EternalBlue (MS17-010) Signature Hardening
+EternalBlue still accounts for ~92% of SMB exploit traffic seen by honeypots.
+Consider adding specific detection/logging for DoublePulsar backdoor installation
+attempts (the second stage after EternalBlue exploitation). This is the one
+"legacy" shellcode family that still generates actionable intelligence.
