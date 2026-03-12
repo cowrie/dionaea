@@ -72,10 +72,17 @@ class ConnectionInfo:
     client_name: str = ""
     client_build: int = 0
     keyboard_layout: int = 0
+    desktop_width: int = 0
+    desktop_height: int = 0
+    requested_channels: list[str] | None = None
     username: str = ""
     domain: str = ""
     password: str = ""
     cookie: str = ""
+
+    def __post_init__(self):
+        if self.requested_channels is None:
+            self.requested_channels = []
 
 
 class rdpd(connection):
@@ -320,12 +327,25 @@ class rdpd(connection):
                     self.client_info.client_name = gcc_data.client_name
                     self.client_info.client_build = gcc_data.client_build
                     self.client_info.keyboard_layout = gcc_data.keyboard_layout
+                    self.client_info.desktop_width = gcc_data.desktop_width
+                    self.client_info.desktop_height = gcc_data.desktop_height
+                    self.client_info.requested_channels = gcc_data.requested_channels
                     rdplog.info(
-                        "RDP client: name=%s, build=%d, kb_layout=0x%x",
+                        "RDP client: name=%s, build=%d, kb_layout=0x%x, desktop=%dx%d",
                         gcc_data.client_name,
                         gcc_data.client_build,
                         gcc_data.keyboard_layout,
+                        gcc_data.desktop_width,
+                        gcc_data.desktop_height,
                     )
+                    if gcc_data.requested_channels:
+                        rdplog.info("RDP requested channels: %s", gcc_data.requested_channels)
+                    for chan in gcc_data.requested_channels:
+                        if chan in ("cliprdr", "rdpdr"):
+                            rdplog.info(
+                                "RDP %s channel requested from %s:%d",
+                                chan, self.remote.host, self.remote.port,
+                            )
 
             # Send MCS Connect-Response
             self._send_mcs_connect_response()
@@ -540,6 +560,12 @@ class rdpd(connection):
                 i.set("domain", self.client_info.domain)
                 i.set("username", self.client_info.username)
                 i.set("password", self.client_info.password)
+                i.set("hostname", self.client_info.client_name)
+                i.set("client_build", self.client_info.client_build)
+                i.set("keyboard_layout", self.client_info.keyboard_layout)
+                i.set("desktop_width", self.client_info.desktop_width)
+                i.set("desktop_height", self.client_info.desktop_height)
+                i.set("cookie", self.client_info.cookie)
                 i.report()
 
         except Exception as e:
