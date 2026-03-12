@@ -766,37 +766,29 @@ class logsqlhandler(ihandler):
         return attackid
 
     def handle_incident_dionaea_connection_tcp_listen(self, icd):
-        attackid = self.connection_insert(icd, "listen")
-        con = icd.con
-        logger.info(
-            f"listen connection on {con.remote.host}:{con.remote.port} (id={attackid})"
-        )
+        self.connection_insert(icd, "listen")
 
     def handle_incident_dionaea_connection_tls_listen(self, icd):
-        attackid = self.connection_insert(icd, "listen")
-        con = icd.con
-        logger.info(
-            f"listen connection on {con.remote.host}:{con.remote.port} (id={attackid})"
-        )
+        self.connection_insert(icd, "listen")
 
     def handle_incident_dionaea_connection_tcp_connect(self, icd):
         attackid = self.connection_insert(icd, "connect")
         con = icd.con
-        logger.info(
+        logger.debug(
             f"connect connection to {con.remote.host}:{con.remote.port} from {con.local.host}:{con.local.port} (id={attackid})"
         )
 
     def handle_incident_dionaea_connection_tls_connect(self, icd):
         attackid = self.connection_insert(icd, "connect")
         con = icd.con
-        logger.info(
+        logger.debug(
             f"connect connection to {con.remote.host}:{con.remote.port} from {con.local.host}:{con.local.port} (id={attackid})"
         )
 
     def handle_incident_dionaea_connection_udp_connect(self, icd):
         attackid = self.connection_insert(icd, "connect")
         con = icd.con
-        logger.info(
+        logger.debug(
             f"connect connection to {con.remote.host}:{con.remote.port} from {con.local.host}:{con.local.port} (id={attackid})"
         )
 

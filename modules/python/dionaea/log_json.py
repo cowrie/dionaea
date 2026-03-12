@@ -186,28 +186,24 @@ class LogJsonHandler(ihandler):
 
     def handle_incident_dionaea_connection_tcp_listen(self, icd):
         self._serialize_connection(icd, "listen")
-        con = icd.con
-        logger.info(f"listen connection on {con.remote.host}:{con.remote.port}")
 
     def handle_incident_dionaea_connection_tls_listen(self, icd):
         self._serialize_connection(icd, "listen")
-        con = icd.con
-        logger.info(f"listen connection on {con.remote.host}:{con.remote.port}")
 
     def handle_incident_dionaea_connection_tcp_connect(self, icd):
         self._serialize_connection(icd, "connect")
         con = icd.con
-        logger.info(f"connect connection to {con.remote.host}/{con.remote.hostname}:{con.remote.port} from {con.local.host}:{con.local.port}")
+        logger.debug(f"connect connection to {con.remote.host}:{con.remote.port} from {con.local.host}:{con.local.port}")
 
     def handle_incident_dionaea_connection_tls_connect(self, icd):
         self._serialize_connection(icd, "connect")
         con = icd.con
-        logger.info(f"connect connection to {con.remote.host}/{con.remote.hostname}:{con.remote.port} from {con.local.host}:{con.local.port}")
+        logger.debug(f"connect connection to {con.remote.host}:{con.remote.port} from {con.local.host}:{con.local.port}")
 
     def handle_incident_dionaea_connection_udp_connect(self, icd):
         self._serialize_connection(icd, "connect")
         con = icd.con
-        logger.info(f"connect connection to {con.remote.host}/{con.remote.hostname}:{con.remote.port} from {con.local.host}:{con.local.port}")
+        logger.debug(f"connect connection to {con.remote.host}:{con.remote.port} from {con.local.host}:{con.local.port}")
 
     def handle_incident_dionaea_connection_tcp_accept(self, icd):
         self._serialize_connection(icd, "accept")
