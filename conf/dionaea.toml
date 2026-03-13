@@ -17,14 +17,56 @@ recv_buffer_size = 65536
 [dionaea.admin]
 listen = "127.0.0.1"
 
+# --- Logging ---
+#
+# Each [[logging.targets]] entry is an independent log sink with its own
+# level and domain filters. There is no global log level — the daemon
+# automatically opens the gate wide enough for the most verbose target.
+#
+# Fields per target:
+#   type    - "stdout" or "file"
+#   format  - "text" (human-readable) or "json" (structured, one object per line)
+#   levels  - Comma-separated severity filter. Include the levels you want to see.
+#             Values: debug, info, warning, error, critical
+#   domains - Glob pattern for log source filtering. "*" matches everything.
+#             Rust modules match against their module path (e.g. "dionaea::connection::tcp").
+#             Python modules match against their logger name (e.g. "dionaea.rdp.rdp").
+#             Examples:
+#               "*"               — all sources
+#               "dionaea.rdp.*"   — only RDP protocol logs
+#               "dionaea::*"      — only Rust-side logs
+#   path    - File path (required for type = "file", ignored for stdout)
+#
+# The RUST_LOG environment variable overrides the auto-derived global gate
+# if set (standard tracing_subscriber EnvFilter syntax).
+#
+# Examples:
+#
+#   # Verbose stdout for debugging a specific protocol:
+#   [[logging.targets]]
+#   type = "stdout"
+#   format = "text"
+#   levels = "debug,info,warning,error,critical"
+#   domains = "dionaea.rdp.*"
+#
+#   # Quiet file log for production:
+#   [[logging.targets]]
+#   type = "file"
+#   path = "/var/log/dionaea/dionaea.jsonl"
+#   format = "json"
+#   levels = "warning,error,critical"
+#   domains = "*"
+
 [logging]
 
+# Console: everything including debug (useful while developing/testing)
 [[logging.targets]]
 type = "stdout"
 format = "text"
-levels = "info,warning,error,critical"
+levels = "debug,info,warning,error,critical"
 domains = "*"
 
+# Structured log file: info and above for all modules
 [[logging.targets]]
 type = "file"
 path = "var/log/dionaea/dionaea.jsonl"
@@ -32,6 +74,7 @@ format = "json"
 levels = "info,warning,error,critical"
 domains = "*"
 
+# Errors-only log file for quick triage
 [[logging.targets]]
 type = "file"
 path = "var/log/dionaea/error.log"
