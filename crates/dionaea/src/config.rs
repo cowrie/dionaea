@@ -179,9 +179,6 @@ pub struct PythonModuleConfig {
     /// Directory containing Python packages (added to sys.path).
     #[serde(default)]
     pub python_path: Option<PathBuf>,
-    /// Python logging level (debug, info, warning, error, critical).
-    #[serde(default = "default_python_loglevel")]
-    pub loglevel: String,
 }
 
 /// Configuration for a single processor in the pipeline.
@@ -240,9 +237,6 @@ fn default_recv_buffer_size() -> usize {
 }
 fn default_admin_listen() -> IpAddr {
     "127.0.0.1".parse().expect("valid IP")
-}
-fn default_python_loglevel() -> String {
-    "info".to_string()
 }
 fn default_log_format() -> String {
     "json".to_string()
@@ -334,7 +328,6 @@ impl Default for PythonModuleConfig {
             service_configs: Vec::new(),
             ihandler_configs: Vec::new(),
             python_path: None,
-            loglevel: default_python_loglevel(),
         }
     }
 }

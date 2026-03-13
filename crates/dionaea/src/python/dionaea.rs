@@ -87,8 +87,6 @@ impl PyDionaea {
             "ihandler_configs",
             PyList::new(py, &state.config.modules.python.ihandler_configs)?,
         )?;
-        python_dict.set_item("loglevel", &state.config.modules.python.loglevel)?;
-
         let module_dict = PyDict::new(py);
         module_dict.set_item("python", python_dict)?;
         result.set_item("module", module_dict)?;

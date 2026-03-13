@@ -208,7 +208,6 @@ async fn async_main(config: config::Config, log_state: LogState) {
         let service_configs = python_config.service_configs.clone();
         let ihandler_configs = python_config.ihandler_configs.clone();
         let python_path = python_config.python_path.clone();
-        let python_config_loglevel = python_config.loglevel.clone();
         let load_result = tokio::task::spawn_blocking(move || {
             pyo3::Python::attach(|py| {
                 let config = dionaea::config::PythonModuleConfig {
@@ -216,7 +215,6 @@ async fn async_main(config: config::Config, log_state: LogState) {
                     service_configs,
                     ihandler_configs,
                     python_path,
-                    loglevel: python_config_loglevel.clone(),
                 };
                 dionaea::python::loader::load(py, &config)
             })
@@ -361,7 +359,6 @@ async fn graceful_shutdown(
             let service_configs = state.config.modules.python.service_configs.clone();
             let ihandler_configs = state.config.modules.python.ihandler_configs.clone();
             let python_path = state.config.modules.python.python_path.clone();
-            let loglevel = state.config.modules.python.loglevel.clone();
             let _ = tokio::task::spawn_blocking(move || {
                 pyo3::Python::attach(|py| {
                     let config = dionaea::config::PythonModuleConfig {
@@ -369,7 +366,6 @@ async fn graceful_shutdown(
                         service_configs,
                         ihandler_configs,
                         python_path,
-                        loglevel,
                     };
                     dionaea::python::loader::shutdown(py, &config);
                 });
