@@ -15,8 +15,6 @@ from dionaea.rdp.include.crypto import (
     decrypt_client_random,
     derive_session_keys,
     rc4_crypt,
-    parse_client_info_pdu,
-    ClientInfo,
 )
 
 
@@ -100,68 +98,6 @@ class TestRC4:
         ct1 = rc4_crypt(b"\x01" * 16, plaintext)
         ct2 = rc4_crypt(b"\x02" * 16, plaintext)
         assert ct1 != ct2
-
-
-class TestClientInfoPDU:
-    def _build_client_info(
-        self,
-        domain: str = "WORKGROUP",
-        username: str = "administrator",
-        password: str = "P@ssw0rd",
-        alt_shell: str = "",
-        working_dir: str = "",
-    ) -> bytes:
-        """Build a TS_INFO_PACKET payload."""
-        # Encode strings as null-terminated UTF-16LE
-        domain_bytes = domain.encode("utf-16-le") + b"\x00\x00"
-        user_bytes = username.encode("utf-16-le") + b"\x00\x00"
-        pass_bytes = password.encode("utf-16-le") + b"\x00\x00"
-        shell_bytes = alt_shell.encode("utf-16-le") + b"\x00\x00"
-        dir_bytes = working_dir.encode("utf-16-le") + b"\x00\x00"
-
-        # TS_INFO_PACKET fixed header:
-        # codePage(4) + flags(4) + cbDomain(2) + cbUserName(2) + cbPassword(2) +
-        # cbAlternateShell(2) + cbWorkingDir(2)
-        flags = 0x00000033  # INFO_MOUSE | INFO_UNICODE | INFO_LOGONNOTIFY | INFO_MAXIMIZESHELL
-        header = struct.pack("<II HHHHH",
-            0,       # codePage
-            flags,
-            len(domain_bytes) - 2,  # cbDomain (excluding null terminator)
-            len(user_bytes) - 2,
-            len(pass_bytes) - 2,
-            len(shell_bytes) - 2,
-            len(dir_bytes) - 2,
-        )
-        return header + domain_bytes + user_bytes + pass_bytes + shell_bytes + dir_bytes
-
-    def test_parse_client_info(self):
-        data = self._build_client_info()
-        info = parse_client_info_pdu(data)
-        assert info is not None
-        assert info.domain == "WORKGROUP"
-        assert info.username == "administrator"
-        assert info.password == "P@ssw0rd"
-
-    def test_parse_different_credentials(self):
-        data = self._build_client_info(
-            domain="CORP",
-            username="admin",
-            password="secret123",
-        )
-        info = parse_client_info_pdu(data)
-        assert info is not None
-        assert info.domain == "CORP"
-        assert info.username == "admin"
-        assert info.password == "secret123"
-
-    def test_parse_empty_password(self):
-        data = self._build_client_info(password="")
-        info = parse_client_info_pdu(data)
-        assert info is not None
-        assert info.password == ""
-
-    def test_parse_too_short(self):
-        assert parse_client_info_pdu(b"\x00" * 10) is None
 
 
 if __name__ == "__main__":

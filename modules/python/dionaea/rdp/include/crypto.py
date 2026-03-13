@@ -9,7 +9,6 @@ from __future__ import annotations
 import hashlib
 import os
 import struct
-from typing import NamedTuple
 
 from cryptography.hazmat.primitives.asymmetric import rsa, padding as asym_padding
 from cryptography.hazmat.primitives.ciphers import Cipher
@@ -131,55 +130,3 @@ def rc4_crypt(key: bytes, data: bytes) -> bytes:
     return encryptor.update(data) + encryptor.finalize()
 
 
-class ClientInfo(NamedTuple):
-    """Parsed credentials from TS_INFO_PACKET."""
-    domain: str
-    username: str
-    password: str
-    alt_shell: str
-    working_dir: str
-
-
-def parse_client_info_pdu(data: bytes) -> ClientInfo | None:
-    """Parse TS_INFO_PACKET to extract credentials.
-
-    Input: raw info packet data (after security header).
-    """
-    # Fixed header: codePage(4) + flags(4) + cbDomain(2) + cbUserName(2) +
-    # cbPassword(2) + cbAlternateShell(2) + cbWorkingDir(2) = 18 bytes
-    if len(data) < 18:
-        return None
-
-    (code_page, flags,
-     cb_domain, cb_user, cb_password,
-     cb_shell, cb_dir) = struct.unpack_from("<II HHHHH", data, 0)
-
-    is_unicode = bool(flags & 0x00000010)  # INFO_UNICODE
-    encoding = "utf-16-le" if is_unicode else "ascii"
-    null_term_len = 2 if is_unicode else 1
-
-    offset = 18
-
-    def read_field(length: int) -> str:
-        nonlocal offset
-        # length is cbField (excludes null terminator), read length + null_term_len
-        field_data = data[offset:offset + length]
-        offset += length + null_term_len
-        return field_data.decode(encoding, errors="replace")
-
-    try:
-        domain = read_field(cb_domain)
-        username = read_field(cb_user)
-        password = read_field(cb_password)
-        alt_shell = read_field(cb_shell)
-        working_dir = read_field(cb_dir)
-    except Exception:
-        return None
-
-    return ClientInfo(
-        domain=domain,
-        username=username,
-        password=password,
-        alt_shell=alt_shell,
-        working_dir=working_dir,
-    )
