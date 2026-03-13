@@ -992,7 +992,6 @@ class httpd(connection):
         return self.send_error(404)
 
     def handle_io_out(self) -> None:
-        logger.debug("handle_io_out")
         if self.state == STATE_SENDFILE:
             w = self.file.read(self.rwchunksize)
             if len(w) > 0:
