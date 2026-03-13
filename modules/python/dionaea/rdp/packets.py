@@ -884,6 +884,25 @@ def build_tsrequest_response(nego_token: bytes, version: int = 2) -> bytes:
     return _der_encode_tlv(0x30, version_tlv + nego_tokens)
 
 
+# SEC_E_LOGON_DENIED (0x8009030C) — NTSTATUS for "logon denied"
+CREDSSP_ERROR_LOGON_DENIED = 0x8009030C
+
+
+def build_tsrequest_error(error_code: int = CREDSSP_ERROR_LOGON_DENIED, version: int = 2) -> bytes:
+    """Build a CredSSP TSRequest with errorCode (server → client, logon denied)."""
+    version_tlv = _der_encode_tlv(0xA0, _der_encode_tlv(0x02, bytes([version])))
+    # [3] errorCode INTEGER (4 bytes, unsigned → encode as signed per DER)
+    error_bytes = error_code.to_bytes(4, "big")
+    # Strip leading zero bytes for minimal DER INTEGER encoding, but keep sign byte
+    while len(error_bytes) > 1 and error_bytes[0] == 0:
+        error_bytes = error_bytes[1:]
+    # If high bit set, prepend 0x00 for positive representation
+    if error_bytes[0] & 0x80:
+        error_bytes = b"\x00" + error_bytes
+    error_tlv = _der_encode_tlv(0xA3, _der_encode_tlv(0x02, error_bytes))
+    return _der_encode_tlv(0x30, version_tlv + error_tlv)
+
+
 # ---------------------------------------------------------------------------
 # NTLMSSP Authenticate (Type 3) parsing
 # ---------------------------------------------------------------------------

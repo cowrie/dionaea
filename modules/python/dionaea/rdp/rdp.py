@@ -43,6 +43,7 @@ from .packets import (
     X224Packet,
     build_mcs_connect_response,
     build_ntlmssp_challenge,
+    build_tsrequest_error,
     build_tsrequest_response,
     der_sequence_length,
     format_ntlmv2_hash,
@@ -489,6 +490,9 @@ class rdpd(connection):
             rdplog.info("NTLMv2 hash: %s", ntlmv2_hash)
 
         i.report()
+
+        # Send CredSSP error (logon denied) for clean disconnect
+        self.send(build_tsrequest_error(version=2))
         self.state = State.DONE
 
     def _send_mcs_connect_response(self, channel_names: list[str] | None = None) -> None:

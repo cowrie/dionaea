@@ -11,10 +11,12 @@ import struct
 import pytest
 
 from dionaea.rdp.packets import (
+    CREDSSP_ERROR_LOGON_DENIED,
     NTLMSSP_SIGNATURE,
     NTLMSSPNegotiate,
     TSRequest,
     build_ntlmssp_challenge,
+    build_tsrequest_error,
     build_tsrequest_response,
     der_sequence_length,
     format_ntlmv2_hash,
@@ -329,6 +331,26 @@ class TestBuildTSRequestResponse:
         assert parsed is not None
         assert len(parsed.nego_tokens) == 1
         assert parsed.nego_tokens[0] == token
+
+
+# ---------------------------------------------------------------------------
+# NTLMSSP Authenticate (Type 3) parsing
+# ---------------------------------------------------------------------------
+
+
+class TestBuildTSRequestError:
+    def test_is_valid_der_sequence(self):
+        data = build_tsrequest_error()
+        assert data[0] == 0x30
+        assert der_sequence_length(data) == len(data)
+
+    def test_contains_error_code(self):
+        data = build_tsrequest_error(error_code=CREDSSP_ERROR_LOGON_DENIED, version=3)
+        parsed = parse_tsrequest(data)
+        assert parsed is not None
+        assert parsed.version == 3
+        # No negoTokens in an error response
+        assert parsed.nego_tokens == []
 
 
 # ---------------------------------------------------------------------------
