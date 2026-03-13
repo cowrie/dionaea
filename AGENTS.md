@@ -143,6 +143,19 @@ nix-shell   # provides rustc, cargo, clippy, rustfmt, openssl, python
 
 ## Conventions
 
+### Copyright & Licensing
+
+New code is dual-licensed. Every source file must include this SPDX header:
+
+```
+SPDX-FileCopyrightText: <year> Cowrie <cowrie@cowrie.org>
+SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
+```
+
+- Copyright holder is always `Cowrie <cowrie@cowrie.org>`
+- AGPL-3.0 for open-source use, commercial license available separately
+- Use the year the file was created (not updated)
+
 ### File Headers
 
 Every code file must start with a 2-line ABOUTME comment:
