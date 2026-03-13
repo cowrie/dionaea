@@ -211,7 +211,7 @@ impl TcpEngine {
         if tcp.is_syn_only() && self.is_port_open(tcp.dst_port) {
             // New connection
             let isn = self.isn_gen.next_isn();
-            let rcv_wnd = self.personality.window_for_probe(0) as u32;
+            let rcv_wnd = u32::from(self.personality.window_for_probe(0));
             let mut conn = TcpConnection::new(conn_id, isn, rcv_wnd);
             conn.irs = tcp.seq_num;
             conn.rcv_nxt = tcp.seq_num.wrapping_add(1);
@@ -289,7 +289,7 @@ impl TcpEngine {
             }
             TcpState::Established => {
                 let payload = tcp.payload(tcp_data);
-                let seg_len = payload.len() as u32 + if tcp.is_fin() { 1 } else { 0 };
+                let seg_len = payload.len() as u32 + u32::from(tcp.is_fin());
 
                 // RFC 793 sequence number validation
                 if !seq_in_window(tcp.seq_num, seg_len, conn.rcv_nxt, conn.rcv_wnd) {
@@ -325,12 +325,10 @@ impl TcpEngine {
                 }
 
                 // ACK validation
-                if tcp.is_ack() {
-                    if ack_is_valid(tcp.ack_num, conn.snd_una, conn.snd_nxt) {
-                        conn.snd_una = tcp.ack_num;
-                    }
-                    // Duplicate ACKs (seg_ack <= snd_una) are silently accepted per RFC 793
+                if tcp.is_ack() && ack_is_valid(tcp.ack_num, conn.snd_una, conn.snd_nxt) {
+                    conn.snd_una = tcp.ack_num;
                 }
+                // Duplicate ACKs (seg_ack <= snd_una) are silently accepted per RFC 793
 
                 if !payload.is_empty() {
                     conn.rcv_nxt = conn.rcv_nxt.wrapping_add(payload.len() as u32);
