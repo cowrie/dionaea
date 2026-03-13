@@ -27,7 +27,7 @@ listen = "127.0.0.1"
 #   type    - "stdout" or "file"
 #   format  - "text" (human-readable) or "json" (structured, one object per line)
 #   levels  - Comma-separated severity filter. Include the levels you want to see.
-#             Values: debug, info, warning, error, critical
+#             Values: trace, debug, info, warning, error, critical
 #   domains - Glob pattern for log source filtering. "*" matches everything.
 #             Rust modules match against their module path (e.g. "dionaea::connection::tcp").
 #             Python modules match against their logger name (e.g. "dionaea.rdp.rdp").

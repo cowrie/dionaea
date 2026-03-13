@@ -55,8 +55,9 @@ pub fn register_classes(module: &Bound<'_, PyModule>) -> PyResult<()> {
 /// Bridge Python logging to Rust tracing.
 ///
 /// Called by `dionaea/log.py` as `dlhfn(name, number, path, line, msg)`.
-/// Maps Python log levels (DEBUG=10, INFO=20, WARNING=30, ERROR=40, CRITICAL=50)
-/// to tracing levels.
+/// Maps Python log levels to tracing levels:
+///   TRACE=5 → trace, DEBUG=10 → debug, INFO=20 → info,
+///   WARNING=30 → warn, ERROR=40 → error, CRITICAL=50 → error
 #[gen_stub_pyfunction]
 #[pyfunction]
 fn dlhfn(name: &str, number: i32, path: &str, line: i32, msg: &str) {
@@ -66,7 +67,8 @@ fn dlhfn(name: &str, number: i32, path: &str, line: i32, msg: &str) {
         40 => tracing::error!(target: "python", logger = name, file = file, line = line, "{msg}"),
         30 => tracing::warn!(target: "python", logger = name, file = file, line = line, "{msg}"),
         20 => tracing::info!(target: "python", logger = name, file = file, line = line, "{msg}"),
-        _ => tracing::debug!(target: "python", logger = name, file = file, line = line, "{msg}"),
+        10 => tracing::debug!(target: "python", logger = name, file = file, line = line, "{msg}"),
+        _ => tracing::trace!(target: "python", logger = name, file = file, line = line, "{msg}"),
     }
 }
 
@@ -145,6 +147,7 @@ mod tests {
             py.run(
                 c"
 from dionaea_dlhfn_test import dlhfn
+dlhfn('test.logger', 5, '/tmp/test.py', 41, 'trace message')
 dlhfn('test.logger', 10, '/tmp/test.py', 42, 'debug message')
 dlhfn('test.logger', 20, '/tmp/test.py', 43, 'info message')
 dlhfn('test.logger', 30, '/tmp/test.py', 44, 'warning message')

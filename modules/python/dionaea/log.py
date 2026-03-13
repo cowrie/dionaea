@@ -9,13 +9,17 @@ from __future__ import annotations
 from dionaea.core import dlhfn
 import logging
 
+# Register TRACE level (below DEBUG=10, matches Rust tracing::trace)
+TRACE = 5
+logging.addLevelName(TRACE, "TRACE")
+
 handler: 'DionaeaLogHandler | None' = None
 logger: logging.Logger | None = None
 
 
 class DionaeaLogHandler(logging.Handler):
     def __init__(self) -> None:
-        logging.Handler.__init__(self, logging.DEBUG)
+        logging.Handler.__init__(self, TRACE)
 
     def emit(self, record: logging.LogRecord) -> None:
         msg = self.format(record)
@@ -28,7 +32,7 @@ def new() -> None:
 
     # Pass everything through to Rust tracing — filtering happens there
     logger = logging.getLogger('')
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(TRACE)
     handler = DionaeaLogHandler()
     logger.addHandler(handler)
 
