@@ -797,3 +797,177 @@ def parse_ntlmssp_negotiate(data: bytes) -> NTLMSSPNegotiate | None:
         workstation_name=workstation_name,
         os_version=os_version,
     )
+
+
+# ---------------------------------------------------------------------------
+# NTLMSSP Challenge (Type 2) building
+# ---------------------------------------------------------------------------
+
+# Flags for our Type 2 challenge message
+_CHALLENGE_FLAGS = (
+    0x00000001  # NEGOTIATE_UNICODE
+    | 0x00000002  # NEGOTIATE_NTLM
+    | 0x00000004  # REQUEST_TARGET
+    | 0x00008000  # NEGOTIATE_ALWAYS_SIGN
+    | 0x00080000  # NEGOTIATE_NTLM2 (extended session security)
+    | 0x00800000  # NEGOTIATE_TARGET_INFO
+)
+
+
+def _build_av_pairs(target_name: str) -> bytes:
+    """Build AV_PAIR target info structures for the NTLMSSP challenge."""
+    pairs = b""
+    # MsvAvNbDomainName (type 2)
+    name_bytes = target_name.encode("utf-16-le")
+    pairs += struct.pack("<HH", 2, len(name_bytes)) + name_bytes
+    # MsvAvNbComputerName (type 1)
+    pairs += struct.pack("<HH", 1, len(name_bytes)) + name_bytes
+    # MsvAvEOL (type 0, length 0)
+    pairs += struct.pack("<HH", 0, 0)
+    return pairs
+
+
+def build_ntlmssp_challenge(
+    server_challenge: bytes,
+    target_name: str = "WORKGROUP",
+) -> bytes:
+    """Build an NTLMSSP Challenge (Type 2) message.
+
+    Args:
+        server_challenge: 8-byte random nonce.
+        target_name: NetBIOS domain name to present to client.
+    """
+    target_name_bytes = target_name.encode("utf-16-le")
+    av_pairs = _build_av_pairs(target_name)
+
+    # Fixed header: sig(8) + type(4) + target_name_fields(8) + flags(4) +
+    #               server_challenge(8) + reserved(8) + target_info_fields(8)
+    header_size = 8 + 4 + 8 + 4 + 8 + 8 + 8  # = 48
+
+    target_name_offset = header_size
+    target_info_offset = target_name_offset + len(target_name_bytes)
+
+    msg = NTLMSSP_SIGNATURE
+    msg += struct.pack("<I", 2)  # Message type
+    # TargetNameFields
+    msg += struct.pack("<HHI", len(target_name_bytes), len(target_name_bytes), target_name_offset)
+    msg += struct.pack("<I", _CHALLENGE_FLAGS)
+    msg += server_challenge  # 8 bytes
+    msg += b"\x00" * 8  # Reserved
+    # TargetInfoFields
+    msg += struct.pack("<HHI", len(av_pairs), len(av_pairs), target_info_offset)
+
+    msg += target_name_bytes + av_pairs
+    return msg
+
+
+# ---------------------------------------------------------------------------
+# TSRequest response building (server → client)
+# ---------------------------------------------------------------------------
+
+
+def _der_encode_tlv(tag: int, value: bytes) -> bytes:
+    """Encode a DER tag-length-value triple."""
+    return bytes([tag]) + ber_encode_length(len(value)) + value
+
+
+def build_tsrequest_response(nego_token: bytes, version: int = 2) -> bytes:
+    """Build a CredSSP TSRequest containing a single negoToken (server → client)."""
+    # [0] version INTEGER
+    version_tlv = _der_encode_tlv(0xA0, _der_encode_tlv(0x02, bytes([version])))
+    # negoToken wrapped: OCTET STRING → [0] → SEQUENCE → SEQUENCE → [1]
+    octet = _der_encode_tlv(0x04, nego_token)
+    inner = _der_encode_tlv(0xA0, octet)
+    inner_seq = _der_encode_tlv(0x30, inner)
+    outer_seq = _der_encode_tlv(0x30, inner_seq)
+    nego_tokens = _der_encode_tlv(0xA1, outer_seq)
+    return _der_encode_tlv(0x30, version_tlv + nego_tokens)
+
+
+# ---------------------------------------------------------------------------
+# NTLMSSP Authenticate (Type 3) parsing
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class NTLMSSPAuthenticate:
+    """NTLMSSP Authenticate (Type 3) message fields."""
+    domain: str
+    username: str
+    workstation: str
+    nt_response: bytes
+    lm_response: bytes
+
+
+def parse_ntlmssp_authenticate(data: bytes) -> NTLMSSPAuthenticate | None:
+    """Parse NTLMSSP Authenticate (Type 3) message."""
+    # Minimum: sig(8) + type(4) + lm(8) + nt(8) + domain(8) + user(8) + ws(8) + enc(8) + flags(4) = 64
+    if len(data) < 64:
+        return None
+    if data[:8] != NTLMSSP_SIGNATURE:
+        return None
+    msg_type = struct.unpack("<I", data[8:12])[0]
+    if msg_type != 3:
+        return None
+
+    def _read_fields(offset: int) -> tuple[int, int]:
+        """Read security buffer fields (length, offset)."""
+        length = struct.unpack("<H", data[offset:offset + 2])[0]
+        buf_offset = struct.unpack("<I", data[offset + 4:offset + 8])[0]
+        return length, buf_offset
+
+    lm_len, lm_off = _read_fields(12)
+    nt_len, nt_off = _read_fields(20)
+    dom_len, dom_off = _read_fields(28)
+    user_len, user_off = _read_fields(36)
+    ws_len, ws_off = _read_fields(44)
+
+    def _extract(off: int, length: int) -> bytes:
+        if length == 0:
+            return b""
+        if off + length > len(data):
+            return b""
+        return data[off:off + length]
+
+    lm_response = _extract(lm_off, lm_len)
+    nt_response = _extract(nt_off, nt_len)
+    domain = _extract(dom_off, dom_len).decode("utf-16-le", errors="replace")
+    username = _extract(user_off, user_len).decode("utf-16-le", errors="replace")
+    workstation = _extract(ws_off, ws_len).decode("utf-16-le", errors="replace")
+
+    return NTLMSSPAuthenticate(
+        domain=domain,
+        username=username,
+        workstation=workstation,
+        nt_response=nt_response,
+        lm_response=lm_response,
+    )
+
+
+# ---------------------------------------------------------------------------
+# NTLMv2 hash formatting (hashcat mode 5600)
+# ---------------------------------------------------------------------------
+
+
+def format_ntlmv2_hash(
+    username: str,
+    domain: str,
+    server_challenge: bytes,
+    nt_response: bytes,
+) -> str | None:
+    """Format NTLMv2 hash for offline cracking (hashcat mode 5600).
+
+    Returns: username::domain:server_challenge:nt_proof:ntv2_blob
+    Or None if nt_response is too short (must be > 16 bytes).
+    """
+    if len(nt_response) <= 16:
+        return None
+    nt_proof = nt_response[:16]
+    ntv2_blob = nt_response[16:]
+    return "%s::%s:%s:%s:%s" % (
+        username,
+        domain,
+        server_challenge.hex(),
+        nt_proof.hex(),
+        ntv2_blob.hex(),
+    )

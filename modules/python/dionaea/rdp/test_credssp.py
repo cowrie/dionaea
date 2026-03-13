@@ -1,5 +1,5 @@
-# ABOUTME: Tests for CredSSP TSRequest and NTLMSSP Negotiate parsers.
-# ABOUTME: Validates extraction of client workstation, domain, and version from NLA data.
+# ABOUTME: Tests for CredSSP/NLA protocol: TSRequest parsing, NTLMSSP message building/parsing.
+# ABOUTME: Covers Type 1 (Negotiate), Type 2 (Challenge), Type 3 (Authenticate), and hash formatting.
 
 # SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
 # SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
@@ -11,9 +11,14 @@ import struct
 import pytest
 
 from dionaea.rdp.packets import (
+    NTLMSSP_SIGNATURE,
     NTLMSSPNegotiate,
     TSRequest,
+    build_ntlmssp_challenge,
+    build_tsrequest_response,
     der_sequence_length,
+    format_ntlmv2_hash,
+    parse_ntlmssp_authenticate,
     parse_ntlmssp_negotiate,
     parse_tsrequest,
 )
@@ -252,6 +257,223 @@ class TestDerSequenceLength:
     def test_synthetic_short_sequence(self):
         data = _build_tsrequest(_build_ntlmssp_negotiate(), version=2)
         assert der_sequence_length(data) == len(data)
+
+
+# ---------------------------------------------------------------------------
+# NTLMSSP Challenge (Type 2) building
+# ---------------------------------------------------------------------------
+
+
+class TestBuildNTLMSSPChallenge:
+    def test_signature_and_type(self):
+        msg = build_ntlmssp_challenge(server_challenge=b"\x01" * 8)
+        assert msg[:8] == NTLMSSP_SIGNATURE
+        msg_type = struct.unpack("<I", msg[8:12])[0]
+        assert msg_type == 2
+
+    def test_server_challenge_embedded(self):
+        challenge = b"\xAA\xBB\xCC\xDD\xEE\xFF\x11\x22"
+        msg = build_ntlmssp_challenge(server_challenge=challenge)
+        # Server challenge is at offset 24 in Type 2
+        assert msg[24:32] == challenge
+
+    def test_target_name_present(self):
+        msg = build_ntlmssp_challenge(
+            server_challenge=b"\x01" * 8,
+            target_name="HONEYPOT",
+        )
+        # Target name should be embedded as UTF-16LE somewhere in the message
+        assert "HONEYPOT".encode("utf-16-le") in msg
+
+    def test_flags_include_ntlmv2(self):
+        msg = build_ntlmssp_challenge(server_challenge=b"\x01" * 8)
+        # Flags at offset 20: sig(8) + type(4) + target_name_fields(8) = 20
+        flags = struct.unpack("<I", msg[20:24])[0]
+        assert flags & 0x00000001  # NEGOTIATE_UNICODE
+        assert flags & 0x00000002  # NEGOTIATE_NTLM
+
+    def test_parseable_by_parse_tsrequest_round_trip(self):
+        """Challenge wrapped in TSRequest should be parseable."""
+        challenge_msg = build_ntlmssp_challenge(server_challenge=b"\x01" * 8)
+        tsrequest = build_tsrequest_response(challenge_msg, version=3)
+        parsed = parse_tsrequest(tsrequest)
+        assert parsed is not None
+        assert parsed.version == 3
+        assert len(parsed.nego_tokens) == 1
+        assert parsed.nego_tokens[0] == challenge_msg
+
+
+# ---------------------------------------------------------------------------
+# TSRequest response building
+# ---------------------------------------------------------------------------
+
+
+class TestBuildTSRequestResponse:
+    def test_is_valid_der_sequence(self):
+        token = b"\x01\x02\x03"
+        data = build_tsrequest_response(token, version=2)
+        assert data[0] == 0x30  # SEQUENCE
+        assert der_sequence_length(data) == len(data)
+
+    def test_version_encoded(self):
+        token = b"\xAA"
+        data = build_tsrequest_response(token, version=5)
+        parsed = parse_tsrequest(data)
+        assert parsed is not None
+        assert parsed.version == 5
+
+    def test_token_round_trip(self):
+        token = b"NTLMSSP\x00" + b"\x02" * 50
+        data = build_tsrequest_response(token, version=2)
+        parsed = parse_tsrequest(data)
+        assert parsed is not None
+        assert len(parsed.nego_tokens) == 1
+        assert parsed.nego_tokens[0] == token
+
+
+# ---------------------------------------------------------------------------
+# NTLMSSP Authenticate (Type 3) parsing
+# ---------------------------------------------------------------------------
+
+
+def _build_ntlmssp_authenticate(
+    domain: str = "WORKGROUP",
+    username: str = "administrator",
+    workstation: str = "WIN-PC",
+    nt_response: bytes = b"\xAA" * 24,
+    lm_response: bytes = b"\xBB" * 24,
+) -> bytes:
+    """Build an NTLMSSP Authenticate (Type 3) message for testing."""
+    domain_bytes = domain.encode("utf-16-le")
+    username_bytes = username.encode("utf-16-le")
+    workstation_bytes = workstation.encode("utf-16-le")
+
+    # Fixed header: sig(8) + type(4) + lm_fields(8) + nt_fields(8) +
+    #               domain_fields(8) + user_fields(8) + workstation_fields(8) +
+    #               enc_random_session_key_fields(8) + negotiate_flags(4)
+    header_size = 8 + 4 + 8 + 8 + 8 + 8 + 8 + 8 + 4
+    # = 64 bytes
+
+    # Payload order: lm, nt, domain, user, workstation
+    payload_offset = header_size
+    lm_offset = payload_offset
+    nt_offset = lm_offset + len(lm_response)
+    domain_offset = nt_offset + len(nt_response)
+    user_offset = domain_offset + len(domain_bytes)
+    ws_offset = user_offset + len(username_bytes)
+
+    msg = NTLMSSP_SIGNATURE
+    msg += struct.pack("<I", 3)  # Type 3
+    # LmChallengeResponse
+    msg += struct.pack("<HHI", len(lm_response), len(lm_response), lm_offset)
+    # NtChallengeResponse
+    msg += struct.pack("<HHI", len(nt_response), len(nt_response), nt_offset)
+    # DomainName
+    msg += struct.pack("<HHI", len(domain_bytes), len(domain_bytes), domain_offset)
+    # UserName
+    msg += struct.pack("<HHI", len(username_bytes), len(username_bytes), user_offset)
+    # Workstation
+    msg += struct.pack("<HHI", len(workstation_bytes), len(workstation_bytes), ws_offset)
+    # EncryptedRandomSessionKey (empty)
+    msg += struct.pack("<HHI", 0, 0, 0)
+    # NegotiateFlags (UNICODE | NTLM)
+    msg += struct.pack("<I", 0x00000003)
+
+    msg += lm_response + nt_response + domain_bytes + username_bytes + workstation_bytes
+    return msg
+
+
+class TestParseNTLMSSPAuthenticate:
+    def test_basic(self):
+        msg = _build_ntlmssp_authenticate()
+        result = parse_ntlmssp_authenticate(msg)
+        assert result is not None
+        assert result.domain == "WORKGROUP"
+        assert result.username == "administrator"
+        assert result.workstation == "WIN-PC"
+        assert result.nt_response == b"\xAA" * 24
+        assert result.lm_response == b"\xBB" * 24
+
+    def test_different_credentials(self):
+        msg = _build_ntlmssp_authenticate(
+            domain="CORP",
+            username="admin",
+            workstation="SRV-01",
+            nt_response=b"\x11" * 24,
+            lm_response=b"\x22" * 24,
+        )
+        result = parse_ntlmssp_authenticate(msg)
+        assert result is not None
+        assert result.domain == "CORP"
+        assert result.username == "admin"
+        assert result.workstation == "SRV-01"
+
+    def test_empty_domain(self):
+        msg = _build_ntlmssp_authenticate(domain="")
+        result = parse_ntlmssp_authenticate(msg)
+        assert result is not None
+        assert result.domain == ""
+
+    def test_bad_signature(self):
+        msg = b"XXXXXXXX" + b"\x00" * 56
+        assert parse_ntlmssp_authenticate(msg) is None
+
+    def test_wrong_type(self):
+        msg = NTLMSSP_SIGNATURE + struct.pack("<I", 1) + b"\x00" * 52
+        assert parse_ntlmssp_authenticate(msg) is None
+
+    def test_too_short(self):
+        assert parse_ntlmssp_authenticate(b"NTLMSSP\x00\x03") is None
+
+
+# ---------------------------------------------------------------------------
+# NTLMv2 hash formatting (hashcat mode 5600)
+# ---------------------------------------------------------------------------
+
+
+class TestFormatNTLMv2Hash:
+    def test_basic_format(self):
+        # NTLMv2: nt_response = nt_proof(16) + ntv2_blob(rest)
+        nt_proof = bytes(range(16))
+        ntv2_blob = bytes(range(16, 32))
+        nt_response = nt_proof + ntv2_blob
+        server_challenge = b"\xAA" * 8
+
+        result = format_ntlmv2_hash(
+            username="admin",
+            domain="CORP",
+            server_challenge=server_challenge,
+            nt_response=nt_response,
+        )
+
+        # Format: username::domain:server_challenge_hex:nt_proof_hex:ntv2_blob_hex
+        parts = result.split(":")
+        assert parts[0] == "admin"
+        assert parts[1] == ""  # empty between ::
+        assert parts[2] == "CORP"
+        assert parts[3] == server_challenge.hex()
+        assert parts[4] == nt_proof.hex()
+        assert parts[5] == ntv2_blob.hex()
+
+    def test_short_nt_response_returns_none(self):
+        # NTLMv2 nt_response must be > 16 bytes (16 proof + blob)
+        result = format_ntlmv2_hash(
+            username="admin",
+            domain="CORP",
+            server_challenge=b"\x01" * 8,
+            nt_response=b"\x01" * 10,
+        )
+        assert result is None
+
+    def test_exactly_16_bytes_returns_none(self):
+        # 16 bytes = proof only, no blob
+        result = format_ntlmv2_hash(
+            username="admin",
+            domain="CORP",
+            server_challenge=b"\x01" * 8,
+            nt_response=b"\x01" * 16,
+        )
+        assert result is None
 
 
 if __name__ == "__main__":
