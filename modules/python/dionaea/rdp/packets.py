@@ -418,3 +418,157 @@ class DoublePulsarPacket:
         # Wrap in TPKT
         tpkt = TPKTPacket(TPKTVersion.VERSION_3, 0, 0, x224)
         return tpkt.build()
+
+
+# ---------------------------------------------------------------------------
+# CredSSP TSRequest / NTLMSSP Negotiate
+# ---------------------------------------------------------------------------
+
+NTLMSSP_SIGNATURE = b"NTLMSSP\x00"
+
+# NTLMSSP Negotiate flags relevant to domain/workstation/version presence
+NTLMSSP_NEGOTIATE_VERSION = 0x02000000
+
+
+def _der_read_tlv(data: bytes, offset: int) -> tuple[int, bytes] | None:
+    """Read a DER tag-length-value at offset. Returns (new_offset, value) or None."""
+    if offset >= len(data):
+        return None
+    offset += 1  # skip tag byte
+    if offset >= len(data):
+        return None
+    length_byte = data[offset]
+    offset += 1
+    if length_byte < 0x80:
+        length = length_byte
+    elif length_byte == 0x81:
+        if offset >= len(data):
+            return None
+        length = data[offset]
+        offset += 1
+    elif length_byte == 0x82:
+        if offset + 1 >= len(data):
+            return None
+        length = struct.unpack(">H", data[offset:offset + 2])[0]
+        offset += 2
+    else:
+        return None
+    if offset + length > len(data):
+        return None
+    return offset + length, data[offset:offset + length]
+
+
+@dataclass
+class TSRequest:
+    """CredSSP TSRequest (RFC 4178 / MS-CSSP)."""
+    version: int
+    nego_tokens: list[bytes]
+
+
+def parse_tsrequest(data: bytes) -> TSRequest | None:
+    """Parse a CredSSP TSRequest, extracting version and negoTokens."""
+    if len(data) < 2 or data[0] != 0x30:
+        return None
+
+    result = _der_read_tlv(data, 0)
+    if result is None:
+        return None
+    _, seq_value = result
+
+    version = 0
+    nego_tokens: list[bytes] = []
+    pos = 0
+
+    while pos < len(seq_value):
+        tag = seq_value[pos]
+        result = _der_read_tlv(seq_value, pos)
+        if result is None:
+            break
+        pos, field_value = result
+
+        if tag == 0xA0:
+            # [0] version — contains an INTEGER
+            inner = _der_read_tlv(field_value, 0)
+            if inner is not None:
+                _, int_bytes = inner
+                version = int.from_bytes(int_bytes, "big")
+
+        elif tag == 0xA1:
+            # [1] negoTokens — SEQUENCE OF SEQUENCE { [0] negoToken OCTET STRING }
+            outer = _der_read_tlv(field_value, 0)  # outer SEQUENCE
+            if outer is None:
+                continue
+            _, outer_value = outer
+            # Iterate inner SEQUENCEs
+            inner_pos = 0
+            while inner_pos < len(outer_value):
+                inner = _der_read_tlv(outer_value, inner_pos)
+                if inner is None:
+                    break
+                inner_pos, inner_value = inner
+                # Each inner SEQUENCE has [0] OCTET STRING
+                token_wrapper = _der_read_tlv(inner_value, 0)
+                if token_wrapper is None:
+                    continue
+                _, wrapper_value = token_wrapper
+                octet = _der_read_tlv(wrapper_value, 0)
+                if octet is not None:
+                    _, token = octet
+                    nego_tokens.append(token)
+
+    return TSRequest(version=version, nego_tokens=nego_tokens)
+
+
+@dataclass
+class NTLMSSPNegotiate:
+    """NTLMSSP Negotiate (Type 1) message fields."""
+    flags: int
+    domain_name: str
+    workstation_name: str
+    os_version: tuple[int, int, int, int] | None  # (major, minor, build, revision)
+
+
+def parse_ntlmssp_negotiate(data: bytes) -> NTLMSSPNegotiate | None:
+    """Parse NTLMSSP Negotiate (Type 1) message."""
+    # Minimum: 8 (sig) + 4 (type) + 4 (flags) + 8 (domain) + 8 (workstation) = 32
+    if len(data) < 32:
+        return None
+    if data[:8] != NTLMSSP_SIGNATURE:
+        return None
+    msg_type = struct.unpack("<I", data[8:12])[0]
+    if msg_type != 1:
+        return None
+
+    flags = struct.unpack("<I", data[12:16])[0]
+
+    domain_len = struct.unpack("<H", data[16:18])[0]
+    domain_offset = struct.unpack("<I", data[20:24])[0]
+    workstation_len = struct.unpack("<H", data[24:26])[0]
+    workstation_offset = struct.unpack("<I", data[28:32])[0]
+
+    os_version = None
+    if flags & NTLMSSP_NEGOTIATE_VERSION and len(data) >= 40:
+        major = data[32]
+        minor = data[33]
+        build = struct.unpack("<H", data[34:36])[0]
+        revision = data[39]
+        os_version = (major, minor, build, revision)
+
+    domain_name = ""
+    if domain_len > 0 and domain_offset + domain_len <= len(data):
+        domain_name = data[domain_offset:domain_offset + domain_len].decode(
+            "ascii", errors="replace"
+        )
+
+    workstation_name = ""
+    if workstation_len > 0 and workstation_offset + workstation_len <= len(data):
+        workstation_name = data[
+            workstation_offset:workstation_offset + workstation_len
+        ].decode("ascii", errors="replace")
+
+    return NTLMSSPNegotiate(
+        flags=flags,
+        domain_name=domain_name,
+        workstation_name=workstation_name,
+        os_version=os_version,
+    )
