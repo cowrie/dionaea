@@ -491,6 +491,133 @@ fn init_tracing(logging_config: &config::LoggingConfig) -> LogState {
     log_state
 }
 
+/// Simple glob pattern matching supporting `*` as a wildcard.
+///
+/// `*` matches any sequence of characters (including empty).
+/// No other wildcards (`?`, `[...]`) are supported.
+fn glob_match(pattern: &str, input: &str) -> bool {
+    if pattern == "*" {
+        return true;
+    }
+    let parts: Vec<&str> = pattern.split('*').collect();
+    if parts.len() == 1 {
+        return pattern == input;
+    }
+    let mut pos = 0;
+    for (i, part) in parts.iter().enumerate() {
+        if part.is_empty() {
+            continue;
+        }
+        match input[pos..].find(part) {
+            Some(found) => {
+                // First segment must anchor to start
+                if i == 0 && found != 0 {
+                    return false;
+                }
+                pos += found + part.len();
+            }
+            None => return false,
+        }
+    }
+    // If pattern doesn't end with *, input must be fully consumed
+    if pattern.ends_with('*') {
+        true
+    } else {
+        pos == input.len()
+    }
+}
+
+/// Per-target log filter combining level and domain matching.
+///
+/// Implements `tracing_subscriber::layer::Filter` so each log target can
+/// independently filter by severity and by logger/module domain.
+struct DomainFilter {
+    level_filter: tracing_subscriber::filter::LevelFilter,
+    domain_patterns: Vec<String>,
+    match_all: bool,
+}
+
+impl DomainFilter {
+    fn new(levels: &str, domains: &str) -> Self {
+        let level_filter = parse_level_filter(levels);
+        let patterns: Vec<String> = domains
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+        let match_all = patterns.is_empty() || patterns.iter().any(|p| p == "*");
+        DomainFilter {
+            level_filter,
+            domain_patterns: patterns,
+            match_all,
+        }
+    }
+
+    fn matches_domain(&self, domain: &str) -> bool {
+        if self.match_all {
+            return true;
+        }
+        self.domain_patterns.iter().any(|p| glob_match(p, domain))
+    }
+}
+
+impl<S> tracing_subscriber::layer::Filter<S> for DomainFilter
+where
+    S: tracing::Subscriber + for<'a> tracing_subscriber::registry::LookupSpan<'a>,
+{
+    fn enabled(
+        &self,
+        meta: &tracing::Metadata<'_>,
+        _cx: &tracing_subscriber::layer::Context<'_, S>,
+    ) -> bool {
+        if *meta.level() > self.level_filter {
+            return false;
+        }
+        // Python events carry the domain in a `logger` field — defer to event_enabled
+        if meta.target() == "python" {
+            return true;
+        }
+        self.matches_domain(meta.target())
+    }
+
+    fn event_enabled(
+        &self,
+        event: &tracing::Event<'_>,
+        _cx: &tracing_subscriber::layer::Context<'_, S>,
+    ) -> bool {
+        if self.match_all {
+            return true;
+        }
+        let target = event.metadata().target();
+        if target != "python" {
+            return true; // Already filtered in enabled()
+        }
+        // Extract the `logger` field from Python log events
+        let mut logger_name = None;
+        event.record(&mut LoggerVisitor(&mut logger_name));
+        match logger_name {
+            Some(name) => self.matches_domain(&name),
+            None => true,
+        }
+    }
+
+    fn max_level_hint(&self) -> Option<tracing_subscriber::filter::LevelFilter> {
+        Some(self.level_filter)
+    }
+}
+
+/// Visitor that extracts the `logger` field from a tracing event.
+struct LoggerVisitor<'a>(&'a mut Option<String>);
+
+impl tracing::field::Visit for LoggerVisitor<'_> {
+    fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
+        if field.name() == "logger" {
+            *self.0 = Some(value.to_string());
+        }
+    }
+    fn record_debug(&mut self, _field: &tracing::field::Field, _value: &dyn std::fmt::Debug) {}
+}
+
 /// Parse a `levels` config string into a tracing `LevelFilter`.
 ///
 /// Accepts comma-separated level names: `"warning,error,critical"`.
@@ -533,7 +660,7 @@ where
     let mut layers: Vec<Box<dyn tracing_subscriber::Layer<S> + Send + Sync>> = Vec::new();
 
     for target in targets {
-        let level_filter = parse_level_filter(&target.levels);
+        let domain_filter = DomainFilter::new(&target.levels, &target.domains);
 
         match target.target_type.as_str() {
             "stdout" => {
@@ -543,14 +670,14 @@ where
                             .json()
                             .with_timer(Rfc3339Utc)
                             .with_target(true)
-                            .with_filter(level_filter),
+                            .with_filter(domain_filter),
                     ));
                 } else {
                     layers.push(Box::new(
                         fmt::layer()
                             .with_timer(Rfc3339Utc)
                             .with_target(true)
-                            .with_filter(level_filter),
+                            .with_filter(domain_filter),
                     ));
                 }
             }
@@ -589,7 +716,7 @@ where
                             .with_timer(Rfc3339Utc)
                             .with_target(true)
                             .with_writer(writer)
-                            .with_filter(level_filter),
+                            .with_filter(domain_filter),
                     ));
                 } else {
                     layers.push(Box::new(
@@ -598,7 +725,7 @@ where
                             .with_target(true)
                             .with_ansi(false)
                             .with_writer(writer)
-                            .with_filter(level_filter),
+                            .with_filter(domain_filter),
                     ));
                 }
             }
@@ -775,5 +902,68 @@ mod tests {
     fn test_parse_level_filter_empty() {
         use tracing_subscriber::filter::LevelFilter;
         assert_eq!(parse_level_filter(""), LevelFilter::OFF);
+    }
+
+    #[test]
+    fn test_glob_match_star_matches_all() {
+        assert!(glob_match("*", "anything"));
+        assert!(glob_match("*", ""));
+        assert!(glob_match("*", "dionaea.rdp.rdp"));
+    }
+
+    #[test]
+    fn test_glob_match_exact() {
+        assert!(glob_match("dionaea.rdp", "dionaea.rdp"));
+        assert!(!glob_match("dionaea.rdp", "dionaea.ftp"));
+        assert!(!glob_match("dionaea.rdp", "dionaea.rdp.sub"));
+    }
+
+    #[test]
+    fn test_glob_match_trailing_wildcard() {
+        assert!(glob_match("dionaea.rdp.*", "dionaea.rdp.rdp"));
+        assert!(glob_match("dionaea.rdp.*", "dionaea.rdp.anything"));
+        assert!(!glob_match("dionaea.rdp.*", "dionaea.ftp.ftp"));
+        assert!(!glob_match("dionaea.rdp.*", "dionaea.rdp"));
+    }
+
+    #[test]
+    fn test_glob_match_leading_wildcard() {
+        assert!(glob_match("*.rdp", "dionaea.rdp"));
+        assert!(!glob_match("*.rdp", "dionaea.rdp.sub"));
+    }
+
+    #[test]
+    fn test_glob_match_middle_wildcard() {
+        assert!(glob_match("dionaea.*.rdp", "dionaea.sub.rdp"));
+        assert!(!glob_match("dionaea.*.rdp", "dionaea.sub.ftp"));
+    }
+
+    #[test]
+    fn test_domain_filter_star_matches_everything() {
+        let f = DomainFilter::new("info,warning,error,critical", "*");
+        assert!(f.match_all);
+        assert!(f.matches_domain("anything"));
+    }
+
+    #[test]
+    fn test_domain_filter_specific_domain() {
+        let f = DomainFilter::new("debug,info,warning,error,critical", "dionaea.rdp.*");
+        assert!(!f.match_all);
+        assert!(f.matches_domain("dionaea.rdp.rdp"));
+        assert!(!f.matches_domain("dionaea.ftp.ftp"));
+    }
+
+    #[test]
+    fn test_domain_filter_multiple_patterns() {
+        let f = DomainFilter::new("info", "dionaea.rdp.*,dionaea.ftp.*");
+        assert!(f.matches_domain("dionaea.rdp.rdp"));
+        assert!(f.matches_domain("dionaea.ftp.ftp"));
+        assert!(!f.matches_domain("dionaea.smb.smb"));
+    }
+
+    #[test]
+    fn test_domain_filter_empty_domains_matches_all() {
+        let f = DomainFilter::new("info", "");
+        assert!(f.match_all);
     }
 }
