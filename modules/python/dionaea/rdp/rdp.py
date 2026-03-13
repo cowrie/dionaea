@@ -32,12 +32,9 @@ from dionaea.util import xor
 from .packets import (
     CS_CORE,
     CS_NET,
-    DOUBLEPULSAR_MAGIC,
     NTLMSSP_SIGNATURE,
     DoublePulsarOpcode,
     DoublePulsarPacket,
-    GCCClientData,
-    MCSConnectInitial,
     MCSType,
     RDPNegotiationRequest,
     RDPProtocol,
@@ -46,8 +43,8 @@ from .packets import (
     build_mcs_connect_response,
     der_sequence_length,
     parse_client_info_pdu,
+    parse_cs_net_channels,
     parse_gcc_client_core_data,
-    parse_gcc_user_data_blocks,
     parse_mcs_connect_initial,
     parse_ntlmssp_negotiate,
     parse_tsrequest,
@@ -234,13 +231,11 @@ class rdpd(connection):
     def _check_doublepulsar_raw(self) -> bool:
         """Check for DOUBLEPULSAR magic without TPKT wrapper."""
         if len(self.buffer) >= 7:
-            # Look for channelJoinConfirm (0x3c) followed by magic
-            if self.buffer[0] == 0x3c:
-                magic = struct.unpack('>I', self.buffer[1:5])[0]
-                if magic == DOUBLEPULSAR_MAGIC:
-                    self.state = State.DOUBLEPULSAR
-                    self._handle_doublepulsar_command(self.buffer)
-                    return True
+            dp = DoublePulsarPacket.parse(self.buffer)
+            if dp is not None:
+                self.state = State.DOUBLEPULSAR
+                self._handle_doublepulsar_command(self.buffer)
+                return True
         return False
 
     def _try_doublepulsar(self, mcs_data: bytes) -> bool:
@@ -339,9 +334,9 @@ class rdpd(connection):
             rdplog.debug("Unexpected MCS data: %s", mcs_data[:20].hex())
             return
 
-        # Use proper BER parser to extract GCC user data blocks
+        # Parse GCC user data blocks from MCS Connect-Initial
         channel_names: list[str] = []
-        blocks = parse_mcs_connect_initial(data)
+        blocks = parse_mcs_connect_initial(mcs_data)
         if blocks is not None:
             if CS_CORE in blocks:
                 core = parse_gcc_client_core_data(blocks[CS_CORE])
@@ -358,16 +353,7 @@ class rdpd(connection):
                     )
 
             if CS_NET in blocks:
-                net_data = blocks[CS_NET]
-                if len(net_data) >= 4:
-                    channel_count = struct.unpack('<I', net_data[0:4])[0]
-                    chan_offset = 4
-                    for _ in range(channel_count):
-                        if chan_offset + 12 > len(net_data):
-                            break
-                        name = net_data[chan_offset:chan_offset + 8].split(b'\x00')[0].decode('ascii', errors='replace')
-                        channel_names.append(name)
-                        chan_offset += 12
+                channel_names = parse_cs_net_channels(blocks[CS_NET])
 
             if channel_names:
                 self.client_info.requested_channels = channel_names
@@ -376,19 +362,6 @@ class rdpd(connection):
                 i.con = self
                 i.set("channels", ",".join(channel_names))
                 i.report()
-        else:
-            # Fall back to legacy find(b'Duca') parser
-            mcs = MCSConnectInitial.parse(mcs_data)
-            if mcs:
-                gcc_data = GCCClientData.parse(mcs.user_data)
-                if gcc_data:
-                    self.client_info.client_name = gcc_data.client_name
-                    self.client_info.client_build = gcc_data.client_build
-                    self.client_info.keyboard_layout = gcc_data.keyboard_layout
-                    self.client_info.desktop_width = gcc_data.desktop_width
-                    self.client_info.desktop_height = gcc_data.desktop_height
-                    self.client_info.requested_channels = gcc_data.requested_channels
-                    channel_names = gcc_data.requested_channels or []
 
         # Send MCS Connect-Response
         self._send_mcs_connect_response(channel_names)

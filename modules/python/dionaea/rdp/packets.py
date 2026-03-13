@@ -210,109 +210,6 @@ class RDPNegotiationRequest:
         return cls(0, 0, 0, RDPProtocol.PROTOCOL_RDP, cookie)
 
 
-@dataclass
-class MCSConnectInitial:
-    """MCS Connect-Initial PDU (simplified parsing)."""
-    calling_domain: bytes
-    called_domain: bytes
-    upward_flag: bool
-    target_params: bytes
-    min_params: bytes
-    max_params: bytes
-    user_data: bytes
-
-    @classmethod
-    def parse(cls, data: bytes) -> 'MCSConnectInitial | None':
-        """Parse MCS Connect-Initial (simplified - just extract user data)."""
-        # MCS Connect-Initial is BER encoded
-        # We just need to find the GCC Conference Create Request in user data
-        # For simplicity, we look for the "Duca" (0x44756361) signature
-        duca_offset = data.find(b'Duca')
-        if duca_offset == -1:
-            return None
-
-        # User data starts after "Duca" marker
-        user_data = data[duca_offset:]
-        return cls(b'', b'', True, b'', b'', b'', user_data)
-
-
-@dataclass
-class GCCClientData:
-    """GCC Conference Create Request client data (simplified)."""
-    client_name: str
-    client_build: int
-    keyboard_layout: int
-    client_product_id: int
-    requested_color_depth: int
-    desktop_width: int = 0
-    desktop_height: int = 0
-    requested_channels: list[str] | None = None
-
-    def __post_init__(self):
-        if self.requested_channels is None:
-            self.requested_channels = []
-
-    @classmethod
-    def parse(cls, user_data: bytes) -> 'GCCClientData | None':
-        """Parse GCC client data to extract client info."""
-        # Skip "Duca" key (4 bytes) and PER length determinant
-        offset = 4
-        if offset >= len(user_data):
-            return None
-        if user_data[offset] & 0x80:
-            offset += 2  # 2-byte PER length
-        else:
-            offset += 1  # 1-byte PER length
-
-        if len(user_data) < offset + 4:
-            return None
-
-        # Scan TS_UD blocks: type (2 bytes LE), length (2 bytes LE), data
-        result = None
-        channels = []
-
-        while offset + 4 <= len(user_data):
-            block_type = struct.unpack('<H', user_data[offset:offset+2])[0]
-            block_len = struct.unpack('<H', user_data[offset+2:offset+4])[0]
-
-            if block_type == 0xc001:  # CS_CORE
-                core_data = user_data[offset+4:offset+block_len]
-                if len(core_data) >= 134:
-                    desktop_width = struct.unpack('<H', core_data[4:6])[0]
-                    desktop_height = struct.unpack('<H', core_data[6:8])[0]
-                    color_depth = struct.unpack('<H', core_data[8:10])[0]
-                    kb_layout = struct.unpack('<I', core_data[12:16])[0]
-                    client_build = struct.unpack('<I', core_data[16:20])[0]
-                    client_name_raw = core_data[20:52]
-                    client_name = client_name_raw.decode('utf-16-le', errors='replace').rstrip('\x00')
-                    product_id = struct.unpack('<H', core_data[132:134])[0]
-
-                    result = cls(
-                        client_name, client_build, kb_layout, product_id,
-                        color_depth, desktop_width, desktop_height,
-                    )
-
-            elif block_type == 0xc003:  # CS_NET
-                net_data = user_data[offset+4:offset+block_len]
-                if len(net_data) >= 4:
-                    channel_count = struct.unpack('<I', net_data[0:4])[0]
-                    chan_offset = 4
-                    for _ in range(channel_count):
-                        if chan_offset + 12 > len(net_data):
-                            break
-                        # CHANNEL_DEF: name (8 bytes, null-padded) + options (4 bytes)
-                        name = net_data[chan_offset:chan_offset+8].split(b'\x00')[0].decode('ascii', errors='replace')
-                        channels.append(name)
-                        chan_offset += 12
-
-            offset += block_len
-            if block_len == 0:
-                break
-
-        if result is not None:
-            result.requested_channels = channels
-        return result
-
 
 @dataclass
 class DoublePulsarPacket:
@@ -472,34 +369,21 @@ RDP_VERSION_5_PLUS = 0x00080004
 MCS_IO_CHANNEL_ID = 0x03EB
 
 
+@dataclass
 class GCCClientCoreData:
     """Key fields from GCC Client Core Data (TS_UD_CS_CORE)."""
-    __slots__ = (
-        'version_major', 'version_minor', 'desktop_width', 'desktop_height',
-        'color_depth', 'sas_sequence', 'keyboard_layout', 'client_build',
-        'client_name', 'keyboard_type', 'keyboard_subtype', 'keyboard_function_keys',
-    )
-
-    def __init__(
-        self, version_major: int, version_minor: int,
-        desktop_width: int, desktop_height: int,
-        color_depth: int, sas_sequence: int,
-        keyboard_layout: int, client_build: int,
-        client_name: str, keyboard_type: int,
-        keyboard_subtype: int, keyboard_function_keys: int,
-    ):
-        self.version_major = version_major
-        self.version_minor = version_minor
-        self.desktop_width = desktop_width
-        self.desktop_height = desktop_height
-        self.color_depth = color_depth
-        self.sas_sequence = sas_sequence
-        self.keyboard_layout = keyboard_layout
-        self.client_build = client_build
-        self.client_name = client_name
-        self.keyboard_type = keyboard_type
-        self.keyboard_subtype = keyboard_subtype
-        self.keyboard_function_keys = keyboard_function_keys
+    version_major: int
+    version_minor: int
+    desktop_width: int
+    desktop_height: int
+    color_depth: int
+    sas_sequence: int
+    keyboard_layout: int
+    client_build: int
+    client_name: str
+    keyboard_type: int
+    keyboard_subtype: int
+    keyboard_function_keys: int
 
 
 def parse_gcc_client_core_data(data: bytes) -> GCCClientCoreData | None:
@@ -527,6 +411,25 @@ def parse_gcc_client_core_data(data: bytes) -> GCCClientCoreData | None:
     )
 
 
+def parse_cs_net_channels(data: bytes) -> list[str]:
+    """Parse channel names from CS_NET block payload (after type+length header).
+
+    Each channel is a CHANNEL_DEF: name (8 bytes, null-padded) + options (4 bytes).
+    """
+    if len(data) < 4:
+        return []
+    channel_count = struct.unpack('<I', data[0:4])[0]
+    channels: list[str] = []
+    offset = 4
+    for _ in range(channel_count):
+        if offset + 12 > len(data):
+            break
+        name = data[offset:offset + 8].split(b'\x00')[0].decode('ascii', errors='replace')
+        channels.append(name)
+        offset += 12
+    return channels
+
+
 def parse_gcc_user_data_blocks(data: bytes) -> dict[int, bytes]:
     """Parse a sequence of GCC user data blocks (type:u16LE, length:u16LE, data).
 
@@ -543,45 +446,45 @@ def parse_gcc_user_data_blocks(data: bytes) -> dict[int, bytes]:
     return blocks
 
 
-def parse_mcs_connect_initial(payload: bytes) -> dict[int, bytes] | None:
+def parse_mcs_connect_initial(data: bytes) -> dict[int, bytes] | None:
     """Parse MCS Connect-Initial, extract GCC user data blocks.
 
-    Input: TPKT payload (starts with X.224 Data header, then BER-encoded MCS).
+    Input: BER-encoded MCS Connect-Initial (starts with 0x7f 0x65).
     Returns dict of GCC client data blocks, or None on failure.
     """
-    if len(payload) < 3:
+    if len(data) < 2:
         return None
-    pos = 3  # skip X.224 Data header
+    pos = 0
 
     # BER: Application[101] CONNECT-INITIAL
-    if payload[pos] != 0x7F or payload[pos + 1] != 0x65:
+    if data[pos] != 0x7F or data[pos + 1] != 0x65:
         return None
     pos += 2
 
-    _ci_len, pos = ber_decode_length(payload, pos)
+    _ci_len, pos = ber_decode_length(data, pos)
 
     # Skip three BER OCTET STRINGs: callingDomainSelector, calledDomainSelector, upwardFlag
     for _ in range(3):
-        if pos >= len(payload):
+        if pos >= len(data):
             return None
         pos += 1  # tag
-        field_len, pos = ber_decode_length(payload, pos)
+        field_len, pos = ber_decode_length(data, pos)
         pos += field_len
 
     # Skip targetParameters, minimumParameters, maximumParameters (three SEQUENCE)
     for _ in range(3):
-        if pos >= len(payload):
+        if pos >= len(data):
             return None
         pos += 1  # tag
-        field_len, pos = ber_decode_length(payload, pos)
+        field_len, pos = ber_decode_length(data, pos)
         pos += field_len
 
     # userData OCTET STRING
-    if pos >= len(payload) or payload[pos] != 0x04:
+    if pos >= len(data) or data[pos] != 0x04:
         return None
     pos += 1
-    user_data_len, pos = ber_decode_length(payload, pos)
-    user_data = payload[pos:pos + user_data_len]
+    user_data_len, pos = ber_decode_length(data, pos)
+    user_data = data[pos:pos + user_data_len]
 
     # GCC Conference Create Request header — look for T.124 key
     gcc_start = user_data.find(GCC_CCR_KEY)
@@ -694,17 +597,14 @@ def build_mcs_connect_response(
 # ---------------------------------------------------------------------------
 
 
+@dataclass
 class ClientInfo:
     """Parsed credentials from TS_INFO_PACKET."""
-    __slots__ = ('domain', 'username', 'password', 'alt_shell', 'working_dir')
-
-    def __init__(self, domain: str, username: str, password: str,
-                 alt_shell: str, working_dir: str):
-        self.domain = domain
-        self.username = username
-        self.password = password
-        self.alt_shell = alt_shell
-        self.working_dir = working_dir
+    domain: str
+    username: str
+    password: str
+    alt_shell: str
+    working_dir: str
 
 
 def parse_client_info_pdu(data: bytes) -> ClientInfo | None:
@@ -763,21 +663,9 @@ def _der_read_tlv(data: bytes, offset: int) -> tuple[int, bytes] | None:
     offset += 1  # skip tag byte
     if offset >= len(data):
         return None
-    length_byte = data[offset]
-    offset += 1
-    if length_byte < 0x80:
-        length = length_byte
-    elif length_byte == 0x81:
-        if offset >= len(data):
-            return None
-        length = data[offset]
-        offset += 1
-    elif length_byte == 0x82:
-        if offset + 1 >= len(data):
-            return None
-        length = struct.unpack(">H", data[offset:offset + 2])[0]
-        offset += 2
-    else:
+    try:
+        length, offset = ber_decode_length(data, offset)
+    except (IndexError, ValueError):
         return None
     if offset + length > len(data):
         return None
