@@ -31,6 +31,7 @@ from dionaea.util import xor
 
 from .packets import (
     DOUBLEPULSAR_MAGIC,
+    NTLMSSP_SIGNATURE,
     DoublePulsarOpcode,
     DoublePulsarPacket,
     GCCClientData,
@@ -40,6 +41,8 @@ from .packets import (
     RDPProtocol,
     TPKTPacket,
     X224Packet,
+    parse_ntlmssp_negotiate,
+    parse_tsrequest,
 )
 
 rdplog = logging.getLogger("RDP")
@@ -310,6 +313,11 @@ class rdpd(connection):
             else:
                 rdplog.debug("_handle_mcs_connect: DoublePulsarPacket.parse returned None")
 
+        # CredSSP TSRequest (ASN.1 SEQUENCE) — NLA clients send this instead of MCS
+        if mcs_data[0] == 0x30:
+            self._handle_credssp(mcs_data)
+            return
+
         # BER-encoded Connect-Initial starts with 0x7f 0x65
         if mcs_data[0:2] == bytes([0x7f, 0x65]):
             mcs = MCSConnectInitial.parse(mcs_data)
@@ -343,6 +351,51 @@ class rdpd(connection):
             self.state = State.MCS_CHANNELS
         else:
             rdplog.debug("Unexpected MCS data: %s", mcs_data[:20].hex())
+
+    def _handle_credssp(self, data: bytes) -> None:
+        """Extract client info from CredSSP TSRequest containing NTLMSSP Negotiate."""
+        ts = parse_tsrequest(data)
+        if ts is None:
+            rdplog.debug("CredSSP TSRequest parse failed")
+            return
+
+        for token in ts.nego_tokens:
+            if not token.startswith(NTLMSSP_SIGNATURE):
+                continue
+            ntlm = parse_ntlmssp_negotiate(token)
+            if ntlm is None:
+                continue
+
+            parts = []
+            if ntlm.workstation_name:
+                self.client_info.client_name = ntlm.workstation_name
+                parts.append("workstation=%s" % ntlm.workstation_name)
+            if ntlm.domain_name:
+                self.client_info.domain = ntlm.domain_name
+                parts.append("domain=%s" % ntlm.domain_name)
+            if ntlm.os_version:
+                major, minor, build, _rev = ntlm.os_version
+                parts.append("os=%d.%d.%d" % (major, minor, build))
+
+            rdplog.info(
+                "RDP NLA (CredSSP v%d): %s",
+                ts.version,
+                ", ".join(parts) if parts else "no client details",
+            )
+
+            i = incident("dionaea.connection.rdp.credssp")
+            i.con = self
+            if ntlm.workstation_name:
+                i.set("workstation", ntlm.workstation_name)
+            if ntlm.domain_name:
+                i.set("domain", ntlm.domain_name)
+            if ntlm.os_version:
+                i.set("os_version", "%d.%d.%d" % ntlm.os_version[:3])
+            i.set("negotiate_flags", "0x%08x" % ntlm.flags)
+            i.report()
+            return
+
+        rdplog.debug("CredSSP TSRequest v%d with no NTLMSSP token", ts.version)
 
     def _send_mcs_connect_response(self) -> None:
         """Send MCS Connect-Response with GCC Conference Create Response."""
