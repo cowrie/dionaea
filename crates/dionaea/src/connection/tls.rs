@@ -360,8 +360,8 @@ async fn tls_accept_loop(
             };
 
             // Run the standard I/O handler loop over the TLS stream
-            let (_stream, h, _rx, _post) =
-                handle_connection(tls_stream, handler, id, rx, reg.clone(), recv_buffer_size, "tls", false).await;
+            let (_stream, h, _rx, _post, _pipeline) =
+                handle_connection(tls_stream, handler, id, rx, reg.clone(), recv_buffer_size, "tls", false, None).await;
             let h = crate::connection::tcp::emit_connection_free(h).await;
             invalidate_handler(h);
             cleanup_connection(&reg, &lim, id, peer_ip);

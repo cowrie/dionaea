@@ -258,11 +258,11 @@ async fn accept_loop(
                 }
             };
 
-            let (tcp_stream, h, rx, post) =
-                handle_connection(stream, handler, id, rx, reg.clone(), recv_buffer_size, "tcp", false).await;
+            let (tcp_stream, h, rx, post, pipeline) =
+                handle_connection(stream, handler, id, rx, reg.clone(), recv_buffer_size, "tcp", false, None).await;
 
             let h = handle_starttls_or_finish(
-                post, tcp_stream, h, rx, id, reg.clone(), recv_buffer_size, &starttls,
+                post, tcp_stream, h, rx, id, reg.clone(), recv_buffer_size, &starttls, pipeline,
             ).await;
             let h = emit_connection_free(h).await;
             invalidate_handler(h);
@@ -285,6 +285,7 @@ async fn handle_starttls_or_finish(
     registry: Arc<ConnectionRegistry>,
     recv_buffer_size: usize,
     starttls_acceptor: &Option<StarttlsAcceptor>,
+    pipeline: Option<crate::processor::ProcessorPipeline>,
 ) -> Py<PyAny> {
     if post != PostCallback::StartTls {
         return handler;
@@ -344,8 +345,9 @@ async fn handle_starttls_or_finish(
                 }
                 tracing::debug!(connection_id = %id, "STARTTLS handshake completed");
 
-                let (_stream, h, _rx, _post) = handle_connection(
+                let (_stream, h, _rx, _post, _pipeline) = handle_connection(
                     tls_stream, handler, id, rx, registry.clone(), recv_buffer_size, "tls", true,
+                    pipeline,
                 )
                 .await;
                 h
@@ -437,8 +439,9 @@ pub async fn tcp_connect_task(
 
                 let post;
                 let _stream;
-                (_stream, handler, rx, post) = handle_connection(
-                    stream, handler, id, rx, registry.clone(), recv_buffer_size, "tcp", false,
+                let _pipeline;
+                (_stream, handler, rx, post, _pipeline) = handle_connection(
+                    stream, handler, id, rx, registry.clone(), recv_buffer_size, "tcp", false, None,
                 )
                 .await;
 
@@ -565,7 +568,8 @@ pub(crate) async fn handle_connection<S>(
     recv_buffer_size: usize,
     transport: &str,
     skip_established: bool,
-) -> (S, Py<PyAny>, mpsc::Receiver<SendMessage>, PostCallback)
+    initial_pipeline: Option<crate::processor::ProcessorPipeline>,
+) -> (S, Py<PyAny>, mpsc::Receiver<SendMessage>, PostCallback, Option<crate::processor::ProcessorPipeline>)
 where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
 {
@@ -574,7 +578,7 @@ where
 
     let mut buf = BytesMut::zeroed(recv_buffer_size);
     let mut partial_buf: Vec<u8> = Vec::new();
-    let mut processor_pipeline: Option<crate::processor::ProcessorPipeline> = None;
+    let mut processor_pipeline = initial_pipeline;
 
     let mut in_throttle = Throttle::unlimited();
     let mut out_throttle = Throttle::unlimited();
@@ -585,7 +589,7 @@ where
     macro_rules! error_exit {
         ($stream:expr, $rx:expr) => {{
             let h = Python::attach(|py| py.None().into());
-            return ($stream, h, $rx, PostCallback::Close);
+            return ($stream, h, $rx, PostCallback::Close, None);
         }};
     }
 
@@ -610,7 +614,7 @@ where
             Ok((h, PostCallback::Continue)) => h,
             Ok((h, _)) => {
                 let (h, _post) = call_disconnect(h, id).await;
-                return (stream, h, rx, PostCallback::Close);
+                return (stream, h, rx, PostCallback::Close, processor_pipeline);
             }
             Err(e) => {
                 tracing::error!(connection_id = %id, err = %e, "handle_established panicked");
@@ -640,7 +644,7 @@ where
             if let Err(e) = stream.write_all(&data).await {
                 tracing::debug!(connection_id = %id, err = %e, "write error flushing established data");
                 let (h, _post) = call_disconnect(handler, id).await;
-                return (stream, h, rx, PostCallback::Close);
+                return (stream, h, rx, PostCallback::Close, processor_pipeline);
             }
             if let Some(mut meta) = registry.get_mut(id) {
                 meta.stats.bytes_out += data.len() as u64;
@@ -673,7 +677,7 @@ where
                 match result {
                     Ok(0) => {
                         let (h, post) = call_disconnect(handler, id).await;
-                        return (stream, h, rx, post);
+                        return (stream, h, rx, post, processor_pipeline);
                     }
                     Ok(n) => {
                         // Reset idle timeout on data
@@ -685,7 +689,7 @@ where
                         if in_accounting.add(n as u64) {
                             tracing::debug!(connection_id = %id, "accounting limit, closing");
                             let (h, post) = call_disconnect(handler, id).await;
-                            return (stream, h, rx, post);
+                            return (stream, h, rx, post, processor_pipeline);
                         }
 
                         if let Some(mut meta) = registry.get_mut(id) {
@@ -722,14 +726,14 @@ where
                                     if remaining > MAX_PARTIAL_BUF {
                                         tracing::warn!(connection_id = %id, remaining, "partial buffer exceeded limit, closing");
                                         let (h, post) = call_disconnect(handler, id).await;
-                                        return (stream, h, rx, post);
+                                        return (stream, h, rx, post, processor_pipeline);
                                     }
                                     partial_buf = io_data[consumed..].to_vec();
                                 }
                             }
                             Ok((h, _, _, _)) => {
                                 let (h, _post) = call_disconnect(h, id).await;
-                                return (stream, h, rx, PostCallback::Close);
+                                return (stream, h, rx, PostCallback::Close, processor_pipeline);
                             }
                             Err(e) => {
                                 tracing::error!(connection_id = %id, err = %e, "io_in panicked");
@@ -740,7 +744,7 @@ where
                     Err(e) => {
                         tracing::debug!(connection_id = %id, err = %e, "TCP read error");
                         let (h, post) = call_disconnect(handler, id).await;
-                        return (stream, h, rx, post);
+                        return (stream, h, rx, post, processor_pipeline);
                     }
                 }
             }
@@ -757,13 +761,13 @@ where
                         if out_accounting.add(data.len() as u64) {
                             tracing::debug!(connection_id = %id, "outbound accounting limit");
                             let (h, post) = call_disconnect(handler, id).await;
-                            return (stream, h, rx, post);
+                            return (stream, h, rx, post, processor_pipeline);
                         }
 
                         if let Err(e) = stream.write_all(&data).await {
                             tracing::debug!(connection_id = %id, err = %e, "TCP write error");
                             let (h, post) = call_disconnect(handler, id).await;
-                            return (stream, h, rx, post);
+                            return (stream, h, rx, post, processor_pipeline);
                         }
 
                         if let Some(mut meta) = registry.get_mut(id) {
@@ -791,7 +795,7 @@ where
                             }
                             Ok((h, _)) => {
                                 let (h, _post) = call_disconnect(h, id).await;
-                                return (stream, h, rx, PostCallback::Close);
+                                return (stream, h, rx, PostCallback::Close, processor_pipeline);
                             }
                             Err(e) => {
                                 tracing::error!(connection_id = %id, err = %e, "io_out panicked");
@@ -838,19 +842,19 @@ where
                         if let Err(e) = stream.flush().await {
                             tracing::warn!(connection_id = %id, err = %e, "flush before STARTTLS failed");
                             let (h, post) = call_disconnect(handler, id).await;
-                            return (stream, h, rx, post);
+                            return (stream, h, rx, post, processor_pipeline);
                         }
-                        return (stream, handler, rx, PostCallback::StartTls);
+                        return (stream, handler, rx, PostCallback::StartTls, processor_pipeline);
                     }
                     Some(SendMessage::Close) => {
                         tracing::debug!(connection_id = %id, "close requested");
                         let (h, post) = call_disconnect(handler, id).await;
-                        return (stream, h, rx, post);
+                        return (stream, h, rx, post, processor_pipeline);
                     }
                     None => {
                         tracing::debug!(connection_id = %id, "send channel closed");
                         let (h, post) = call_disconnect(handler, id).await;
-                        return (stream, h, rx, post);
+                        return (stream, h, rx, post, processor_pipeline);
                     }
                 }
             }
@@ -876,7 +880,7 @@ where
                     }
                     Ok((h, _)) => {
                         let (h, _post) = call_disconnect(h, id).await;
-                        return (stream, h, rx, PostCallback::Close);
+                        return (stream, h, rx, PostCallback::Close, processor_pipeline);
                     }
                     Err(e) => {
                         tracing::error!(connection_id = %id, err = %e, "timeout_idle panicked");
@@ -906,7 +910,7 @@ where
                     }
                     Ok((h, _)) => {
                         let (h, _post) = call_disconnect(h, id).await;
-                        return (stream, h, rx, PostCallback::Close);
+                        return (stream, h, rx, PostCallback::Close, processor_pipeline);
                     }
                     Err(e) => {
                         tracing::error!(connection_id = %id, err = %e, "timeout_sustain panicked");
