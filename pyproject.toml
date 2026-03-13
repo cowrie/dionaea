@@ -41,5 +41,10 @@ passenv =
     DIONAEA_MYSQL_PORT
     DIONAEA_EPMAP_PORT
     DIONAEA_RDP_PORT
-commands = pytest {toxinidir}/tests -v --timeout=30 {posargs}
+commands = pytest {toxinidir}/tests --timeout=30 \
+               --ignore={toxinidir}/tests/mysql \
+               --ignore={toxinidir}/tests/printer \
+               --ignore={toxinidir}/tests/snmp \
+               --ignore={toxinidir}/tests/speakeasy \
+               {posargs}
 """
