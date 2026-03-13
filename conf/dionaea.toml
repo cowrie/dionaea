@@ -28,7 +28,7 @@ domains = "*"
 
 [[logging.targets]]
 type = "file"
-path = "var/log/dionaea/dionaea.json"
+path = "var/log/dionaea/dionaea.jsonl"
 format = "json"
 levels = "info,warning,error,critical"
 domains = "*"

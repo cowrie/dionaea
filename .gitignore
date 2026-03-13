@@ -85,5 +85,5 @@ dmypy.json
 ### Runtime data
 var/*
 !var/dionaea/
-dionaea.json
+dionaea.jsonl
 dionaea.sqlite
