@@ -37,9 +37,9 @@ class upnpreq:
 				logger.warning("Malformed UPnP header (potential exploit): %s", hset[0])
 
 	def print(self):
-		logger.debug("Type: %s Path: %s HTTP-Version: %s", self.type, self.path, httpversion)
+		logger.debug("Type: %s Path: %s HTTP-Version: %s", self.type.decode(), self.path, httpversion.decode())
 		for i in self.headers:
-			logger.debug("%s: %s", i, self.headers[i])
+			logger.debug("%s: %s", i.decode(), self.headers[i].decode())
 
 
 class upnpd(connection):
