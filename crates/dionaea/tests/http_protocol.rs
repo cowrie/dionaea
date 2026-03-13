@@ -7,8 +7,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use dionaea::config;
-use dionaea::connection::limits::ConnectionLimits;
 use dionaea::connection::ConnectionRegistry;
+use dionaea::connection::limits::ConnectionLimits;
 use dionaea::runtime;
 use pyo3::prelude::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -74,7 +74,10 @@ fn test_real_http_get() {
                 // Register dionaea.core
                 dionaea::python::loader::load(
                     py,
-                    &config::PythonModuleConfig { python_path: Some(python_path), ..Default::default() },
+                    &config::PythonModuleConfig {
+                        python_path: Some(python_path),
+                        ..Default::default()
+                    },
                 )
                 .expect("loader init");
 
@@ -92,8 +95,7 @@ port = h.local.port
                     tmp_dir_str.replace('\\', "\\\\").replace('\'', "\\'")
                 );
                 let c_code = std::ffi::CString::new(code).expect("CString");
-                py.run(c_code.as_c_str(), None, None)
-                    .expect("httpd setup");
+                py.run(c_code.as_c_str(), None, None).expect("httpd setup");
 
                 let port: u16 = py
                     .eval(c"port", None, None)
@@ -128,10 +130,10 @@ port = h.local.port
         // Read until connection closes or timeout
         loop {
             match time::timeout(Duration::from_secs(3), stream.read(&mut buf)).await {
-                Ok(Ok(0)) => break,           // Connection closed
+                Ok(Ok(0)) => break, // Connection closed
                 Ok(Ok(n)) => response.extend_from_slice(&buf[..n]),
-                Ok(Err(_)) => break,          // Read error
-                Err(_) => break,              // Timeout
+                Ok(Err(_)) => break, // Read error
+                Err(_) => break,     // Timeout
             }
         }
 
@@ -149,8 +151,7 @@ port = h.local.port
         {
             // Create a 128KB file
             let large_content = "X".repeat(128 * 1024);
-            std::fs::write(tmp_dir.join("large.txt"), &large_content)
-                .expect("write large.txt");
+            std::fs::write(tmp_dir.join("large.txt"), &large_content).expect("write large.txt");
 
             let mut stream2 = TcpStream::connect(format!("127.0.0.1:{bound_port}"))
                 .await

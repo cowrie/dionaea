@@ -7,8 +7,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use dionaea::config;
-use dionaea::connection::limits::ConnectionLimits;
 use dionaea::connection::ConnectionRegistry;
+use dionaea::connection::limits::ConnectionLimits;
 use dionaea::runtime;
 use pyo3::prelude::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -180,10 +180,7 @@ if g_slave and hasattr(g_slave, 'daemons'):
             blackhole_port > 0,
             "blackhole service should have started on a port"
         );
-        assert!(
-            http_port > 0,
-            "http service should have started on a port"
-        );
+        assert!(http_port > 0, "http service should have started on a port");
 
         // --- Test blackhole: accepts and discards data ---
         {

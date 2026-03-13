@@ -89,10 +89,16 @@ fn strip_to_relative(path: &str) -> &str {
 #[pyfunction]
 fn connection_new(py: Python<'_>, con_type: String) -> PyResult<Py<PyAny>> {
     let empty_tuple = pyo3::types::PyTuple::empty(py);
-    let conn = Py::new(py, connection::PyConnection::new(Some(con_type.clone()), &empty_tuple, None))?;
+    let conn = Py::new(
+        py,
+        connection::PyConnection::new(Some(con_type.clone()), &empty_tuple, None),
+    )?;
     // Call __init__ to set up the transport
     {
-        let mut c = conn.bind(py).cast::<connection::PyConnection>()?.borrow_mut();
+        let mut c = conn
+            .bind(py)
+            .cast::<connection::PyConnection>()?
+            .borrow_mut();
         c.__init__(Some(con_type))?;
     }
     // Return a weakref proxy
@@ -247,11 +253,7 @@ inc2.url = 'http://evil.com/malware.exe'
             // Verify protocol events
             let proto = py.eval(c"proto", None, None).unwrap();
             let events: Vec<String> = py
-                .eval(
-                    c"[str(e) for e in proto.events]",
-                    None,
-                    None,
-                )
+                .eval(c"[str(e) for e in proto.events]", None, None)
                 .unwrap()
                 .extract()
                 .unwrap();

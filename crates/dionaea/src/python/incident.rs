@@ -253,7 +253,12 @@ impl PyIncident {
     ///
     /// Connection objects are stored as both OpaqueData (for Rust handlers)
     /// and as the original Python object (for Python handlers).
-    fn __setattr__(&mut self, py: Python<'_>, key: String, value: &Bound<'_, PyAny>) -> PyResult<()> {
+    fn __setattr__(
+        &mut self,
+        py: Python<'_>,
+        key: String,
+        value: &Bound<'_, PyAny>,
+    ) -> PyResult<()> {
         if value.cast::<PyConnection>().is_ok() {
             self.py_refs.insert(key.clone(), value.clone().unbind());
         }
@@ -293,9 +298,7 @@ mod tests {
         Python::attach(|py| {
             let inc = Py::new(py, PyIncident::new(Some("test.origin".into()))).unwrap();
             let bound = inc.bind(py);
-            bound
-                .call_method1("set", ("port", 445i64))
-                .unwrap();
+            bound.call_method1("set", ("port", 445i64)).unwrap();
             let val: i64 = bound
                 .call_method1("get", ("port",))
                 .unwrap()
@@ -310,9 +313,7 @@ mod tests {
         Python::attach(|py| {
             let inc = Py::new(py, PyIncident::new(Some("test".into()))).unwrap();
             let bound = inc.bind(py);
-            bound
-                .call_method1("set", ("host", "10.0.0.1"))
-                .unwrap();
+            bound.call_method1("set", ("host", "10.0.0.1")).unwrap();
             let val: String = bound
                 .call_method1("get", ("host",))
                 .unwrap()
@@ -343,9 +344,7 @@ mod tests {
         Python::attach(|py| {
             let inc = Py::new(py, PyIncident::new(Some("test".into()))).unwrap();
             let bound = inc.bind(py);
-            bound
-                .call_method1("set", ("empty", py.None()))
-                .unwrap();
+            bound.call_method1("set", ("empty", py.None())).unwrap();
             let val = bound.call_method1("get", ("empty",)).unwrap();
             assert!(val.is_none());
         });
@@ -381,11 +380,7 @@ mod tests {
             let bound = inc.bind(py);
             bound.setattr("alpha", 1i64).unwrap();
             bound.setattr("beta", 2i64).unwrap();
-            let keys: Vec<Vec<u8>> = bound
-                .call_method0("keys")
-                .unwrap()
-                .extract()
-                .unwrap();
+            let keys: Vec<Vec<u8>> = bound.call_method0("keys").unwrap().extract().unwrap();
             assert_eq!(keys.len(), 2);
             assert!(keys.contains(&b"alpha".to_vec()));
             assert!(keys.contains(&b"beta".to_vec()));
@@ -403,7 +398,12 @@ mod tests {
 
             let result = bound.call_method1("get", ("metadata",)).unwrap();
             let result_dict = result.cast::<PyDict>().unwrap();
-            let val: String = result_dict.get_item("key").unwrap().unwrap().extract().unwrap();
+            let val: String = result_dict
+                .get_item("key")
+                .unwrap()
+                .unwrap()
+                .extract()
+                .unwrap();
             assert_eq!(val, "value");
         });
     }

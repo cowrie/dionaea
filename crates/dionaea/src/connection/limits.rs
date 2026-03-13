@@ -51,8 +51,15 @@ impl std::fmt::Display for RejectReason {
             RejectReason::TotalLimit { current, limit } => {
                 write!(f, "total limit: {current}/{limit} connections")
             }
-            RejectReason::FdLimit { used, soft_limit, threshold_pct } => {
-                write!(f, "FD limit: {used}/{soft_limit} ({threshold_pct}% threshold)")
+            RejectReason::FdLimit {
+                used,
+                soft_limit,
+                threshold_pct,
+            } => {
+                write!(
+                    f,
+                    "FD limit: {used}/{soft_limit} ({threshold_pct}% threshold)"
+                )
             }
             RejectReason::Denied { ip } => {
                 write!(f, "denied: {ip}")
@@ -161,7 +168,8 @@ impl ConnectionLimits {
             if prev <= 1 {
                 // Clean up zero entries to prevent unbounded growth
                 drop(entry);
-                self.per_ip.remove_if(&ip, |_, v| v.load(Ordering::Relaxed) == 0);
+                self.per_ip
+                    .remove_if(&ip, |_, v| v.load(Ordering::Relaxed) == 0);
                 return 0;
             }
             return prev - 1;
@@ -233,12 +241,20 @@ mod deny_list {
         }
 
         /// Add an IP or CIDR to the deny list.
-        pub fn add(&mut self, network: ip_network::IpNetwork, ttl: Option<Duration>, reason: String) {
-            self.table.insert(network, DenyEntry {
-                added: Instant::now(),
-                ttl,
-                reason,
-            });
+        pub fn add(
+            &mut self,
+            network: ip_network::IpNetwork,
+            ttl: Option<Duration>,
+            reason: String,
+        ) {
+            self.table.insert(
+                network,
+                DenyEntry {
+                    added: Instant::now(),
+                    ttl,
+                    reason,
+                },
+            );
         }
 
         /// Check if an IP is denied (not expired).
@@ -367,7 +383,11 @@ mod tests {
         let result = limits.check(ip, 0, 700, 1000);
         assert!(result.is_err());
         match result.unwrap_err() {
-            RejectReason::FdLimit { used, soft_limit, threshold_pct } => {
+            RejectReason::FdLimit {
+                used,
+                soft_limit,
+                threshold_pct,
+            } => {
                 assert_eq!(used, 700);
                 assert_eq!(soft_limit, 1000);
                 assert_eq!(threshold_pct, 70);
@@ -497,7 +517,11 @@ mod deny_list_tests {
         // Add to deny list
         {
             let mut deny = limits.deny_list().write().unwrap();
-            deny.add("10.0.0.1/32".parse().unwrap(), None, "bad actor".to_string());
+            deny.add(
+                "10.0.0.1/32".parse().unwrap(),
+                None,
+                "bad actor".to_string(),
+            );
         }
 
         // Should now be rejected

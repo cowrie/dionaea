@@ -3,12 +3,12 @@
 // ABOUTME: Integration test for the download module end-to-end flow.
 // ABOUTME: Verifies: URL validation, HTTP download, SHA256 file naming.
 
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use dionaea::config;
-use dionaea::connection::limits::ConnectionLimits;
 use dionaea::connection::ConnectionRegistry;
+use dionaea::connection::limits::ConnectionLimits;
 use dionaea::ihandler::{HandlerCallback, IHandler, WildcardPattern};
 use dionaea::incident::OpaqueData;
 use dionaea::runtime;
@@ -111,7 +111,10 @@ fn test_download_module_end_to_end() {
             Python::attach(|py| {
                 dionaea::python::loader::load(
                     py,
-                    &config::PythonModuleConfig { python_path: Some(python_path), ..Default::default() },
+                    &config::PythonModuleConfig {
+                        python_path: Some(python_path),
+                        ..Default::default()
+                    },
                 )
                 .expect("loader init");
 
@@ -153,14 +156,8 @@ i.report()
             let mut buf = [0u8; 1024];
             let _ = stream.read(&mut buf).await;
 
-            let response = format!(
-                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n",
-                body.len()
-            );
-            stream
-                .write_all(response.as_bytes())
-                .await
-                .expect("write");
+            let response = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", body.len());
+            stream.write_all(response.as_bytes()).await.expect("write");
             stream.write_all(&body).await.expect("write body");
         });
 
@@ -168,10 +165,9 @@ i.report()
             .expect("parse url");
         let config = state.config.dionaea.download.clone();
 
-        let (path, hash) =
-            dionaea::download::download_url(&url, &config)
-                .await
-                .expect("download should succeed");
+        let (path, hash) = dionaea::download::download_url(&url, &config)
+            .await
+            .expect("download should succeed");
 
         assert_eq!(hash, expected_hash, "SHA256 hash should match");
         assert!(path.exists(), "file should exist at {}", path.display());
@@ -198,24 +194,17 @@ i.report()
             let (mut stream, _) = listener2.accept().await.expect("accept");
             let mut buf = [0u8; 1024];
             let _ = stream.read(&mut buf).await;
-            let response = format!(
-                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n",
-                body2.len()
-            );
-            stream
-                .write_all(response.as_bytes())
-                .await
-                .expect("write");
+            let response = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", body2.len());
+            stream.write_all(response.as_bytes()).await.expect("write");
             stream.write_all(&body2).await.expect("write body");
         });
 
         let url2 = reqwest::Url::parse(&format!("http://127.0.0.1:{port2}/malware.exe"))
             .expect("parse url");
 
-        let (path2, hash2) =
-            dionaea::download::download_url(&url2, &config)
-                .await
-                .expect("duplicate download should succeed");
+        let (path2, hash2) = dionaea::download::download_url(&url2, &config)
+            .await
+            .expect("duplicate download should succeed");
 
         assert_eq!(hash2, expected_hash, "same content = same hash");
         assert_eq!(path2, path, "same path for duplicate");

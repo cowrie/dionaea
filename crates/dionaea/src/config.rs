@@ -372,7 +372,10 @@ fn apply_env_overrides(config: &mut Config) {
     if let Ok(val) = std::env::var("DIONAEA_DIONAEA__GROUP") {
         config.dionaea.group = Some(val);
     }
-    parse_env_int("DIONAEA_DIONAEA__LIMITS__MAX_FDS_PCT", &mut config.dionaea.limits.max_fds_pct);
+    parse_env_int(
+        "DIONAEA_DIONAEA__LIMITS__MAX_FDS_PCT",
+        &mut config.dionaea.limits.max_fds_pct,
+    );
     parse_env_int(
         "DIONAEA_DIONAEA__LIMITS__MAX_CONNECTIONS_TOTAL",
         &mut config.dionaea.limits.max_connections_total,
@@ -589,7 +592,10 @@ max_fds_pct = 0
     #[test]
     fn test_download_config_defaults() {
         let config = load_from_str(MINIMAL_CONFIG).expect("parse");
-        assert_eq!(config.dionaea.download.dir.to_str().unwrap(), "var/dionaea/downloads/");
+        assert_eq!(
+            config.dionaea.download.dir.to_str().unwrap(),
+            "var/dionaea/downloads/"
+        );
         assert_eq!(config.dionaea.download.suffix, ".tmp");
         assert_eq!(config.dionaea.download.timeout_secs, 30);
         assert_eq!(config.dionaea.download.size_limit_bytes, 10 * 1024 * 1024);
@@ -611,7 +617,10 @@ size_limit_bytes = 52428800
 [modules]
 "#;
         let config = load_from_str(toml).expect("parse");
-        assert_eq!(config.dionaea.download.dir.to_str().unwrap(), "/tmp/captures");
+        assert_eq!(
+            config.dionaea.download.dir.to_str().unwrap(),
+            "/tmp/captures"
+        );
         assert_eq!(config.dionaea.download.suffix, ".incomplete");
         assert_eq!(config.dionaea.download.timeout_secs, 60);
         assert_eq!(config.dionaea.download.size_limit_bytes, 52428800);
@@ -671,7 +680,10 @@ label = "shellcode"
 
         let dumper = &config.processors[1];
         assert_eq!(dumper.name, "streamdumper");
-        assert_eq!(dumper.path, Some("var/lib/dionaea/bistreams/%Y-%m-%d/".into()));
+        assert_eq!(
+            dumper.path,
+            Some("var/lib/dionaea/bistreams/%Y-%m-%d/".into())
+        );
 
         let shellcode = &config.processors[3];
         assert_eq!(shellcode.name, "shellcode");

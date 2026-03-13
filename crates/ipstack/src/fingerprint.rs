@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
 // ABOUTME: Parser for the nmap-os-db fingerprint database file format.
 // ABOUTME: Extracts OS personality definitions used to simulate TCP/IP stack behavior.
 
@@ -96,9 +96,8 @@ pub struct FingerprintDb {
 impl FingerprintDb {
     /// Load fingerprints from an nmap-os-db file.
     pub fn load(path: &Path) -> Result<Self, FingerprintError> {
-        let content = std::fs::read_to_string(path).map_err(|e| {
-            FingerprintError::Io(format!("failed to read {}: {e}", path.display()))
-        })?;
+        let content = std::fs::read_to_string(path)
+            .map_err(|e| FingerprintError::Io(format!("failed to read {}: {e}", path.display())))?;
         Self::parse(&content)
     }
 

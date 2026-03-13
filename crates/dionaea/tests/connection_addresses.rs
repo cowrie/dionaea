@@ -7,8 +7,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use dionaea::config;
-use dionaea::connection::limits::ConnectionLimits;
 use dionaea::connection::ConnectionRegistry;
+use dionaea::connection::limits::ConnectionLimits;
 use dionaea::runtime;
 use pyo3::prelude::*;
 use tokio::io::AsyncWriteExt;

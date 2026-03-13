@@ -20,11 +20,11 @@ use tokio::time::{self, Duration};
 
 use crate::connection::limits::ConnectionLimits;
 use crate::connection::tcp::{
-    cleanup_connection, get_fd_soft_limit, handle_connection, invalidate_handler, RejectConfig,
-    SilentConnectionTracker,
+    RejectConfig, SilentConnectionTracker, cleanup_connection, get_fd_soft_limit,
+    handle_connection, invalidate_handler,
 };
 use crate::connection::{ConnectionRegistry, ConnectionState, ConnectionType, Transport};
-use crate::python::connection::{factory_create, PyConnection};
+use crate::python::connection::{PyConnection, factory_create};
 
 /// Certificate subject fields for self-signed cert generation.
 #[derive(Debug, Clone)]
@@ -260,9 +260,7 @@ async fn tls_accept_loop(
         let fd_count = registry.len() as u64;
         let fd_soft_limit = get_fd_soft_limit();
 
-        if let Err(reason) =
-            limits.check(peer_ip, registry.len() as u32, fd_count, fd_soft_limit)
-        {
+        if let Err(reason) = limits.check(peer_ip, registry.len() as u32, fd_count, fd_soft_limit) {
             tracing::debug!(%peer_addr, %reason, "rejecting TLS connection");
             crate::connection::tcp::reject_connection(stream, &reject_config, &silent_tracker);
             continue;
@@ -376,8 +374,18 @@ async fn tls_accept_loop(
             };
 
             // Run the standard I/O handler loop over the TLS stream
-            let (_stream, h, _rx, _post, _pipeline) =
-                handle_connection(tls_stream, handler, id, rx, reg.clone(), recv_buffer_size, "tls", false, None).await;
+            let (_stream, h, _rx, _post, _pipeline) = handle_connection(
+                tls_stream,
+                handler,
+                id,
+                rx,
+                reg.clone(),
+                recv_buffer_size,
+                "tls",
+                false,
+                None,
+            )
+            .await;
             let h = crate::connection::tcp::emit_connection_free(h).await;
             invalidate_handler(h);
             cleanup_connection(&reg, &lim, id, peer_ip);
@@ -429,10 +437,7 @@ factory = TlsEchoProtocol('tls')
         py.run(c_code.as_c_str(), None, None).expect("define echo");
         let factory = py.eval(c"factory", None, None).expect("factory");
         {
-            let mut c = factory
-                .cast::<PyConnection>()
-                .expect("cast")
-                .borrow_mut();
+            let mut c = factory.cast::<PyConnection>().expect("cast").borrow_mut();
             c.id = Some(ConnectionId(0));
         }
         factory.unbind()
@@ -448,14 +453,8 @@ factory = TlsEchoProtocol('tls')
 
         // Verify subject
         let subject = cert.subject_name();
-        let cn = subject
-            .entries_by_nid(Nid::COMMONNAME)
-            .next()
-            .expect("CN");
-        assert_eq!(
-            cn.data().as_utf8().expect("utf8").to_string(),
-            "localhost"
-        );
+        let cn = subject.entries_by_nid(Nid::COMMONNAME).next().expect("CN");
+        assert_eq!(cn.data().as_utf8().expect("utf8").to_string(), "localhost");
 
         let o = subject
             .entries_by_nid(Nid::ORGANIZATIONNAME)
@@ -471,8 +470,7 @@ factory = TlsEchoProtocol('tls')
     fn test_ssl_acceptor_builds() {
         let config = TlsConfig::default();
         let (pkey, cert) = generate_self_signed_cert(&config).expect("cert");
-        let _acceptor =
-            build_ssl_acceptor(&pkey, &cert, None).expect("acceptor");
+        let _acceptor = build_ssl_acceptor(&pkey, &cert, None).expect("acceptor");
     }
 
     #[test]
@@ -490,10 +488,8 @@ factory = TlsEchoProtocol('tls')
 
             // Generate cert + acceptor
             let tls_config = TlsConfig::default();
-            let (pkey, cert) =
-                generate_self_signed_cert(&tls_config).expect("cert");
-            let acceptor =
-                build_ssl_acceptor(&pkey, &cert, None).expect("acceptor");
+            let (pkey, cert) = generate_self_signed_cert(&tls_config).expect("cert");
+            let acceptor = build_ssl_acceptor(&pkey, &cert, None).expect("acceptor");
 
             let handle = tls_listen(
                 "127.0.0.1:0".parse().expect("addr"),
@@ -511,8 +507,9 @@ factory = TlsEchoProtocol('tls')
             time::sleep(Duration::from_millis(50)).await;
 
             // Connect with a TLS client
-            let tcp_stream =
-                tokio::net::TcpStream::connect(handle.addr).await.expect("tcp connect");
+            let tcp_stream = tokio::net::TcpStream::connect(handle.addr)
+                .await
+                .expect("tcp connect");
 
             let mut connector_builder =
                 openssl::ssl::SslConnector::builder(SslMethod::tls()).expect("connector");
@@ -533,7 +530,10 @@ factory = TlsEchoProtocol('tls')
             time::sleep(Duration::from_millis(100)).await;
 
             // Send data
-            tls_client.write_all(b"hello tls dionaea").await.expect("write");
+            tls_client
+                .write_all(b"hello tls dionaea")
+                .await
+                .expect("write");
 
             // Read echo
             let mut resp = vec![0u8; 64];

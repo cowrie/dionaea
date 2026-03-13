@@ -4,8 +4,8 @@
 // ABOUTME: Sniffs interfaces for RST packets from honeypot IPs and emits tcp.reject incidents.
 
 use std::net::IpAddr;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::JoinHandle;
 
 use crate::config::PcapConfig;
@@ -106,8 +106,12 @@ fn parse_ipv4(data: &[u8]) -> Option<(IpAddr, IpAddr, usize)> {
         return None;
     }
     // Source IP at offset 12, dest at 16.
-    let src = IpAddr::V4(std::net::Ipv4Addr::new(data[12], data[13], data[14], data[15]));
-    let dst = IpAddr::V4(std::net::Ipv4Addr::new(data[16], data[17], data[18], data[19]));
+    let src = IpAddr::V4(std::net::Ipv4Addr::new(
+        data[12], data[13], data[14], data[15],
+    ));
+    let dst = IpAddr::V4(std::net::Ipv4Addr::new(
+        data[16], data[17], data[18], data[19],
+    ));
     Some((src, dst, ihl))
 }
 

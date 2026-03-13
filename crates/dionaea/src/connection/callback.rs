@@ -194,7 +194,10 @@ pub fn emit_connection_incident(py: Python<'_>, conn: &Bound<'_, PyAny>, origin:
 /// Exceptions are logged and result in `Continue` (no reconnect).
 pub fn call_handle_error(conn: &Bound<'_, PyAny>, error_msg: &str) -> PostCallback {
     let py = conn.py();
-    match conn.call_method1("handle_error", (error_msg.into_pyobject(py).expect("string"),)) {
+    match conn.call_method1(
+        "handle_error",
+        (error_msg.into_pyobject(py).expect("string"),),
+    ) {
         Ok(result) => {
             let reconnect: bool = result.extract().unwrap_or(false);
             if reconnect {
@@ -451,11 +454,7 @@ conn = ErrorHandler('tcp')
             let result = call_handle_error(&conn, "connection refused");
             assert_eq!(result, PostCallback::Continue);
 
-            let last: String = conn
-                .getattr("last_error")
-                .unwrap()
-                .extract()
-                .unwrap();
+            let last: String = conn.getattr("last_error").unwrap().extract().unwrap();
             assert_eq!(last, "connection refused");
         });
     }
@@ -482,10 +481,16 @@ no_reconnect = NoReconnect('tcp')
             .unwrap();
 
             let reconnect = py.eval(c"reconnect", None, None).unwrap();
-            assert_eq!(call_handle_error(&reconnect, "conn refused"), PostCallback::Reconnect);
+            assert_eq!(
+                call_handle_error(&reconnect, "conn refused"),
+                PostCallback::Reconnect
+            );
 
             let no_reconnect = py.eval(c"no_reconnect", None, None).unwrap();
-            assert_eq!(call_handle_error(&no_reconnect, "conn refused"), PostCallback::Continue);
+            assert_eq!(
+                call_handle_error(&no_reconnect, "conn refused"),
+                PostCallback::Continue
+            );
         });
     }
 }

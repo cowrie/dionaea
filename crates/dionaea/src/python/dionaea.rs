@@ -104,9 +104,8 @@ impl PyDionaea {
     fn getifaddrs<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let result = PyDict::new(py);
 
-        let addrs = nix::ifaddrs::getifaddrs().map_err(|e| {
-            pyo3::exceptions::PyOSError::new_err(format!("getifaddrs: {e}"))
-        })?;
+        let addrs = nix::ifaddrs::getifaddrs()
+            .map_err(|e| pyo3::exceptions::PyOSError::new_err(format!("getifaddrs: {e}")))?;
 
         for iface in addrs {
             let Some(addr) = iface.address else {
@@ -164,11 +163,7 @@ mod tests {
         Python::attach(|py| {
             let d = Py::new(py, PyDionaea::new()).unwrap();
             let bound = d.bind(py);
-            let version: String = bound
-                .call_method0("version")
-                .unwrap()
-                .extract()
-                .unwrap();
+            let version: String = bound.call_method0("version").unwrap().extract().unwrap();
             assert_eq!(version, VERSION);
         });
     }
@@ -191,7 +186,10 @@ mod tests {
             let addrs = bound.call_method0("getifaddrs").unwrap();
             let dict = addrs.cast::<PyDict>().unwrap();
             // Every machine has at least the loopback interface
-            assert!(!dict.is_empty(), "getifaddrs should return at least one interface");
+            assert!(
+                !dict.is_empty(),
+                "getifaddrs should return at least one interface"
+            );
 
             // Check structure: interface → AF dict → list of addr dicts
             for (iface_name, af_dict) in dict.iter() {

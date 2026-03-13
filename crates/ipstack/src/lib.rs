@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
 // ABOUTME: Custom userspace TCP/IP stack with nmap OS fingerprint personality simulation.
 // ABOUTME: Operates on a TUN device to bypass the kernel stack, enabling honeyd-style OS emulation.
 
@@ -51,21 +51,21 @@
 //!                     └──────────────┘
 //! ```
 
+/// Configuration types for the IP stack.
+pub mod config;
+/// IP packet demuxer — routes packets to TCP/UDP/ICMP handlers.
+pub mod demux;
 /// Nmap OS fingerprint database parser and data model.
 pub mod fingerprint;
-/// TCP/IP personality engine — maps fingerprint fields to packet parameters.
-pub mod personality;
-/// Custom TCP state machine with personality-driven response crafting.
-pub mod tcp;
-/// UDP probe response handler (nmap U1 test).
-pub mod udp;
 /// ICMP echo and unreachable response handler (nmap IE test).
 pub mod icmp;
 /// Raw packet construction utilities.
 pub mod packet;
+/// TCP/IP personality engine — maps fingerprint fields to packet parameters.
+pub mod personality;
+/// Custom TCP state machine with personality-driven response crafting.
+pub mod tcp;
 /// TUN device integration with Tokio.
 pub mod tun;
-/// IP packet demuxer — routes packets to TCP/UDP/ICMP handlers.
-pub mod demux;
-/// Configuration types for the IP stack.
-pub mod config;
+/// UDP probe response handler (nmap U1 test).
+pub mod udp;

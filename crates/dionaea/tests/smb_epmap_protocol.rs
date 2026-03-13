@@ -7,8 +7,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use dionaea::config;
-use dionaea::connection::limits::ConnectionLimits;
 use dionaea::connection::ConnectionRegistry;
+use dionaea::connection::limits::ConnectionLimits;
 use dionaea::runtime;
 use pyo3::prelude::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -76,8 +76,8 @@ fn build_smb_negotiate_request() -> Vec<u8> {
 fn build_dcerpc_bind(interface_uuid: &[u8; 16], call_id: u32) -> Vec<u8> {
     // NDR32 transfer syntax UUID: 8a885d04-1ceb-11c9-9fe8-08002b104860
     let ndr32_uuid: [u8; 16] = [
-        0x04, 0x5d, 0x88, 0x8a, 0xeb, 0x1c, 0xc9, 0x11, 0x9f, 0xe8, 0x08, 0x00, 0x2b, 0x10,
-        0x48, 0x60,
+        0x04, 0x5d, 0x88, 0x8a, 0xeb, 0x1c, 0xc9, 0x11, 0x9f, 0xe8, 0x08, 0x00, 0x2b, 0x10, 0x48,
+        0x60,
     ];
 
     // Bind body (after DCERPC header):
@@ -121,8 +121,8 @@ fn build_dcerpc_bind(interface_uuid: &[u8; 16], call_id: u32) -> Vec<u8> {
 fn build_dcerpc_bind_request() -> Vec<u8> {
     // ATSVC UUID: 1ff70682-0a51-30e8-076d-740be8cee98b (little-endian wire format)
     let interface_uuid: [u8; 16] = [
-        0x82, 0x06, 0xf7, 0x1f, 0x51, 0x0a, 0xe8, 0x30, 0x07, 0x6d, 0x74, 0x0b, 0xe8, 0xce,
-        0xe9, 0x8b,
+        0x82, 0x06, 0xf7, 0x1f, 0x51, 0x0a, 0xe8, 0x30, 0x07, 0x6d, 0x74, 0x0b, 0xe8, 0xce, 0xe9,
+        0x8b,
     ];
     build_dcerpc_bind(&interface_uuid, 1)
 }
@@ -155,8 +155,8 @@ fn build_dcerpc_request(opnum: u16, stub: &[u8], call_id: u32) -> Vec<u8> {
 fn build_ept_map_stub(interface_uuid_le: &[u8; 16]) -> Vec<u8> {
     // NDR32 transfer syntax UUID (little-endian wire bytes)
     let ndr32_uuid: [u8; 16] = [
-        0x04, 0x5d, 0x88, 0x8a, 0xeb, 0x1c, 0xc9, 0x11, 0x9f, 0xe8, 0x08, 0x00, 0x2b, 0x10,
-        0x48, 0x60,
+        0x04, 0x5d, 0x88, 0x8a, 0xeb, 0x1c, 0xc9, 0x11, 0x9f, 0xe8, 0x08, 0x00, 0x2b, 0x10, 0x48,
+        0x60,
     ];
 
     // Build input tower (5 floors)
@@ -266,7 +266,10 @@ fn test_smb_and_epmap_protocols() {
             Python::attach(|py| {
                 dionaea::python::loader::load(
                     py,
-                    &config::PythonModuleConfig { python_path: Some(python_path), ..Default::default() },
+                    &config::PythonModuleConfig {
+                        python_path: Some(python_path),
+                        ..Default::default()
+                    },
                 )
                 .expect("loader init");
 
@@ -327,7 +330,10 @@ smb_port = sm.local.port
                 .expect("bind_ack timeout")
                 .expect("bind_ack read");
 
-            assert!(n >= 16, "expected at least DCERPC header (16 bytes), got {n}");
+            assert!(
+                n >= 16,
+                "expected at least DCERPC header (16 bytes), got {n}"
+            );
 
             // Verify DCERPC header fields
             assert_eq!(buf[0], 5, "DCERPC Version should be 5");
@@ -348,8 +354,8 @@ smb_port = sm.local.port
             // Bind to EPM interface first
             // EPM UUID: e1af8308-5d1f-11c9-91a4-08002b14a0fa (little-endian wire bytes)
             let epm_uuid: [u8; 16] = [
-                0x08, 0x83, 0xaf, 0xe1, 0x1f, 0x5d, 0xc9, 0x11, 0x91, 0xa4, 0x08, 0x00, 0x2b,
-                0x14, 0xa0, 0xfa,
+                0x08, 0x83, 0xaf, 0xe1, 0x1f, 0x5d, 0xc9, 0x11, 0x91, 0xa4, 0x08, 0x00, 0x2b, 0x14,
+                0xa0, 0xfa,
             ];
             let bind = build_dcerpc_bind(&epm_uuid, 1);
             stream.write_all(&bind).await.expect("write EPM bind");
@@ -365,8 +371,8 @@ smb_port = sm.local.port
             // Send ept_map request for SRVSVC
             // SRVSVC UUID: 4b324fc8-1670-01d3-1278-5a47bf6ee188 (little-endian wire bytes)
             let srvsvc_uuid: [u8; 16] = [
-                0xc8, 0x4f, 0x32, 0x4b, 0x70, 0x16, 0xd3, 0x01, 0x12, 0x78, 0x5a, 0x47, 0xbf,
-                0x6e, 0xe1, 0x88,
+                0xc8, 0x4f, 0x32, 0x4b, 0x70, 0x16, 0xd3, 0x01, 0x12, 0x78, 0x5a, 0x47, 0xbf, 0x6e,
+                0xe1, 0x88,
             ];
             let stub = build_ept_map_stub(&srvsvc_uuid);
             let request = build_dcerpc_request(3, &stub, 2); // opnum 3 = ept_map
@@ -397,17 +403,11 @@ smb_port = sm.local.port
                 "stub too short for ept_map response: {} bytes",
                 stub_data.len()
             );
-            let status = u32::from_le_bytes([
-                buf[n - 4],
-                buf[n - 3],
-                buf[n - 2],
-                buf[n - 1],
-            ]);
+            let status = u32::from_le_bytes([buf[n - 4], buf[n - 3], buf[n - 2], buf[n - 1]]);
             assert_eq!(status, 0, "ept_map status should be success (0)");
 
             // num_towers at offset 20 in stub (after 20-byte entry_handle)
-            let num_towers =
-                u32::from_le_bytes(stub_data[20..24].try_into().expect("4 bytes"));
+            let num_towers = u32::from_le_bytes(stub_data[20..24].try_into().expect("4 bytes"));
             assert!(
                 num_towers >= 1,
                 "expected at least 1 tower for SRVSVC, got {num_towers}"
@@ -434,7 +434,10 @@ smb_port = sm.local.port
                 .expect("negotiate response read");
 
             // NBT header (4 bytes) + SMB header (32 bytes) + negotiate response body
-            assert!(n >= 36, "expected at least NBT header + SMB header, got {n}");
+            assert!(
+                n >= 36,
+                "expected at least NBT header + SMB header, got {n}"
+            );
 
             // Verify NBT Session Message type
             assert_eq!(buf[0], 0x00, "NBT TYPE should be Session Message");

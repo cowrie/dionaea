@@ -7,8 +7,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use dionaea::config;
-use dionaea::connection::limits::ConnectionLimits;
 use dionaea::connection::ConnectionRegistry;
+use dionaea::connection::limits::ConnectionLimits;
 use dionaea::runtime;
 use pyo3::prelude::*;
 use tokio::io::AsyncReadExt;
@@ -64,7 +64,10 @@ fn test_mysql_greeting() {
             Python::attach(|py| {
                 dionaea::python::loader::load(
                     py,
-                    &config::PythonModuleConfig { python_path: Some(python_path), ..Default::default() },
+                    &config::PythonModuleConfig {
+                        python_path: Some(python_path),
+                        ..Default::default()
+                    },
                 )
                 .expect("loader init");
 
@@ -137,10 +140,7 @@ port = d.local.port
             .position(|&b| b == 0)
             .expect("version string should be null-terminated");
         let version = std::str::from_utf8(&payload[1..1 + nul_pos]).expect("valid UTF-8 version");
-        assert!(
-            !version.is_empty(),
-            "version string should not be empty"
-        );
+        assert!(!version.is_empty(), "version string should not be empty");
 
         // After version string: 4-byte thread ID + 8-byte scramble + 1-byte filler(0x00)
         let after_version = 1 + nul_pos + 1; // skip protocol_version + version + null

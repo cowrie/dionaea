@@ -76,11 +76,7 @@ struct ActiveNode {
 impl ProcessorPipeline {
     /// Build a pipeline by walking the template tree and filtering out
     /// processors that don't accept this connection's protocol/type.
-    pub fn from_tree(
-        tree: &[ProcessorNode],
-        protocol: &str,
-        conn_type: &str,
-    ) -> Self {
+    pub fn from_tree(tree: &[ProcessorNode], protocol: &str, conn_type: &str) -> Self {
         let mut nodes = Vec::new();
         for template in tree {
             if let Some(active) = Self::instantiate(template, protocol, conn_type) {
@@ -166,10 +162,7 @@ impl ProcessorPipeline {
 ///
 /// Each config entry has a `label` (unique name) and `next` (labels of children).
 /// Root nodes are entries not referenced by any other entry's `next`.
-pub fn build_tree(
-    configs: &[ProcessorConfig],
-    download_dir: &Path,
-) -> Vec<ProcessorNode> {
+pub fn build_tree(configs: &[ProcessorConfig], download_dir: &Path) -> Vec<ProcessorNode> {
     // Build processor instances indexed by label
     let mut processors: HashMap<&str, Arc<dyn Processor>> = HashMap::new();
 
@@ -285,7 +278,11 @@ pub struct FilterProcessor {
 
 impl FilterProcessor {
     /// Create a new filter processor.
-    pub fn new(label: String, allow: Vec<(Vec<String>, Vec<String>)>, deny: Vec<(Vec<String>, Vec<String>)>) -> Self {
+    pub fn new(
+        label: String,
+        allow: Vec<(Vec<String>, Vec<String>)>,
+        deny: Vec<(Vec<String>, Vec<String>)>,
+    ) -> Self {
         FilterProcessor {
             label,
             allow: allow
@@ -313,8 +310,8 @@ impl Processor for FilterProcessor {
 
     fn accepts(&self, protocol: &str, conn_type: &str) -> bool {
         // Must match at least one allow rule (if any exist)
-        let allowed = self.allow.is_empty()
-            || self.allow.iter().any(|r| r.matches(protocol, conn_type));
+        let allowed =
+            self.allow.is_empty() || self.allow.iter().any(|r| r.matches(protocol, conn_type));
         // Must not match any deny rule
         let denied = self.deny.iter().any(|r| r.matches(protocol, conn_type));
         allowed && !denied
@@ -423,11 +420,7 @@ impl StreamDumperCtx {
         }
     }
 
-    fn write_chunk_inner(
-        &mut self,
-        direction: &str,
-        data: &[u8],
-    ) -> std::io::Result<()> {
+    fn write_chunk_inner(&mut self, direction: &str, data: &[u8]) -> std::io::Result<()> {
         let file = match &mut self.file {
             Some(f) => f,
             None => {
@@ -659,11 +652,8 @@ mod tests {
 
     #[test]
     fn filter_allow_by_type() {
-        let filter = FilterProcessor::new(
-            "test".into(),
-            vec![(vec![], vec!["accept".into()])],
-            vec![],
-        );
+        let filter =
+            FilterProcessor::new("test".into(), vec![(vec![], vec!["accept".into()])], vec![]);
         assert!(filter.accepts("httpd", "accept"));
         assert!(!filter.accepts("httpd", "connect"));
     }
@@ -717,12 +707,19 @@ mod tests {
         out_count: usize,
     }
     impl ProcessorCtx for CountingCtx {
-        fn as_any_mut(&mut self) -> &mut dyn Any { self }
+        fn as_any_mut(&mut self) -> &mut dyn Any {
+            self
+        }
     }
     impl Processor for CountingProcessor {
-        fn name(&self) -> &str { &self.name }
+        fn name(&self) -> &str {
+            &self.name
+        }
         fn new_ctx(&self) -> Box<dyn ProcessorCtx> {
-            Box::new(CountingCtx { in_count: 0, out_count: 0 })
+            Box::new(CountingCtx {
+                in_count: 0,
+                out_count: 0,
+            })
         }
         fn io_in(&self, ctx: &mut dyn ProcessorCtx, _data: &[u8]) {
             let ctx = ctx.as_any_mut().downcast_mut::<CountingCtx>().unwrap();
@@ -743,7 +740,9 @@ mod tests {
     #[test]
     fn pipeline_dispatches_io() {
         let tree = vec![ProcessorNode {
-            processor: Arc::new(CountingProcessor { name: "counter".into() }),
+            processor: Arc::new(CountingProcessor {
+                name: "counter".into(),
+            }),
             children: vec![],
         }];
         let mut pipeline = ProcessorPipeline::from_tree(&tree, "httpd", "accept");
@@ -766,7 +765,9 @@ mod tests {
             vec![(vec!["smbd".into()], vec![])],
             vec![],
         ));
-        let counter: Arc<dyn Processor> = Arc::new(CountingProcessor { name: "counter".into() });
+        let counter: Arc<dyn Processor> = Arc::new(CountingProcessor {
+            name: "counter".into(),
+        });
 
         let tree = vec![ProcessorNode {
             processor: filter,
@@ -839,7 +840,9 @@ mod tests {
     #[test]
     fn strftime_expansion() {
         use chrono::TimeZone as _;
-        let dt = chrono::Utc.with_ymd_and_hms(2024, 1, 15, 11, 30, 45).unwrap();
+        let dt = chrono::Utc
+            .with_ymd_and_hms(2024, 1, 15, 11, 30, 45)
+            .unwrap();
         let result = expand_strftime_with_dt("var/lib/%Y-%m-%d/bistreams", dt);
         assert_eq!(result, "var/lib/2024-01-15/bistreams");
     }
@@ -847,7 +850,9 @@ mod tests {
     #[test]
     fn strftime_time_components() {
         use chrono::TimeZone as _;
-        let dt = chrono::Utc.with_ymd_and_hms(2024, 1, 15, 11, 30, 45).unwrap();
+        let dt = chrono::Utc
+            .with_ymd_and_hms(2024, 1, 15, 11, 30, 45)
+            .unwrap();
         let result = expand_strftime_with_dt("%H-%M-%S", dt);
         assert_eq!(result, "11-30-45");
     }
@@ -1020,8 +1025,12 @@ mod tests {
 
     #[test]
     fn pipeline_nested_dispatch() {
-        let parent: Arc<dyn Processor> = Arc::new(CountingProcessor { name: "parent".into() });
-        let child: Arc<dyn Processor> = Arc::new(CountingProcessor { name: "child".into() });
+        let parent: Arc<dyn Processor> = Arc::new(CountingProcessor {
+            name: "parent".into(),
+        });
+        let child: Arc<dyn Processor> = Arc::new(CountingProcessor {
+            name: "child".into(),
+        });
 
         let tree = vec![ProcessorNode {
             processor: parent,

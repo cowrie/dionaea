@@ -24,10 +24,7 @@ struct ReopenableWriter {
 
 impl ReopenableWriter {
     fn new(path: &Path) -> io::Result<Self> {
-        let file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(path)?;
+        let file = OpenOptions::new().create(true).append(true).open(path)?;
         Ok(ReopenableWriter {
             file: Arc::new(Mutex::new(file)),
             path: path.to_path_buf(),
@@ -92,11 +89,12 @@ impl LogState {
 struct Rfc3339Utc;
 
 impl tracing_subscriber::fmt::time::FormatTime for Rfc3339Utc {
-    fn format_time(
-        &self,
-        w: &mut tracing_subscriber::fmt::format::Writer<'_>,
-    ) -> std::fmt::Result {
-        write!(w, "{}", chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Micros, true))
+    fn format_time(&self, w: &mut tracing_subscriber::fmt::format::Writer<'_>) -> std::fmt::Result {
+        write!(
+            w,
+            "{}",
+            chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Micros, true)
+        )
     }
 }
 
@@ -169,10 +167,10 @@ fn main() {
 
 /// Async entry point running inside the tokio runtime.
 async fn async_main(config: config::Config, log_state: LogState) {
-    use std::sync::Arc;
-    use dionaea::connection::limits::ConnectionLimits;
     use dionaea::connection::ConnectionRegistry;
+    use dionaea::connection::limits::ConnectionLimits;
     use dionaea::runtime;
+    use std::sync::Arc;
 
     // Create shared connection infrastructure
     let registry = Arc::new(ConnectionRegistry::new());
@@ -181,10 +179,7 @@ async fn async_main(config: config::Config, log_state: LogState) {
         config.dionaea.limits.max_connections_total,
         config.dionaea.limits.max_fds_pct,
     ));
-    let processor_tree = processor::build_tree(
-        &config.processors,
-        &config.dionaea.download.dir,
-    );
+    let processor_tree = processor::build_tree(&config.processors, &config.dionaea.download.dir);
     let state = Arc::new(runtime::RuntimeState::new(
         registry.clone(),
         limits,
@@ -253,7 +248,8 @@ async fn async_main(config: config::Config, log_state: LogState) {
             tracing::warn!(error = %e, "failed to raise RLIMIT_NOFILE");
         }
 
-        if let (Some(user), Some(group)) = (&state.config.dionaea.user, &state.config.dionaea.group) {
+        if let (Some(user), Some(group)) = (&state.config.dionaea.user, &state.config.dionaea.group)
+        {
             match (
                 dionaea::privileges::resolve_user(user),
                 dionaea::privileges::resolve_group(group),
@@ -281,15 +277,12 @@ async fn async_main(config: config::Config, log_state: LogState) {
     // Wait for shutdown signal. SIGHUP reopens logs without shutting down.
     #[cfg(unix)]
     {
-        let mut sigterm =
-            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-                .expect("SIGTERM handler");
-        let mut sigint =
-            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::interrupt())
-                .expect("SIGINT handler");
-        let mut sighup =
-            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::hangup())
-                .expect("SIGHUP handler");
+        let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("SIGTERM handler");
+        let mut sigint = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::interrupt())
+            .expect("SIGINT handler");
+        let mut sighup = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::hangup())
+            .expect("SIGHUP handler");
 
         loop {
             tokio::select! {
@@ -316,7 +309,15 @@ async fn async_main(config: config::Config, log_state: LogState) {
     }
 
     // Graceful shutdown with timeout. A second SIGINT forces immediate exit.
-    graceful_shutdown(state, registry, #[cfg(feature = "pcap")] pcap_threads, #[cfg(feature = "pcap")] pcap_shutdown).await;
+    graceful_shutdown(
+        state,
+        registry,
+        #[cfg(feature = "pcap")]
+        pcap_threads,
+        #[cfg(feature = "pcap")]
+        pcap_shutdown,
+    )
+    .await;
 }
 
 /// Shutdown timeout in seconds.
@@ -348,10 +349,7 @@ async fn graceful_shutdown(
             tracing::debug!("pcap signaled");
         }
 
-        tracing::info!(
-            active_connections = registry.len(),
-            "draining connections"
-        );
+        tracing::info!(active_connections = registry.len(), "draining connections");
 
         // Call Python module stop() functions
         {
@@ -380,7 +378,6 @@ async fn graceful_shutdown(
             .lock()
             .expect("registry lock")
             .clear();
-
     };
 
     tokio::select! {
@@ -427,7 +424,10 @@ fn parse_args() -> PathBuf {
                 std::process::exit(0);
             }
             "-h" | "--help" => {
-                println!("dionaea {} - low-interaction honeypot", dionaea::python::dionaea::VERSION);
+                println!(
+                    "dionaea {} - low-interaction honeypot",
+                    dionaea::python::dionaea::VERSION
+                );
                 println!();
                 println!("Usage: dionaea [OPTIONS]");
                 println!();
@@ -453,7 +453,9 @@ fn parse_args() -> PathBuf {
 ///
 /// Used to set the global `EnvFilter` gate so that per-target `DomainFilter`s
 /// can see all events they might need.
-fn max_level_from_targets(targets: &[config::LogTarget]) -> tracing_subscriber::filter::LevelFilter {
+fn max_level_from_targets(
+    targets: &[config::LogTarget],
+) -> tracing_subscriber::filter::LevelFilter {
     use tracing_subscriber::filter::LevelFilter;
     targets
         .iter()
@@ -466,14 +468,14 @@ fn max_level_from_targets(targets: &[config::LogTarget]) -> tracing_subscriber::
 ///
 /// Returns `LogState` holding file writers so SIGHUP can reopen them.
 fn init_tracing(logging_config: &config::LoggingConfig) -> LogState {
+    use tracing_subscriber::EnvFilter;
     use tracing_subscriber::layer::SubscriberExt;
     use tracing_subscriber::util::SubscriberInitExt;
-    use tracing_subscriber::EnvFilter;
 
     // Global gate: most permissive level across all targets (RUST_LOG overrides)
     let max_level = max_level_from_targets(&logging_config.targets);
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(max_level.to_string()));
+    let env_filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(max_level.to_string()));
 
     let mut log_state = LogState {
         file_writers: Vec::new(),
@@ -701,10 +703,7 @@ where
                 if let Some(parent) = path.parent() {
                     if !parent.as_os_str().is_empty() && !parent.exists() {
                         if let Err(e) = std::fs::create_dir_all(parent) {
-                            eprintln!(
-                                "failed to create log directory {}: {e}",
-                                parent.display()
-                            );
+                            eprintln!("failed to create log directory {}: {e}", parent.display());
                             continue;
                         }
                     }
@@ -759,7 +758,7 @@ where
 /// Ignore SIGPIPE to prevent crashes on broken network connections.
 #[cfg(unix)]
 fn ignore_sigpipe() {
-    use nix::sys::signal::{signal, SigHandler, Signal};
+    use nix::sys::signal::{SigHandler, Signal, signal};
 
     // SAFETY: SIG_IGN is safe — it just tells the kernel to discard SIGPIPE.
     // This is standard practice for network daemons.

@@ -6,8 +6,8 @@
 use std::sync::{Arc, Mutex, OnceLock};
 
 use crate::config::Config;
-use crate::connection::limits::ConnectionLimits;
 use crate::connection::ConnectionRegistry;
+use crate::connection::limits::ConnectionLimits;
 use crate::ihandler::IHandlerRegistry;
 use crate::processor::ProcessorNode;
 
@@ -127,7 +127,8 @@ level = "info"
             .enable_all()
             .build()
             .expect("runtime");
-        let handle = rt.spawn(async { tokio::time::sleep(std::time::Duration::from_secs(3600)).await });
+        let handle =
+            rt.spawn(async { tokio::time::sleep(std::time::Duration::from_secs(3600)).await });
         state.track_listener(handle.abort_handle());
 
         assert_eq!(state.listeners.lock().unwrap().len(), 1);

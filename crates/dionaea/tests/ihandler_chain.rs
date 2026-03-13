@@ -7,8 +7,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use dionaea::config;
-use dionaea::connection::limits::ConnectionLimits;
 use dionaea::connection::ConnectionRegistry;
+use dionaea::connection::limits::ConnectionLimits;
 use dionaea::runtime;
 use pyo3::prelude::*;
 use tokio::io::AsyncWriteExt;
@@ -76,7 +76,10 @@ fn test_ihandler_chain_with_log_json() {
                 Python::attach(|py| {
                     dionaea::python::loader::load(
                         py,
-                        &config::PythonModuleConfig { python_path: Some(python_path), ..Default::default() },
+                        &config::PythonModuleConfig {
+                            python_path: Some(python_path),
+                            ..Default::default()
+                        },
                     )
                     .expect("loader init");
 
@@ -147,7 +150,9 @@ port = e.local.port
                     .expect("extract");
                 eprintln!("TestIHandler received: {received:?}");
                 (
-                    received.iter().any(|o| o == "dionaea.connection.tcp.accept"),
+                    received
+                        .iter()
+                        .any(|o| o == "dionaea.connection.tcp.accept"),
                     received.iter().any(|o| o == "dionaea.connection.free"),
                 )
             })
@@ -155,26 +160,44 @@ port = e.local.port
         .await
         .expect("check");
 
-        assert!(has_accept, "ihandler should receive dionaea.connection.tcp.accept");
+        assert!(
+            has_accept,
+            "ihandler should receive dionaea.connection.tcp.accept"
+        );
         assert!(has_free, "ihandler should receive dionaea.connection.free");
 
         // Verify the LogJsonHandler wrote incidents to the file
-        let contents = std::fs::read_to_string(&log_file)
-            .expect("read incident log file");
+        let contents = std::fs::read_to_string(&log_file).expect("read incident log file");
 
-        assert!(!contents.is_empty(), "incident log file should not be empty");
+        assert!(
+            !contents.is_empty(),
+            "incident log file should not be empty"
+        );
 
-        let has_accept_json = contents.lines().any(|l| l.contains("dionaea.connection.tcp.accept"));
-        let has_free_json = contents.lines().any(|l| l.contains("dionaea.connection.free"));
-        assert!(has_accept_json, "JSON log should contain tcp.accept: {contents}");
-        assert!(has_free_json, "JSON log should contain connection.free: {contents}");
+        let has_accept_json = contents
+            .lines()
+            .any(|l| l.contains("dionaea.connection.tcp.accept"));
+        let has_free_json = contents
+            .lines()
+            .any(|l| l.contains("dionaea.connection.free"));
+        assert!(
+            has_accept_json,
+            "JSON log should contain tcp.accept: {contents}"
+        );
+        assert!(
+            has_free_json,
+            "JSON log should contain connection.free: {contents}"
+        );
 
         // Verify each line is valid JSON with expected fields
         for line in contents.lines() {
             let parsed: serde_json::Value =
                 serde_json::from_str(line).expect("each line should be valid JSON");
             assert!(parsed.get("origin").is_some(), "JSON should have 'origin'");
-            assert!(parsed.get("timestamp").is_some(), "JSON should have 'timestamp'");
+            assert!(
+                parsed.get("timestamp").is_some(),
+                "JSON should have 'timestamp'"
+            );
         }
 
         // Cleanup

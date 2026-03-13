@@ -7,8 +7,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use dionaea::config;
-use dionaea::connection::limits::ConnectionLimits;
 use dionaea::connection::ConnectionRegistry;
+use dionaea::connection::limits::ConnectionLimits;
 use dionaea::python::connection::PyConnection;
 use dionaea::python::ihandler::PyIHandler;
 use dionaea::python::incident::PyIncident;
@@ -38,12 +38,8 @@ fn register_test_module(py: Python<'_>, name: &str) {
     module
         .add_class::<PyConnection>()
         .expect("add PyConnection");
-    module
-        .add_class::<PyIHandler>()
-        .expect("add PyIHandler");
-    module
-        .add_class::<PyIncident>()
-        .expect("add PyIncident");
+    module.add_class::<PyIHandler>().expect("add PyIHandler");
+    module.add_class::<PyIncident>().expect("add PyIncident");
     py.import(c"sys")
         .expect("import sys")
         .getattr("modules")
@@ -245,11 +241,7 @@ inc2.report()
         .expect("incident test spawn_blocking");
 
         // Verify ihandler_registry has at least our handler registered
-        let handler_count = state
-            .ihandler_registry
-            .lock()
-            .expect("lock")
-            .len();
+        let handler_count = state.ihandler_registry.lock().expect("lock").len();
         assert!(
             handler_count >= 1,
             "ihandler_registry should have at least 1 handler, got {handler_count}"

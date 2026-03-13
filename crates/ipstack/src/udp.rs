@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
 // ABOUTME: UDP probe response handler for nmap U1 test simulation.
 // ABOUTME: Sends ICMP Port Unreachable for closed ports with personality-matched parameters.
 
@@ -186,6 +186,9 @@ IE(R=Y%DFI=N%T=40%TG=40%CD=S)
         let (resp, events) = handler.handle_packet(&ip, &udp, &pkt);
         assert!(resp.is_none(), "open port should not send ICMP");
         assert_eq!(events.len(), 1);
-        assert!(matches!(events[0], UdpEvent::DataReceived { dst_port: 53, .. }));
+        assert!(matches!(
+            events[0],
+            UdpEvent::DataReceived { dst_port: 53, .. }
+        ));
     }
 }

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
 // ABOUTME: Custom TCP state machine with personality-driven response crafting.
 // ABOUTME: Manages per-connection state and generates packets matching the OS fingerprint.
 
@@ -22,7 +22,7 @@ use std::net::Ipv4Addr;
 
 use crate::packet::{self, ParsedIpv4, ParsedTcp};
 use crate::personality::{
-    AckBehavior, IsnGenerator, Personality, SeqBehavior, TcpFlags, TProbeResponse,
+    AckBehavior, IsnGenerator, Personality, SeqBehavior, TProbeResponse, TcpFlags,
 };
 
 /// TCP connection state.
@@ -184,12 +184,8 @@ impl TcpEngine {
         if tcp.is_syn_only() && !self.is_port_open(tcp.dst_port) {
             if let Some(t_resp) = self.get_closed_port_response() {
                 if t_resp.responds {
-                    let (seq, ack) = compute_seq_ack(
-                        t_resp,
-                        tcp.seq_num,
-                        tcp.ack_num,
-                        self.isn_gen.next_isn(),
-                    );
+                    let (seq, ack) =
+                        compute_seq_ack(t_resp, tcp.seq_num, tcp.ack_num, self.isn_gen.next_isn());
                     let pkt = packet::build_tcp_packet(
                         ip.dst_ip,
                         ip.src_ip,
@@ -293,8 +289,7 @@ impl TcpEngine {
             }
             TcpState::Established => {
                 let payload = tcp.payload(tcp_data);
-                let seg_len = payload.len() as u32
-                    + if tcp.is_fin() { 1 } else { 0 };
+                let seg_len = payload.len() as u32 + if tcp.is_fin() { 1 } else { 0 };
 
                 // RFC 793 sequence number validation
                 if !seq_in_window(tcp.seq_num, seg_len, conn.rcv_nxt, conn.rcv_wnd) {
@@ -338,9 +333,7 @@ impl TcpEngine {
                 }
 
                 if !payload.is_empty() {
-                    conn.rcv_nxt = conn
-                        .rcv_nxt
-                        .wrapping_add(payload.len() as u32);
+                    conn.rcv_nxt = conn.rcv_nxt.wrapping_add(payload.len() as u32);
 
                     events.push(TcpEvent::DataReceived {
                         conn_id,
@@ -721,7 +714,19 @@ IE(R=Y%DFI=N%T=40%TG=40%CD=S)
             cwr: false,
         };
         packet::build_tcp_packet(
-            src_ip, dst_ip, src_port, dst_port, 1000, 0, 65535, flags, &[], &[], 64, true, 1,
+            src_ip,
+            dst_ip,
+            src_port,
+            dst_port,
+            1000,
+            0,
+            65535,
+            flags,
+            &[],
+            &[],
+            64,
+            true,
+            1,
         )
     }
 
@@ -807,8 +812,8 @@ IE(R=Y%DFI=N%T=40%TG=40%CD=S)
             [10, 0, 0, 1],
             50000,
             22,
-            1001,                        // client seq (ISN + 1)
-            server_isn.wrapping_add(1),  // ack the server ISN
+            1001,                       // client seq (ISN + 1)
+            server_isn.wrapping_add(1), // ack the server ISN
             65535,
             ack_flags,
             &[],
@@ -877,11 +882,28 @@ IE(R=Y%DFI=N%T=40%TG=40%CD=S)
 
         // Send ACK with wrong ack number (doesn't acknowledge our SYN-ACK)
         let bad_ack = packet::build_tcp_packet(
-            [10, 0, 0, 2], [10, 0, 0, 1], 50000, 22,
-            1001, 99999,  // bogus ack number
+            [10, 0, 0, 2],
+            [10, 0, 0, 1],
+            50000,
+            22,
+            1001,
+            99999, // bogus ack number
             65535,
-            TcpFlags { syn: false, ack: true, rst: false, fin: false, psh: false, urg: false, ece: false, cwr: false },
-            &[], &[], 64, true, 2,
+            TcpFlags {
+                syn: false,
+                ack: true,
+                rst: false,
+                fin: false,
+                psh: false,
+                urg: false,
+                ece: false,
+                cwr: false,
+            },
+            &[],
+            &[],
+            64,
+            true,
+            2,
         );
         let ip = ParsedIpv4::parse(&bad_ack).expect("ip");
         let tcp_data = ip.payload(&bad_ack);
@@ -913,10 +935,28 @@ IE(R=Y%DFI=N%T=40%TG=40%CD=S)
         let server_isn = sa_tcp.seq_num;
 
         let ack_pkt = packet::build_tcp_packet(
-            [10, 0, 0, 2], [10, 0, 0, 1], 50000, 80,
-            1001, server_isn.wrapping_add(1), 65535,
-            TcpFlags { syn: false, ack: true, rst: false, fin: false, psh: false, urg: false, ece: false, cwr: false },
-            &[], &[], 64, true, 2,
+            [10, 0, 0, 2],
+            [10, 0, 0, 1],
+            50000,
+            80,
+            1001,
+            server_isn.wrapping_add(1),
+            65535,
+            TcpFlags {
+                syn: false,
+                ack: true,
+                rst: false,
+                fin: false,
+                psh: false,
+                urg: false,
+                ece: false,
+                cwr: false,
+            },
+            &[],
+            &[],
+            64,
+            true,
+            2,
         );
         let ip = ParsedIpv4::parse(&ack_pkt).expect("ip");
         let tcp_data = ip.payload(&ack_pkt);
@@ -925,11 +965,28 @@ IE(R=Y%DFI=N%T=40%TG=40%CD=S)
 
         // Send data with wildly wrong sequence number
         let bad_seq_pkt = packet::build_tcp_packet(
-            [10, 0, 0, 2], [10, 0, 0, 1], 50000, 80,
-            999999,  // way outside window (expected ~1001)
-            server_isn.wrapping_add(1), 65535,
-            TcpFlags { syn: false, ack: true, rst: false, fin: false, psh: true, urg: false, ece: false, cwr: false },
-            &[], b"bad data", 64, true, 3,
+            [10, 0, 0, 2],
+            [10, 0, 0, 1],
+            50000,
+            80,
+            999999, // way outside window (expected ~1001)
+            server_isn.wrapping_add(1),
+            65535,
+            TcpFlags {
+                syn: false,
+                ack: true,
+                rst: false,
+                fin: false,
+                psh: true,
+                urg: false,
+                ece: false,
+                cwr: false,
+            },
+            &[],
+            b"bad data",
+            64,
+            true,
+            3,
         );
         let ip = ParsedIpv4::parse(&bad_seq_pkt).expect("ip");
         let tcp_data = ip.payload(&bad_seq_pkt);
@@ -942,7 +999,10 @@ IE(R=Y%DFI=N%T=40%TG=40%CD=S)
         let ack_tcp = ParsedTcp::parse(ack_ip.payload(&out[0])).expect("ack tcp");
         assert!(ack_tcp.is_ack(), "response should be ACK");
         assert!(!ack_tcp.is_rst(), "should not RST");
-        assert!(events.is_empty(), "no DataReceived for out-of-window segment");
+        assert!(
+            events.is_empty(),
+            "no DataReceived for out-of-window segment"
+        );
     }
 
     #[test]
@@ -963,10 +1023,28 @@ IE(R=Y%DFI=N%T=40%TG=40%CD=S)
 
         // Send ACK to complete handshake
         let ack_pkt = packet::build_tcp_packet(
-            [10, 0, 0, 2], [10, 0, 0, 1], 50000, 80,
-            1001, server_isn.wrapping_add(1), 65535,
-            TcpFlags { syn: false, ack: true, rst: false, fin: false, psh: false, urg: false, ece: false, cwr: false },
-            &[], &[], 64, true, 2,
+            [10, 0, 0, 2],
+            [10, 0, 0, 1],
+            50000,
+            80,
+            1001,
+            server_isn.wrapping_add(1),
+            65535,
+            TcpFlags {
+                syn: false,
+                ack: true,
+                rst: false,
+                fin: false,
+                psh: false,
+                urg: false,
+                ece: false,
+                cwr: false,
+            },
+            &[],
+            &[],
+            64,
+            true,
+            2,
         );
         let ip = ParsedIpv4::parse(&ack_pkt).expect("ip");
         let tcp_data = ip.payload(&ack_pkt);

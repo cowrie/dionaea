@@ -20,13 +20,13 @@ const DEFAULT_TIMEOUT_SECS: u64 = 30;
 fn extract_fields(
     incident: &Incident,
 ) -> (
-    Option<String>,                     // _url
-    Option<String>,                     // _callback
-    Option<String>,                     // _userdata
-    Option<String>,                     // user
-    Option<String>,                     // pass
-    Vec<(String, String)>,              // file fields: (field_name, file_path)
-    Vec<(String, String)>,              // text fields: (field_name, value)
+    Option<String>,                            // _url
+    Option<String>,                            // _callback
+    Option<String>,                            // _userdata
+    Option<String>,                            // user
+    Option<String>,                            // pass
+    Vec<(String, String)>,                     // file fields: (field_name, file_path)
+    Vec<(String, String)>,                     // text fields: (field_name, value)
     std::collections::HashMap<String, String>, // content_types: field_name -> ct
 ) {
     let mut url = None;
@@ -65,7 +65,16 @@ fn extract_fields(
         }
     }
 
-    (url, callback, userdata, user, pass, file_fields, text_fields, content_types)
+    (
+        url,
+        callback,
+        userdata,
+        user,
+        pass,
+        file_fields,
+        text_fields,
+        content_types,
+    )
 }
 
 /// Execute the multipart POST upload.
@@ -93,7 +102,9 @@ async fn upload_multipart(
     for (name, value) in &text_fields {
         let mut part = reqwest::multipart::Part::text(value.clone());
         if let Some(ct) = content_types.get(name) {
-            part = part.mime_str(ct).map_err(|e| format!("invalid mime type: {e}"))?;
+            part = part
+                .mime_str(ct)
+                .map_err(|e| format!("invalid mime type: {e}"))?;
         }
         form = form.part(name.clone(), part);
     }
@@ -126,7 +137,9 @@ async fn upload_multipart(
 
         let mut part = reqwest::multipart::Part::bytes(data).file_name(file_name);
         if let Some(ct) = content_types.get(&*name) {
-            part = part.mime_str(ct).map_err(|e| format!("invalid mime type: {e}"))?;
+            part = part
+                .mime_str(ct)
+                .map_err(|e| format!("invalid mime type: {e}"))?;
         }
         form = form.part(name.clone(), part);
     }
@@ -341,8 +354,16 @@ mod tests {
         ]);
         let (_, _, _, _, _, files, _, _) = extract_fields(&inc);
         assert_eq!(files.len(), 2);
-        assert!(files.iter().any(|(n, p)| n == "data" && p == "/tmp/malware.bin"));
-        assert!(files.iter().any(|(n, p)| n == "attachment" && p == "/tmp/info.txt"));
+        assert!(
+            files
+                .iter()
+                .any(|(n, p)| n == "data" && p == "/tmp/malware.bin")
+        );
+        assert!(
+            files
+                .iter()
+                .any(|(n, p)| n == "attachment" && p == "/tmp/info.txt")
+        );
     }
 
     #[test]
@@ -368,7 +389,11 @@ mod tests {
         let (_, _, _, _, _, _, texts, _) = extract_fields(&inc);
         assert_eq!(texts.len(), 2);
         assert!(texts.iter().any(|(k, v)| k == "apikey" && v == "abc123"));
-        assert!(texts.iter().any(|(k, v)| k == "resource" && v == "deadbeef"));
+        assert!(
+            texts
+                .iter()
+                .any(|(k, v)| k == "resource" && v == "deadbeef")
+        );
     }
 
     #[test]
@@ -432,21 +457,24 @@ mod tests {
             let request_lower = request.to_lowercase();
 
             // Verify it's a multipart POST with our fields
-            assert!(request.starts_with("POST /upload"), "should be POST: {request}");
+            assert!(
+                request.starts_with("POST /upload"),
+                "should be POST: {request}"
+            );
             assert!(
                 request_lower.contains("content-type: multipart/form-data"),
                 "should be multipart: {request}"
             );
             assert!(request.contains("apikey"), "should contain apikey field");
             assert!(request.contains("abc123"), "should contain apikey value");
-            assert!(request.contains("malware content"), "should contain file data");
+            assert!(
+                request.contains("malware content"),
+                "should contain file data"
+            );
 
             // Send response
             let body = b"upload accepted";
-            let response = format!(
-                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n",
-                body.len()
-            );
+            let response = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", body.len());
             stream.write_all(response.as_bytes()).await.expect("write");
             stream.write_all(body).await.expect("write body");
         });

@@ -142,7 +142,9 @@ pub async fn download_url(
             .map_err(|e| format!("write error: {e}"))?;
     }
 
-    file.flush().await.map_err(|e| format!("flush error: {e}"))?;
+    file.flush()
+        .await
+        .map_err(|e| format!("flush error: {e}"))?;
     drop(file);
 
     let hash = hex_encode(&hasher.finalize());
@@ -411,11 +413,11 @@ mod tests {
             let mut buf = [0u8; 1024];
             let _ = stream.read(&mut buf).await;
 
-            let response = format!(
-                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n",
-                body.len()
-            );
-            stream.write_all(response.as_bytes()).await.expect("write header");
+            let response = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", body.len());
+            stream
+                .write_all(response.as_bytes())
+                .await
+                .expect("write header");
             stream.write_all(body).await.expect("write body");
         });
 
@@ -434,10 +436,7 @@ mod tests {
 
         assert_eq!(hash, expected_hash);
         assert!(path.exists(), "downloaded file should exist");
-        assert_eq!(
-            std::fs::read(&path).expect("read file"),
-            body.to_vec()
-        );
+        assert_eq!(std::fs::read(&path).expect("read file"), body.to_vec());
         assert_eq!(
             path.file_name().expect("filename").to_str().expect("str"),
             expected_hash
@@ -471,7 +470,10 @@ mod tests {
                 "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n",
                 big_body.len()
             );
-            stream.write_all(response.as_bytes()).await.expect("write header");
+            stream
+                .write_all(response.as_bytes())
+                .await
+                .expect("write header");
             stream.write_all(&big_body).await.expect("write body");
         });
 
@@ -482,8 +484,8 @@ mod tests {
             size_limit_bytes: 1024, // 1KB limit
         };
 
-        let url = reqwest::Url::parse(&format!("http://127.0.0.1:{port}/big.bin"))
-            .expect("parse url");
+        let url =
+            reqwest::Url::parse(&format!("http://127.0.0.1:{port}/big.bin")).expect("parse url");
 
         let result = download_url(&url, &config).await;
         assert!(result.is_err());

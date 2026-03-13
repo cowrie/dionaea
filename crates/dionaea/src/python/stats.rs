@@ -161,8 +161,18 @@ pub struct PyConnectionSpeed {
 
 impl PyConnectionSpeed {
     /// Create a speed stats object.
-    pub fn new(bps: f64, limit: f64, direction: Direction, send_tx: Option<mpsc::Sender<SendMessage>>) -> Self {
-        PyConnectionSpeed { bps, limit, direction, send_tx }
+    pub fn new(
+        bps: f64,
+        limit: f64,
+        direction: Direction,
+        send_tx: Option<mpsc::Sender<SendMessage>>,
+    ) -> Self {
+        PyConnectionSpeed {
+            bps,
+            limit,
+            direction,
+            send_tx,
+        }
     }
 }
 
@@ -205,8 +215,18 @@ pub struct PyConnectionAccounting {
 
 impl PyConnectionAccounting {
     /// Create an accounting stats object.
-    pub fn new(bytes: f64, limit: f64, direction: Direction, send_tx: Option<mpsc::Sender<SendMessage>>) -> Self {
-        PyConnectionAccounting { bytes, limit, direction, send_tx }
+    pub fn new(
+        bytes: f64,
+        limit: f64,
+        direction: Direction,
+        send_tx: Option<mpsc::Sender<SendMessage>>,
+    ) -> Self {
+        PyConnectionAccounting {
+            bytes,
+            limit,
+            direction,
+            send_tx,
+        }
     }
 }
 
@@ -247,7 +267,11 @@ pub struct PyConnectionStats {
 
 impl PyConnectionStats {
     /// Create a stats object wrapping speed and accounting.
-    pub fn new(py: Python<'_>, speed: PyConnectionSpeed, accounting: PyConnectionAccounting) -> PyResult<Self> {
+    pub fn new(
+        py: Python<'_>,
+        speed: PyConnectionSpeed,
+        accounting: PyConnectionAccounting,
+    ) -> PyResult<Self> {
         Ok(PyConnectionStats {
             speed: Py::new(py, speed)?,
             accounting: Py::new(py, accounting)?,
@@ -299,7 +323,10 @@ mod tests {
 
             let msg = rx.try_recv().unwrap();
             match msg {
-                SendMessage::SetTimeout { which: TimeoutKind::Idle, value } => {
+                SendMessage::SetTimeout {
+                    which: TimeoutKind::Idle,
+                    value,
+                } => {
                     assert!((value - 60.0).abs() < f64::EPSILON);
                 }
                 other => panic!("unexpected message: {other:?}"),
@@ -318,7 +345,10 @@ mod tests {
 
             let msg = rx.try_recv().unwrap();
             match msg {
-                SendMessage::SetThrottle { direction: Direction::In, limit } => {
+                SendMessage::SetThrottle {
+                    direction: Direction::In,
+                    limit,
+                } => {
                     assert!((limit - 1024.0).abs() < f64::EPSILON);
                 }
                 other => panic!("unexpected message: {other:?}"),
@@ -340,7 +370,10 @@ mod tests {
             bound.setattr("limit", 5000.0).unwrap();
             let msg = rx.try_recv().unwrap();
             match msg {
-                SendMessage::SetAccountingLimit { direction: Direction::Out, limit } => {
+                SendMessage::SetAccountingLimit {
+                    direction: Direction::Out,
+                    limit,
+                } => {
                     assert_eq!(limit, 5000);
                 }
                 other => panic!("unexpected message: {other:?}"),

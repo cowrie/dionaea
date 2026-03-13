@@ -51,11 +51,15 @@ pub fn py_to_opaque(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<OpaqueDa
     py_to_opaque_inner(py, obj, 0)
 }
 
-fn py_to_opaque_inner(py: Python<'_>, obj: &Bound<'_, PyAny>, depth: usize) -> PyResult<OpaqueData> {
+fn py_to_opaque_inner(
+    py: Python<'_>,
+    obj: &Bound<'_, PyAny>,
+    depth: usize,
+) -> PyResult<OpaqueData> {
     if depth > MAX_NESTING_DEPTH {
-        return Err(pyo3::exceptions::PyValueError::new_err(
-            format!("nested structure exceeds maximum depth of {MAX_NESTING_DEPTH}")
-        ));
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "nested structure exceeds maximum depth of {MAX_NESTING_DEPTH}"
+        )));
     }
     if obj.is_none() {
         return Ok(OpaqueData::None);
@@ -110,10 +114,7 @@ fn py_to_opaque_inner(py: Python<'_>, obj: &Bound<'_, PyAny>, depth: usize) -> P
 }
 
 /// Convert a Rust `HashMap<String, OpaqueData>` to a Python dict.
-pub fn data_map_to_py(
-    py: Python<'_>,
-    map: &HashMap<String, OpaqueData>,
-) -> PyResult<Py<PyDict>> {
+pub fn data_map_to_py(py: Python<'_>, map: &HashMap<String, OpaqueData>) -> PyResult<Py<PyDict>> {
     let dict = PyDict::new(py);
     for (k, v) in map {
         dict.set_item(k, opaque_to_py(py, v)?)?;
@@ -317,8 +318,7 @@ for _ in range(50):
             map.insert("payload".into(), OpaqueData::Bytes(vec![0xFF]));
 
             let py_dict = data_map_to_py(py, &map).expect("to_py");
-            let back =
-                py_dict_to_data_map(py, py_dict.bind(py)).expect("from_py");
+            let back = py_dict_to_data_map(py, py_dict.bind(py)).expect("from_py");
             assert_eq!(back, map);
         });
     }

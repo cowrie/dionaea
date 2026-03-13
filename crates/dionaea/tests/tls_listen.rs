@@ -7,8 +7,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use dionaea::config;
-use dionaea::connection::limits::ConnectionLimits;
 use dionaea::connection::ConnectionRegistry;
+use dionaea::connection::limits::ConnectionLimits;
 use dionaea::runtime;
 use pyo3::prelude::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -70,7 +70,10 @@ fn test_tls_listen_via_python() {
             Python::attach(|py| {
                 dionaea::python::loader::load(
                     py,
-                    &config::PythonModuleConfig { python_path: Some(python_path), ..Default::default() },
+                    &config::PythonModuleConfig {
+                        python_path: Some(python_path),
+                        ..Default::default()
+                    },
                 )
                 .expect("loader init");
 
@@ -119,8 +122,7 @@ port = h.local.port
             .expect("configure")
             .into_ssl("localhost")
             .expect("ssl");
-        let mut tls_stream =
-            tokio_openssl::SslStream::new(ssl, tcp_stream).expect("ssl stream");
+        let mut tls_stream = tokio_openssl::SslStream::new(ssl, tcp_stream).expect("ssl stream");
 
         let pinned = std::pin::Pin::new(&mut tls_stream);
         pinned.connect().await.expect("tls connect");

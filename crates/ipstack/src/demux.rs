@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
 // ABOUTME: IP packet demuxer that routes incoming packets to TCP/UDP/ICMP handlers.
 // ABOUTME: Main packet processing loop integrating TUN device with protocol handlers.
 
@@ -18,7 +18,9 @@ use tokio::sync::mpsc;
 use crate::config::IpStackConfig;
 use crate::fingerprint::FingerprintDb;
 use crate::icmp::IcmpHandler;
-use crate::packet::{ParsedIcmp, ParsedIpv4, ParsedTcp, ParsedUdp, PROTO_ICMP, PROTO_TCP, PROTO_UDP};
+use crate::packet::{
+    PROTO_ICMP, PROTO_TCP, PROTO_UDP, ParsedIcmp, ParsedIpv4, ParsedTcp, ParsedUdp,
+};
 use crate::personality::Personality;
 use crate::tcp::{TcpEngine, TcpEvent};
 use crate::tun::{TunConfig, TunDevice};
@@ -68,7 +70,11 @@ pub struct StackHandle {
 
 impl StackHandle {
     /// Send data on a TCP connection.
-    pub async fn tcp_send(&self, conn_id: crate::tcp::TcpConnId, data: Vec<u8>) -> Result<(), StackError> {
+    pub async fn tcp_send(
+        &self,
+        conn_id: crate::tcp::TcpConnId,
+        data: Vec<u8>,
+    ) -> Result<(), StackError> {
         self.cmd_tx
             .send(StackCommand::TcpSend { conn_id, data })
             .await
@@ -135,14 +141,13 @@ pub async fn start(
     config: &IpStackConfig,
 ) -> Result<(StackHandle, mpsc::Receiver<StackEvent>), StackError> {
     // Load fingerprint database
-    let db = FingerprintDb::load(&config.personality.nmap_os_db).map_err(|e| {
-        StackError::Fingerprint(format!("{e}"))
-    })?;
+    let db = FingerprintDb::load(&config.personality.nmap_os_db)
+        .map_err(|e| StackError::Fingerprint(format!("{e}")))?;
 
     // Find the requested personality
-    let fp = db.find_by_name(&config.personality.name).ok_or_else(|| {
-        StackError::PersonalityNotFound(config.personality.name.clone())
-    })?;
+    let fp = db
+        .find_by_name(&config.personality.name)
+        .ok_or_else(|| StackError::PersonalityNotFound(config.personality.name.clone()))?;
     let personality = Personality::from_fingerprint(fp);
 
     tracing::info!(

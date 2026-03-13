@@ -240,11 +240,7 @@ pub struct ConnectionMeta {
 
 impl ConnectionMeta {
     /// Create metadata for a new connection.
-    pub fn new(
-        id: ConnectionId,
-        transport: Transport,
-        connection_type: ConnectionType,
-    ) -> Self {
+    pub fn new(id: ConnectionId, transport: Transport, connection_type: ConnectionType) -> Self {
         ConnectionMeta {
             id,
             transport,
@@ -365,7 +361,11 @@ impl ConnectionRegistry {
         &self,
         transport: Transport,
         connection_type: ConnectionType,
-    ) -> (ConnectionId, mpsc::Sender<SendMessage>, mpsc::Receiver<SendMessage>) {
+    ) -> (
+        ConnectionId,
+        mpsc::Sender<SendMessage>,
+        mpsc::Receiver<SendMessage>,
+    ) {
         let id = next_id();
         let meta = ConnectionMeta::new(id, transport, connection_type);
         let (tx, rx) = mpsc::channel(256);
@@ -478,11 +478,7 @@ mod tests {
 
     #[test]
     fn test_refcount() {
-        let meta = ConnectionMeta::new(
-            ConnectionId(1),
-            Transport::Tcp,
-            ConnectionType::Accept,
-        );
+        let meta = ConnectionMeta::new(ConnectionId(1), Transport::Tcp, ConnectionType::Accept);
         assert_eq!(meta.ref_count(), 1);
         assert_eq!(meta.ref_inc(), 2);
         assert_eq!(meta.ref_count(), 2);

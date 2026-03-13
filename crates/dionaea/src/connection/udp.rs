@@ -19,7 +19,7 @@ use crate::connection::tcp::{cleanup_connection, get_fd_soft_limit, invalidate_h
 use crate::connection::{
     ConnectionId, ConnectionRegistry, ConnectionState, ConnectionType, SendMessage, Transport,
 };
-use crate::python::connection::{factory_create, PyConnection};
+use crate::python::connection::{PyConnection, factory_create};
 
 /// Handle for a running UDP listener.
 pub struct UdpListenerHandle {
@@ -329,10 +329,7 @@ async fn udp_recv_loop(
 }
 
 /// Drain pending send messages from a peer's channel and send them via the socket.
-async fn drain_peer_sends(
-    rx: &mut mpsc::Receiver<SendMessage>,
-    socket: &UdpSocket,
-) {
+async fn drain_peer_sends(rx: &mut mpsc::Receiver<SendMessage>, socket: &UdpSocket) {
     while let Ok(msg) = rx.try_recv() {
         match msg {
             SendMessage::Datagram { data, remote, .. } => {
@@ -440,10 +437,7 @@ factory = UdpEchoProtocol('udp')
         py.run(c_code.as_c_str(), None, None).expect("define echo");
         let factory = py.eval(c"factory", None, None).expect("factory");
         {
-            let mut c = factory
-                .cast::<PyConnection>()
-                .expect("cast")
-                .borrow_mut();
+            let mut c = factory.cast::<PyConnection>().expect("cast").borrow_mut();
             c.id = Some(ConnectionId(0));
         }
         factory.unbind()
@@ -477,18 +471,18 @@ factory = UdpEchoProtocol('udp')
 
             // Send a UDP datagram
             let client = UdpSocket::bind("127.0.0.1:0").await.expect("client bind");
-            client.send_to(b"hello udp", handle.addr).await.expect("send");
+            client
+                .send_to(b"hello udp", handle.addr)
+                .await
+                .expect("send");
 
             // Wait for processing
             time::sleep(Duration::from_millis(500)).await;
 
             // Read echo response
             let mut resp = vec![0u8; 64];
-            let recv_result = tokio::time::timeout(
-                Duration::from_secs(2),
-                client.recv_from(&mut resp),
-            )
-            .await;
+            let recv_result =
+                tokio::time::timeout(Duration::from_secs(2), client.recv_from(&mut resp)).await;
             let (n, _from) = recv_result.expect("timeout").expect("recv");
             assert_eq!(&resp[..n], b"hello udp");
 
@@ -588,11 +582,7 @@ factory = UdpIdleProto('udp')
             // Verify disconnect was called
             Python::attach(|py| {
                 let events: Vec<String> = py
-                    .eval(
-                        c"UdpIdleProto.events",
-                        None,
-                        None,
-                    )
+                    .eval(c"UdpIdleProto.events", None, None)
                     .expect("events")
                     .extract()
                     .expect("extract");

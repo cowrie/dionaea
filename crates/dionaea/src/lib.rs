@@ -14,12 +14,6 @@ pub mod connection;
 /// HTTP/HTTPS download capture module.
 #[cfg(feature = "download")]
 pub mod download;
-/// HTTP multipart upload module (virustotal, hpfeeds, submit_http).
-#[cfg(feature = "upload")]
-pub mod upload;
-/// Passive pcap capture for TCP RST rejection detection.
-#[cfg(feature = "pcap")]
-pub mod pcap;
 /// Error types for the dionaea crate.
 pub mod error;
 /// Incident handler dispatch (Rust-side handlers).
@@ -28,6 +22,9 @@ pub mod ihandler;
 pub mod incident;
 /// Network endpoint address info (host, port, hostname).
 pub mod node_info;
+/// Passive pcap capture for TCP RST rejection detection.
+#[cfg(feature = "pcap")]
+pub mod pcap;
 /// Unix privilege dropping (setuid/setgid) and RLIMIT management.
 pub mod privileges;
 /// Per-connection processor pipeline (stream dumping, shellcode detection).
@@ -36,5 +33,8 @@ pub mod processor;
 pub mod python;
 /// Global runtime state (registry, limits, config) shared across tasks.
 pub mod runtime;
+/// HTTP multipart upload module (virustotal, hpfeeds, submit_http).
+#[cfg(feature = "upload")]
+pub mod upload;
 
 pyo3_stub_gen::define_stub_info_gatherer!(stub_info);

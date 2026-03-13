@@ -7,8 +7,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use dionaea::config;
-use dionaea::connection::limits::ConnectionLimits;
 use dionaea::connection::ConnectionRegistry;
+use dionaea::connection::limits::ConnectionLimits;
 use dionaea::runtime;
 use pyo3::prelude::*;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -68,7 +68,10 @@ fn test_ftp_login_sequence() {
             Python::attach(|py| {
                 dionaea::python::loader::load(
                     py,
-                    &config::PythonModuleConfig { python_path: Some(python_path), ..Default::default() },
+                    &config::PythonModuleConfig {
+                        python_path: Some(python_path),
+                        ..Default::default()
+                    },
                 )
                 .expect("loader init");
 
@@ -121,7 +124,10 @@ port = d.local.port
         );
 
         // USER anonymous
-        writer.write_all(b"USER anonymous\r\n").await.expect("write USER");
+        writer
+            .write_all(b"USER anonymous\r\n")
+            .await
+            .expect("write USER");
         line.clear();
         time::timeout(Duration::from_secs(2), reader.read_line(&mut line))
             .await
@@ -133,7 +139,10 @@ port = d.local.port
         );
 
         // PASS guest@
-        writer.write_all(b"PASS guest@\r\n").await.expect("write PASS");
+        writer
+            .write_all(b"PASS guest@\r\n")
+            .await
+            .expect("write PASS");
         line.clear();
         time::timeout(Duration::from_secs(2), reader.read_line(&mut line))
             .await

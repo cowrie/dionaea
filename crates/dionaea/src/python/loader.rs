@@ -193,7 +193,9 @@ mod tests {
 
             // Verify module is in sys.modules and aliases exist
             let sys_modules = py.import(c"sys").unwrap().getattr("modules").unwrap();
-            let core = sys_modules.get_item("dionaea.core").expect("get dionaea.core");
+            let core = sys_modules
+                .get_item("dionaea.core")
+                .expect("get dionaea.core");
             assert!(core.getattr("connection").is_ok());
             assert!(core.getattr("ihandler").is_ok());
             assert!(core.getattr("incident").is_ok());

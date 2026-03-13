@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
 // ABOUTME: Raw IPv4/TCP/UDP/ICMP packet construction with personality-driven parameters.
 // ABOUTME: Builds wire-format packets suitable for injection via TUN device.
 
@@ -9,7 +9,7 @@
 //! written to a TUN device. The personality engine controls TTL, DF, window
 //! size, TCP options, and other stack-identifying fields.
 
-use crate::personality::{Personality, TcpOption, IsnGenerator, TcpFlags};
+use crate::personality::{IsnGenerator, Personality, TcpFlags, TcpOption};
 
 /// IPv4 protocol numbers.
 pub const PROTO_ICMP: u8 = 1;
@@ -203,7 +203,7 @@ pub fn build_icmp_echo_reply(
     request_df: bool,
     request_code: u8,
 ) -> Vec<u8> {
-    use crate::personality::{IcmpDfi, IcmpCd};
+    use crate::personality::{IcmpCd, IcmpDfi};
 
     let df = match personality.icmp_dfi {
         IcmpDfi::Yes => true,
@@ -619,11 +619,7 @@ impl ParsedUdp {
 
     /// Get the payload (data after 8-byte UDP header).
     pub fn payload<'a>(&self, data: &'a [u8]) -> &'a [u8] {
-        if data.len() > 8 {
-            &data[8..]
-        } else {
-            &[]
-        }
+        if data.len() > 8 { &data[8..] } else { &[] }
     }
 }
 
@@ -661,11 +657,7 @@ impl ParsedIcmp {
 
     /// Get the echo data (after 8-byte ICMP header).
     pub fn echo_data<'a>(&self, data: &'a [u8]) -> &'a [u8] {
-        if data.len() > 8 {
-            &data[8..]
-        } else {
-            &[]
-        }
+        if data.len() > 8 { &data[8..] } else { &[] }
     }
 }
 
@@ -826,7 +818,9 @@ IE(R=Y%DFI=N%T=40%TG=40%CD=S)
         let isn_gen = IsnGenerator::new(p.isn_params.clone());
 
         // Fake original IP header (20 bytes)
-        let orig_ip = [0x45, 0, 0, 28, 0, 1, 0x40, 0, 64, 17, 0, 0, 10, 0, 0, 2, 10, 0, 0, 1];
+        let orig_ip = [
+            0x45, 0, 0, 28, 0, 1, 0x40, 0, 64, 17, 0, 0, 10, 0, 0, 2, 10, 0, 0, 1,
+        ];
         let orig_payload = [0u8; 8]; // 8 bytes UDP header
 
         let pkt = build_icmp_port_unreachable(

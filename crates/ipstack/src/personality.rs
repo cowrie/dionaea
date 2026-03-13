@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
 // ABOUTME: TCP/IP personality engine that translates nmap fingerprint fields into packet parameters.
 // ABOUTME: Controls TTL, window size, ISN generation, DF bit, TCP options, and ICMP behavior.
 
@@ -394,7 +394,10 @@ impl Personality {
 
     /// Get the window size for a given probe index (0-5).
     pub fn window_for_probe(&self, probe_idx: usize) -> u16 {
-        self.window_sizes.get(probe_idx).copied().unwrap_or(self.window_sizes[0])
+        self.window_sizes
+            .get(probe_idx)
+            .copied()
+            .unwrap_or(self.window_sizes[0])
     }
 
     /// Get TCP options for a given probe index (0-5).

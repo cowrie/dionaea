@@ -55,7 +55,11 @@ pub fn drop_privileges(uid: Uid, gid: Gid) -> Result<(), String> {
 
     // If already running as the target, nothing to do
     if current_uid == uid && current_gid == gid {
-        tracing::info!(uid = uid.as_raw(), gid = gid.as_raw(), "already running as target user");
+        tracing::info!(
+            uid = uid.as_raw(),
+            gid = gid.as_raw(),
+            "already running as target user"
+        );
         return Ok(());
     }
 
@@ -71,22 +75,15 @@ pub fn drop_privileges(uid: Uid, gid: Gid) -> Result<(), String> {
 
     // Drop supplementary groups (not available on macOS)
     #[cfg(not(target_os = "macos"))]
-    nix::unistd::setgroups(&[gid])
-        .map_err(|e| format!("setgroups: {e}"))?;
+    nix::unistd::setgroups(&[gid]).map_err(|e| format!("setgroups: {e}"))?;
 
     // Drop group (before dropping user, since we need root to setgid)
-    nix::unistd::setgid(gid)
-        .map_err(|e| format!("setgid({}): {e}", gid.as_raw()))?;
+    nix::unistd::setgid(gid).map_err(|e| format!("setgid({}): {e}", gid.as_raw()))?;
 
     // Drop user (last, since this removes root privileges)
-    nix::unistd::setuid(uid)
-        .map_err(|e| format!("setuid({}): {e}", uid.as_raw()))?;
+    nix::unistd::setuid(uid).map_err(|e| format!("setuid({}): {e}", uid.as_raw()))?;
 
-    tracing::info!(
-        uid = uid.as_raw(),
-        gid = gid.as_raw(),
-        "dropped privileges"
-    );
+    tracing::info!(uid = uid.as_raw(), gid = gid.as_raw(), "dropped privileges");
 
     // Verify we can't regain root
     if nix::unistd::setuid(Uid::from_raw(0)).is_ok() {

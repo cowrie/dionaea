@@ -4,8 +4,8 @@
 // ABOUTME: Wires Python protocol callbacks to live sockets via spawn_blocking + GIL.
 
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use bytes::{Bytes, BytesMut};
 use pyo3::prelude::*;
@@ -21,7 +21,7 @@ use crate::connection::{
     ConnectionId, ConnectionRegistry, ConnectionState, ConnectionType, Direction, SendMessage,
     TimeoutKind, Transport,
 };
-use crate::python::connection::{factory_create, PyConnection};
+use crate::python::connection::{PyConnection, factory_create};
 
 /// What to do when a connection is rejected (limits exceeded).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -190,8 +190,7 @@ async fn accept_loop(
         let fd_count = registry.len() as u64;
         let fd_soft_limit = get_fd_soft_limit();
 
-        if let Err(reason) = limits.check(peer_ip, registry.len() as u32, fd_count, fd_soft_limit)
-        {
+        if let Err(reason) = limits.check(peer_ip, registry.len() as u32, fd_count, fd_soft_limit) {
             tracing::debug!(%peer_addr, %reason, "rejecting connection");
             reject_connection(stream, &reject_config, &silent_tracker);
             continue;
@@ -225,8 +224,14 @@ async fn accept_loop(
                 Python::attach(|py| {
                     let parent = factory_clone.bind(py);
                     let child = factory_create(
-                        py, &parent, id, handler_tx, "tcp",
-                        Some(reg_for_factory), Some(lim_for_factory), recv_buffer_size,
+                        py,
+                        &parent,
+                        id,
+                        handler_tx,
+                        "tcp",
+                        Some(reg_for_factory),
+                        Some(lim_for_factory),
+                        recv_buffer_size,
                     )?;
 
                     // Set socket addresses and status on the child handler
@@ -258,12 +263,31 @@ async fn accept_loop(
                 }
             };
 
-            let (tcp_stream, h, rx, post, pipeline) =
-                handle_connection(stream, handler, id, rx, reg.clone(), recv_buffer_size, "tcp", false, None).await;
+            let (tcp_stream, h, rx, post, pipeline) = handle_connection(
+                stream,
+                handler,
+                id,
+                rx,
+                reg.clone(),
+                recv_buffer_size,
+                "tcp",
+                false,
+                None,
+            )
+            .await;
 
             let h = handle_starttls_or_finish(
-                post, tcp_stream, h, rx, id, reg.clone(), recv_buffer_size, &starttls, pipeline,
-            ).await;
+                post,
+                tcp_stream,
+                h,
+                rx,
+                id,
+                reg.clone(),
+                recv_buffer_size,
+                &starttls,
+                pipeline,
+            )
+            .await;
             let h = emit_connection_free(h).await;
             invalidate_handler(h);
             cleanup_connection(&reg, &lim, id, peer_ip);
@@ -346,7 +370,14 @@ async fn handle_starttls_or_finish(
                 tracing::debug!(connection_id = %id, "STARTTLS handshake completed");
 
                 let (_stream, h, _rx, _post, _pipeline) = handle_connection(
-                    tls_stream, handler, id, rx, registry.clone(), recv_buffer_size, "tls", true,
+                    tls_stream,
+                    handler,
+                    id,
+                    rx,
+                    registry.clone(),
+                    recv_buffer_size,
+                    "tls",
+                    true,
                     pipeline,
                 )
                 .await;
@@ -441,7 +472,15 @@ pub async fn tcp_connect_task(
                 let _stream;
                 let _pipeline;
                 (_stream, handler, rx, post, _pipeline) = handle_connection(
-                    stream, handler, id, rx, registry.clone(), recv_buffer_size, "tcp", false, None,
+                    stream,
+                    handler,
+                    id,
+                    rx,
+                    registry.clone(),
+                    recv_buffer_size,
+                    "tcp",
+                    false,
+                    None,
                 )
                 .await;
 
@@ -454,7 +493,8 @@ pub async fn tcp_connect_task(
             Ok(Err(e)) => {
                 tracing::debug!(connection_id = %id, err = %e, %addr, port, "outbound TCP connect failed");
                 let post;
-                (handler, post) = call_handle_error(handler, id, &format!("connect failed: {e}")).await;
+                (handler, post) =
+                    call_handle_error(handler, id, &format!("connect failed: {e}")).await;
                 if post != PostCallback::Reconnect {
                     handler = emit_connection_free(handler).await;
                     invalidate_handler(handler);
@@ -569,7 +609,13 @@ pub(crate) async fn handle_connection<S>(
     transport: &str,
     skip_established: bool,
     initial_pipeline: Option<crate::processor::ProcessorPipeline>,
-) -> (S, Py<PyAny>, mpsc::Receiver<SendMessage>, PostCallback, Option<crate::processor::ProcessorPipeline>)
+) -> (
+    S,
+    Py<PyAny>,
+    mpsc::Receiver<SendMessage>,
+    PostCallback,
+    Option<crate::processor::ProcessorPipeline>,
+)
 where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
 {
@@ -967,12 +1013,7 @@ fn drain_control_messages(
 }
 
 /// Update a timeout value in the registry.
-fn update_timeout(
-    registry: &ConnectionRegistry,
-    id: ConnectionId,
-    which: TimeoutKind,
-    value: f64,
-) {
+fn update_timeout(registry: &ConnectionRegistry, id: ConnectionId, which: TimeoutKind, value: f64) {
     if let Some(mut meta) = registry.get_mut(id) {
         match which {
             TimeoutKind::Idle => meta.timeouts.idle = value,
@@ -1023,7 +1064,11 @@ pub(crate) async fn emit_connection_free(handler: Py<PyAny>) -> Py<PyAny> {
 }
 
 /// Get timeout seconds from the registry.
-pub(crate) fn get_timeout_secs(registry: &ConnectionRegistry, id: ConnectionId, kind: TimeoutKind) -> f64 {
+pub(crate) fn get_timeout_secs(
+    registry: &ConnectionRegistry,
+    id: ConnectionId,
+    kind: TimeoutKind,
+) -> f64 {
     registry.get(id).map_or(0.0, |meta| match kind {
         TimeoutKind::Idle => meta.timeouts.idle,
         TimeoutKind::Sustain => meta.timeouts.sustain,
@@ -1103,7 +1148,7 @@ pub(crate) fn reject_connection(
 /// Get the RLIMIT_NOFILE soft limit.
 #[cfg(unix)]
 pub(crate) fn get_fd_soft_limit() -> u64 {
-    use nix::sys::resource::{getrlimit, Resource};
+    use nix::sys::resource::{Resource, getrlimit};
     match getrlimit(Resource::RLIMIT_NOFILE) {
         Ok((soft, _hard)) => soft,
         Err(_) => 1024,
@@ -1214,8 +1259,9 @@ factory = EchoProtocol('tcp')
             let handle = start_listener(&reg, &lim, factory).await;
             time::sleep(Duration::from_millis(50)).await;
 
-            let mut client =
-                tokio::net::TcpStream::connect(handle.addr).await.expect("connect");
+            let mut client = tokio::net::TcpStream::connect(handle.addr)
+                .await
+                .expect("connect");
             time::sleep(Duration::from_millis(100)).await;
 
             client.write_all(b"hello dionaea").await.expect("write");
@@ -1247,7 +1293,8 @@ factory = EchoProtocol('tcp')
             let lim = Arc::new(ConnectionLimits::new(50, 10_000, 70));
             let factory = Python::attach(|py| {
                 register_test_module(py, "tcp_evt_t");
-                py.run(c"
+                py.run(
+                    c"
 from tcp_evt_t import connection as PyConnection
 class EventProto(PyConnection):
     events = []
@@ -1261,16 +1308,24 @@ class EventProto(PyConnection):
         EventProto.events.append('disconnect')
         return False
 factory = EventProto('tcp')
-", None, None).expect("define");
+",
+                    None,
+                    None,
+                )
+                .expect("define");
                 let f = py.eval(c"factory", None, None).expect("f");
-                { f.cast::<PyConnection>().expect("c").borrow_mut().id = Some(ConnectionId(0)); }
+                {
+                    f.cast::<PyConnection>().expect("c").borrow_mut().id = Some(ConnectionId(0));
+                }
                 f.unbind()
             });
 
             let handle = start_listener(&reg, &lim, factory).await;
             time::sleep(Duration::from_millis(50)).await;
 
-            let client = tokio::net::TcpStream::connect(handle.addr).await.expect("connect");
+            let client = tokio::net::TcpStream::connect(handle.addr)
+                .await
+                .expect("connect");
             time::sleep(Duration::from_millis(200)).await;
             drop(client);
             time::sleep(Duration::from_millis(300)).await;
@@ -1303,12 +1358,16 @@ factory = EventProto('tcp')
             let handle = start_listener(&reg, &lim, factory).await;
             time::sleep(Duration::from_millis(50)).await;
 
-            let _c1 = tokio::net::TcpStream::connect(handle.addr).await.expect("c1");
+            let _c1 = tokio::net::TcpStream::connect(handle.addr)
+                .await
+                .expect("c1");
             time::sleep(Duration::from_millis(200)).await;
             let ip: std::net::IpAddr = "127.0.0.1".parse().expect("ip");
             assert_eq!(lim.ip_count(ip), 1);
 
-            let _c2 = tokio::net::TcpStream::connect(handle.addr).await.expect("c2");
+            let _c2 = tokio::net::TcpStream::connect(handle.addr)
+                .await
+                .expect("c2");
             time::sleep(Duration::from_millis(200)).await;
             assert_eq!(lim.ip_count(ip), 1); // Second rejected
 
@@ -1329,7 +1388,8 @@ factory = EventProto('tcp')
             let lim = Arc::new(ConnectionLimits::new(50, 10_000, 70));
             let factory = Python::attach(|py| {
                 register_test_module(py, "tcp_idle_t");
-                py.run(c"
+                py.run(
+                    c"
 from tcp_idle_t import connection as PyConnection
 class IdleProto(PyConnection):
     idle_fired = False
@@ -1345,16 +1405,24 @@ class IdleProto(PyConnection):
     def handle_disconnect(self):
         return False
 factory = IdleProto('tcp')
-", None, None).expect("define");
+",
+                    None,
+                    None,
+                )
+                .expect("define");
                 let f = py.eval(c"factory", None, None).expect("f");
-                { f.cast::<PyConnection>().expect("c").borrow_mut().id = Some(ConnectionId(0)); }
+                {
+                    f.cast::<PyConnection>().expect("c").borrow_mut().id = Some(ConnectionId(0));
+                }
                 f.unbind()
             });
 
             let handle = start_listener(&reg, &lim, factory).await;
             time::sleep(Duration::from_millis(50)).await;
 
-            let _client = tokio::net::TcpStream::connect(handle.addr).await.expect("connect");
+            let _client = tokio::net::TcpStream::connect(handle.addr)
+                .await
+                .expect("connect");
             // Wait for idle timeout (0.3s) + some margin
             time::sleep(Duration::from_millis(800)).await;
 
@@ -1383,7 +1451,8 @@ factory = IdleProto('tcp')
             let lim = Arc::new(ConnectionLimits::new(50, 10_000, 70));
             let factory = Python::attach(|py| {
                 register_test_module(py, "tcp_exc_t");
-                py.run(c"
+                py.run(
+                    c"
 from tcp_exc_t import connection as PyConnection
 class FailProto(PyConnection):
     def __init__(self, proto=None):
@@ -1395,16 +1464,24 @@ class FailProto(PyConnection):
     def handle_disconnect(self):
         return False
 factory = FailProto('tcp')
-", None, None).expect("define");
+",
+                    None,
+                    None,
+                )
+                .expect("define");
                 let f = py.eval(c"factory", None, None).expect("f");
-                { f.cast::<PyConnection>().expect("c").borrow_mut().id = Some(ConnectionId(0)); }
+                {
+                    f.cast::<PyConnection>().expect("c").borrow_mut().id = Some(ConnectionId(0));
+                }
                 f.unbind()
             });
 
             let handle = start_listener(&reg, &lim, factory).await;
             time::sleep(Duration::from_millis(50)).await;
 
-            let mut client = tokio::net::TcpStream::connect(handle.addr).await.expect("connect");
+            let mut client = tokio::net::TcpStream::connect(handle.addr)
+                .await
+                .expect("connect");
             time::sleep(Duration::from_millis(100)).await;
 
             client.write_all(b"trigger error").await.expect("write");
@@ -1614,10 +1691,7 @@ proto = FailProto('tcp')
 
                 let proto = py.eval(c"proto", None, None).expect("proto");
                 {
-                    let mut c = proto
-                        .cast::<PyConnection>()
-                        .expect("cast")
-                        .borrow_mut();
+                    let mut c = proto.cast::<PyConnection>().expect("cast").borrow_mut();
                     c.registry = Some(reg.clone());
                     c.limits = Some(lim.clone());
                     c.recv_buffer_size = 65536;
@@ -1645,15 +1719,14 @@ proto = FailProto('tcp')
                 assert!(has_error, "expected handle_error to be called");
 
                 let no_established: bool = py
-                    .eval(
-                        c"'established' not in FailProto.events",
-                        None,
-                        None,
-                    )
+                    .eval(c"'established' not in FailProto.events", None, None)
                     .expect("check")
                     .extract()
                     .expect("extract");
-                assert!(no_established, "handle_established should NOT fire on failure");
+                assert!(
+                    no_established,
+                    "handle_established should NOT fire on failure"
+                );
             });
 
             // Registry should be cleaned up
@@ -1806,30 +1879,34 @@ proto = TmoProto('tcp')
             time::sleep(Duration::from_millis(50)).await;
 
             // First connection is accepted normally
-            let _c1 = tokio::net::TcpStream::connect(handle.addr).await.expect("c1");
+            let _c1 = tokio::net::TcpStream::connect(handle.addr)
+                .await
+                .expect("c1");
             time::sleep(Duration::from_millis(200)).await;
 
             // Second connection exceeds per-IP limit → rejected via silence
-            let mut c2 = tokio::net::TcpStream::connect(handle.addr).await.expect("c2");
+            let mut c2 = tokio::net::TcpStream::connect(handle.addr)
+                .await
+                .expect("c2");
             time::sleep(Duration::from_millis(100)).await;
 
             // c2 should still be "connected" (TCP-level) — it was accepted then held open
             // Try writing to it - should succeed since the socket is open
             let write_result = c2.write_all(b"test").await;
-            assert!(write_result.is_ok(), "silent connection should still be open");
+            assert!(
+                write_result.is_ok(),
+                "silent connection should still be open"
+            );
 
             // Wait for the silence timeout (0.5s + margin)
             time::sleep(Duration::from_millis(700)).await;
 
             // Now the silent connection should be dropped — reads should return EOF or error
             let mut buf = [0u8; 16];
-            let read_result = tokio::time::timeout(
-                Duration::from_millis(500),
-                c2.read(&mut buf),
-            )
-            .await;
+            let read_result =
+                tokio::time::timeout(Duration::from_millis(500), c2.read(&mut buf)).await;
             match read_result {
-                Ok(Ok(0)) => {} // EOF — expected
+                Ok(Ok(0)) => {}  // EOF — expected
                 Ok(Err(_)) => {} // connection reset — also acceptable
                 other => panic!("expected EOF or error after silence timeout, got {other:?}"),
             }
@@ -1873,26 +1950,29 @@ proto = TmoProto('tcp')
             time::sleep(Duration::from_millis(50)).await;
 
             // c1: accepted normally
-            let _c1 = tokio::net::TcpStream::connect(handle.addr).await.expect("c1");
+            let _c1 = tokio::net::TcpStream::connect(handle.addr)
+                .await
+                .expect("c1");
             time::sleep(Duration::from_millis(200)).await;
 
             // c2: rejected → held silent (fills cap=1)
-            let _c2 = tokio::net::TcpStream::connect(handle.addr).await.expect("c2");
+            let _c2 = tokio::net::TcpStream::connect(handle.addr)
+                .await
+                .expect("c2");
             time::sleep(Duration::from_millis(100)).await;
 
             // c3: rejected → cap full, falls back to RST (drop)
-            let mut c3 = tokio::net::TcpStream::connect(handle.addr).await.expect("c3");
+            let mut c3 = tokio::net::TcpStream::connect(handle.addr)
+                .await
+                .expect("c3");
             time::sleep(Duration::from_millis(100)).await;
 
             // c3 should be closed quickly (RST fallback) — read returns EOF or error
             let mut buf = [0u8; 16];
-            let read_result = tokio::time::timeout(
-                Duration::from_millis(500),
-                c3.read(&mut buf),
-            )
-            .await;
+            let read_result =
+                tokio::time::timeout(Duration::from_millis(500), c3.read(&mut buf)).await;
             match read_result {
-                Ok(Ok(0)) => {} // EOF
+                Ok(Ok(0)) => {}  // EOF
                 Ok(Err(_)) => {} // connection reset
                 other => panic!("expected RST-like close for c3 (cap exceeded), got {other:?}"),
             }

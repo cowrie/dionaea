@@ -199,16 +199,12 @@ class TestHandler(PyIHandler):
             let handler = py.eval(c"TestHandler()", None, None).unwrap();
 
             // Create and dispatch an incident that matches the specific method
-            let incident = PyIncident::from_incident(
-                &crate::incident::Incident::new("dionaea.connection.tcp.accept"),
-            );
+            let incident = PyIncident::from_incident(&crate::incident::Incident::new(
+                "dionaea.connection.tcp.accept",
+            ));
             dispatch_to_handler(py, &handler, &incident).unwrap();
 
-            let calls: Vec<(String, String)> = handler
-                .getattr("calls")
-                .unwrap()
-                .extract()
-                .unwrap();
+            let calls: Vec<(String, String)> = handler.getattr("calls").unwrap().extract().unwrap();
             assert_eq!(calls.len(), 1);
             assert_eq!(calls[0].0, "specific");
             assert_eq!(calls[0].1, "dionaea.connection.tcp.accept");
@@ -240,16 +236,12 @@ class FallbackHandler(PyIHandler):
             let handler = py.eval(c"FallbackHandler()", None, None).unwrap();
 
             // This handler doesn't have a specific method, so it falls back
-            let incident = PyIncident::from_incident(
-                &crate::incident::Incident::new("dionaea.download.complete.hash"),
-            );
+            let incident = PyIncident::from_incident(&crate::incident::Incident::new(
+                "dionaea.download.complete.hash",
+            ));
             dispatch_to_handler(py, &handler, &incident).unwrap();
 
-            let calls: Vec<(String, String)> = handler
-                .getattr("calls")
-                .unwrap()
-                .extract()
-                .unwrap();
+            let calls: Vec<(String, String)> = handler.getattr("calls").unwrap().extract().unwrap();
             assert_eq!(calls.len(), 1);
             assert_eq!(calls[0].0, "generic");
             assert_eq!(calls[0].1, "dionaea.download.complete.hash");
@@ -350,18 +342,12 @@ class ConnHandler(PyIHandler):
                 .insert("con".to_string(), conn.clone_ref(py));
             incident.data.insert(
                 "con".to_string(),
-                crate::incident::OpaqueData::ConnectionRef(
-                    crate::connection::ConnectionId(1),
-                ),
+                crate::incident::OpaqueData::ConnectionRef(crate::connection::ConnectionId(1)),
             );
 
             dispatch_to_handler(py, &handler, &incident).unwrap();
 
-            let con_type: String = handler
-                .getattr("con_type")
-                .unwrap()
-                .extract()
-                .unwrap();
+            let con_type: String = handler.getattr("con_type").unwrap().extract().unwrap();
             assert_eq!(con_type, "connection");
         });
     }
@@ -399,11 +385,7 @@ class LifecycleHandler(PyIHandler):
             handler.call_method0("start").unwrap();
             handler.call_method0("stop").unwrap();
 
-            let lifecycle: Vec<String> = handler
-                .getattr("lifecycle")
-                .unwrap()
-                .extract()
-                .unwrap();
+            let lifecycle: Vec<String> = handler.getattr("lifecycle").unwrap().extract().unwrap();
             assert_eq!(lifecycle, vec!["config", "start", "stop"]);
         });
     }

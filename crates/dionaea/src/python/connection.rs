@@ -146,8 +146,7 @@ impl PyConnection {
     #[new]
     #[pyo3(signature = (proto=None, *_args, **_kwargs))]
     pub fn new(
-        #[allow(unused_variables)]
-        proto: Option<String>,
+        #[allow(unused_variables)] proto: Option<String>,
         _args: &Bound<'_, pyo3::types::PyTuple>,
         _kwargs: Option<&Bound<'_, pyo3::types::PyDict>>,
     ) -> Self {
@@ -172,12 +171,15 @@ impl PyConnection {
         }
 
         // Pick up runtime state if available (for bind/listen/connect)
-        let (registry, limits, recv_buffer_size) =
-            if let Some(rt) = crate::runtime::get() {
-                (Some(rt.registry.clone()), Some(rt.limits.clone()), rt.recv_buffer_size)
-            } else {
-                (None, None, 65536)
-            };
+        let (registry, limits, recv_buffer_size) = if let Some(rt) = crate::runtime::get() {
+            (
+                Some(rt.registry.clone()),
+                Some(rt.limits.clone()),
+                rt.recv_buffer_size,
+            )
+        } else {
+            (None, None, 65536)
+        };
 
         // Assign an ID at creation (matches C behavior where every connection has an ID).
         let id = crate::connection::next_id();
@@ -286,24 +288,29 @@ impl PyConnection {
     #[getter]
     fn timeouts(&self, py: Python<'_>) -> PyResult<Py<PyConnectionTimeouts>> {
         check_valid(&self.id)?;
-        Py::new(py, PyConnectionTimeouts::from_values(
-            &crate::connection::ConnectionTimeouts {
-                idle: self.timeouts.idle,
-                sustain: self.timeouts.sustain,
-                listen: self.timeouts.listen,
-                handshake: self.timeouts.handshake,
-                connecting: self.timeouts.connecting,
-                close: 10.0,
-            },
-            self.send_tx.clone(),
-        ))
+        Py::new(
+            py,
+            PyConnectionTimeouts::from_values(
+                &crate::connection::ConnectionTimeouts {
+                    idle: self.timeouts.idle,
+                    sustain: self.timeouts.sustain,
+                    listen: self.timeouts.listen,
+                    handshake: self.timeouts.handshake,
+                    connecting: self.timeouts.connecting,
+                    close: 10.0,
+                },
+                self.send_tx.clone(),
+            ),
+        )
     }
 
     /// Ingress connection stats.
     #[getter]
     fn _in(&self, py: Python<'_>) -> PyResult<Py<PyConnectionStats>> {
         let id = check_valid(&self.id)?;
-        let bytes = self.registry.as_ref()
+        let bytes = self
+            .registry
+            .as_ref()
             .and_then(|r| r.get(id))
             .map(|meta| meta.stats.bytes_in as f64)
             .unwrap_or(0.0);
@@ -326,7 +333,9 @@ impl PyConnection {
     #[getter]
     fn _out(&self, py: Python<'_>) -> PyResult<Py<PyConnectionStats>> {
         let id = check_valid(&self.id)?;
-        let bytes = self.registry.as_ref()
+        let bytes = self
+            .registry
+            .as_ref()
             .and_then(|r| r.get(id))
             .map(|meta| meta.stats.bytes_out as f64)
             .unwrap_or(0.0);
@@ -399,9 +408,10 @@ impl PyConnection {
             )));
         };
 
-        let tx = self.send_tx.as_ref().ok_or_else(|| {
-            pyo3::exceptions::PyRuntimeError::new_err("connection closed")
-        })?;
+        let tx = self
+            .send_tx
+            .as_ref()
+            .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("connection closed"))?;
 
         let msg = if self.transport == "udp" {
             if let (Some((lhost, lport)), Some((rhost, rport))) = (local, remote) {
@@ -411,12 +421,12 @@ impl PyConnection {
                 self.remote.host = rhost.clone();
                 self.remote.port = rport;
 
-                let local_addr = format!("{lhost}:{lport}")
-                    .parse()
-                    .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("invalid local address: {e}")))?;
-                let remote_addr = format!("{rhost}:{rport}")
-                    .parse()
-                    .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("invalid remote address: {e}")))?;
+                let local_addr = format!("{lhost}:{lport}").parse().map_err(|e| {
+                    pyo3::exceptions::PyValueError::new_err(format!("invalid local address: {e}"))
+                })?;
+                let remote_addr = format!("{rhost}:{rport}").parse().map_err(|e| {
+                    pyo3::exceptions::PyValueError::new_err(format!("invalid remote address: {e}"))
+                })?;
 
                 SendMessage::Datagram {
                     data: Bytes::from(bytes_data),
@@ -430,9 +440,8 @@ impl PyConnection {
             SendMessage::Data(Bytes::from(bytes_data))
         };
 
-        tx.try_send(msg).map_err(|e| {
-            pyo3::exceptions::PyRuntimeError::new_err(format!("send failed: {e}"))
-        })?;
+        tx.try_send(msg)
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("send failed: {e}")))?;
 
         Ok(())
     }
@@ -473,14 +482,13 @@ impl PyConnection {
             ));
         }
 
-        let bind_addr: std::net::SocketAddr = format!("{addr_str}:{port}")
-            .parse()
-            .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("invalid address: {e}")))?;
+        let bind_addr: std::net::SocketAddr =
+            format!("{addr_str}:{port}").parse().map_err(|e| {
+                pyo3::exceptions::PyValueError::new_err(format!("invalid address: {e}"))
+            })?;
 
         let rt_state = crate::runtime::get().ok_or_else(|| {
-            pyo3::exceptions::PyRuntimeError::new_err(
-                "no runtime state (daemon not initialized)"
-            )
+            pyo3::exceptions::PyRuntimeError::new_err("no runtime state (daemon not initialized)")
         })?;
 
         let registry = rt_state.registry.clone();
@@ -489,7 +497,7 @@ impl PyConnection {
 
         let handle = tokio::runtime::Handle::try_current().map_err(|_| {
             pyo3::exceptions::PyRuntimeError::new_err(
-                "no tokio runtime available (listen must be called from within the runtime)"
+                "no tokio runtime available (listen must be called from within the runtime)",
             )
         })?;
 
@@ -502,7 +510,9 @@ impl PyConnection {
                 // upgrade mid-connection. Cert generation is cheap (~2ms for 2048-bit).
                 #[cfg(feature = "tls")]
                 let starttls_acceptor = {
-                    use crate::connection::tls::{generate_self_signed_cert, build_ssl_acceptor, TlsConfig};
+                    use crate::connection::tls::{
+                        TlsConfig, build_ssl_acceptor, generate_self_signed_cert,
+                    };
                     let tls_config = TlsConfig::default();
                     match generate_self_signed_cert(&tls_config)
                         .and_then(|(pkey, cert)| build_ssl_acceptor(&pkey, &cert, None))
@@ -565,12 +575,16 @@ impl PyConnection {
             }
             #[cfg(feature = "tls")]
             "tls" => {
-                use crate::connection::tls::{generate_self_signed_cert, build_ssl_acceptor, TlsConfig};
+                use crate::connection::tls::{
+                    TlsConfig, build_ssl_acceptor, generate_self_signed_cert,
+                };
                 use std::time::Duration;
 
                 let tls_config = TlsConfig::default();
                 let (pkey, cert) = generate_self_signed_cert(&tls_config).map_err(|e| {
-                    pyo3::exceptions::PyRuntimeError::new_err(format!("cert generation failed: {e}"))
+                    pyo3::exceptions::PyRuntimeError::new_err(format!(
+                        "cert generation failed: {e}"
+                    ))
                 })?;
                 let acceptor = build_ssl_acceptor(&pkey, &cert, None).map_err(|e| {
                     pyo3::exceptions::PyRuntimeError::new_err(format!("SSL acceptor failed: {e}"))
@@ -610,8 +624,7 @@ impl PyConnection {
         // Wait for bind result and update local address with actual port.
         // The async task (tcp_listen/udp_listen) does pure async socket binding,
         // so it doesn't need the GIL. blocking_recv is safe here.
-        let result: Result<Result<std::net::SocketAddr, String>, _> =
-            result_rx.blocking_recv();
+        let result: Result<Result<std::net::SocketAddr, String>, _> = result_rx.blocking_recv();
 
         match result {
             Ok(Ok(bound_addr)) => {
@@ -621,24 +634,38 @@ impl PyConnection {
                 conn.status = "listening".to_string();
                 Ok(0)
             }
-            Ok(Err(e)) => Err(pyo3::exceptions::PyOSError::new_err(format!("listen failed: {e}"))),
-            Err(_) => Err(pyo3::exceptions::PyRuntimeError::new_err("listen task dropped")),
+            Ok(Err(e)) => Err(pyo3::exceptions::PyOSError::new_err(format!(
+                "listen failed: {e}"
+            ))),
+            Err(_) => Err(pyo3::exceptions::PyRuntimeError::new_err(
+                "listen task dropped",
+            )),
         }
     }
 
     /// Initiate an outbound TCP connection. Fire-and-forget: returns immediately,
     /// calls `handle_established` on success or `handle_error` on failure.
     #[pyo3(signature = (addr, port, iface="".to_string()))]
-    fn connect(slf: &Bound<'_, PyConnection>, addr: String, port: u16, iface: String) -> PyResult<()> {
+    fn connect(
+        slf: &Bound<'_, PyConnection>,
+        addr: String,
+        port: u16,
+        iface: String,
+    ) -> PyResult<()> {
         let _ = iface; // TODO: SO_BINDTODEVICE support
 
         let (id, rx, registry, recv_buffer_size) = {
             let mut conn = slf.borrow_mut();
 
-            let registry = conn.registry.as_ref()
-                .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err(
-                    "no runtime context (registry not set)"
-                ))?.clone();
+            let registry = conn
+                .registry
+                .as_ref()
+                .ok_or_else(|| {
+                    pyo3::exceptions::PyRuntimeError::new_err(
+                        "no runtime context (registry not set)",
+                    )
+                })?
+                .clone();
 
             let recv_buffer_size = conn.recv_buffer_size;
 
@@ -667,13 +694,20 @@ impl PyConnection {
 
         let handler: Py<PyAny> = slf.clone().into_any().unbind();
 
-        let handle = tokio::runtime::Handle::try_current()
-            .map_err(|_| pyo3::exceptions::PyRuntimeError::new_err(
-                "no tokio runtime available (connect must be called from within the runtime)"
-            ))?;
+        let handle = tokio::runtime::Handle::try_current().map_err(|_| {
+            pyo3::exceptions::PyRuntimeError::new_err(
+                "no tokio runtime available (connect must be called from within the runtime)",
+            )
+        })?;
 
         handle.spawn(crate::connection::tcp::tcp_connect_task(
-            handler, id, addr, port, rx, registry, recv_buffer_size,
+            handler,
+            id,
+            addr,
+            port,
+            rx,
+            registry,
+            recv_buffer_size,
         ));
 
         Ok(())
@@ -696,12 +730,14 @@ impl PyConnection {
     /// over TLS transparently.
     fn start_tls(&self) -> PyResult<()> {
         check_valid(&self.id)?;
-        let tx = self.send_tx.as_ref().ok_or_else(|| {
-            pyo3::exceptions::PyRuntimeError::new_err("connection closed")
-        })?;
-        tx.try_send(crate::connection::SendMessage::StartTls).map_err(|e| {
-            pyo3::exceptions::PyRuntimeError::new_err(format!("start_tls failed: {e}"))
-        })?;
+        let tx = self
+            .send_tx
+            .as_ref()
+            .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("connection closed"))?;
+        tx.try_send(crate::connection::SendMessage::StartTls)
+            .map_err(|e| {
+                pyo3::exceptions::PyRuntimeError::new_err(format!("start_tls failed: {e}"))
+            })?;
         Ok(())
     }
 
@@ -1021,10 +1057,7 @@ class CustomProto(PyConnection):
 
             // Set a valid ID so property access works
             {
-                let mut conn = obj
-                    .cast::<PyConnection>()
-                    .expect("cast")
-                    .borrow_mut();
+                let mut conn = obj.cast::<PyConnection>().expect("cast").borrow_mut();
                 conn.id = Some(ConnectionId(2));
             }
 
@@ -1099,7 +1132,11 @@ class DerivedProto(BaseProto):
             register_test_module(py, "dionaea_core_inv");
 
             let conn = py
-                .eval(c"__import__('dionaea_core_inv').connection('tcp')", None, None)
+                .eval(
+                    c"__import__('dionaea_core_inv').connection('tcp')",
+                    None,
+                    None,
+                )
                 .expect("create connection");
 
             // Connection starts with a valid ID
@@ -1114,9 +1151,11 @@ class DerivedProto(BaseProto):
 
             let result = conn.getattr("transport");
             assert!(result.is_err());
-            assert!(result
-                .unwrap_err()
-                .is_instance_of::<pyo3::exceptions::PyReferenceError>(py));
+            assert!(
+                result
+                    .unwrap_err()
+                    .is_instance_of::<pyo3::exceptions::PyReferenceError>(py)
+            );
         });
     }
 
@@ -1151,25 +1190,13 @@ b = PyConnection('tcp')
                 cb.id = Some(ConnectionId(20));
             }
 
-            let hash_a: u64 = py
-                .eval(c"hash(a)", None, None)
-                .unwrap()
-                .extract()
-                .unwrap();
+            let hash_a: u64 = py.eval(c"hash(a)", None, None).unwrap().extract().unwrap();
             assert_eq!(hash_a, 10);
 
-            let eq: bool = py
-                .eval(c"a == b", None, None)
-                .unwrap()
-                .extract()
-                .unwrap();
+            let eq: bool = py.eval(c"a == b", None, None).unwrap().extract().unwrap();
             assert!(!eq);
 
-            let lt: bool = py
-                .eval(c"a < b", None, None)
-                .unwrap()
-                .extract()
-                .unwrap();
+            let lt: bool = py.eval(c"a < b", None, None).unwrap().extract().unwrap();
             assert!(lt);
         });
     }
@@ -1211,7 +1238,9 @@ parent = SMBProtocol('tcp')
 
             // Factory-create a child
             let (tx, _rx) = mpsc::channel(256);
-            let child = factory_create(py, &parent, ConnectionId(101), tx, "tcp", None, None, 65536).unwrap();
+            let child =
+                factory_create(py, &parent, ConnectionId(101), tx, "tcp", None, None, 65536)
+                    .unwrap();
             let child = child.bind(py);
 
             // Verify child is same class
@@ -1227,11 +1256,7 @@ parent = SMBProtocol('tcp')
             }
 
             // Verify shared config was copied
-            let max_connections: i64 = child
-                .getattr("max_connections")
-                .unwrap()
-                .extract()
-                .unwrap();
+            let max_connections: i64 = child.getattr("max_connections").unwrap().extract().unwrap();
             assert_eq!(max_connections, 10);
         });
     }
@@ -1276,8 +1301,14 @@ conn = dionaea_core_udp.connection.__new__(dionaea_core_udp.connection)
                         &pyo3::types::PyList::new(
                             py,
                             vec![
-                                ("local", ("127.0.0.1", 5060u16).into_pyobject(py).unwrap().into_any()),
-                                ("remote", ("10.0.0.1", 5060u16).into_pyobject(py).unwrap().into_any()),
+                                (
+                                    "local",
+                                    ("127.0.0.1", 5060u16).into_pyobject(py).unwrap().into_any(),
+                                ),
+                                (
+                                    "remote",
+                                    ("10.0.0.1", 5060u16).into_pyobject(py).unwrap().into_any(),
+                                ),
                             ],
                         )
                         .unwrap(),
@@ -1342,21 +1373,20 @@ class BenchProto(PyConnection):
             // Warm up
             for _ in 0..100 {
                 let h = handler;
-                let (h_back, _): (Py<PyAny>, usize) =
-                    tokio::task::spawn_blocking(move || {
-                        Python::attach(|py| {
-                            let data = PyBytes::new(py, b"warmup");
-                            let result: usize = h
-                                .bind(py)
-                                .call_method1("handle_io_in", (data,))
-                                .expect("call")
-                                .extract()
-                                .expect("extract");
-                            (h, result)
-                        })
+                let (h_back, _): (Py<PyAny>, usize) = tokio::task::spawn_blocking(move || {
+                    Python::attach(|py| {
+                        let data = PyBytes::new(py, b"warmup");
+                        let result: usize = h
+                            .bind(py)
+                            .call_method1("handle_io_in", (data,))
+                            .expect("call")
+                            .extract()
+                            .expect("extract");
+                        (h, result)
                     })
-                    .await
-                    .expect("spawn_blocking");
+                })
+                .await
+                .expect("spawn_blocking");
                 handler = h_back;
             }
 
@@ -1367,21 +1397,20 @@ class BenchProto(PyConnection):
             for _ in 0..iterations {
                 let h = handler;
                 let start = Instant::now();
-                let (h_back, _): (Py<PyAny>, usize) =
-                    tokio::task::spawn_blocking(move || {
-                        Python::attach(|py| {
-                            let data = PyBytes::new(py, b"benchmark data for latency test");
-                            let result: usize = h
-                                .bind(py)
-                                .call_method1("handle_io_in", (data,))
-                                .expect("call")
-                                .extract()
-                                .expect("extract");
-                            (h, result)
-                        })
+                let (h_back, _): (Py<PyAny>, usize) = tokio::task::spawn_blocking(move || {
+                    Python::attach(|py| {
+                        let data = PyBytes::new(py, b"benchmark data for latency test");
+                        let result: usize = h
+                            .bind(py)
+                            .call_method1("handle_io_in", (data,))
+                            .expect("call")
+                            .extract()
+                            .expect("extract");
+                        (h, result)
                     })
-                    .await
-                    .expect("spawn_blocking");
+                })
+                .await
+                .expect("spawn_blocking");
                 handler = h_back;
                 latencies.push(start.elapsed());
             }

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
 // ABOUTME: ICMP echo request/reply handler for nmap IE test simulation.
 // ABOUTME: Crafts echo replies with personality-matched TTL, DF, and code behavior.
 
@@ -31,7 +31,12 @@ impl IcmpHandler {
     }
 
     /// Process an incoming ICMP packet. Returns a response packet if applicable.
-    pub fn handle_packet(&self, ip: &ParsedIpv4, icmp: &ParsedIcmp, raw_icmp: &[u8]) -> Option<Vec<u8>> {
+    pub fn handle_packet(
+        &self,
+        ip: &ParsedIpv4,
+        icmp: &ParsedIcmp,
+        raw_icmp: &[u8],
+    ) -> Option<Vec<u8>> {
         if !icmp.is_echo_request() {
             return None;
         }
