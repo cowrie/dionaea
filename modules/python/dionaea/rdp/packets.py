@@ -80,7 +80,7 @@ DOUBLEPULSAR_PING_RESPONSE_SIZE = 288
 
 @dataclass
 class TPKTPacket:
-    """TPKT packet (RFC 2126)."""
+    """TPKT packet (RFC 1006)."""
     version: int
     reserved: int
     length: int
