@@ -280,10 +280,9 @@ class rdpd(connection):
         response = X224Packet.build_connection_confirm(use_ssl=self.use_ssl)
         self._send_tpkt(response)
 
-        # Note: TLS upgrade would require special handling in dionaea's C layer.
-        # For now, we proceed without TLS - DOUBLEPULSAR detection works either way.
         if self.use_ssl:
-            rdplog.debug("Client requested SSL/TLS - proceeding without encryption")
+            rdplog.info("Client requested SSL/TLS - upgrading via STARTTLS")
+            self.start_tls()
         self.state = State.MCS_CONNECT
 
     def _handle_mcs_connect(self, data: bytes) -> None:
