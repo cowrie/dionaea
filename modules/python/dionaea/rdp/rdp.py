@@ -194,7 +194,7 @@ class rdpd(connection):
 
     def handle_io_in(self, data: bytes) -> int:
         """Handle incoming data."""
-        rdplog.debug("handle_io_in: received %d bytes: %s", len(data), data[:20].hex())
+        rdplog.trace("handle_io_in: received %d bytes: %s", len(data), data[:20].hex())
         self.buffer += data
 
         while True:
@@ -206,7 +206,7 @@ class rdpd(connection):
 
     def _process_buffer(self) -> int:
         """Process buffered data based on current state."""
-        rdplog.debug("_process_buffer: buffer=%d bytes, state=%s", len(self.buffer), State(self.state).name)
+        rdplog.trace("_process_buffer: buffer=%d bytes, state=%s", len(self.buffer), State(self.state).name)
         if len(self.buffer) < 4:
             return 0
 
@@ -219,7 +219,7 @@ class rdpd(connection):
             # CredSSP TSRequest (ASN.1 SEQUENCE) arrives without TPKT wrapper
             if self.state in (State.MCS_CONNECT, State.NLA_CHALLENGE) and self.buffer[0] == 0x30:
                 return self._handle_raw_credssp()
-            rdplog.warning(
+            rdplog.info(
                 "Unparseable data in buffer (%d bytes, state=%s): %s",
                 len(self.buffer), State(self.state).name,
                 self.buffer[:64].hex(),
