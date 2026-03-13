@@ -27,4 +27,19 @@ commands = ruff check {toxinidir}/modules
                --exclude 'modules/python/dionaea/tftp\\.py' \
                --exclude 'modules/python/util/(csv2sqlite|xmpp/pg_backend)\\.py' \
                {toxinidir}/modules
+
+[testenv:integration]
+deps =
+    -r{toxinidir}/tests/requirements.txt
+skip_install = true
+passenv =
+    DIONAEA_HOST
+    DIONAEA_TFTP_PORT
+    DIONAEA_FTP_PORT
+    DIONAEA_SMB_PORT
+    DIONAEA_HTTP_PORT
+    DIONAEA_MYSQL_PORT
+    DIONAEA_EPMAP_PORT
+    DIONAEA_RDP_PORT
+commands = pytest {toxinidir}/tests -v --timeout=30 {posargs}
 """

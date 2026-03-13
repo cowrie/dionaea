@@ -185,7 +185,7 @@ jobs:
         run: pip install -r tests/requirements.txt
 
       - name: Run protocol smoke tests
-        run: cd tests && pytest shellcode/ ftp/ http/tests/test_http_smoke.py -v --timeout=30
+        run: cd tests && pytest shellcode/ ftp/ http/tests/test_http_smoke.py rdp/tests/test_rdp_smoke.py -v --timeout=30
 
       - name: Show logs on failure
         if: failure()
