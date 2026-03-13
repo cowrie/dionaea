@@ -38,6 +38,7 @@ List of available services
     epmap
     ftp
     http
+    ipstack
     memcache
     mirror
     mongo

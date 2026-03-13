@@ -1,0 +1,48 @@
+# ABOUTME: Configuration for the custom IP stack with nmap OS fingerprint emulation.
+# ABOUTME: Requires root/CAP_NET_ADMIN, the tun kernel module, and nmap-os-db.
+
+[ipstack]
+# Enable the custom userspace IP stack.
+# When enabled, dionaea creates a TUN device and handles all TCP/UDP/ICMP
+# traffic with personality-driven responses that match a chosen OS fingerprint.
+enabled = false
+
+# TCP ports that appear "open" (respond with SYN-ACK).
+# All other TCP ports respond with RST (closed) or silence, matching the
+# personality's behavior for nmap T5-T7 probes.
+tcp_ports = [22, 80, 135, 139, 443, 445, 3389]
+
+# UDP ports that appear "open" (no ICMP Port Unreachable response).
+# Closed UDP ports generate ICMP unreachable with personality-correct parameters.
+udp_ports = [137, 161]
+
+[ipstack.tun]
+# TUN device name. Leave empty for kernel auto-assignment.
+name = "honeypot0"
+
+# IPv4 address assigned to the TUN interface.
+address = "10.0.0.1"
+
+# Network mask.
+netmask = "255.255.255.0"
+
+# Maximum Transmission Unit.
+mtu = 1500
+
+[ipstack.personality]
+# Path to the nmap-os-db fingerprint database file.
+# Ships with nmap: apt install nmap / dnf install nmap
+nmap_os_db = "/usr/share/nmap/nmap-os-db"
+
+# OS fingerprint to emulate (substring match against nmap-os-db).
+# Run: grep '^Fingerprint' /usr/share/nmap/nmap-os-db | grep -i '<os>'
+# to find available names.
+#
+# Examples:
+#   "Linux 3.2 - 4.9"
+#   "Linux 5.4"
+#   "Windows 10 (1903)"
+#   "Windows Server 2019"
+#   "FreeBSD 12.0-RELEASE"
+#   "Windows 7 Professional 7601 Service Pack 1"
+name = "Linux 3.2 - 4.9"
