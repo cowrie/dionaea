@@ -143,6 +143,15 @@ nix-shell   # provides rustc, cargo, clippy, rustfmt, openssl, python
 
 ## Conventions
 
+### Attribution
+
+No AI tool attribution anywhere in the project. This means:
+- No "Generated with Claude Code", "Co-Authored-By: Claude", or similar in commit messages
+- No AI attribution in PR titles, descriptions, or comments
+- No AI attribution in code comments
+- No `claude.ai` or `anthropic.com` URLs in commit messages or code
+- Commit author must always be the human developer, never an AI service
+
 ### Copyright & Licensing
 
 New code is dual-licensed. Every source file must include this SPDX header:
