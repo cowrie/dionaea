@@ -55,9 +55,8 @@ pub fn register_classes(module: &Bound<'_, PyModule>) -> PyResult<()> {
 /// Bridge Python logging to Rust tracing.
 ///
 /// Called by `dionaea/log.py` as `dlhfn(name, number, path, line, msg)`.
-/// Maps Python log levels to tracing levels:
-///   TRACE=5 → trace, DEBUG=10 → debug, INFO=20 → info,
-///   WARNING=30 → warn, ERROR=40 → error, CRITICAL=50 → error
+/// Level mapping: TRACE(5)→trace, DEBUG(10)→debug, INFO(20)→info,
+/// WARNING(30)→warn, ERROR(40)→error, CRITICAL(50)→error, <10→trace.
 #[gen_stub_pyfunction]
 #[pyfunction]
 fn dlhfn(name: &str, number: i32, path: &str, line: i32, msg: &str) {

@@ -631,9 +631,9 @@ impl tracing::field::Visit for LoggerVisitor<'_> {
 
 /// Parse a `levels` config string into a tracing `LevelFilter`.
 ///
-/// Accepts comma-separated level names: `"warning,error,critical"`.
+/// Accepts comma-separated level names: `"warning,error"`.
 /// Maps to the most permissive (lowest) level in the list.
-/// Supports dionaea-style names: "critical" → ERROR, "warning" → WARN.
+/// Supports aliases: "warning" → WARN, "critical" → ERROR (deprecated).
 fn parse_level_filter(levels: &str) -> tracing_subscriber::filter::LevelFilter {
     use tracing_subscriber::filter::LevelFilter;
 

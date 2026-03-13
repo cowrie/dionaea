@@ -157,6 +157,26 @@ Every code file must start with a 2-line ABOUTME comment:
 # ABOUTME: Second line with more context if needed.
 ```
 
+### Log Levels
+
+Rust and Python share 5 log levels. Use them consistently:
+
+| Level | Rust | Python | When to use |
+|-------|------|--------|-------------|
+| TRACE | `tracing::trace!` | `logger.trace()` | Internal detail: packet field dumps, byte-level parsing, loop iterations. Off by default — only visible with `levels = "trace,..."` |
+| DEBUG | `tracing::debug!` | `logger.debug()` | Diagnostic info useful during development: state transitions, connection lifecycle, config values |
+| INFO | `tracing::info!` | `logger.info()` | Normal operations worth noting: service started, connection accepted, login attempt, download captured |
+| WARN | `tracing::warn!` | `logger.warning()` | Unexpected but recoverable: parse failures, timeouts, missing optional config |
+| ERROR | `tracing::error!` | `logger.error()` | Something failed: module load error, I/O error, unrecoverable protocol state |
+
+Do not use Python's `logging.CRITICAL` — it maps to ERROR on the Rust side. Use
+`logger.error()` instead. The `logger.trace()` method is added by `dionaea.log`
+at startup (it's not part of stdlib logging).
+
+The `dlhfn` bridge in `python/mod.rs` maps Python level numbers to Rust tracing:
+TRACE(5)→trace, DEBUG(10)→debug, INFO(20)→info, WARNING(30)→warn,
+ERROR(40)→error, CRITICAL(50)→error, anything <10→trace.
+
 ### Rust Style
 
 - **Edition 2024**, minimum Rust 1.85
