@@ -76,6 +76,8 @@ pub struct TcpConnection {
     pub iss: u32,
     /// Receive next expected sequence number (RCV.NXT).
     pub rcv_nxt: u32,
+    /// Receive window size (RCV.WND).
+    pub rcv_wnd: u32,
     /// Initial receive sequence number (their ISN).
     pub irs: u32,
     /// Probe index counter for window/options selection.
@@ -83,7 +85,7 @@ pub struct TcpConnection {
 }
 
 impl TcpConnection {
-    fn new(id: TcpConnId, isn: u32) -> Self {
+    fn new(id: TcpConnId, isn: u32, rcv_wnd: u32) -> Self {
         TcpConnection {
             id,
             state: TcpState::Listen,
@@ -91,6 +93,7 @@ impl TcpConnection {
             snd_una: isn,
             iss: isn,
             rcv_nxt: 0,
+            rcv_wnd,
             irs: 0,
             probe_idx: 0,
         }
@@ -212,7 +215,8 @@ impl TcpEngine {
         if tcp.is_syn_only() && self.is_port_open(tcp.dst_port) {
             // New connection
             let isn = self.isn_gen.next_isn();
-            let mut conn = TcpConnection::new(conn_id, isn);
+            let rcv_wnd = self.personality.window_for_probe(0) as u32;
+            let mut conn = TcpConnection::new(conn_id, isn, rcv_wnd);
             conn.irs = tcp.seq_num;
             conn.rcv_nxt = tcp.seq_num.wrapping_add(1);
             conn.snd_nxt = isn.wrapping_add(1);
@@ -266,12 +270,72 @@ impl TcpEngine {
         match conn.state {
             TcpState::SynReceived => {
                 if tcp.is_ack() {
-                    conn.state = TcpState::Established;
-                    events.push(TcpEvent::Connected { conn_id });
+                    // RFC 793: If SND.UNA < SEG.ACK <= SND.NXT then connection is established.
+                    // Otherwise send RST with SEQ = SEG.ACK.
+                    if ack_is_valid(tcp.ack_num, conn.snd_una, conn.snd_nxt) {
+                        conn.snd_una = tcp.ack_num;
+                        conn.state = TcpState::Established;
+                        events.push(TcpEvent::Connected { conn_id });
+                    } else {
+                        let pkt = packet::build_tcp_rst(
+                            ip.dst_ip,
+                            ip.src_ip,
+                            tcp.dst_port,
+                            tcp.src_port,
+                            tcp.ack_num,
+                            0,
+                            &self.personality,
+                            &self.isn_gen,
+                        );
+                        out_packets.push(pkt);
+                    }
                 }
             }
             TcpState::Established => {
                 let payload = tcp.payload(tcp_data);
+                let seg_len = payload.len() as u32
+                    + if tcp.is_fin() { 1 } else { 0 };
+
+                // RFC 793 sequence number validation
+                if !seq_in_window(tcp.seq_num, seg_len, conn.rcv_nxt, conn.rcv_wnd) {
+                    // Out-of-window segment: send corrective ACK (unless RST)
+                    if !tcp.is_rst() {
+                        let ack_pkt = packet::build_tcp_packet(
+                            ip.dst_ip,
+                            ip.src_ip,
+                            tcp.dst_port,
+                            tcp.src_port,
+                            conn.snd_nxt,
+                            conn.rcv_nxt,
+                            self.personality.window_for_probe(conn.probe_idx % 6),
+                            TcpFlags {
+                                syn: false,
+                                ack: true,
+                                rst: false,
+                                fin: false,
+                                psh: false,
+                                urg: false,
+                                ece: false,
+                                cwr: false,
+                            },
+                            &[],
+                            &[],
+                            self.personality.ttl,
+                            self.personality.df,
+                            self.isn_gen.next_ip_id(),
+                        );
+                        out_packets.push(ack_pkt);
+                    }
+                    return (out_packets, events);
+                }
+
+                // ACK validation
+                if tcp.is_ack() {
+                    if ack_is_valid(tcp.ack_num, conn.snd_una, conn.snd_nxt) {
+                        conn.snd_una = tcp.ack_num;
+                    }
+                    // Duplicate ACKs (seg_ack <= snd_una) are silently accepted per RFC 793
+                }
 
                 if !payload.is_empty() {
                     conn.rcv_nxt = conn
@@ -551,6 +615,44 @@ impl TcpEngine {
     }
 }
 
+/// Check if a sequence number falls within the receive window (RFC 793 Section 3.3).
+///
+/// For segments with data: RCV.NXT <= SEG.SEQ < RCV.NXT + RCV.WND
+/// or RCV.NXT <= SEG.SEQ + SEG.LEN - 1 < RCV.NXT + RCV.WND
+///
+/// For zero-length segments with zero window: SEG.SEQ == RCV.NXT
+/// For zero-length segments with non-zero window: RCV.NXT <= SEG.SEQ < RCV.NXT + RCV.WND
+fn seq_in_window(seg_seq: u32, seg_len: u32, rcv_nxt: u32, rcv_wnd: u32) -> bool {
+    if seg_len == 0 {
+        if rcv_wnd == 0 {
+            seg_seq == rcv_nxt
+        } else {
+            // RCV.NXT <= SEG.SEQ < RCV.NXT + RCV.WND
+            in_range(seg_seq, rcv_nxt, rcv_wnd)
+        }
+    } else if rcv_wnd == 0 {
+        false
+    } else {
+        // Either start or end of segment is in window
+        in_range(seg_seq, rcv_nxt, rcv_wnd)
+            || in_range(seg_seq.wrapping_add(seg_len - 1), rcv_nxt, rcv_wnd)
+    }
+}
+
+/// Check if `val` is in the range [start, start + size) with wrapping arithmetic.
+fn in_range(val: u32, start: u32, size: u32) -> bool {
+    val.wrapping_sub(start) < size
+}
+
+/// Check if an ACK number is valid: SND.UNA < SEG.ACK <= SND.NXT
+fn ack_is_valid(seg_ack: u32, snd_una: u32, snd_nxt: u32) -> bool {
+    // seg_ack must be in (snd_una, snd_nxt] using wrapping arithmetic.
+    // Equivalent to: 0 < seg_ack - snd_una <= snd_nxt - snd_una
+    let ack_offset = seg_ack.wrapping_sub(snd_una);
+    let send_window = snd_nxt.wrapping_sub(snd_una);
+    ack_offset > 0 && ack_offset <= send_window
+}
+
 /// Compute sequence and acknowledgment numbers based on probe response behavior.
 fn compute_seq_ack(
     t_resp: &TProbeResponse,
@@ -722,6 +824,125 @@ IE(R=Y%DFI=N%T=40%TG=40%CD=S)
         assert!(out.is_empty());
         assert_eq!(events.len(), 1);
         assert!(matches!(events[0], TcpEvent::Connected { .. }));
+    }
+
+    #[test]
+    fn test_seq_in_window() {
+        // Zero-length segment, zero window: must match exactly
+        assert!(seq_in_window(100, 0, 100, 0));
+        assert!(!seq_in_window(101, 0, 100, 0));
+
+        // Zero-length segment, non-zero window
+        assert!(seq_in_window(100, 0, 100, 1000));
+        assert!(seq_in_window(1099, 0, 100, 1000));
+        assert!(!seq_in_window(1100, 0, 100, 1000));
+
+        // Data segment in window
+        assert!(seq_in_window(100, 10, 100, 1000));
+        // End of segment just inside window
+        assert!(seq_in_window(1090, 10, 100, 1000));
+        // Entirely outside window
+        assert!(!seq_in_window(1200, 10, 100, 1000));
+
+        // Wrapping: rcv_nxt near u32::MAX
+        assert!(seq_in_window(u32::MAX, 0, u32::MAX, 100));
+        assert!(seq_in_window(50, 0, u32::MAX, 100));
+        assert!(!seq_in_window(100, 0, u32::MAX, 100));
+    }
+
+    #[test]
+    fn test_ack_is_valid() {
+        // Normal case: snd_una=100, snd_nxt=200, ack should be in (100, 200]
+        assert!(ack_is_valid(150, 100, 200));
+        assert!(ack_is_valid(200, 100, 200));
+        assert!(!ack_is_valid(100, 100, 200)); // == snd_una is not valid
+        assert!(!ack_is_valid(201, 100, 200)); // past snd_nxt
+
+        // Wrapping
+        assert!(ack_is_valid(5, u32::MAX - 5, 10));
+    }
+
+    #[test]
+    fn test_bad_ack_in_syn_received_is_rejected() {
+        let mut engine = make_engine();
+        engine.open_port(22);
+
+        // SYN
+        let syn = make_syn_packet([10, 0, 0, 2], [10, 0, 0, 1], 50000, 22);
+        let ip = ParsedIpv4::parse(&syn).expect("ip");
+        let tcp_data = ip.payload(&syn);
+        let tcp = ParsedTcp::parse(tcp_data).expect("tcp");
+        let (out, _) = engine.handle_packet(&ip, &tcp, tcp_data);
+        assert_eq!(out.len(), 1);
+
+        // Send ACK with wrong ack number (doesn't acknowledge our SYN-ACK)
+        let bad_ack = packet::build_tcp_packet(
+            [10, 0, 0, 2], [10, 0, 0, 1], 50000, 22,
+            1001, 99999,  // bogus ack number
+            65535,
+            TcpFlags { syn: false, ack: true, rst: false, fin: false, psh: false, urg: false, ece: false, cwr: false },
+            &[], &[], 64, true, 2,
+        );
+        let ip = ParsedIpv4::parse(&bad_ack).expect("ip");
+        let tcp_data = ip.payload(&bad_ack);
+        let tcp = ParsedTcp::parse(tcp_data).expect("tcp");
+        let (out, events) = engine.handle_packet(&ip, &tcp, tcp_data);
+
+        // Should send RST and NOT transition to Established
+        assert_eq!(out.len(), 1, "should send RST for bad ACK");
+        let rst_ip = ParsedIpv4::parse(&out[0]).expect("rst ip");
+        let rst_tcp = ParsedTcp::parse(rst_ip.payload(&out[0])).expect("rst tcp");
+        assert!(rst_tcp.is_rst(), "response should be RST");
+        assert!(events.is_empty(), "no Connected event for bad ACK");
+    }
+
+    #[test]
+    fn test_out_of_window_seq_is_rejected() {
+        let mut engine = make_engine();
+        engine.open_port(80);
+
+        // Complete handshake
+        let syn = make_syn_packet([10, 0, 0, 2], [10, 0, 0, 1], 50000, 80);
+        let ip = ParsedIpv4::parse(&syn).expect("ip");
+        let tcp_data = ip.payload(&syn);
+        let tcp = ParsedTcp::parse(tcp_data).expect("tcp");
+        let (out, _) = engine.handle_packet(&ip, &tcp, tcp_data);
+
+        let sa_ip = ParsedIpv4::parse(&out[0]).expect("sa ip");
+        let sa_tcp = ParsedTcp::parse(sa_ip.payload(&out[0])).expect("sa tcp");
+        let server_isn = sa_tcp.seq_num;
+
+        let ack_pkt = packet::build_tcp_packet(
+            [10, 0, 0, 2], [10, 0, 0, 1], 50000, 80,
+            1001, server_isn.wrapping_add(1), 65535,
+            TcpFlags { syn: false, ack: true, rst: false, fin: false, psh: false, urg: false, ece: false, cwr: false },
+            &[], &[], 64, true, 2,
+        );
+        let ip = ParsedIpv4::parse(&ack_pkt).expect("ip");
+        let tcp_data = ip.payload(&ack_pkt);
+        let tcp = ParsedTcp::parse(tcp_data).expect("tcp");
+        engine.handle_packet(&ip, &tcp, tcp_data);
+
+        // Send data with wildly wrong sequence number
+        let bad_seq_pkt = packet::build_tcp_packet(
+            [10, 0, 0, 2], [10, 0, 0, 1], 50000, 80,
+            999999,  // way outside window (expected ~1001)
+            server_isn.wrapping_add(1), 65535,
+            TcpFlags { syn: false, ack: true, rst: false, fin: false, psh: true, urg: false, ece: false, cwr: false },
+            &[], b"bad data", 64, true, 3,
+        );
+        let ip = ParsedIpv4::parse(&bad_seq_pkt).expect("ip");
+        let tcp_data = ip.payload(&bad_seq_pkt);
+        let tcp = ParsedTcp::parse(tcp_data).expect("tcp");
+        let (out, events) = engine.handle_packet(&ip, &tcp, tcp_data);
+
+        // Should send a corrective ACK (per RFC 793) but NOT deliver data
+        assert_eq!(out.len(), 1, "should send corrective ACK");
+        let ack_ip = ParsedIpv4::parse(&out[0]).expect("ack ip");
+        let ack_tcp = ParsedTcp::parse(ack_ip.payload(&out[0])).expect("ack tcp");
+        assert!(ack_tcp.is_ack(), "response should be ACK");
+        assert!(!ack_tcp.is_rst(), "should not RST");
+        assert!(events.is_empty(), "no DataReceived for out-of-window segment");
     }
 
     #[test]
