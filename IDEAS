@@ -72,6 +72,33 @@ Client Info PDU (credentials here) → Capability Exchange → Bitmap Updates.
 - Detection: parse CS_NET block for "rdpdr" channel name — same as clipboard above
 - Could capture file transfer attempts if we respond to the channel setup
 
+### RDP Standard Security (RSA Exchange + RC4 Session Encryption)
+- When `use_ssl=False`, the spec requires the server to send SC_SECURITY with an RSA
+  public key, receive a Security Exchange PDU (encrypted client random), derive session
+  keys, and RC4-encrypt all subsequent traffic
+- `include/crypto.py` already implements RSA key gen, session key derivation (MS-RDPBCGR
+  5.3.5), RC4 encrypt/decrypt, and the proprietary certificate builder
+- Wiring this up would let the honeypot capture credentials from clients that don't
+  support TLS (legacy scanners, old mstsc.exe, brute-force tools)
+- Significant work: need Security Exchange PDU handler, per-connection RC4 state,
+  decryption of all post-exchange traffic
+
+### RDP NLA/CredSSP Challenge-Response
+- Currently the honeypot extracts client info (workstation, domain, OS version) from
+  the first CredSSP TSRequest but never sends a challenge back
+- Real NLA clients wait ~16s for a CredSSP response, then disconnect
+- Full implementation: SPNEGO/NTLMSSP Type 2 (Challenge) message, then Type 3
+  (Authenticate) capture — would capture NTLM hashes for offline cracking
+- Useful for credential harvesting but significant crypto complexity
+
+### DOUBLEPULSAR Magic Endianness Investigation
+- The honeypot uses big-endian `0x19283744` on wire, which is internally consistent
+- The WithSecureLabs detection script uses `0x44372819` (little-endian interpretation
+  of the same bytes, or different byte order entirely)
+- Need real DOUBLEPULSAR pcap captures to determine which endianness actual implants use
+- Current tests cover both conventions but don't parse the detection script's packets
+  through `DoublePulsarPacket.parse()`
+
 ### Telnet Emulation
 - IoT botnets (Mirai variants) target telnet
 - Would capture significant additional malware
