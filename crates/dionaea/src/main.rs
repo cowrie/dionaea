@@ -453,6 +453,19 @@ fn parse_args() -> PathBuf {
     config_path
 }
 
+/// Compute the most permissive log level across all configured targets.
+///
+/// Used to set the global `EnvFilter` gate so that per-target `DomainFilter`s
+/// can see all events they might need.
+fn max_level_from_targets(targets: &[config::LogTarget]) -> tracing_subscriber::filter::LevelFilter {
+    use tracing_subscriber::filter::LevelFilter;
+    targets
+        .iter()
+        .map(|t| parse_level_filter(&t.levels))
+        .max()
+        .unwrap_or(LevelFilter::INFO)
+}
+
 /// Initialize tracing subscriber with configured targets.
 ///
 /// Returns `LogState` holding file writers so SIGHUP can reopen them.
@@ -461,8 +474,10 @@ fn init_tracing(logging_config: &config::LoggingConfig) -> LogState {
     use tracing_subscriber::util::SubscriberInitExt;
     use tracing_subscriber::EnvFilter;
 
+    // Global gate: most permissive level across all targets (RUST_LOG overrides)
+    let max_level = max_level_from_targets(&logging_config.targets);
     let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(&logging_config.level));
+        .unwrap_or_else(|_| EnvFilter::new(max_level.to_string()));
 
     let mut log_state = LogState {
         file_writers: Vec::new(),
@@ -965,5 +980,33 @@ mod tests {
     fn test_domain_filter_empty_domains_matches_all() {
         let f = DomainFilter::new("info", "");
         assert!(f.match_all);
+    }
+
+    #[test]
+    fn test_max_level_from_targets_uses_most_permissive() {
+        use tracing_subscriber::filter::LevelFilter;
+        let targets = vec![
+            config::LogTarget {
+                target_type: "stdout".into(),
+                path: None,
+                format: "text".into(),
+                levels: "error,critical".into(),
+                domains: "*".into(),
+            },
+            config::LogTarget {
+                target_type: "stdout".into(),
+                path: None,
+                format: "text".into(),
+                levels: "debug,info,warning,error,critical".into(),
+                domains: "*".into(),
+            },
+        ];
+        assert_eq!(max_level_from_targets(&targets), LevelFilter::DEBUG);
+    }
+
+    #[test]
+    fn test_max_level_from_targets_empty_defaults_to_info() {
+        use tracing_subscriber::filter::LevelFilter;
+        assert_eq!(max_level_from_targets(&[]), LevelFilter::INFO);
     }
 }

@@ -104,11 +104,11 @@ pub struct AdminConfig {
 }
 
 /// Logging configuration with multiple targets.
+///
+/// The global log level gate is auto-derived as the most permissive level
+/// across all configured targets. Per-target filtering is done by `DomainFilter`.
 #[derive(Debug, Deserialize)]
 pub struct LoggingConfig {
-    /// Default log level.
-    #[serde(default = "default_log_level")]
-    pub level: String,
     /// Log output targets (file, stdout).
     #[serde(default)]
     pub targets: Vec<LogTarget>,
@@ -244,9 +244,6 @@ fn default_admin_listen() -> IpAddr {
 fn default_python_loglevel() -> String {
     "info".to_string()
 }
-fn default_log_level() -> String {
-    "info".to_string()
-}
 fn default_log_format() -> String {
     "json".to_string()
 }
@@ -312,7 +309,6 @@ impl Default for DownloadConfig {
 impl Default for LoggingConfig {
     fn default() -> Self {
         LoggingConfig {
-            level: default_log_level(),
             targets: Vec::new(),
         }
     }
@@ -376,9 +372,6 @@ fn parse_env_int<T: std::str::FromStr + std::fmt::Display>(name: &str, target: &
 fn apply_env_overrides(config: &mut Config) {
     if let Ok(val) = std::env::var("DIONAEA_DIONAEA__LISTEN__MODE") {
         config.dionaea.listen.mode = val;
-    }
-    if let Ok(val) = std::env::var("DIONAEA_LOGGING__LEVEL") {
-        config.logging.level = val;
     }
     if let Ok(val) = std::env::var("DIONAEA_DIONAEA__USER") {
         config.dionaea.user = Some(val);
@@ -458,7 +451,6 @@ mod tests {
 mode = "manual"
 addresses = ["0.0.0.0"]
 [logging]
-level = "info"
 [modules]
 "#;
 
@@ -468,7 +460,7 @@ level = "info"
         assert_eq!(config.dionaea.listen.mode, "manual");
         assert_eq!(config.dionaea.limits.max_fds_pct, 70);
         assert_eq!(config.dionaea.limits.max_connections_total, 10_000);
-        assert_eq!(config.logging.level, "info");
+        assert!(config.logging.targets.is_empty());
     }
 
     #[test]
@@ -493,7 +485,6 @@ recv_buffer_size = 32768
 listen = "127.0.0.1"
 
 [logging]
-level = "debug"
 
 [[logging.targets]]
 type = "file"
