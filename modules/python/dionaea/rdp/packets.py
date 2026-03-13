@@ -690,6 +690,63 @@ def build_mcs_connect_response(
 
 
 # ---------------------------------------------------------------------------
+# Client Info PDU (TS_INFO_PACKET) parsing
+# ---------------------------------------------------------------------------
+
+
+class ClientInfo:
+    """Parsed credentials from TS_INFO_PACKET."""
+    __slots__ = ('domain', 'username', 'password', 'alt_shell', 'working_dir')
+
+    def __init__(self, domain: str, username: str, password: str,
+                 alt_shell: str, working_dir: str):
+        self.domain = domain
+        self.username = username
+        self.password = password
+        self.alt_shell = alt_shell
+        self.working_dir = working_dir
+
+
+def parse_client_info_pdu(data: bytes) -> ClientInfo | None:
+    """Parse TS_INFO_PACKET to extract credentials.
+
+    Input: raw info packet data (after security header).
+    """
+    if len(data) < 18:
+        return None
+
+    (_code_page, flags,
+     cb_domain, cb_user, cb_password,
+     cb_shell, cb_dir) = struct.unpack_from('<II HHHHH', data, 0)
+
+    is_unicode = bool(flags & 0x00000010)  # INFO_UNICODE
+    encoding = 'utf-16-le' if is_unicode else 'ascii'
+    null_term_len = 2 if is_unicode else 1
+
+    offset = 18
+
+    def read_field(length: int) -> str:
+        nonlocal offset
+        field_data = data[offset:offset + length]
+        offset += length + null_term_len
+        return field_data.decode(encoding, errors='replace')
+
+    try:
+        domain = read_field(cb_domain)
+        username = read_field(cb_user)
+        password = read_field(cb_password)
+        alt_shell = read_field(cb_shell)
+        working_dir = read_field(cb_dir)
+    except Exception:
+        return None
+
+    return ClientInfo(
+        domain=domain, username=username, password=password,
+        alt_shell=alt_shell, working_dir=working_dir,
+    )
+
+
+# ---------------------------------------------------------------------------
 # CredSSP TSRequest / NTLMSSP Negotiate
 # ---------------------------------------------------------------------------
 

@@ -42,6 +42,7 @@ from packets import (
     ber_encode_length,
     build_gcc_server_data,
     build_mcs_connect_response,
+    parse_client_info_pdu,
     parse_gcc_client_core_data,
     parse_gcc_user_data_blocks,
 )
@@ -564,6 +565,54 @@ class TestMCSConnectResponse:
         response = build_mcs_connect_response(channel_ids=[])
         assert response[3] == 0x7F
         assert response[4] == 0x66
+
+
+class TestClientInfoPDU:
+    """Tests for TS_INFO_PACKET parsing."""
+
+    @staticmethod
+    def _build_client_info(
+        domain="WORKGROUP", username="administrator",
+        password="P@ssw0rd", alt_shell="", working_dir="",
+    ) -> bytes:
+        domain_bytes = domain.encode("utf-16-le") + b"\x00\x00"
+        user_bytes = username.encode("utf-16-le") + b"\x00\x00"
+        pass_bytes = password.encode("utf-16-le") + b"\x00\x00"
+        shell_bytes = alt_shell.encode("utf-16-le") + b"\x00\x00"
+        dir_bytes = working_dir.encode("utf-16-le") + b"\x00\x00"
+
+        flags = 0x00000033  # INFO_MOUSE | INFO_UNICODE | INFO_LOGONNOTIFY | INFO_MAXIMIZESHELL
+        header = struct.pack("<II HHHHH",
+            0, flags,
+            len(domain_bytes) - 2, len(user_bytes) - 2, len(pass_bytes) - 2,
+            len(shell_bytes) - 2, len(dir_bytes) - 2,
+        )
+        return header + domain_bytes + user_bytes + pass_bytes + shell_bytes + dir_bytes
+
+    def test_parse_client_info(self):
+        data = self._build_client_info()
+        info = parse_client_info_pdu(data)
+        assert info is not None
+        assert info.domain == "WORKGROUP"
+        assert info.username == "administrator"
+        assert info.password == "P@ssw0rd"
+
+    def test_parse_different_credentials(self):
+        data = self._build_client_info(domain="CORP", username="admin", password="secret123")
+        info = parse_client_info_pdu(data)
+        assert info is not None
+        assert info.domain == "CORP"
+        assert info.username == "admin"
+        assert info.password == "secret123"
+
+    def test_parse_empty_password(self):
+        data = self._build_client_info(password="")
+        info = parse_client_info_pdu(data)
+        assert info is not None
+        assert info.password == ""
+
+    def test_parse_too_short(self):
+        assert parse_client_info_pdu(b"\x00" * 10) is None
 
 
 if __name__ == "__main__":

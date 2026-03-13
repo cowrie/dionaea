@@ -45,6 +45,7 @@ from .packets import (
     X224Packet,
     build_mcs_connect_response,
     der_sequence_length,
+    parse_client_info_pdu,
     parse_gcc_client_core_data,
     parse_gcc_user_data_blocks,
     parse_mcs_connect_initial,
@@ -536,70 +537,37 @@ class rdpd(connection):
         if len(mcs_data) < 8:
             return
 
-        # Skip MCS header to get to security header
-        offset = 8
-        if len(mcs_data) <= offset:
+        # Skip MCS header to get to info packet data
+        info_data = mcs_data[8:]
+        info = parse_client_info_pdu(info_data)
+        if info is None:
+            rdplog.debug("Failed to parse client info PDU")
             return
 
-        # Look for InfoPacket signature
-        # The actual parsing depends on whether encryption is enabled
-        # For non-encrypted (basic RDP), we can try to find credentials
+        self.client_info.domain = info.domain
+        self.client_info.username = info.username
+        self.client_info.password = info.password
 
-        # Try to find domain\username pattern
-        try:
-            # Look for null-terminated UTF-16LE strings
-            remaining = mcs_data[offset:]
+        if info.username or info.domain:
+            rdplog.info(
+                "RDP login attempt: domain=%s, username=%s, password=%s",
+                info.domain or "(none)",
+                info.username or "(none)",
+                "***" if info.password else "(none)",
+            )
 
-            # Client Info Packet structure (simplified):
-            # CodePage (4), Flags (4), cbDomain (2), cbUserName (2), cbPassword (2), ...
-            if len(remaining) < 18:
-                return
-
-            _ = struct.unpack('<I', remaining[4:8])[0]  # flags (unused)
-            cb_domain = struct.unpack('<H', remaining[8:10])[0]
-            cb_username = struct.unpack('<H', remaining[10:12])[0]
-            cb_password = struct.unpack('<H', remaining[12:14])[0]
-
-            data_offset = 18  # Fixed header size
-
-            if cb_domain > 0 and len(remaining) >= data_offset + cb_domain:
-                domain_bytes = remaining[data_offset:data_offset + cb_domain]
-                self.client_info.domain = domain_bytes.decode('utf-16-le', errors='replace').rstrip('\x00')
-                data_offset += cb_domain + 2  # +2 for null terminator
-
-            if cb_username > 0 and len(remaining) >= data_offset + cb_username:
-                username_bytes = remaining[data_offset:data_offset + cb_username]
-                self.client_info.username = username_bytes.decode('utf-16-le', errors='replace').rstrip('\x00')
-                data_offset += cb_username + 2
-
-            if cb_password > 0 and len(remaining) >= data_offset + cb_password:
-                password_bytes = remaining[data_offset:data_offset + cb_password]
-                self.client_info.password = password_bytes.decode('utf-16-le', errors='replace').rstrip('\x00')
-
-            if self.client_info.username or self.client_info.domain:
-                rdplog.info(
-                    "RDP login attempt: domain=%s, username=%s, password=%s",
-                    self.client_info.domain or "(none)",
-                    self.client_info.username or "(none)",
-                    "***" if self.client_info.password else "(none)",
-                )
-
-                # Create incident for login attempt
-                i = incident("dionaea.connection.rdp.login")
-                i.con = self
-                i.set("domain", self.client_info.domain)
-                i.set("username", self.client_info.username)
-                i.set("password", self.client_info.password)
-                i.set("hostname", self.client_info.client_name)
-                i.set("client_build", self.client_info.client_build)
-                i.set("keyboard_layout", self.client_info.keyboard_layout)
-                i.set("desktop_width", self.client_info.desktop_width)
-                i.set("desktop_height", self.client_info.desktop_height)
-                i.set("cookie", self.client_info.cookie)
-                i.report()
-
-        except Exception as e:
-            rdplog.debug("Failed to parse client info: %s", e)
+            i = incident("dionaea.connection.rdp.login")
+            i.con = self
+            i.set("domain", info.domain)
+            i.set("username", info.username)
+            i.set("password", info.password)
+            i.set("hostname", self.client_info.client_name)
+            i.set("client_build", self.client_info.client_build)
+            i.set("keyboard_layout", self.client_info.keyboard_layout)
+            i.set("desktop_width", self.client_info.desktop_width)
+            i.set("desktop_height", self.client_info.desktop_height)
+            i.set("cookie", self.client_info.cookie)
+            i.report()
 
     def _handle_doublepulsar(self, data: bytes) -> None:
         """Handle data in DOUBLEPULSAR state."""
