@@ -11,7 +11,7 @@ use openssl::bn::BigNum;
 use openssl::hash::MessageDigest;
 use openssl::nid::Nid;
 use openssl::pkey::{PKey, Private};
-use openssl::ssl::{SslAcceptor, SslMethod, SslVerifyMode};
+use openssl::ssl::{SslAcceptor, SslMethod, SslOptions, SslVerifyMode};
 use openssl::x509::extension::SubjectAlternativeName;
 use openssl::x509::{X509Builder, X509NameBuilder};
 use pyo3::prelude::*;
@@ -136,22 +136,38 @@ pub fn generate_self_signed_cert(
 
 /// Build an SSL acceptor for a TLS listener.
 ///
-/// Uses SSLv23 method (negotiates highest compatible version) and auto DH params,
-/// matching the C dionaea behavior. Optionally sets cipher list for honeypot
-/// weak-cipher support.
+/// Intentionally permissive: accepts all TLS/SSL protocol versions and weak
+/// ciphers. A honeypot needs to accept connections from old exploit tools,
+/// scanners, and malware that use SSLv3, RC4, export ciphers, etc. Rejecting
+/// these would make the honeypot invisible to the traffic we want to capture.
+///
+/// The cipher list can be overridden via config for deployments that need
+/// specific cipher behavior.
 pub fn build_ssl_acceptor(
     pkey: &PKey<Private>,
     cert: &openssl::x509::X509,
     cipher_list: Option<&str>,
 ) -> Result<SslAcceptor, openssl::error::ErrorStack> {
+    // Use raw SslMethod::tls() which negotiates the highest version both sides
+    // support, without imposing a minimum. Do NOT use mozilla_intermediate or
+    // mozilla_modern profiles — they reject the weak protocols we want to capture.
     let mut builder = SslAcceptor::mozilla_intermediate_v5(SslMethod::tls())?;
+
+    // Clear the minimum protocol version restriction set by the mozilla profile.
+    // This allows SSLv3 and TLS 1.0/1.1 connections from old attack tools.
+    builder.clear_options(SslOptions::NO_SSL_MASK);
+    builder.set_min_proto_version(None)?;
+
     builder.set_private_key(pkey)?;
     builder.set_certificate(cert)?;
-    builder.set_verify(SslVerifyMode::NONE); // honeypot: don't require client certs
+    builder.set_verify(SslVerifyMode::NONE);
 
-    if let Some(ciphers) = cipher_list {
-        builder.set_cipher_list(ciphers)?;
-    }
+    // Accept weak ciphers by default so old exploit tools can connect.
+    // ALL:COMPLEMENTOFALL includes export, NULL, and anonymous ciphers.
+    // @SECLEVEL=0 disables OpenSSL's security level checks (required for
+    // small DH params, MD5 signatures, etc.).
+    let ciphers = cipher_list.unwrap_or("ALL:COMPLEMENTOFALL:@SECLEVEL=0");
+    builder.set_cipher_list(ciphers)?;
 
     Ok(builder.build())
 }
