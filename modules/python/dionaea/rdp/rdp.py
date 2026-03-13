@@ -215,8 +215,9 @@ class rdpd(connection):
             if self.state == State.MCS_CONNECT and self.buffer[0] == 0x30:
                 return self._handle_raw_credssp()
             rdplog.warning(
-                "Unparseable data in buffer (%d bytes, first=0x%02x, state=%s)",
-                len(self.buffer), self.buffer[0], State(self.state).name,
+                "Unparseable data in buffer (%d bytes, state=%s): %s",
+                len(self.buffer), State(self.state).name,
+                self.buffer[:64].hex(),
             )
             return 0
 
