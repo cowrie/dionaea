@@ -121,6 +121,14 @@ class connection:
         r"""
         Close this connection.
         """
+    def start_tls(self) -> None:
+        r"""
+        Upgrade this TCP connection to TLS (STARTTLS pattern).
+        
+        The I/O task flushes pending writes, then performs a TLS handshake
+        using the listener's SSL acceptor. After the handshake, data flows
+        over TLS transparently.
+        """
     def processors(self) -> None:
         r"""
         Attach the processor pipeline to this connection.
@@ -473,7 +481,8 @@ def dlhfn(name: builtins.str, number: builtins.int, path: builtins.str, line: bu
     Bridge Python logging to Rust tracing.
     
     Called by `dionaea/log.py` as `dlhfn(name, number, path, line, msg)`.
-    Maps Python log levels (DEBUG=10, INFO=20, WARNING=30, ERROR=40, CRITICAL=50)
-    to tracing levels.
+    Level mapping: TRACE(5)→trace, DEBUG(10)→debug, INFO(20)→info,
+    WARNING(30)→warn, ERROR(40)→error, CRITICAL(50)→error, <10→trace.
     """
 
+g_dionaea: dionaea
