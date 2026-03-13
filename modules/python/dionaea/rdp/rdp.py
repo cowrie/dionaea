@@ -179,28 +179,19 @@ class rdpd(connection):
 
     def handle_io_in(self, data: bytes) -> int:
         """Handle incoming data."""
-        import sys
-        try:
-            rdplog.info("handle_io_in: received %d bytes: %s", len(data), data[:20].hex())
-            sys.stderr.write(f"RDP handle_io_in called: {len(data)} bytes\n")
-            sys.stderr.flush()
-            self.buffer += data
+        rdplog.debug("handle_io_in: received %d bytes: %s", len(data), data[:20].hex())
+        self.buffer += data
 
-            while True:
-                consumed = self._process_buffer()
-                if consumed == 0:
-                    break
+        while True:
+            consumed = self._process_buffer()
+            if consumed == 0:
+                break
 
-            return len(data)
-        except Exception as e:
-            import traceback
-            sys.stderr.write(f"Exception in handle_io_in: {e}\n")
-            traceback.print_exc()
-            raise
+        return len(data)
 
     def _process_buffer(self) -> int:
         """Process buffered data based on current state."""
-        rdplog.info("_process_buffer: buffer=%d bytes, state=%s", len(self.buffer), State(self.state).name)
+        rdplog.debug("_process_buffer: buffer=%d bytes, state=%s", len(self.buffer), State(self.state).name)
         if len(self.buffer) < 4:
             return 0
 
@@ -237,7 +228,7 @@ class rdpd(connection):
     def _handle_packet(self, tpkt: TPKTPacket) -> None:
         """Route packet to appropriate handler based on state."""
         payload = tpkt.payload
-        rdplog.info("_handle_packet: state=%s, payload=%d bytes", State(self.state).name, len(payload))
+        rdplog.debug("_handle_packet: state=%s, payload=%d bytes", State(self.state).name, len(payload))
 
         if self.state == State.NEGOTIATION:
             self._handle_negotiation(payload)
@@ -264,7 +255,7 @@ class rdpd(connection):
         if neg_req:
             if neg_req.cookie:
                 self.client_info.cookie = neg_req.cookie
-                rdplog.info("RDP cookie: %s", neg_req.cookie)
+                rdplog.debug("RDP cookie: %s", neg_req.cookie)
 
             # Check requested protocols
             if neg_req.requested_protocols & RDPProtocol.PROTOCOL_HYBRID:
@@ -281,7 +272,7 @@ class rdpd(connection):
         self._send_tpkt(response)
 
         if self.use_ssl:
-            rdplog.info("Client requested SSL/TLS - upgrading via STARTTLS")
+            rdplog.debug("Client requested SSL/TLS - upgrading via STARTTLS")
             self.start_tls()
         self.state = State.MCS_CONNECT
 
@@ -341,12 +332,10 @@ class rdpd(connection):
                     )
                     if gcc_data.requested_channels:
                         rdplog.info("RDP requested channels: %s", gcc_data.requested_channels)
-                    for chan in gcc_data.requested_channels:
-                        if chan in ("cliprdr", "rdpdr"):
-                            rdplog.info(
-                                "RDP %s channel requested from %s:%d",
-                                chan, self.remote.host, self.remote.port,
-                            )
+                        i = incident("dionaea.connection.rdp.channels")
+                        i.con = self
+                        i.set("channels", ",".join(gcc_data.requested_channels))
+                        i.report()
 
             # Send MCS Connect-Response
             self._send_mcs_connect_response()

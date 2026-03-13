@@ -264,6 +264,12 @@ class LogJsonHandler(ihandler):
     def handle_incident_dionaea_connection_rdp_login(self, icd):
         self._append_credentials(icd)
 
+    def handle_incident_dionaea_connection_rdp_channels(self, icd):
+        con = icd.con
+        data = self.attacks.get(con)
+        if data:
+            data["rdp_channels"] = self._prepare_value(icd.channels).split(",")
+
     def handle_incident_dionaea_connection_rdp_doublepulsar_ping(self, icd):
         con = icd.con
         data = self.attacks.get(con)

@@ -408,6 +408,14 @@ class logsqlhandler(ihandler):
             )
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
+            rdp_channel_requests (
+                rdp_channel_request INTEGER PRIMARY KEY,
+                connection INTEGER,
+                rdp_channel_request_channels TEXT
+                -- CONSTRAINT rdp_channel_requests_connection_fkey FOREIGN KEY (connection) REFERENCES connections (connection)
+            )""")
+
+        self.cursor.execute("""CREATE TABLE IF NOT EXISTS
             doublepulsar_events (
                 doublepulsar_event INTEGER PRIMARY KEY,
                 connection INTEGER,
@@ -695,6 +703,7 @@ class logsqlhandler(ihandler):
             "nbns_queries",
             "snmp_requests",
             "rdp_fingerprints",
+            "rdp_channel_requests",
             "doublepulsar_events",
         ]:
             self.cursor.execute(
@@ -1104,6 +1113,16 @@ class logsqlhandler(ihandler):
                     icd.get("keyboard_layout"),
                     icd.get("cookie") or "",
                 ),
+            )
+            self.dbh.commit()
+
+    def handle_incident_dionaea_connection_rdp_channels(self, icd):
+        con = icd.con
+        if con in self.attacks:
+            attackid = self.attacks[con][1]
+            self.cursor.execute(
+                "INSERT INTO rdp_channel_requests (connection, rdp_channel_request_channels) VALUES (?,?)",
+                (attackid, icd.get("channels")),
             )
             self.dbh.commit()
 
