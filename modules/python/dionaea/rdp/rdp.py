@@ -551,8 +551,8 @@ class rdpd(connection):
         if info.username or info.domain:
             rdplog.info(
                 "RDP login attempt: domain=%s, username=%s, password=%s",
-                info.domain or "(none)",
-                info.username or "(none)",
+                ascii(info.domain) if info.domain else "(none)",
+                ascii(info.username) if info.username else "(none)",
                 "***" if info.password else "(none)",
             )
 
