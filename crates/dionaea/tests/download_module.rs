@@ -29,7 +29,6 @@ suffix = ".tmp"
 timeout_secs = 10
 size_limit_bytes = 1048576
 [logging]
-level = "debug"
 [modules]
 "#,
         download_dir.display()

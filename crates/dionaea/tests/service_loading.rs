@@ -75,7 +75,6 @@ addresses = ["127.0.0.1"]
 [dionaea.admin]
 listen = "127.0.0.2"
 [logging]
-level = "debug"
 [modules]
 [modules.python]
 imports = ["dionaea", "dionaea.services", "dionaea.ihandlers"]

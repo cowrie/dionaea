@@ -23,7 +23,6 @@ fn test_config() -> config::Config {
 mode = "manual"
 addresses = ["0.0.0.0"]
 [logging]
-level = "debug"
 [modules]
 "#,
     )
