@@ -116,10 +116,19 @@ impl TcpListenerHandle {
     }
 }
 
+/// Opaque TLS acceptor for STARTTLS upgrades.
+///
+/// Type-erased so `tcp_listen` doesn't depend on the `tls` feature at the type
+/// level. Wraps an `openssl::ssl::SslAcceptor` when the `tls` feature is enabled.
+pub type StarttlsAcceptor = Arc<dyn std::any::Any + Send + Sync>;
+
 /// Start a TCP listener on the given address.
 ///
 /// `protocol_factory` is the Python connection (listener) used as a template
 /// for factory-creating accepted child connections.
+///
+/// `starttls_acceptor` enables STARTTLS: if a protocol handler requests a TLS
+/// upgrade mid-connection, this acceptor is used for the handshake.
 pub async fn tcp_listen(
     addr: SocketAddr,
     registry: Arc<ConnectionRegistry>,
@@ -127,6 +136,7 @@ pub async fn tcp_listen(
     protocol_factory: Py<PyAny>,
     recv_buffer_size: usize,
     reject_config: RejectConfig,
+    starttls_acceptor: Option<StarttlsAcceptor>,
 ) -> std::io::Result<TcpListenerHandle> {
     let listener = TcpListener::bind(addr).await?;
     let bound_addr = listener.local_addr()?;
@@ -142,6 +152,7 @@ pub async fn tcp_listen(
         recv_buffer_size,
         reject_config,
         silent_tracker,
+        starttls_acceptor,
     ));
 
     Ok(TcpListenerHandle {
@@ -159,6 +170,7 @@ async fn accept_loop(
     recv_buffer_size: usize,
     reject_config: RejectConfig,
     silent_tracker: Arc<SilentConnectionTracker>,
+    starttls_acceptor: Option<StarttlsAcceptor>,
 ) {
     loop {
         let (stream, peer_addr) = match listener.accept().await {
@@ -203,6 +215,7 @@ async fn accept_loop(
 
         let reg = registry.clone();
         let lim = limits.clone();
+        let starttls = starttls_acceptor.clone();
 
         tokio::spawn(async move {
             let handler_tx = tx.clone();
@@ -245,12 +258,107 @@ async fn accept_loop(
                 }
             };
 
-            let (h, _rx, _post) =
-                handle_connection(stream, handler, id, rx, reg.clone(), recv_buffer_size, "tcp").await;
+            let (tcp_stream, h, rx, post) =
+                handle_connection(stream, handler, id, rx, reg.clone(), recv_buffer_size, "tcp", false).await;
+
+            let h = handle_starttls_or_finish(
+                post, tcp_stream, h, rx, id, reg.clone(), recv_buffer_size, &starttls,
+            ).await;
             let h = emit_connection_free(h).await;
             invalidate_handler(h);
             cleanup_connection(&reg, &lim, id, peer_ip);
         });
+    }
+}
+
+/// Perform a mid-connection TLS upgrade (STARTTLS) if requested, or return the handler.
+///
+/// Called after `handle_connection` returns. If the post-callback is `StartTls` and
+/// an SSL acceptor is available, wraps the TCP stream in TLS and re-enters the I/O
+/// loop. Otherwise returns the handler as-is.
+async fn handle_starttls_or_finish(
+    post: PostCallback,
+    tcp_stream: tokio::net::TcpStream,
+    handler: Py<PyAny>,
+    rx: mpsc::Receiver<SendMessage>,
+    id: ConnectionId,
+    registry: Arc<ConnectionRegistry>,
+    recv_buffer_size: usize,
+    starttls_acceptor: &Option<StarttlsAcceptor>,
+) -> Py<PyAny> {
+    if post != PostCallback::StartTls {
+        return handler;
+    }
+
+    #[cfg(not(feature = "tls"))]
+    {
+        tracing::warn!(connection_id = %id, "STARTTLS requested but TLS support not compiled");
+        return handler;
+    }
+
+    #[cfg(feature = "tls")]
+    {
+        let acceptor = match starttls_acceptor {
+            Some(ctx) => match ctx.downcast_ref::<openssl::ssl::SslAcceptor>() {
+                Some(a) => a,
+                None => {
+                    tracing::error!(connection_id = %id, "STARTTLS context is not an SslAcceptor");
+                    return handler;
+                }
+            },
+            None => {
+                tracing::warn!(connection_id = %id, "STARTTLS requested but no SSL acceptor configured");
+                return handler;
+            }
+        };
+
+        let ssl = match openssl::ssl::Ssl::new(acceptor.context()) {
+            Ok(ssl) => ssl,
+            Err(e) => {
+                tracing::warn!(connection_id = %id, err = %e, "STARTTLS SSL object creation failed");
+                return handler;
+            }
+        };
+
+        let mut tls_stream = match tokio_openssl::SslStream::new(ssl, tcp_stream) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::warn!(connection_id = %id, err = %e, "STARTTLS stream creation failed");
+                return handler;
+            }
+        };
+
+        // Perform TLS handshake with timeout from registry
+        let hs_timeout = get_timeout_secs(&registry, id, TimeoutKind::Handshake);
+        let handshake_result = time::timeout(secs_to_duration(hs_timeout), async {
+            std::pin::Pin::new(&mut tls_stream).accept().await
+        })
+        .await;
+
+        match handshake_result {
+            Ok(Ok(())) => {
+                // Update transport in registry
+                if let Some(mut meta) = registry.get_mut(id) {
+                    meta.transport = Transport::Tls;
+                    meta.state = ConnectionState::Established;
+                }
+                tracing::debug!(connection_id = %id, "STARTTLS handshake completed");
+
+                let (_stream, h, _rx, _post) = handle_connection(
+                    tls_stream, handler, id, rx, registry.clone(), recv_buffer_size, "tls", true,
+                )
+                .await;
+                h
+            }
+            Ok(Err(e)) => {
+                tracing::debug!(connection_id = %id, err = %e, "STARTTLS handshake failed");
+                handler
+            }
+            Err(_) => {
+                tracing::debug!(connection_id = %id, "STARTTLS handshake timed out");
+                handler
+            }
+        }
     }
 }
 
@@ -328,8 +436,9 @@ pub async fn tcp_connect_task(
                 tracing::debug!(connection_id = %id, ?peer_addr, "outbound TCP connected");
 
                 let post;
-                (handler, rx, post) = handle_connection(
-                    stream, handler, id, rx, registry.clone(), recv_buffer_size, "tcp",
+                let _stream;
+                (_stream, handler, rx, post) = handle_connection(
+                    stream, handler, id, rx, registry.clone(), recv_buffer_size, "tcp", false,
                 )
                 .await;
 
@@ -441,8 +550,11 @@ async fn call_handle_error(
 ///
 /// Generic over the stream type so it works with both plain TCP and TLS.
 ///
-/// Returns `(handler, rx, post_callback)` so that callers (e.g. the reconnect loop)
-/// can reuse the Python handler and channel across reconnections.
+/// Returns `(stream, handler, rx, post_callback)` so that callers can reuse
+/// the Python handler and channel across reconnections or TLS upgrades.
+///
+/// When `skip_established` is true (e.g. after STARTTLS), the accept incident
+/// and `handle_established` callback are not fired (the connection is already live).
 #[allow(clippy::too_many_lines)]
 pub(crate) async fn handle_connection<S>(
     mut stream: S,
@@ -452,7 +564,8 @@ pub(crate) async fn handle_connection<S>(
     registry: Arc<ConnectionRegistry>,
     recv_buffer_size: usize,
     transport: &str,
-) -> (Py<PyAny>, mpsc::Receiver<SendMessage>, PostCallback)
+    skip_established: bool,
+) -> (S, Py<PyAny>, mpsc::Receiver<SendMessage>, PostCallback)
 where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
 {
@@ -470,61 +583,68 @@ where
 
     // Helper: return tuple for error exits where handler was lost (panics).
     macro_rules! error_exit {
-        ($rx:expr) => {{
+        ($stream:expr, $rx:expr) => {{
             let h = Python::attach(|py| py.None().into());
-            return (h, $rx, PostCallback::Close);
+            return ($stream, h, $rx, PostCallback::Close);
         }};
     }
 
     // Emit connection accept/connect incident and call handle_established
-    let transport_str = transport.to_string();
-    let h = handler;
-    let post = tokio::task::spawn_blocking(move || {
-        Python::attach(|py| {
-            let accept_origin = format!("dionaea.connection.{transport_str}.accept");
-            callback::emit_connection_incident(py, h.bind(py), &accept_origin);
-            let result = callback::call_handle_established(h.bind(py));
-            (h, result)
+    // (skipped after STARTTLS — the connection is already live)
+    let mut handler = if skip_established {
+        handler
+    } else {
+        let transport_str = transport.to_string();
+        let h = handler;
+        let post = tokio::task::spawn_blocking(move || {
+            Python::attach(|py| {
+                let accept_origin = format!("dionaea.connection.{transport_str}.accept");
+                callback::emit_connection_incident(py, h.bind(py), &accept_origin);
+                let result = callback::call_handle_established(h.bind(py));
+                (h, result)
+            })
         })
-    })
-    .await;
+        .await;
 
-    let mut handler = match post {
-        Ok((h, PostCallback::Continue)) => h,
-        Ok((h, _)) => {
-            let (h, _post) = call_disconnect(h, id).await;
-            return (h, rx, PostCallback::Close);
-        }
-        Err(e) => {
-            tracing::error!(connection_id = %id, err = %e, "handle_established panicked");
-            error_exit!(rx);
+        match post {
+            Ok((h, PostCallback::Continue)) => h,
+            Ok((h, _)) => {
+                let (h, _post) = call_disconnect(h, id).await;
+                return (stream, h, rx, PostCallback::Close);
+            }
+            Err(e) => {
+                tracing::error!(connection_id = %id, err = %e, "handle_established panicked");
+                error_exit!(stream, rx);
+            }
         }
     };
 
-    // Drain any control messages sent during handle_established
-    // (Python protocol may set timeouts, send welcome banners, or attach processors)
-    let (pending_data, drained_pipeline) = drain_control_messages(
-        &mut rx,
-        &registry,
-        id,
-        &mut in_throttle,
-        &mut out_throttle,
-        &mut in_accounting,
-        &mut out_accounting,
-    );
-    if drained_pipeline.is_some() {
-        processor_pipeline = drained_pipeline;
-    }
-
-    // Flush any data sent during handle_established (e.g. welcome banners)
-    for data in pending_data {
-        if let Err(e) = stream.write_all(&data).await {
-            tracing::debug!(connection_id = %id, err = %e, "write error flushing established data");
-            let (h, _post) = call_disconnect(handler, id).await;
-            return (h, rx, PostCallback::Close);
+    if !skip_established {
+        // Drain any control messages sent during handle_established
+        // (Python protocol may set timeouts, send welcome banners, or attach processors)
+        let (pending_data, drained_pipeline) = drain_control_messages(
+            &mut rx,
+            &registry,
+            id,
+            &mut in_throttle,
+            &mut out_throttle,
+            &mut in_accounting,
+            &mut out_accounting,
+        );
+        if drained_pipeline.is_some() {
+            processor_pipeline = drained_pipeline;
         }
-        if let Some(mut meta) = registry.get_mut(id) {
-            meta.stats.bytes_out += data.len() as u64;
+
+        // Flush any data sent during handle_established (e.g. welcome banners)
+        for data in pending_data {
+            if let Err(e) = stream.write_all(&data).await {
+                tracing::debug!(connection_id = %id, err = %e, "write error flushing established data");
+                let (h, _post) = call_disconnect(handler, id).await;
+                return (stream, h, rx, PostCallback::Close);
+            }
+            if let Some(mut meta) = registry.get_mut(id) {
+                meta.stats.bytes_out += data.len() as u64;
+            }
         }
     }
 
@@ -553,7 +673,7 @@ where
                 match result {
                     Ok(0) => {
                         let (h, post) = call_disconnect(handler, id).await;
-                        return (h, rx, post);
+                        return (stream, h, rx, post);
                     }
                     Ok(n) => {
                         // Reset idle timeout on data
@@ -565,7 +685,7 @@ where
                         if in_accounting.add(n as u64) {
                             tracing::debug!(connection_id = %id, "accounting limit, closing");
                             let (h, post) = call_disconnect(handler, id).await;
-                            return (h, rx, post);
+                            return (stream, h, rx, post);
                         }
 
                         if let Some(mut meta) = registry.get_mut(id) {
@@ -602,25 +722,25 @@ where
                                     if remaining > MAX_PARTIAL_BUF {
                                         tracing::warn!(connection_id = %id, remaining, "partial buffer exceeded limit, closing");
                                         let (h, post) = call_disconnect(handler, id).await;
-                                        return (h, rx, post);
+                                        return (stream, h, rx, post);
                                     }
                                     partial_buf = io_data[consumed..].to_vec();
                                 }
                             }
                             Ok((h, _, _, _)) => {
                                 let (h, _post) = call_disconnect(h, id).await;
-                                return (h, rx, PostCallback::Close);
+                                return (stream, h, rx, PostCallback::Close);
                             }
                             Err(e) => {
                                 tracing::error!(connection_id = %id, err = %e, "io_in panicked");
-                                error_exit!(rx);
+                                error_exit!(stream, rx);
                             }
                         }
                     }
                     Err(e) => {
                         tracing::debug!(connection_id = %id, err = %e, "TCP read error");
                         let (h, post) = call_disconnect(handler, id).await;
-                        return (h, rx, post);
+                        return (stream, h, rx, post);
                     }
                 }
             }
@@ -637,13 +757,13 @@ where
                         if out_accounting.add(data.len() as u64) {
                             tracing::debug!(connection_id = %id, "outbound accounting limit");
                             let (h, post) = call_disconnect(handler, id).await;
-                            return (h, rx, post);
+                            return (stream, h, rx, post);
                         }
 
                         if let Err(e) = stream.write_all(&data).await {
                             tracing::debug!(connection_id = %id, err = %e, "TCP write error");
                             let (h, post) = call_disconnect(handler, id).await;
-                            return (h, rx, post);
+                            return (stream, h, rx, post);
                         }
 
                         if let Some(mut meta) = registry.get_mut(id) {
@@ -671,11 +791,11 @@ where
                             }
                             Ok((h, _)) => {
                                 let (h, _post) = call_disconnect(h, id).await;
-                                return (h, rx, PostCallback::Close);
+                                return (stream, h, rx, PostCallback::Close);
                             }
                             Err(e) => {
                                 tracing::error!(connection_id = %id, err = %e, "io_out panicked");
-                                error_exit!(rx);
+                                error_exit!(stream, rx);
                             }
                         }
                     }
@@ -712,15 +832,25 @@ where
                         tracing::debug!(connection_id = %id, "processor pipeline attached");
                         processor_pipeline = Some(pipeline);
                     }
+                    Some(SendMessage::StartTls) => {
+                        tracing::debug!(connection_id = %id, "STARTTLS requested");
+                        // Flush any pending writes before handing stream to TLS
+                        if let Err(e) = stream.flush().await {
+                            tracing::warn!(connection_id = %id, err = %e, "flush before STARTTLS failed");
+                            let (h, post) = call_disconnect(handler, id).await;
+                            return (stream, h, rx, post);
+                        }
+                        return (stream, handler, rx, PostCallback::StartTls);
+                    }
                     Some(SendMessage::Close) => {
                         tracing::debug!(connection_id = %id, "close requested");
                         let (h, post) = call_disconnect(handler, id).await;
-                        return (h, rx, post);
+                        return (stream, h, rx, post);
                     }
                     None => {
                         tracing::debug!(connection_id = %id, "send channel closed");
                         let (h, post) = call_disconnect(handler, id).await;
-                        return (h, rx, post);
+                        return (stream, h, rx, post);
                     }
                 }
             }
@@ -746,11 +876,11 @@ where
                     }
                     Ok((h, _)) => {
                         let (h, _post) = call_disconnect(h, id).await;
-                        return (h, rx, PostCallback::Close);
+                        return (stream, h, rx, PostCallback::Close);
                     }
                     Err(e) => {
                         tracing::error!(connection_id = %id, err = %e, "timeout_idle panicked");
-                        error_exit!(rx);
+                        error_exit!(stream, rx);
                     }
                 }
             }
@@ -776,11 +906,11 @@ where
                     }
                     Ok((h, _)) => {
                         let (h, _post) = call_disconnect(h, id).await;
-                        return (h, rx, PostCallback::Close);
+                        return (stream, h, rx, PostCallback::Close);
                     }
                     Err(e) => {
                         tracing::error!(connection_id = %id, err = %e, "timeout_sustain panicked");
-                        error_exit!(rx);
+                        error_exit!(stream, rx);
                     }
                 }
             }
@@ -824,8 +954,8 @@ fn drain_control_messages(
                 tracing::debug!(connection_id = %id, "processor pipeline attached");
                 pipeline = Some(p);
             }
-            SendMessage::Close => {
-                // Close will be handled after pending data is flushed
+            SendMessage::StartTls | SendMessage::Close => {
+                // Will be handled after pending data is flushed
                 break;
             }
         }
@@ -1043,6 +1173,7 @@ factory = EchoProtocol('tcp')
             factory,
             65536,
             RejectConfig::default(),
+            None,
         )
         .await
         .expect("tcp_listen")
@@ -1664,6 +1795,7 @@ proto = TmoProto('tcp')
                 factory,
                 65536,
                 reject_cfg,
+                None,
             )
             .await
             .expect("tcp_listen");
@@ -1730,6 +1862,7 @@ proto = TmoProto('tcp')
                 factory,
                 65536,
                 reject_cfg,
+                None,
             )
             .await
             .expect("tcp_listen");
@@ -1761,6 +1894,127 @@ proto = TmoProto('tcp')
                 other => panic!("expected RST-like close for c3 (cap exceeded), got {other:?}"),
             }
 
+            handle.stop();
+        });
+    }
+
+    #[cfg(feature = "tls")]
+    #[test]
+    fn test_starttls_upgrade() {
+        use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
+        use std::io::{Read, Write};
+
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .max_blocking_threads(8)
+            .enable_all()
+            .build()
+            .expect("runtime");
+        rt.block_on(async {
+            let reg = Arc::new(ConnectionRegistry::new());
+            let lim = Arc::new(ConnectionLimits::new(50, 10_000, 70));
+
+            // Create a protocol that upgrades to TLS on command
+            let factory = Python::attach(|py| {
+                register_test_module(py, "tcp_starttls_t");
+                py.run(c"
+from tcp_starttls_t import connection as PyConnection
+class StarttlsProto(PyConnection):
+    events = []
+    def __init__(self, proto=None):
+        super().__init__(proto)
+        self._upgrading = False
+    def handle_established(self):
+        self.send(b'READY\\n')
+    def handle_io_in(self, data):
+        if data == b'STARTTLS\\n':
+            self.send(b'OK\\n')
+            self.start_tls()
+            return len(data)
+        # After TLS: echo
+        self.send(data)
+        StarttlsProto.events.append(('echo', bytes(data)))
+        return len(data)
+    def handle_disconnect(self):
+        StarttlsProto.events.append('disconnect')
+        return False
+factory = StarttlsProto('tcp')
+", None, None).expect("define");
+                let f = py.eval(c"factory", None, None).expect("f");
+                { f.cast::<PyConnection>().expect("c").borrow_mut().id = Some(ConnectionId(0)); }
+                f.unbind()
+            });
+
+            // Create SSL acceptor for STARTTLS
+            let tls_config = crate::connection::tls::TlsConfig::default();
+            let (pkey, cert) = crate::connection::tls::generate_self_signed_cert(&tls_config)
+                .expect("cert gen");
+            let acceptor = crate::connection::tls::build_ssl_acceptor(&pkey, &cert, None)
+                .expect("acceptor");
+            let starttls_ctx: StarttlsAcceptor = Arc::new(acceptor);
+
+            let handle = tcp_listen(
+                "127.0.0.1:0".parse().expect("addr"),
+                reg.clone(),
+                lim.clone(),
+                factory,
+                65536,
+                RejectConfig::default(),
+                Some(starttls_ctx),
+            )
+            .await
+            .expect("tcp_listen");
+            time::sleep(Duration::from_millis(50)).await;
+
+            // Phase 1: plain TCP
+            let tcp_stream = std::net::TcpStream::connect(handle.addr).expect("connect");
+            tcp_stream.set_nonblocking(false).expect("blocking");
+            tcp_stream.set_read_timeout(Some(std::time::Duration::from_secs(2))).ok();
+
+            // Read "READY\n"
+            let mut buf = [0u8; 64];
+            let n = (&tcp_stream).read(&mut buf).expect("read ready");
+            assert_eq!(&buf[..n], b"READY\n");
+
+            // Send STARTTLS command
+            (&tcp_stream).write_all(b"STARTTLS\n").expect("write starttls");
+
+            // Read "OK\n"
+            let n = (&tcp_stream).read(&mut buf).expect("read ok");
+            assert_eq!(&buf[..n], b"OK\n");
+
+            // Phase 2: TLS upgrade (client side)
+            let mut ssl_connector = SslConnector::builder(SslMethod::tls()).expect("connector");
+            ssl_connector.set_verify(SslVerifyMode::NONE);
+            let connector = ssl_connector.build();
+            let mut tls_stream = connector
+                .connect("localhost", tcp_stream)
+                .expect("tls connect");
+
+            // Send data over TLS
+            tls_stream.write_all(b"hello tls").expect("tls write");
+            tls_stream.flush().expect("tls flush");
+
+            // Read echo over TLS
+            let n = tls_stream.read(&mut buf).expect("tls read");
+            assert_eq!(&buf[..n], b"hello tls");
+
+            // Verify echo event was recorded
+            Python::attach(|py| {
+                let has_echo: bool = py
+                    .eval(
+                        c"any(isinstance(e, tuple) and e[0] == 'echo' and e[1] == b'hello tls' for e in StarttlsProto.events)",
+                        None,
+                        None,
+                    )
+                    .expect("check")
+                    .extract()
+                    .expect("extract");
+                assert!(has_echo, "expected echo event with TLS data");
+            });
+
+            drop(tls_stream);
+            time::sleep(Duration::from_millis(200)).await;
             handle.stop();
         });
     }

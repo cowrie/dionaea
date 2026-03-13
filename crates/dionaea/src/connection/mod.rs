@@ -146,6 +146,7 @@ pub fn validate_transition(from: ConnectionState, to: ConnectionState) -> Result
             | (Handshake, Established)
             | (Handshake, Close)
             | (Established, Connecting) // reconnect after disconnect
+            | (Established, Handshake) // STARTTLS upgrade
             | (Established, Shutdown)
             | (Established, Close)
             | (Shutdown, Close)
@@ -313,6 +314,8 @@ pub enum SendMessage {
     AttachProcessors(ProcessorPipeline),
     /// Graceful close requested by Python's `close()`.
     Close,
+    /// Upgrade this TCP connection to TLS (STARTTLS pattern).
+    StartTls,
 }
 
 /// Which timeout to configure.

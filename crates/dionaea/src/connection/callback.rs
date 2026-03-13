@@ -17,6 +17,8 @@ pub enum PostCallback {
     Close,
     /// Outbound disconnect handler returned true, reconnect.
     Reconnect,
+    /// Upgrade the TCP stream to TLS (STARTTLS). Caller must perform the handshake.
+    StartTls,
 }
 
 /// Call `handle_origin(parent)` on the Python connection object.

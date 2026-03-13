@@ -490,11 +490,34 @@ impl PyConnection {
 
         match transport.as_str() {
             "tcp" => {
+                // Generate a STARTTLS acceptor so TCP protocols (e.g. RDP) can
+                // upgrade mid-connection. Cert generation is cheap (~2ms for 2048-bit).
+                #[cfg(feature = "tls")]
+                let starttls_acceptor = {
+                    use crate::connection::tls::{generate_self_signed_cert, build_ssl_acceptor, TlsConfig};
+                    let tls_config = TlsConfig::default();
+                    match generate_self_signed_cert(&tls_config)
+                        .and_then(|(pkey, cert)| build_ssl_acceptor(&pkey, &cert, None))
+                    {
+                        Ok(acceptor) => {
+                            let arc: crate::connection::tcp::StarttlsAcceptor = Arc::new(acceptor);
+                            Some(arc)
+                        }
+                        Err(e) => {
+                            tracing::warn!(err = %e, "STARTTLS cert generation failed, STARTTLS disabled");
+                            None
+                        }
+                    }
+                };
+                #[cfg(not(feature = "tls"))]
+                let starttls_acceptor = None;
+
                 let rt_state_for_track = rt_state.clone();
                 handle.spawn(async move {
                     match crate::connection::tcp::tcp_listen(
                         bind_addr, registry, limits, factory, recv_buffer_size,
                         crate::connection::tcp::RejectConfig::default(),
+                        starttls_acceptor,
                     )
                     .await
                     {
@@ -655,6 +678,22 @@ impl PyConnection {
             let _ = tx.try_send(crate::connection::SendMessage::Close);
         }
         self.send_tx = None;
+        Ok(())
+    }
+
+    /// Upgrade this TCP connection to TLS (STARTTLS pattern).
+    ///
+    /// The I/O task flushes pending writes, then performs a TLS handshake
+    /// using the listener's SSL acceptor. After the handshake, data flows
+    /// over TLS transparently.
+    fn start_tls(&self) -> PyResult<()> {
+        check_valid(&self.id)?;
+        let tx = self.send_tx.as_ref().ok_or_else(|| {
+            pyo3::exceptions::PyRuntimeError::new_err("connection closed")
+        })?;
+        tx.try_send(crate::connection::SendMessage::StartTls).map_err(|e| {
+            pyo3::exceptions::PyRuntimeError::new_err(format!("start_tls failed: {e}"))
+        })?;
         Ok(())
     }
 

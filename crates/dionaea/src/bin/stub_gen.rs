@@ -3,6 +3,7 @@
 // ABOUTME: Generates Python type stubs (.pyi) for the dionaea.core module.
 // ABOUTME: Run with `cargo run --bin stub_gen` to regenerate after changing PyO3 bindings.
 
+//! Generate Python type stubs (.pyi) from PyO3 class definitions.
 fn main() {
     let stub = dionaea::stub_info().expect("failed to gather stub info");
     stub.generate().expect("failed to generate stubs");
