@@ -18,7 +18,6 @@ from dionaea import IHandlerLoader
 from dionaea.core import connection, ihandler, g_dionaea, incident
 
 logger = logging.getLogger("ftp_download")
-logger.setLevel(logging.DEBUG)
 
 _linesep_regexp = re.compile(b"\r?\n")
 

@@ -11,7 +11,6 @@ import logging
 import urllib.parse
 
 logger = logging.getLogger('upnp')
-logger.setLevel(logging.DEBUG)
 httpversion = ''
 
 class upnpreq:

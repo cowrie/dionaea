@@ -47,7 +47,6 @@ from .packets import (
 )
 
 rdplog = logging.getLogger("RDP")
-rdplog.setLevel(logging.DEBUG)
 
 
 class State(IntEnum):

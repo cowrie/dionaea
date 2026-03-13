@@ -14,7 +14,6 @@ from dionaea import IHandlerLoader
 from dionaea.core import ihandler, incident, connection
 
 logger = logging.getLogger("speakeasy")
-logger.setLevel(logging.DEBUG)
 
 
 class SpeakeasyHandler(IHandlerLoader):

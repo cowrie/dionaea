@@ -15,7 +15,6 @@ import logging
 import datetime
 
 logger = logging.getLogger('fail2ban')
-logger.setLevel(logging.DEBUG)
 
 
 class Fail2BanHandlerLoader(IHandlerLoader):

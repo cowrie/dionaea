@@ -32,7 +32,6 @@ g_timer_cleanup = None
 g_sip_config = None
 
 logger = logging.getLogger('sip')
-logger.setLevel(logging.DEBUG)
 
 _SipCall_sustain_timeout = 20
 

@@ -30,7 +30,6 @@ from .asn1 import (
 
 
 logger = logging.getLogger("ber")
-logger.setLevel(logging.DEBUG)
 
 BER_CLASS_UNI = 0
 BER_CLASS_APP = 1

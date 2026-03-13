@@ -13,7 +13,6 @@ import logging
 from typing import Any
 
 logger = logging.getLogger('mirror')
-logger.setLevel(logging.DEBUG)
 
 
 class MirrorService(ServiceLoader):

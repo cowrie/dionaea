@@ -21,7 +21,6 @@ import re
 import time
 
 logger = logging.getLogger("printer")
-logger.setLevel(logging.DEBUG)
 
 
 class PrinterService(ServiceLoader):

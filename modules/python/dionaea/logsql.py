@@ -15,7 +15,6 @@ import sqlite3
 import time
 
 logger = logging.getLogger("log_sqlite")
-logger.setLevel(logging.DEBUG)
 
 
 class LogSQLHandlerLoader(IHandlerLoader):

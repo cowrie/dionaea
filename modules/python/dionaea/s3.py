@@ -13,7 +13,6 @@ from dionaea import IHandlerLoader
 import logging
 
 logger = logging.getLogger('s3')
-logger.setLevel(logging.DEBUG)
 
 try:
     import boto3  # type: ignore[import-not-found]

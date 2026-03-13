@@ -19,7 +19,6 @@ import struct
 import time
 
 logger = logging.getLogger('sip')
-logger.setLevel(logging.DEBUG)
 
 DEFAULT_SDP = """
 v=0

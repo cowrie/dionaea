@@ -19,7 +19,6 @@ except Exception:
     from extras import int2bytes, ErrorWithResponse
 
 logger = logging.getLogger('sip')
-logger.setLevel(logging.DEBUG)
 
 # For more information see RFC3261 Section: 21 Response Codes
 # http://tools.ietf.org/html/rfc3261#section-21

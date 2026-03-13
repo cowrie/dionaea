@@ -14,7 +14,6 @@ from typing import Any
 
 
 logger = logging.getLogger("util")
-logger.setLevel(logging.DEBUG)
 
 
 def md5file(filename: str) -> str:

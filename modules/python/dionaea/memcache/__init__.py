@@ -17,7 +17,6 @@ from .var import VarHandler
 
 
 logger = logging.getLogger("memcache")
-logger.setLevel(logging.DEBUG)
 
 
 class MemcacheService(ServiceLoader):

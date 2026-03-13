@@ -17,7 +17,6 @@ from dionaea.exception import LoaderError
 
 
 logger = logging.getLogger("log_json")
-logger.setLevel(logging.DEBUG)
 
 
 class FileHandler:

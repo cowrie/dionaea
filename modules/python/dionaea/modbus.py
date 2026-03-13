@@ -17,7 +17,6 @@ from dionaea import ServiceLoader
 from dionaea.core import connection, incident
 
 logger = logging.getLogger('modbus')
-logger.setLevel(logging.DEBUG)
 
 # Modbus exception codes
 ILLEGAL_FUNCTION = 0x01

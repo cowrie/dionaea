@@ -40,7 +40,6 @@ else:
         jinja2 = None  # type: ignore[assignment]
 
 logger = logging.getLogger('http')
-logger.setLevel(logging.DEBUG)
 
 STATE_HEADER, STATE_SENDFILE, STATE_POST, STATE_PUT = range(0, 4)
 

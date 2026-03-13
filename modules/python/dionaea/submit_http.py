@@ -33,7 +33,6 @@ else:
         return ftype
 
 logger = logging.getLogger('submit_http')
-logger.setLevel(logging.DEBUG)
 
 
 class SubmitHTTPHandlerLoader(IHandlerLoader):

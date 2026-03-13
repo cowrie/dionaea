@@ -15,7 +15,6 @@ from dionaea import ServiceLoader
 from dionaea.core import connection, incident
 
 logger = logging.getLogger("wireguard")
-logger.setLevel(logging.DEBUG)
 
 # WireGuard message types
 MSG_HANDSHAKE_INITIATION = 0x01

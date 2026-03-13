@@ -14,7 +14,6 @@ from dionaea.core import ihandler, incident, connection, g_dionaea
 import logging
 
 logger = logging.getLogger('nfq')
-logger.setLevel(logging.DEBUG)
 
 
 class NFQHandlerLoader(IHandlerLoader):

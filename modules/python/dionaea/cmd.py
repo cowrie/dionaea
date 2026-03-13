@@ -14,7 +14,6 @@ from dionaea.core import connection
 import logging
 
 logger = logging.getLogger('cmd')
-logger.setLevel(logging.DEBUG)
 
 
 class cmdexe:

@@ -32,7 +32,6 @@ from .asn1.ber import (
 from .helpers import BasePacket
 
 logger = logging.getLogger('asn1fields')
-logger.setLevel(logging.DEBUG)
 
 #####################
 #### ASN1 Fields ####

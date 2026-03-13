@@ -20,7 +20,6 @@ from .fieldtypes import StrField,ConditionalField
 from .helpers import VolatileValue, Gen, SetGen, BasePacket
 
 logger = logging.getLogger('scapy')
-logger.setLevel(logging.DEBUG)
 
 ######################################
 ## Packet abstract and base classes ##

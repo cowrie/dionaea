@@ -74,7 +74,6 @@ from dionaea.core import connection, incident
 from dionaea.exception import ServiceConfigError
 
 logger = logging.getLogger('ftp')
-logger.setLevel(logging.DEBUG)
 
 #
 # Parts of the following definitions are taken from twisted

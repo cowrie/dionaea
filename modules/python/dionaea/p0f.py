@@ -15,7 +15,6 @@ from socket import inet_aton
 import logging
 
 logger = logging.getLogger('p0f')
-logger.setLevel(logging.DEBUG)
 
 
 class P0FHandlerLoader(IHandlerLoader):

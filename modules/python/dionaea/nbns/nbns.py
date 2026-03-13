@@ -17,7 +17,6 @@ from dionaea import ServiceLoader
 from dionaea.core import connection, incident
 
 logger = logging.getLogger("nbns")
-logger.setLevel(logging.DEBUG)
 
 
 # NBNS Opcodes (RFC 1002)

@@ -13,7 +13,6 @@ from dionaea import IHandlerLoader, load_config_from_files, load_submodules
 from dionaea.core import g_dionaea
 
 logger = logging.getLogger('ihandlers')
-logger.setLevel(logging.DEBUG)
 
 # global handler list
 # keeps a ref on our handlers

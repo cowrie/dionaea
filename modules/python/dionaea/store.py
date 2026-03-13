@@ -16,7 +16,6 @@ import os
 from pathlib import Path
 import logging
 logger = logging.getLogger('store')
-logger.setLevel(logging.DEBUG)
 
 
 class StoreHandlerLoader(IHandlerLoader):

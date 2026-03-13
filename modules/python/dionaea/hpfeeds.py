@@ -20,7 +20,6 @@ from time import gmtime, strftime
 
 
 logger = logging.getLogger('hpfeeds')
-logger.setLevel(logging.DEBUG)
 
 #def DEBUGPERF(msg):
 #	print(msg)

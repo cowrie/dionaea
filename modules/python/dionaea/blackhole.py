@@ -15,7 +15,6 @@ from dionaea.exception import ServiceConfigError
 
 
 logger = logging.getLogger("blackhole")
-logger.setLevel(logging.DEBUG)
 
 
 class BlackholeService(ServiceLoader):

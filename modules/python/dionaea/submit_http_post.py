@@ -13,7 +13,6 @@ from dionaea import IHandlerLoader
 from dionaea.core import ihandler, incident
 
 logger = logging.getLogger('submit_http_post')
-logger.setLevel(logging.DEBUG)
 
 
 class SubmitHTTPPostLoader(IHandlerLoader):

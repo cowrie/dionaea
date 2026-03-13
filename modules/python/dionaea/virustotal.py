@@ -15,7 +15,6 @@ from pathlib import Path
 import sqlite3
 
 logger = logging.getLogger("virustotal")
-logger.setLevel(logging.DEBUG)
 
 VT_API_BASE = "https://www.virustotal.com/api/v3"
 

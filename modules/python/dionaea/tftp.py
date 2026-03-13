@@ -43,7 +43,6 @@ MAX_UPLOAD_SIZE = 100 * 1024 * 1024  # 100MB default
 MIN_FREE_DISK_SPACE = 1024 * 1024 * 1024  # 1GB minimum free space
 
 logger = logging.getLogger('tftp')
-logger.setLevel(logging.INFO)
 
 
 # ============================================================================

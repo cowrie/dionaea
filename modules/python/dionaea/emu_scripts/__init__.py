@@ -14,7 +14,6 @@ from dionaea.exception import LoaderError
 
 
 logger = logging.getLogger("emu_scripts")
-logger.setLevel(logging.DEBUG)
 
 
 class EmulateScriptsLoader(IHandlerLoader):

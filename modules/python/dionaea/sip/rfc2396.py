@@ -15,7 +15,6 @@ except Exception:
     from extras import int2bytes
 
 logger = logging.getLogger('sip')
-logger.setLevel(logging.DEBUG)
 
 
 class Address:

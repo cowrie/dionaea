@@ -16,7 +16,6 @@ from dionaea import ServiceLoader
 from dionaea.core import connection, incident
 
 logger = logging.getLogger('snmp')
-logger.setLevel(logging.INFO)
 
 
 # SNMP versions
