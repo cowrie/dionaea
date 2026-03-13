@@ -13,6 +13,14 @@ import logging
 TRACE = 5
 logging.addLevelName(TRACE, "TRACE")
 
+
+def _trace(self, message, *args, **kwargs):
+    if self.isEnabledFor(TRACE):
+        self._log(TRACE, message, args, **kwargs)
+
+
+logging.Logger.trace = _trace
+
 handler: 'DionaeaLogHandler | None' = None
 logger: logging.Logger | None = None
 

@@ -19,7 +19,7 @@ import logging
 from .fieldtypes import StrField,ConditionalField
 from .helpers import VolatileValue, Gen, SetGen, BasePacket
 
-from dionaea.log import TRACE
+import dionaea.log  # noqa: F401 — registers TRACE level and logger.trace()
 
 logger = logging.getLogger('scapy')
 
@@ -612,7 +612,7 @@ class Packet(BasePacket, metaclass=Packet_metaclass):
     def show(self, indent=3, lvl="", label_lvl="", goff=0):
         """Prints a hierarchical view of the packet. "indent" gives the size of indentation for each layer."""
 #        return
-        logger.log(TRACE, f"{label_lvl}###[ {self.name} sizeof({self.size()}) ]### ")
+        logger.trace(f"{label_lvl}###[ {self.name} sizeof({self.size()}) ]### ")
         off=0
         for f in self.fields_desc:
             size = 0
@@ -620,7 +620,7 @@ class Packet(BasePacket, metaclass=Packet_metaclass):
                 continue
             fvalue = self.getfieldval(f.name)
             if isinstance(fvalue, Packet) or (f.islist and f.holds_packets and isinstance(fvalue, list)):
-                logger.log(TRACE, f"{label_lvl}{lvl}  \\{f.name:<10}\\")
+                logger.trace(f"{label_lvl}{lvl}  \\{f.name:<10}\\")
                 fvalue_gen = SetGen(fvalue,_iterpacket=0)
                 for fvalue in fvalue_gen:
                     size = fvalue.size()
@@ -628,7 +628,7 @@ class Packet(BasePacket, metaclass=Packet_metaclass):
                         indent=indent, label_lvl=label_lvl+lvl+"   |", goff=goff)
             else:
                 size = f.size(self,fvalue)
-                logger.log(TRACE, f"{label_lvl}{lvl}  {f.name:<20}= {f.i2repr(self, fvalue):<15} sizeof({size:3d}) off={off:3d} goff={goff:3d}")
+                logger.trace(f"{label_lvl}{lvl}  {f.name:<20}= {f.i2repr(self, fvalue):<15} sizeof({size:3d}) off={off:3d} goff={goff:3d}")
             off += size
             goff +=size
         self.payload.show(
