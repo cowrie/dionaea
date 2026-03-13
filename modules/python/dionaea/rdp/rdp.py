@@ -294,7 +294,7 @@ class rdpd(connection):
         self._send_tpkt(response)
 
         if self.use_ssl:
-            rdplog.debug("Client requested SSL/TLS - upgrading via STARTTLS")
+            rdplog.debug("Upgrading connection to TLS")
             self.start_tls()
         self.state = State.MCS_CONNECT
 
