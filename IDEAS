@@ -83,13 +83,6 @@ Client Info PDU (credentials here) → Capability Exchange → Bitmap Updates.
 - Significant work: need Security Exchange PDU handler, per-connection RC4 state,
   decryption of all post-exchange traffic
 
-### RDP NLA/CredSSP Challenge-Response
-- Currently the honeypot extracts client info (workstation, domain, OS version) from
-  the first CredSSP TSRequest but never sends a challenge back
-- Real NLA clients wait ~16s for a CredSSP response, then disconnect
-- Full implementation: SPNEGO/NTLMSSP Type 2 (Challenge) message, then Type 3
-  (Authenticate) capture — would capture NTLM hashes for offline cracking
-- Useful for credential harvesting but significant crypto complexity
 
 ### DOUBLEPULSAR Magic Endianness Investigation
 - The honeypot uses big-endian `0x19283744` on wire, which is internally consistent

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import secrets
 import struct
 import tempfile
@@ -41,11 +42,15 @@ from .packets import (
     TPKTPacket,
     X224Packet,
     build_mcs_connect_response,
+    build_ntlmssp_challenge,
+    build_tsrequest_response,
     der_sequence_length,
+    format_ntlmv2_hash,
     parse_client_info_pdu,
     parse_cs_net_channels,
     parse_gcc_client_core_data,
     parse_mcs_connect_initial,
+    parse_ntlmssp_authenticate,
     parse_ntlmssp_negotiate,
     parse_tsrequest,
 )
@@ -58,10 +63,11 @@ class State(IntEnum):
     NEGOTIATION = 0      # Waiting for X.224 Connection Request
     TLS_UPGRADE = 1      # Upgrading to TLS
     MCS_CONNECT = 2      # Waiting for MCS Connect Initial
-    MCS_CHANNELS = 3     # Channel setup (ErectDomain, AttachUser, ChannelJoin)
-    SECURE_SETTINGS = 4  # Waiting for Client Info PDU
-    DOUBLEPULSAR = 5     # Detected DOUBLEPULSAR, handling commands
-    DONE = 6             # Connection complete
+    NLA_CHALLENGE = 3    # Sent NTLMSSP Challenge, waiting for Authenticate
+    MCS_CHANNELS = 4     # Channel setup (ErectDomain, AttachUser, ChannelJoin)
+    SECURE_SETTINGS = 5  # Waiting for Client Info PDU
+    DOUBLEPULSAR = 6     # Detected DOUBLEPULSAR, handling commands
+    DONE = 7             # Connection complete
 
 
 @dataclass
@@ -135,6 +141,7 @@ class rdpd(connection):
         self.doublepulsar_payload_buffer = b""
         self.user_channel_id = 0
         self.io_channel_id = 1003  # Standard I/O channel
+        self.nla_server_challenge: bytes = b""
 
     def apply_config(self, config: dict | None = None) -> None:
         """Apply configuration from YAML."""
@@ -209,7 +216,7 @@ class rdpd(connection):
             if self._check_doublepulsar_raw():
                 return len(self.buffer)
             # CredSSP TSRequest (ASN.1 SEQUENCE) arrives without TPKT wrapper
-            if self.state == State.MCS_CONNECT and self.buffer[0] == 0x30:
+            if self.state in (State.MCS_CONNECT, State.NLA_CHALLENGE) and self.buffer[0] == 0x30:
                 return self._handle_raw_credssp()
             rdplog.warning(
                 "Unparseable data in buffer (%d bytes, state=%s): %s",
@@ -258,6 +265,16 @@ class rdpd(connection):
         self._handle_credssp(raw)
         return seq_len
 
+    def _handle_nla_response(self, data: bytes) -> None:
+        """Handle CredSSP response (Type 3) that arrived inside TPKT."""
+        # The payload may or may not have an X.224 header
+        x224 = X224Packet.parse_data(data)
+        mcs_data = x224.payload if x224 else data
+        if mcs_data and mcs_data[0] == 0x30:
+            self._handle_credssp(mcs_data)
+        else:
+            self._handle_credssp(data)
+
     def _handle_packet(self, tpkt: TPKTPacket) -> None:
         """Route packet to appropriate handler based on state."""
         payload = tpkt.payload
@@ -267,6 +284,8 @@ class rdpd(connection):
             self._handle_negotiation(payload)
         elif self.state == State.MCS_CONNECT:
             self._handle_mcs_connect(payload)
+        elif self.state == State.NLA_CHALLENGE:
+            self._handle_nla_response(payload)
         elif self.state == State.MCS_CHANNELS:
             self._handle_mcs_channels(payload)
         elif self.state == State.SECURE_SETTINGS:
@@ -368,7 +387,7 @@ class rdpd(connection):
         self.state = State.MCS_CHANNELS
 
     def _handle_credssp(self, data: bytes) -> None:
-        """Extract client info from CredSSP TSRequest containing NTLMSSP Negotiate."""
+        """Handle CredSSP TSRequest: Type 1 → send challenge, Type 3 → extract hash."""
         ts = parse_tsrequest(data)
         if ts is None:
             rdplog.debug("CredSSP TSRequest parse failed")
@@ -377,40 +396,100 @@ class rdpd(connection):
         for token in ts.nego_tokens:
             if not token.startswith(NTLMSSP_SIGNATURE):
                 continue
-            ntlm = parse_ntlmssp_negotiate(token)
-            if ntlm is None:
-                continue
 
-            parts = []
-            if ntlm.workstation_name:
-                self.client_info.client_name = ntlm.workstation_name
-                parts.append("workstation=%s" % ntlm.workstation_name)
-            if ntlm.domain_name:
-                self.client_info.domain = ntlm.domain_name
-                parts.append("domain=%s" % ntlm.domain_name)
-            if ntlm.os_version:
-                major, minor, build, _rev = ntlm.os_version
-                parts.append("os=%d.%d.%d" % (major, minor, build))
+            msg_type = struct.unpack("<I", token[8:12])[0] if len(token) >= 12 else 0
 
-            rdplog.info(
-                "RDP NLA (CredSSP v%d): %s",
-                ts.version,
-                ", ".join(parts) if parts else "no client details",
-            )
-
-            i = incident("dionaea.connection.rdp.credssp")
-            i.con = self
-            if ntlm.workstation_name:
-                i.set("workstation", ntlm.workstation_name)
-            if ntlm.domain_name:
-                i.set("domain", ntlm.domain_name)
-            if ntlm.os_version:
-                i.set("os_version", "%d.%d.%d" % ntlm.os_version[:3])
-            i.set("negotiate_flags", "0x%08x" % ntlm.flags)
-            i.report()
-            return
+            if msg_type == 1:
+                self._handle_ntlmssp_negotiate(ts.version, token)
+                return
+            elif msg_type == 3:
+                self._handle_ntlmssp_authenticate(token)
+                return
 
         rdplog.debug("CredSSP TSRequest v%d with no NTLMSSP token", ts.version)
+
+    def _handle_ntlmssp_negotiate(self, credssp_version: int, token: bytes) -> None:
+        """Handle NTLMSSP Negotiate (Type 1): extract client info, send challenge."""
+        ntlm = parse_ntlmssp_negotiate(token)
+        if ntlm is None:
+            return
+
+        parts = []
+        if ntlm.workstation_name:
+            self.client_info.client_name = ntlm.workstation_name
+            parts.append("workstation=%s" % ntlm.workstation_name)
+        if ntlm.domain_name:
+            self.client_info.domain = ntlm.domain_name
+            parts.append("domain=%s" % ntlm.domain_name)
+        if ntlm.os_version:
+            major, minor, build, _rev = ntlm.os_version
+            parts.append("os=%d.%d.%d" % (major, minor, build))
+
+        rdplog.info(
+            "RDP NLA (CredSSP v%d): %s",
+            credssp_version,
+            ", ".join(parts) if parts else "no client details",
+        )
+
+        i = incident("dionaea.connection.rdp.credssp")
+        i.con = self
+        if ntlm.workstation_name:
+            i.set("workstation", ntlm.workstation_name)
+        if ntlm.domain_name:
+            i.set("domain", ntlm.domain_name)
+        if ntlm.os_version:
+            i.set("os_version", "%d.%d.%d" % ntlm.os_version[:3])
+        i.set("negotiate_flags", "0x%08x" % ntlm.flags)
+        i.report()
+
+        # Send NTLMSSP Challenge (Type 2) to elicit credentials
+        self.nla_server_challenge = os.urandom(8)
+        challenge_msg = build_ntlmssp_challenge(
+            server_challenge=self.nla_server_challenge,
+        )
+        response = build_tsrequest_response(challenge_msg, version=credssp_version)
+        self.send(response)
+        self.state = State.NLA_CHALLENGE
+        rdplog.debug("Sent NTLMSSP Challenge, waiting for Authenticate")
+
+    def _handle_ntlmssp_authenticate(self, token: bytes) -> None:
+        """Handle NTLMSSP Authenticate (Type 3): extract credentials and NTLMv2 hash."""
+        auth = parse_ntlmssp_authenticate(token)
+        if auth is None:
+            rdplog.debug("Failed to parse NTLMSSP Authenticate")
+            return
+
+        self.client_info.username = auth.username
+        self.client_info.domain = auth.domain
+        if auth.workstation:
+            self.client_info.client_name = auth.workstation
+
+        rdplog.info(
+            "RDP NLA login: domain=%s, username=%s, workstation=%s",
+            auth.domain or "(none)",
+            auth.username or "(none)",
+            auth.workstation or "(none)",
+        )
+
+        i = incident("dionaea.connection.rdp.nla.login")
+        i.con = self
+        i.set("domain", auth.domain)
+        i.set("username", auth.username)
+        i.set("workstation", auth.workstation)
+
+        # Format NTLMv2 hash for offline cracking
+        ntlmv2_hash = format_ntlmv2_hash(
+            username=auth.username,
+            domain=auth.domain,
+            server_challenge=self.nla_server_challenge,
+            nt_response=auth.nt_response,
+        )
+        if ntlmv2_hash:
+            i.set("ntlmv2_hash", ntlmv2_hash)
+            rdplog.info("NTLMv2 hash: %s", ntlmv2_hash)
+
+        i.report()
+        self.state = State.DONE
 
     def _send_mcs_connect_response(self, channel_names: list[str] | None = None) -> None:
         """Send MCS Connect-Response with GCC Conference Create Response."""
