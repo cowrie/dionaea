@@ -175,7 +175,7 @@ jobs:
 
       - name: Start dionaea
         run: |
-          sudo /opt/dionaea/bin/dionaea -c /opt/dionaea/conf/dionaea.toml &
+          sudo LD_LIBRARY_PATH="$LD_LIBRARY_PATH" /opt/dionaea/bin/dionaea -c /opt/dionaea/conf/dionaea.toml &
           sleep 3
           # Verify it's running and HTTP is responding
           timeout 30 bash -c "until curl -sf http://localhost/ > /dev/null 2>&1; do sleep 1; done"
