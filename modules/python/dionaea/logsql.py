@@ -415,6 +415,25 @@ class logsqlhandler(ihandler):
             )""")
 
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS
+            rdp_nla_logins (
+                rdp_nla_login INTEGER PRIMARY KEY,
+                connection INTEGER,
+                rdp_nla_login_username TEXT,
+                rdp_nla_login_domain TEXT,
+                rdp_nla_login_workstation TEXT,
+                rdp_nla_login_os_version TEXT,
+                rdp_nla_login_negotiate_flags TEXT,
+                rdp_nla_login_ntlmv2_hash TEXT
+                -- CONSTRAINT rdp_nla_logins_connection_fkey FOREIGN KEY (connection) REFERENCES connections (connection)
+            )""")
+
+        for idx in ["username", "domain", "workstation"]:
+            self.cursor.execute(
+                f"""CREATE INDEX IF NOT EXISTS rdp_nla_logins_{idx}_idx
+            ON rdp_nla_logins (rdp_nla_login_{idx})"""
+            )
+
+        self.cursor.execute("""CREATE TABLE IF NOT EXISTS
             doublepulsar_events (
                 doublepulsar_event INTEGER PRIMARY KEY,
                 connection INTEGER,
@@ -703,6 +722,7 @@ class logsqlhandler(ihandler):
             "snmp_requests",
             "rdp_fingerprints",
             "rdp_channel_requests",
+            "rdp_nla_logins",
             "doublepulsar_events",
         ]:
             self.cursor.execute(
@@ -1122,6 +1142,44 @@ class logsqlhandler(ihandler):
             self.cursor.execute(
                 "INSERT INTO rdp_channel_requests (connection, rdp_channel_request_channels) VALUES (?,?)",
                 (attackid, icd.get("channels")),
+            )
+            self.dbh.commit()
+
+    def handle_incident_dionaea_connection_rdp_credssp(self, icd):
+        con = icd.con
+        if con in self.attacks:
+            attackid = self.attacks[con][1]
+            self.cursor.execute(
+                """INSERT INTO rdp_nla_logins (
+                    connection, rdp_nla_login_workstation, rdp_nla_login_domain,
+                    rdp_nla_login_os_version, rdp_nla_login_negotiate_flags
+                ) VALUES (?,?,?,?,?)""",
+                (
+                    attackid,
+                    icd.get("workstation") or "",
+                    icd.get("domain") or "",
+                    icd.get("os_version") or "",
+                    icd.get("negotiate_flags") or "",
+                ),
+            )
+            self.dbh.commit()
+
+    def handle_incident_dionaea_connection_rdp_nla_login(self, icd):
+        con = icd.con
+        if con in self.attacks:
+            attackid = self.attacks[con][1]
+            self.cursor.execute(
+                """INSERT INTO rdp_nla_logins (
+                    connection, rdp_nla_login_username, rdp_nla_login_domain,
+                    rdp_nla_login_workstation, rdp_nla_login_ntlmv2_hash
+                ) VALUES (?,?,?,?,?)""",
+                (
+                    attackid,
+                    icd.get("username") or "",
+                    icd.get("domain") or "",
+                    icd.get("workstation") or "",
+                    icd.get("ntlmv2_hash") or "",
+                ),
             )
             self.dbh.commit()
 

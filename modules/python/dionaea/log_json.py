@@ -269,6 +269,30 @@ class LogJsonHandler(ihandler):
         if data:
             data["rdp_channels"] = self._prepare_value(icd.channels).split(",")
 
+    def handle_incident_dionaea_connection_rdp_credssp(self, icd):
+        con = icd.con
+        data = self.attacks.get(con)
+        if data:
+            data["rdp_nla"] = {
+                "workstation": self._prepare_value(icd.get("workstation")),
+                "domain": self._prepare_value(icd.get("domain")),
+                "os_version": self._prepare_value(icd.get("os_version")),
+                "negotiate_flags": self._prepare_value(icd.get("negotiate_flags")),
+            }
+
+    def handle_incident_dionaea_connection_rdp_nla_login(self, icd):
+        con = icd.con
+        data = self.attacks.get(con)
+        if data:
+            if "rdp_nla" not in data:
+                data["rdp_nla"] = {}
+            data["rdp_nla"]["username"] = self._prepare_value(icd.get("username"))
+            data["rdp_nla"]["domain"] = self._prepare_value(icd.get("domain"))
+            data["rdp_nla"]["workstation"] = self._prepare_value(icd.get("workstation"))
+            ntlmv2_hash = icd.get("ntlmv2_hash")
+            if ntlmv2_hash:
+                data["rdp_nla"]["ntlmv2_hash"] = self._prepare_value(ntlmv2_hash)
+
     def handle_incident_dionaea_connection_rdp_doublepulsar_ping(self, icd):
         con = icd.con
         data = self.attacks.get(con)
