@@ -25,6 +25,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
+            libpcap-dev \
             libssl-dev \
             pkg-config \
             python3-dev
@@ -52,8 +53,6 @@ jobs:
         python-version: ['3.12', '3.13', '3.14']
         free-threaded: [false]
         include:
-          - python-version: '3.13t'
-            free-threaded: true
           - python-version: '3.14t'
             free-threaded: true
 
@@ -70,6 +69,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
+            libpcap-dev \
             libssl-dev \
             pkg-config
 
@@ -110,6 +110,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
+            libpcap-dev \
             libssl-dev \
             pkg-config \
             python3-dev
@@ -132,9 +133,6 @@ jobs:
       matrix:
         python-version: ['3.12', '3.13']
         free-threaded: [false]
-        include:
-          - python-version: '3.13t'
-            free-threaded: true
 
     steps:
       - name: Checkout code
@@ -149,6 +147,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
+            libpcap-dev \
             libssl-dev \
             pkg-config
 
