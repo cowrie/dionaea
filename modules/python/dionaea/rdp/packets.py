@@ -458,6 +458,17 @@ def _der_read_tlv(data: bytes, offset: int) -> tuple[int, bytes] | None:
     return offset + length, data[offset:offset + length]
 
 
+def der_sequence_length(data: bytes) -> int | None:
+    """Return total byte length of a DER SEQUENCE starting at data[0], or None if incomplete/invalid."""
+    if len(data) < 2 or data[0] != 0x30:
+        return None
+    result = _der_read_tlv(data, 0)
+    if result is None:
+        return None
+    end_offset, _ = result
+    return end_offset
+
+
 @dataclass
 class TSRequest:
     """CredSSP TSRequest (RFC 4178 / MS-CSSP)."""

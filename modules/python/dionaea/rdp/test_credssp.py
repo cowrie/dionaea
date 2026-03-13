@@ -13,6 +13,7 @@ import pytest
 from dionaea.rdp.packets import (
     NTLMSSPNegotiate,
     TSRequest,
+    der_sequence_length,
     parse_ntlmssp_negotiate,
     parse_tsrequest,
 )
@@ -208,6 +209,49 @@ class TestParseNTLMSSPNegotiate:
         assert result.os_version is not None
         assert result.domain_name == ""
         assert result.workstation_name == ""
+
+
+# ---------------------------------------------------------------------------
+# DER sequence length detection (for _process_buffer CredSSP dispatch)
+# ---------------------------------------------------------------------------
+
+
+class TestDerSequenceLength:
+    def test_real_credssp_tsrequest(self):
+        """der_sequence_length correctly measures a real 57-byte TSRequest."""
+        wire = bytes.fromhex(
+            "3037a003020106a130302e302ca02a0428"
+            "4e544c4d53535000010000003782084200"
+            "0000000028000000000000002800000006"
+            "0072170000000f"
+        )
+        assert der_sequence_length(wire) == 57
+
+    def test_tsrequest_with_trailing_data(self):
+        """Length is just the SEQUENCE, ignoring trailing bytes."""
+        wire = bytes.fromhex(
+            "3037a003020106a130302e302ca02a0428"
+            "4e544c4d53535000010000003782084200"
+            "0000000028000000000000002800000006"
+            "0072170000000f"
+        )
+        padded = wire + b"\x00" * 100
+        assert der_sequence_length(padded) == 57
+
+    def test_not_sequence(self):
+        assert der_sequence_length(b"\x31\x00") is None
+
+    def test_too_short(self):
+        assert der_sequence_length(b"\x30") is None
+        assert der_sequence_length(b"") is None
+
+    def test_incomplete_value(self):
+        """SEQUENCE header says 55 bytes but only 10 present."""
+        assert der_sequence_length(b"\x30\x37" + b"\x00" * 10) is None
+
+    def test_synthetic_short_sequence(self):
+        data = _build_tsrequest(_build_ntlmssp_negotiate(), version=2)
+        assert der_sequence_length(data) == len(data)
 
 
 if __name__ == "__main__":

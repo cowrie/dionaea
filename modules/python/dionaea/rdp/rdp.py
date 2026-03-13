@@ -41,6 +41,7 @@ from .packets import (
     RDPProtocol,
     TPKTPacket,
     X224Packet,
+    der_sequence_length,
     parse_ntlmssp_negotiate,
     parse_tsrequest,
 )
@@ -204,6 +205,13 @@ class rdpd(connection):
             # Check for DOUBLEPULSAR without TPKT wrapper
             if self._check_doublepulsar_raw():
                 return len(self.buffer)
+            # CredSSP TSRequest (ASN.1 SEQUENCE) arrives without TPKT wrapper
+            if self.state == State.MCS_CONNECT and self.buffer[0] == 0x30:
+                return self._handle_raw_credssp()
+            rdplog.warning(
+                "Unparseable data in buffer (%d bytes, first=0x%02x, state=%s)",
+                len(self.buffer), self.buffer[0], State(self.state).name,
+            )
             return 0
 
         packet_len = tpkt.length
@@ -227,6 +235,17 @@ class rdpd(connection):
                     self._handle_doublepulsar_command(self.buffer)
                     return True
         return False
+
+    def _handle_raw_credssp(self) -> int:
+        """Handle a CredSSP TSRequest that arrived without TPKT framing."""
+        seq_len = der_sequence_length(self.buffer)
+        if seq_len is None:
+            # Incomplete — wait for more data
+            return 0
+        raw = self.buffer[:seq_len]
+        self.buffer = self.buffer[seq_len:]
+        self._handle_credssp(raw)
+        return seq_len
 
     def _handle_packet(self, tpkt: TPKTPacket) -> None:
         """Route packet to appropriate handler based on state."""
