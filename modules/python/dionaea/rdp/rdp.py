@@ -236,6 +236,15 @@ class rdpd(connection):
                     return True
         return False
 
+    def _try_doublepulsar(self, mcs_data: bytes) -> bool:
+        """Check for DOUBLEPULSAR in MCS data. Returns True if handled."""
+        dp = DoublePulsarPacket.parse(mcs_data)
+        if dp is None:
+            return False
+        self.state = State.DOUBLEPULSAR
+        self._handle_doublepulsar_command(mcs_data)
+        return True
+
     def _handle_raw_credssp(self) -> int:
         """Handle a CredSSP TSRequest that arrived without TPKT framing."""
         seq_len = der_sequence_length(self.buffer)
@@ -319,17 +328,8 @@ class rdpd(connection):
 
         rdplog.debug("_handle_mcs_connect: first byte = 0x%02x", mcs_data[0])
 
-        # Check for DOUBLEPULSAR first - can arrive at any state
-        if mcs_data[0] == 0x3c:  # channelJoinConfirm carrier
-            rdplog.debug("_handle_mcs_connect: detected 0x3c, checking DOUBLEPULSAR")
-            dp = DoublePulsarPacket.parse(mcs_data)
-            if dp:
-                rdplog.debug("DOUBLEPULSAR detected in MCS_CONNECT state: opcode=%s", dp.opcode)
-                self.state = State.DOUBLEPULSAR
-                self._handle_doublepulsar_command(mcs_data)
-                return
-            else:
-                rdplog.debug("_handle_mcs_connect: DoublePulsarPacket.parse returned None")
+        if self._try_doublepulsar(mcs_data):
+            return
 
         # CredSSP TSRequest (ASN.1 SEQUENCE) — NLA clients send this instead of MCS
         if mcs_data[0] == 0x30:
@@ -479,15 +479,10 @@ class rdpd(connection):
         if len(mcs_data) < 1:
             return
 
-        pdu_type = mcs_data[0]
+        if self._try_doublepulsar(mcs_data):
+            return
 
-        # Check for DOUBLEPULSAR first
-        if pdu_type == 0x3c:  # channelJoinConfirm carrier
-            dp = DoublePulsarPacket.parse(mcs_data)
-            if dp:
-                self.state = State.DOUBLEPULSAR
-                self._handle_doublepulsar_command(mcs_data)
-                return
+        pdu_type = mcs_data[0]
 
         if pdu_type == MCSType.ERECT_DOMAIN_REQUEST:
             rdplog.debug("MCS Erect Domain Request")
@@ -550,13 +545,8 @@ class rdpd(connection):
         x224 = X224Packet.parse_data(data)
         mcs_data = x224.payload if x224 else data
 
-        # Check for DOUBLEPULSAR
-        if len(mcs_data) >= 7 and mcs_data[0] == 0x3c:
-            dp = DoublePulsarPacket.parse(mcs_data)
-            if dp:
-                self.state = State.DOUBLEPULSAR
-                self._handle_doublepulsar_command(mcs_data)
-                return
+        if self._try_doublepulsar(mcs_data):
+            return
 
         # Look for SendDataRequest with client info
         if len(mcs_data) > 0 and mcs_data[0] == MCSType.SEND_DATA_REQUEST:
