@@ -122,6 +122,7 @@ python_path = "{python_path}"
                     service_configs,
                     ihandler_configs,
                     python_path,
+                    ..Default::default()
                 };
                 dionaea::python::loader::load(py, &config)
             })

@@ -167,7 +167,7 @@ def new() -> None:
 
     load_submodules()
 
-    module_config = g_dionaea.config().get("module", {})
+    module_config = g_dionaea.config().get("module", {}).get("python", {})
     filename_patterns = module_config.get("service_configs", [])
     g_service_configs = load_config_from_files(filename_patterns)
 

@@ -222,9 +222,7 @@ mod tests {
         Python::attach(|py| {
             let config = crate::config::PythonModuleConfig {
                 imports: vec![],
-                service_configs: vec![],
-                ihandler_configs: vec![],
-                python_path: None,
+                ..Default::default()
             };
             load(py, &config).expect("load with empty imports");
 
@@ -239,9 +237,8 @@ mod tests {
         Python::attach(|py| {
             let config = crate::config::PythonModuleConfig {
                 imports: vec![],
-                service_configs: vec![],
-                ihandler_configs: vec![],
                 python_path: Some("/tmp/test_dionaea_modules".into()),
+                ..Default::default()
             };
             load(py, &config).expect("load with python_path");
 
@@ -275,9 +272,7 @@ mod tests {
         Python::attach(|py| {
             let config = crate::config::PythonModuleConfig {
                 imports: vec![],
-                service_configs: vec![],
-                ihandler_configs: vec![],
-                python_path: None,
+                ..Default::default()
             };
             // Should complete without error even with no modules
             shutdown(py, &config);

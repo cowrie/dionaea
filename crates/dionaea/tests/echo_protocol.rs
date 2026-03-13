@@ -67,12 +67,7 @@ fn test_real_echo_protocol() {
                 // Register dionaea.core in sys.modules
                 dionaea::python::loader::load(
                     py,
-                    &config::PythonModuleConfig {
-                        imports: vec![],
-                        service_configs: vec![],
-                        ihandler_configs: vec![],
-                        python_path: Some(python_path),
-                    },
+                    &config::PythonModuleConfig { python_path: Some(python_path), ..Default::default() },
                 )
                 .expect("loader init");
 

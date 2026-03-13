@@ -82,12 +82,7 @@ fn test_rust_handler_dispatch_via_report() {
 
                 dionaea::python::loader::load(
                     py,
-                    &config::PythonModuleConfig {
-                        imports: vec![],
-                        service_configs: vec![],
-                        ihandler_configs: vec![],
-                        python_path: Some(python_path),
-                    },
+                    &config::PythonModuleConfig { python_path: Some(python_path), ..Default::default() },
                 )
                 .expect("loader init");
 

@@ -27,7 +27,7 @@ def new() -> None:
     logger.debug("loading ihandlers")
     load_submodules()
 
-    module_config = g_dionaea.config().get("module", {})
+    module_config = g_dionaea.config().get("module", {}).get("python", {})
     filename_patterns = module_config.get("ihandler_configs", [])
     g_handler_configs = load_config_from_files(filename_patterns)
 

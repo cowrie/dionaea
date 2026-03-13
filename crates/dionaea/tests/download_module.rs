@@ -112,12 +112,7 @@ fn test_download_module_end_to_end() {
             Python::attach(|py| {
                 dionaea::python::loader::load(
                     py,
-                    &config::PythonModuleConfig {
-                        imports: vec![],
-                        service_configs: vec![],
-                        ihandler_configs: vec![],
-                        python_path: Some(python_path),
-                    },
+                    &config::PythonModuleConfig { python_path: Some(python_path), ..Default::default() },
                 )
                 .expect("loader init");
 

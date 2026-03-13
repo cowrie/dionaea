@@ -77,16 +77,20 @@ impl PyDionaea {
 
         result.set_item("dionaea", dionaea_dict)?;
 
-        // "module" section
-        let module_dict = PyDict::new(py);
-        module_dict.set_item(
+        // "module" section — nested under "python" to match log.py expectations
+        let python_dict = PyDict::new(py);
+        python_dict.set_item(
             "service_configs",
             PyList::new(py, &state.config.modules.python.service_configs)?,
         )?;
-        module_dict.set_item(
+        python_dict.set_item(
             "ihandler_configs",
             PyList::new(py, &state.config.modules.python.ihandler_configs)?,
         )?;
+        python_dict.set_item("loglevel", &state.config.modules.python.loglevel)?;
+
+        let module_dict = PyDict::new(py);
+        module_dict.set_item("python", python_dict)?;
         result.set_item("module", module_dict)?;
 
         Ok(result)
