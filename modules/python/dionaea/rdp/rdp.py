@@ -278,36 +278,36 @@ class rdpd(connection):
 
     def _handle_mcs_connect(self, data: bytes) -> None:
         """Handle MCS Connect-Initial."""
-        rdplog.info("_handle_mcs_connect: received %d bytes: %s", len(data), data[:20].hex())
+        rdplog.debug("_handle_mcs_connect: received %d bytes: %s", len(data), data[:20].hex())
 
         # Skip X.224 Data header
         x224 = X224Packet.parse_data(data)
         if x224 is None:
             # Try parsing raw MCS data
             mcs_data = data
-            rdplog.info("_handle_mcs_connect: X.224 parse failed, using raw data")
+            rdplog.debug("_handle_mcs_connect: X.224 parse failed, using raw data")
         else:
             mcs_data = x224.payload
-            rdplog.info("_handle_mcs_connect: X.224 payload (%d bytes): %s", len(mcs_data), mcs_data[:20].hex() if mcs_data else "empty")
+            rdplog.debug("_handle_mcs_connect: X.224 payload (%d bytes): %s", len(mcs_data), mcs_data[:20].hex() if mcs_data else "empty")
 
         # Check for MCS Connect-Initial
         if len(mcs_data) < 2:
-            rdplog.info("_handle_mcs_connect: mcs_data too short (%d bytes)", len(mcs_data))
+            rdplog.debug("_handle_mcs_connect: mcs_data too short (%d bytes)", len(mcs_data))
             return
 
-        rdplog.info("_handle_mcs_connect: first byte = 0x%02x", mcs_data[0])
+        rdplog.debug("_handle_mcs_connect: first byte = 0x%02x", mcs_data[0])
 
         # Check for DOUBLEPULSAR first - can arrive at any state
         if mcs_data[0] == 0x3c:  # channelJoinConfirm carrier
-            rdplog.info("_handle_mcs_connect: detected 0x3c, checking DOUBLEPULSAR")
+            rdplog.debug("_handle_mcs_connect: detected 0x3c, checking DOUBLEPULSAR")
             dp = DoublePulsarPacket.parse(mcs_data)
             if dp:
-                rdplog.info("DOUBLEPULSAR detected in MCS_CONNECT state: opcode=%s", dp.opcode)
+                rdplog.debug("DOUBLEPULSAR detected in MCS_CONNECT state: opcode=%s", dp.opcode)
                 self.state = State.DOUBLEPULSAR
                 self._handle_doublepulsar_command(mcs_data)
                 return
             else:
-                rdplog.info("_handle_mcs_connect: DoublePulsarPacket.parse returned None")
+                rdplog.debug("_handle_mcs_connect: DoublePulsarPacket.parse returned None")
 
         # BER-encoded Connect-Initial starts with 0x7f 0x65
         if mcs_data[0:2] == bytes([0x7f, 0x65]):
@@ -322,7 +322,7 @@ class rdpd(connection):
                     self.client_info.desktop_width = gcc_data.desktop_width
                     self.client_info.desktop_height = gcc_data.desktop_height
                     self.client_info.requested_channels = gcc_data.requested_channels
-                    rdplog.info(
+                    rdplog.debug(
                         "RDP client: name=%s, build=%d, kb_layout=0x%x, desktop=%dx%d",
                         gcc_data.client_name,
                         gcc_data.client_build,
@@ -331,7 +331,7 @@ class rdpd(connection):
                         gcc_data.desktop_height,
                     )
                     if gcc_data.requested_channels:
-                        rdplog.info("RDP requested channels: %s", gcc_data.requested_channels)
+                        rdplog.debug("RDP requested channels: %s", gcc_data.requested_channels)
                         i = incident("dionaea.connection.rdp.channels")
                         i.con = self
                         i.set("channels", ",".join(gcc_data.requested_channels))
@@ -742,7 +742,7 @@ class rdpd(connection):
 
 
 # Log DOUBLEPULSAR signature at module load
-rdplog.info(
+rdplog.debug(
     "DOUBLEPULSAR signature: 0x%08x, XOR key: 0x%08x",
     rdpd.doublepulsar_signature,
     rdpd.doublepulsar_xor_key,
