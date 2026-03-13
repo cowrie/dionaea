@@ -421,6 +421,275 @@ class DoublePulsarPacket:
 
 
 # ---------------------------------------------------------------------------
+# BER encoding utilities
+# ---------------------------------------------------------------------------
+
+
+def ber_encode_length(length: int) -> bytes:
+    """Encode a BER length field."""
+    if length < 0x80:
+        return bytes([length])
+    elif length < 0x100:
+        return bytes([0x81, length])
+    else:
+        return bytes([0x82]) + struct.pack('!H', length)
+
+
+def ber_decode_length(data: bytes, offset: int) -> tuple[int, int]:
+    """Decode BER length. Returns (length, new_offset)."""
+    if data[offset] < 0x80:
+        return data[offset], offset + 1
+    num_bytes = data[offset] & 0x7F
+    offset += 1
+    length = int.from_bytes(data[offset:offset + num_bytes], 'big')
+    return length, offset + num_bytes
+
+
+# ---------------------------------------------------------------------------
+# GCC User Data Block parsing/building
+# ---------------------------------------------------------------------------
+
+# GCC Conference Create Request user data block types
+CS_CORE = 0xC001
+CS_SECURITY = 0xC002
+CS_NET = 0xC003
+CS_CLUSTER = 0xC004
+
+SC_CORE = 0x0C01
+SC_SECURITY = 0x0C02
+SC_NET = 0x0C03
+
+# X.224 Data TPDU header (precedes MCS in later stages)
+X224_DATA_HEADER = bytes([0x02, 0xF0, 0x80])
+
+# GCC Conference Create Request/Response magic
+GCC_CCR_KEY = b"\x00\x05\x00\x14\x7c\x00\x01"
+
+# RDP version for SC_CORE
+RDP_VERSION_5_PLUS = 0x00080004
+
+# IO channel (always 1003)
+MCS_IO_CHANNEL_ID = 0x03EB
+
+
+class GCCClientCoreData:
+    """Key fields from GCC Client Core Data (TS_UD_CS_CORE)."""
+    __slots__ = (
+        'version_major', 'version_minor', 'desktop_width', 'desktop_height',
+        'color_depth', 'sas_sequence', 'keyboard_layout', 'client_build',
+        'client_name', 'keyboard_type', 'keyboard_subtype', 'keyboard_function_keys',
+    )
+
+    def __init__(
+        self, version_major: int, version_minor: int,
+        desktop_width: int, desktop_height: int,
+        color_depth: int, sas_sequence: int,
+        keyboard_layout: int, client_build: int,
+        client_name: str, keyboard_type: int,
+        keyboard_subtype: int, keyboard_function_keys: int,
+    ):
+        self.version_major = version_major
+        self.version_minor = version_minor
+        self.desktop_width = desktop_width
+        self.desktop_height = desktop_height
+        self.color_depth = color_depth
+        self.sas_sequence = sas_sequence
+        self.keyboard_layout = keyboard_layout
+        self.client_build = client_build
+        self.client_name = client_name
+        self.keyboard_type = keyboard_type
+        self.keyboard_subtype = keyboard_subtype
+        self.keyboard_function_keys = keyboard_function_keys
+
+
+def parse_gcc_client_core_data(data: bytes) -> GCCClientCoreData | None:
+    """Parse TS_UD_CS_CORE from raw client core data block (after header type+length)."""
+    if len(data) < 128:
+        return None
+
+    (version_major, version_minor,
+     desktop_width, desktop_height,
+     color_depth, sas_sequence,
+     keyboard_layout, client_build) = struct.unpack_from('<HHHHHHII', data, 0)
+
+    client_name_raw = data[20:52]
+    client_name = client_name_raw.decode('utf-16-le', errors='replace').rstrip('\x00')
+
+    keyboard_type, keyboard_subtype, keyboard_function_keys = struct.unpack_from('<III', data, 52)
+
+    return GCCClientCoreData(
+        version_major=version_major, version_minor=version_minor,
+        desktop_width=desktop_width, desktop_height=desktop_height,
+        color_depth=color_depth, sas_sequence=sas_sequence,
+        keyboard_layout=keyboard_layout, client_build=client_build,
+        client_name=client_name, keyboard_type=keyboard_type,
+        keyboard_subtype=keyboard_subtype, keyboard_function_keys=keyboard_function_keys,
+    )
+
+
+def parse_gcc_user_data_blocks(data: bytes) -> dict[int, bytes]:
+    """Parse a sequence of GCC user data blocks (type:u16LE, length:u16LE, data).
+
+    Returns dict mapping block type -> block payload (excluding header).
+    """
+    blocks: dict[int, bytes] = {}
+    offset = 0
+    while offset + 4 <= len(data):
+        block_type, block_length = struct.unpack_from('<HH', data, offset)
+        if block_length < 4 or offset + block_length > len(data):
+            break
+        blocks[block_type] = data[offset + 4:offset + block_length]
+        offset += block_length
+    return blocks
+
+
+def parse_mcs_connect_initial(payload: bytes) -> dict[int, bytes] | None:
+    """Parse MCS Connect-Initial, extract GCC user data blocks.
+
+    Input: TPKT payload (starts with X.224 Data header, then BER-encoded MCS).
+    Returns dict of GCC client data blocks, or None on failure.
+    """
+    if len(payload) < 3:
+        return None
+    pos = 3  # skip X.224 Data header
+
+    # BER: Application[101] CONNECT-INITIAL
+    if payload[pos] != 0x7F or payload[pos + 1] != 0x65:
+        return None
+    pos += 2
+
+    _ci_len, pos = ber_decode_length(payload, pos)
+
+    # Skip three BER OCTET STRINGs: callingDomainSelector, calledDomainSelector, upwardFlag
+    for _ in range(3):
+        if pos >= len(payload):
+            return None
+        pos += 1  # tag
+        field_len, pos = ber_decode_length(payload, pos)
+        pos += field_len
+
+    # Skip targetParameters, minimumParameters, maximumParameters (three SEQUENCE)
+    for _ in range(3):
+        if pos >= len(payload):
+            return None
+        pos += 1  # tag
+        field_len, pos = ber_decode_length(payload, pos)
+        pos += field_len
+
+    # userData OCTET STRING
+    if pos >= len(payload) or payload[pos] != 0x04:
+        return None
+    pos += 1
+    user_data_len, pos = ber_decode_length(payload, pos)
+    user_data = payload[pos:pos + user_data_len]
+
+    # GCC Conference Create Request header — look for T.124 key
+    gcc_start = user_data.find(GCC_CCR_KEY)
+    if gcc_start < 0:
+        return None
+
+    p = gcc_start + len(GCC_CCR_KEY)
+    if p + 1 > len(user_data):
+        return None
+    # PER length prefix
+    if user_data[p] & 0x80:
+        p += 2
+    else:
+        p += 1
+
+    p += 2  # conference name PER encoded
+
+    # h221NonStandard key "Duca"
+    duca_pos = user_data.find(b'Duca', p)
+    if duca_pos < 0:
+        return None
+
+    ud_start = duca_pos + 4
+    if ud_start < len(user_data):
+        if user_data[ud_start] & 0x80:
+            ud_start += 2
+        else:
+            ud_start += 2  # Always 2 in practice
+
+    return parse_gcc_user_data_blocks(user_data[ud_start:])
+
+
+# ---------------------------------------------------------------------------
+# Server-side GCC / MCS Connect-Response builders
+# ---------------------------------------------------------------------------
+
+
+def build_gcc_server_data(
+    selected_protocol: int = 0,
+    channel_ids: list[int] | None = None,
+    server_security_data: bytes | None = None,
+) -> bytes:
+    """Build GCC server user data blocks (SC_CORE + SC_SECURITY + SC_NET)."""
+    if channel_ids is None:
+        channel_ids = []
+
+    sc_core_payload = struct.pack('<II', RDP_VERSION_5_PLUS, selected_protocol)
+    sc_core = struct.pack('<HH', SC_CORE, 4 + len(sc_core_payload)) + sc_core_payload
+
+    if server_security_data is not None:
+        sc_sec = struct.pack('<HH', SC_SECURITY, 4 + len(server_security_data)) + server_security_data
+    else:
+        sc_sec_payload = struct.pack('<II', 0x00000001, 0x00000003)
+        sc_sec = struct.pack('<HH', SC_SECURITY, 4 + len(sc_sec_payload)) + sc_sec_payload
+
+    sc_net_payload = struct.pack('<HH', MCS_IO_CHANNEL_ID, len(channel_ids))
+    for ch_id in channel_ids:
+        sc_net_payload += struct.pack('<H', ch_id)
+    if len(sc_net_payload) % 4 != 0:
+        sc_net_payload += b'\x00' * (4 - len(sc_net_payload) % 4)
+    sc_net = struct.pack('<HH', SC_NET, 4 + len(sc_net_payload)) + sc_net_payload
+
+    return sc_core + sc_sec + sc_net
+
+
+def build_mcs_connect_response(
+    selected_protocol: int = 0,
+    channel_ids: list[int] | None = None,
+    server_security_data: bytes | None = None,
+) -> bytes:
+    """Build complete MCS Connect-Response with GCC Conference Create Response.
+
+    Returns TPKT payload (X.224 Data header + BER-encoded MCS).
+    """
+    gcc_user_data = build_gcc_server_data(selected_protocol, channel_ids, server_security_data)
+
+    # GCC Conference Create Response wrapper
+    gcc_inner = b'\x21'  # nodeID (PER)
+    gcc_inner += b'\x80'  # result = success
+    gcc_inner += struct.pack('!H', len(gcc_user_data) | 0x8000)
+    gcc_inner += b'\x04\x01\x01'  # ConnectGCCPDU choice + key
+    gcc_inner += b'McDn'
+    gcc_inner += struct.pack('!H', len(gcc_user_data) | 0x8000)
+    gcc_inner += gcc_user_data
+
+    gcc_data = b'\x04' + ber_encode_length(len(gcc_inner)) + gcc_inner
+
+    result = b'\x0a\x01\x00'
+    connect_id = b'\x02\x01\x00'
+    domain_params = bytes([
+        0x30, 0x1a,
+        0x02, 0x01, 0x22,
+        0x02, 0x01, 0x03,
+        0x02, 0x01, 0x00,
+        0x02, 0x01, 0x01,
+        0x02, 0x01, 0x00,
+        0x02, 0x01, 0x01,
+        0x02, 0x03, 0x00, 0xff, 0xff,
+        0x02, 0x01, 0x02,
+    ])
+
+    inner = result + connect_id + domain_params + gcc_data
+    mcs_pdu = bytes([0x7F, 0x66]) + ber_encode_length(len(inner)) + inner
+
+    return X224_DATA_HEADER + mcs_pdu
+
+
+# ---------------------------------------------------------------------------
 # CredSSP TSRequest / NTLMSSP Negotiate
 # ---------------------------------------------------------------------------
 

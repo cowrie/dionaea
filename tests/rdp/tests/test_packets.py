@@ -24,8 +24,13 @@ rdp_module_path = str(Path(__file__).parent.parent.parent.parent / "modules" / "
 sys.path.insert(0, rdp_module_path)
 
 from packets import (
+    CS_CORE,
+    CS_NET,
     DOUBLEPULSAR_MAGIC,
     DOUBLEPULSAR_PING_RESPONSE_SIZE,
+    SC_CORE,
+    SC_NET,
+    SC_SECURITY,
     DoublePulsarOpcode,
     DoublePulsarPacket,
     RDPNegotiationRequest,
@@ -33,6 +38,12 @@ from packets import (
     TPKTPacket,
     X224Packet,
     X224Type,
+    ber_decode_length,
+    ber_encode_length,
+    build_gcc_server_data,
+    build_mcs_connect_response,
+    parse_gcc_client_core_data,
+    parse_gcc_user_data_blocks,
 )
 
 
@@ -429,6 +440,130 @@ class TestGCCClientData:
 
         assert gcc is not None
         assert gcc.requested_channels == []
+
+
+class TestBER:
+    """Tests for BER encoding/decoding utilities."""
+
+    def test_encode_short_length(self):
+        assert ber_encode_length(0) == b"\x00"
+        assert ber_encode_length(127) == b"\x7f"
+
+    def test_encode_medium_length(self):
+        assert ber_encode_length(128) == b"\x81\x80"
+        assert ber_encode_length(255) == b"\x81\xff"
+
+    def test_encode_long_length(self):
+        assert ber_encode_length(256) == b"\x82\x01\x00"
+        assert ber_encode_length(1000) == b"\x82\x03\xe8"
+
+    def test_decode_short_length(self):
+        length, offset = ber_decode_length(b"\x42rest", 0)
+        assert length == 0x42
+        assert offset == 1
+
+    def test_decode_medium_length(self):
+        length, offset = ber_decode_length(b"\x81\x80rest", 0)
+        assert length == 128
+        assert offset == 2
+
+    def test_decode_long_length(self):
+        length, offset = ber_decode_length(b"\x82\x01\x00rest", 0)
+        assert length == 256
+        assert offset == 3
+
+    def test_round_trip(self):
+        for n in [0, 1, 127, 128, 255, 256, 1000, 65535]:
+            encoded = ber_encode_length(n)
+            decoded, end = ber_decode_length(encoded, 0)
+            assert decoded == n
+            assert end == len(encoded)
+
+
+class TestGCCUserDataBlocks:
+    """Tests for GCC user data block parsing."""
+
+    def test_parse_blocks(self):
+        block1 = struct.pack('<HH', CS_CORE, 8) + b"\x01\x02\x03\x04"
+        block2 = struct.pack('<HH', CS_NET, 6) + b"\xAA\xBB"
+        blocks = parse_gcc_user_data_blocks(block1 + block2)
+        assert CS_CORE in blocks
+        assert CS_NET in blocks
+        assert blocks[CS_CORE] == b"\x01\x02\x03\x04"
+        assert blocks[CS_NET] == b"\xAA\xBB"
+
+    def test_parse_empty(self):
+        assert parse_gcc_user_data_blocks(b"") == {}
+
+    def test_parse_truncated_block(self):
+        data = struct.pack('<HH', CS_CORE, 100) + b"\x00" * 10
+        assert parse_gcc_user_data_blocks(data) == {}
+
+
+class TestGCCClientCoreDataParsing:
+    """Tests for TS_UD_CS_CORE parsing."""
+
+    @staticmethod
+    def _build_core_data(
+        width=1920, height=1080,
+        keyboard_layout=0x0409, client_build=19041,
+        client_name="WIN-TEST123",
+    ) -> bytes:
+        name_bytes = client_name.encode('utf-16-le')[:32].ljust(32, b'\x00')
+        buf = struct.pack('<HHHHHHII', 4, 8, width, height, 0xCA01, 0xAA03, keyboard_layout, client_build)
+        buf += name_bytes
+        buf += struct.pack('<III', 4, 0, 12)  # keyboard type/subtype/function_keys
+        buf = buf.ljust(128, b'\x00')
+        return buf
+
+    def test_parse_core_data(self):
+        data = self._build_core_data()
+        result = parse_gcc_client_core_data(data)
+        assert result is not None
+        assert result.desktop_width == 1920
+        assert result.desktop_height == 1080
+        assert result.client_build == 19041
+        assert result.client_name == "WIN-TEST123"
+        assert result.keyboard_layout == 0x0409
+
+    def test_parse_core_data_too_short(self):
+        assert parse_gcc_client_core_data(b"\x00" * 50) is None
+
+
+class TestMCSConnectResponse:
+    """Tests for MCS Connect-Response building."""
+
+    def test_build_gcc_server_data_contains_all_blocks(self):
+        channels = [1004, 1005]
+        data = build_gcc_server_data(channel_ids=channels)
+        blocks = parse_gcc_user_data_blocks(data)
+        assert SC_CORE in blocks
+        assert SC_SECURITY in blocks
+        assert SC_NET in blocks
+        net_data = blocks[SC_NET]
+        mcs_channel_id, channel_count = struct.unpack_from('<HH', net_data, 0)
+        assert mcs_channel_id == 0x03EB
+        assert channel_count == 2
+
+    def test_build_mcs_connect_response_structure(self):
+        response = build_mcs_connect_response(channel_ids=[1004])
+        # X.224 Data header
+        assert response[:3] == bytes([0x02, 0xF0, 0x80])
+        # BER Application[102] tag
+        assert response[3] == 0x7F
+        assert response[4] == 0x66
+
+    def test_build_mcs_connect_response_ber_length_valid(self):
+        """BER outer length matches actual content."""
+        response = build_mcs_connect_response(channel_ids=[1004, 1005])
+        # Skip X.224 header (3 bytes) + tag (2 bytes)
+        _length, end = ber_decode_length(response, 5)
+        assert end + _length == len(response)
+
+    def test_build_mcs_connect_response_no_channels(self):
+        response = build_mcs_connect_response(channel_ids=[])
+        assert response[3] == 0x7F
+        assert response[4] == 0x66
 
 
 if __name__ == "__main__":

@@ -30,6 +30,8 @@ from dionaea.core import connection, incident, g_dionaea
 from dionaea.util import xor
 
 from .packets import (
+    CS_CORE,
+    CS_NET,
     DOUBLEPULSAR_MAGIC,
     NTLMSSP_SIGNATURE,
     DoublePulsarOpcode,
@@ -41,7 +43,11 @@ from .packets import (
     RDPProtocol,
     TPKTPacket,
     X224Packet,
+    build_mcs_connect_response,
     der_sequence_length,
+    parse_gcc_client_core_data,
+    parse_gcc_user_data_blocks,
+    parse_mcs_connect_initial,
     parse_ntlmssp_negotiate,
     parse_tsrequest,
 )
@@ -308,24 +314,15 @@ class rdpd(connection):
 
     def _handle_mcs_connect(self, data: bytes) -> None:
         """Handle MCS Connect-Initial."""
-        rdplog.debug("_handle_mcs_connect: received %d bytes: %s", len(data), data[:20].hex())
-
         # Skip X.224 Data header
         x224 = X224Packet.parse_data(data)
         if x224 is None:
-            # Try parsing raw MCS data
             mcs_data = data
-            rdplog.debug("_handle_mcs_connect: X.224 parse failed, using raw data")
         else:
             mcs_data = x224.payload
-            rdplog.debug("_handle_mcs_connect: X.224 payload (%d bytes): %s", len(mcs_data), mcs_data[:20].hex() if mcs_data else "empty")
 
-        # Check for MCS Connect-Initial
         if len(mcs_data) < 2:
-            rdplog.debug("_handle_mcs_connect: mcs_data too short (%d bytes)", len(mcs_data))
             return
-
-        rdplog.debug("_handle_mcs_connect: first byte = 0x%02x", mcs_data[0])
 
         if self._try_doublepulsar(mcs_data):
             return
@@ -336,10 +333,51 @@ class rdpd(connection):
             return
 
         # BER-encoded Connect-Initial starts with 0x7f 0x65
-        if mcs_data[0:2] == bytes([0x7f, 0x65]):
+        if mcs_data[0:2] != bytes([0x7f, 0x65]):
+            rdplog.debug("Unexpected MCS data: %s", mcs_data[:20].hex())
+            return
+
+        # Use proper BER parser to extract GCC user data blocks
+        channel_names: list[str] = []
+        blocks = parse_mcs_connect_initial(data)
+        if blocks is not None:
+            if CS_CORE in blocks:
+                core = parse_gcc_client_core_data(blocks[CS_CORE])
+                if core:
+                    self.client_info.client_name = core.client_name
+                    self.client_info.client_build = core.client_build
+                    self.client_info.keyboard_layout = core.keyboard_layout
+                    self.client_info.desktop_width = core.desktop_width
+                    self.client_info.desktop_height = core.desktop_height
+                    rdplog.debug(
+                        "RDP client: name=%s, build=%d, kb_layout=0x%x, desktop=%dx%d",
+                        core.client_name, core.client_build, core.keyboard_layout,
+                        core.desktop_width, core.desktop_height,
+                    )
+
+            if CS_NET in blocks:
+                net_data = blocks[CS_NET]
+                if len(net_data) >= 4:
+                    channel_count = struct.unpack('<I', net_data[0:4])[0]
+                    chan_offset = 4
+                    for _ in range(channel_count):
+                        if chan_offset + 12 > len(net_data):
+                            break
+                        name = net_data[chan_offset:chan_offset + 8].split(b'\x00')[0].decode('ascii', errors='replace')
+                        channel_names.append(name)
+                        chan_offset += 12
+
+            if channel_names:
+                self.client_info.requested_channels = channel_names
+                rdplog.debug("RDP requested channels: %s", channel_names)
+                i = incident("dionaea.connection.rdp.channels")
+                i.con = self
+                i.set("channels", ",".join(channel_names))
+                i.report()
+        else:
+            # Fall back to legacy find(b'Duca') parser
             mcs = MCSConnectInitial.parse(mcs_data)
             if mcs:
-                # Extract client information from GCC data
                 gcc_data = GCCClientData.parse(mcs.user_data)
                 if gcc_data:
                     self.client_info.client_name = gcc_data.client_name
@@ -348,26 +386,11 @@ class rdpd(connection):
                     self.client_info.desktop_width = gcc_data.desktop_width
                     self.client_info.desktop_height = gcc_data.desktop_height
                     self.client_info.requested_channels = gcc_data.requested_channels
-                    rdplog.debug(
-                        "RDP client: name=%s, build=%d, kb_layout=0x%x, desktop=%dx%d",
-                        gcc_data.client_name,
-                        gcc_data.client_build,
-                        gcc_data.keyboard_layout,
-                        gcc_data.desktop_width,
-                        gcc_data.desktop_height,
-                    )
-                    if gcc_data.requested_channels:
-                        rdplog.debug("RDP requested channels: %s", gcc_data.requested_channels)
-                        i = incident("dionaea.connection.rdp.channels")
-                        i.con = self
-                        i.set("channels", ",".join(gcc_data.requested_channels))
-                        i.report()
+                    channel_names = gcc_data.requested_channels or []
 
-            # Send MCS Connect-Response
-            self._send_mcs_connect_response()
-            self.state = State.MCS_CHANNELS
-        else:
-            rdplog.debug("Unexpected MCS data: %s", mcs_data[:20].hex())
+        # Send MCS Connect-Response
+        self._send_mcs_connect_response(channel_names)
+        self.state = State.MCS_CHANNELS
 
     def _handle_credssp(self, data: bytes) -> None:
         """Extract client info from CredSSP TSRequest containing NTLMSSP Negotiate."""
@@ -414,61 +437,17 @@ class rdpd(connection):
 
         rdplog.debug("CredSSP TSRequest v%d with no NTLMSSP token", ts.version)
 
-    def _send_mcs_connect_response(self) -> None:
+    def _send_mcs_connect_response(self, channel_names: list[str] | None = None) -> None:
         """Send MCS Connect-Response with GCC Conference Create Response."""
-        # Simplified MCS Connect-Response
-        # This is a minimal response to keep the connection alive
-        mcs_response = bytes.fromhex(
-            "7f66"  # BER: Connect-Response
-            "8201be"  # Length
-            "0a0100"  # Result: rt-successful
-            "0201"  # CalledConnectId
-            "00"
-            "3081b7"  # DomainParameters
-            "0201"  # maxChannelIds
-            "22"
-            "0201"  # maxUserIds
-            "03"
-            "0201"  # maxTokenIds
-            "00"
-            "0201"  # numPriorities
-            "01"
-            "0201"  # minThroughput
-            "00"
-            "0201"  # maxHeight
-            "01"
-            "0202"  # maxMCSPDUsize
-            "ffff"
-            "0202"  # protocolVersion
-            "0002"
-            "0481a7"  # UserData (GCC Conference Create Response)
+        # Assign channel IDs (starting after IO channel 1003)
+        channel_ids = [self.io_channel_id + 1 + n for n in range(len(channel_names or []))]
+        protocol = RDPProtocol.PROTOCOL_SSL if self.use_ssl else RDPProtocol.PROTOCOL_RDP
+
+        response_payload = build_mcs_connect_response(
+            selected_protocol=protocol,
+            channel_ids=channel_ids,
         )
-
-        # SC_CORE (Server Core Data)
-        sc_core = bytes.fromhex("0c00")  # Type: SC_CORE (0x0c01 LE -> 0c 01)
-        sc_core = struct.pack('<H', 0x0c01)
-        sc_core += struct.pack('<H', 16)  # Length
-        sc_core += struct.pack('<I', 0x00080004)  # Version (RDP 5.0+)
-        sc_core += struct.pack('<I', 0)  # clientRequestedProtocols
-        sc_core += struct.pack('<I', 0)  # earlyCapabilityFlags
-
-        # SC_NET (Server Network Data)
-        sc_net = struct.pack('<H', 0x0c03)  # Type: SC_NET
-        sc_net += struct.pack('<H', 12)  # Length
-        sc_net += struct.pack('<H', self.io_channel_id)  # MCSChannelId
-        sc_net += struct.pack('<H', 1)  # channelCount
-        sc_net += struct.pack('<H', self.io_channel_id + 1)  # channel[0]
-        sc_net += struct.pack('<H', 0)  # Pad
-
-        # Combine server data
-        server_data = sc_core + sc_net
-
-        # Build full response (simplified - using prebuilt header)
-        # In production, this should be properly BER-encoded
-        full_response = mcs_response + server_data
-
-        x224_data = X224Packet.build_data_header() + full_response
-        self._send_tpkt(x224_data)
+        self._send_tpkt(response_payload)
 
     def _handle_mcs_channels(self, data: bytes) -> None:
         """Handle MCS channel setup (ErectDomain, AttachUser, ChannelJoin)."""
