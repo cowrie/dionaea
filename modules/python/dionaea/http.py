@@ -237,7 +237,6 @@ class httpreq:
             logger.warning("Unable to parse HTTP request: %s", e)
             raise
 
-        logger.debug("Found %d url value(s)", len(self.fields))
         r = self.version.find(b"\r")
         if r:
             self.version = self.version[:r]
