@@ -157,7 +157,6 @@ class rdpd(connection):
         self.timeouts.sustain = 120.0
         try:
             self.processors()
-            rdplog.debug("processors() called successfully")
         except Exception as e:
             rdplog.error("Error calling processors(): %s", e)
 
