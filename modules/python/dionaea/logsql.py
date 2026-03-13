@@ -10,7 +10,6 @@ from dionaea import IHandlerLoader
 from dionaea.core import ihandler
 
 import logging
-import json
 import sqlite3
 import time
 

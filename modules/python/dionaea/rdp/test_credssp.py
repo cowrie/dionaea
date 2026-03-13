@@ -13,8 +13,6 @@ import pytest
 from dionaea.rdp.packets import (
     CREDSSP_ERROR_LOGON_DENIED,
     NTLMSSP_SIGNATURE,
-    NTLMSSPNegotiate,
-    TSRequest,
     build_ntlmssp_challenge,
     build_tsrequest_error,
     build_tsrequest_response,
