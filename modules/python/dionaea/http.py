@@ -253,10 +253,9 @@ class httpreq:
             self.headers[header_name.lower()] = header_value.strip()
 
     def log_req(self) -> None:
-        logger.debug(
-            self.type + b" " + self.path.encode('utf-8') + b" " + self.version)
+        logger.debug("%s %s %s", self.type.decode(errors="replace"), self.path, self.version.decode(errors="replace"))
         for i in self.headers:
-            logger.debug(i + b":" + self.headers[i])
+            logger.debug("%s: %s", i.decode(errors="replace"), self.headers[i].decode(errors="replace"))
 
 
 class Headers:

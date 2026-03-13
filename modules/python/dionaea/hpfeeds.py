@@ -168,10 +168,10 @@ class hpclient(connection):
 
         try:
             for opcode, data in self.unpacker:
-                logger.debug(f'hpclient msg opcode {opcode} data {data}')
+                logger.debug('hpclient msg opcode %d data %s', opcode, data.hex())
                 if opcode == OP_INFO:
                     name, rand = strunpack8(data)
-                    logger.debug(f'hpclient server name {name} rand {rand}')
+                    logger.debug('hpclient server name %s rand %s', name.decode(errors="replace"), rand.hex())
                     self.send(msgauth(rand, self.ident, self.secret))
                     self.authenticated = True
                     self.handle_io_out()
@@ -179,10 +179,10 @@ class hpclient(connection):
                 elif opcode == OP_PUBLISH:
                     ident, data = strunpack8(data)
                     chan, data = strunpack8(data)
-                    logger.debug(f'publish to {chan} by {ident}: {data}')
+                    logger.debug('publish to %s by %s: %s', chan.decode(errors="replace"), ident.decode(errors="replace"), data.hex())
 
                 elif opcode == OP_ERROR:
-                    logger.debug(f'errormessage from server: {data}')
+                    logger.debug('errormessage from server: %s', data.decode(errors="replace"))
                 else:
                     logger.debug(f'unknown opcode message: {opcode}')
         except BadClient:

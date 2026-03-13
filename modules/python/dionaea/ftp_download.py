@@ -49,7 +49,7 @@ class FTPCtrl(connection):
         dlen = dlen - len(remain)
 
         for line in lines:
-            logger.debug("FTP LINE: " + str(line))
+            logger.debug("FTP LINE: %s", line.decode(errors="replace"))
             c = int(line[:3])
             s = line[3:4]
             if self.state == "NONE":

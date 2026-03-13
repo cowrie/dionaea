@@ -188,7 +188,6 @@ class URI:
             m = cls._syntax.match(data)
             if not m:
                 try:
-                    data = bytes(data, "utf-8")
                     logger.info("Can't parse the URI: %s", data)
                 except Exception as e:
                     logger.info("Can't parse or convert the URI: %s", e)

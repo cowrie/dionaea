@@ -29,11 +29,11 @@ class cmdexe:
 
 
     def handle_io_in(self, data: bytes) -> int:
-        logger.debug(data)
+        logger.debug(data.decode(errors="replace"))
 #        self.send(data)
         c = True
         dlen = len(data)
-        logger.debug("DATA: %r", data)
+        logger.debug("DATA: %s", data.decode(errors="replace"))
         while c:
             data,line,c = self.line(data)
             logger.debug("LINE: %r", line)

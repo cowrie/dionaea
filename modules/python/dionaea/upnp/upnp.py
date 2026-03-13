@@ -34,7 +34,7 @@ class upnpreq:
 			try:
 				self.headers[hset[0].lower()] = hset[1].strip()
 			except Exception:
-				logger.warning("Malformed UPnP header (potential exploit): %s", hset[0])
+				logger.warning("Malformed UPnP header (potential exploit): %s", hset[0].decode(errors="replace"))
 
 	def print(self):
 		logger.debug("Type: %s Path: %s HTTP-Version: %s", self.type.decode(), self.path, httpversion.decode())

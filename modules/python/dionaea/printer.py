@@ -368,7 +368,7 @@ class Printerd(connection):
             self.pcl_file_handle.close()
 
     def handle_io_in(self, data: bytes) -> int:
-        logger.debug("received %s", str(data))
+        logger.debug("received %s", data.decode(errors="replace"))
 
         if self.state == self.STATE_INIT:
             if data.startswith(b"\x1bE"):

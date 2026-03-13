@@ -209,7 +209,7 @@ class FTPd(connection):
         #     logger.warning("error decoding")
         #     logger.debug("io_in" + data)
 
-        logger.debug(data)
+        logger.debug(data.decode(errors="replace"))
         lastsep = data.rfind(b"\n")
         if lastsep == -1:
             logger.debug("data without linebreak")
