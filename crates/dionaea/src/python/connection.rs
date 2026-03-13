@@ -302,7 +302,11 @@ impl PyConnection {
     /// Ingress connection stats.
     #[getter]
     fn _in(&self, py: Python<'_>) -> PyResult<Py<PyConnectionStats>> {
-        check_valid(&self.id)?;
+        let id = check_valid(&self.id)?;
+        let bytes = self.registry.as_ref()
+            .and_then(|r| r.get(id))
+            .map(|meta| meta.stats.bytes_in as f64)
+            .unwrap_or(0.0);
         let speed = PyConnectionSpeed::new(
             0.0,
             0.0,
@@ -310,7 +314,7 @@ impl PyConnection {
             self.send_tx.clone(),
         );
         let accounting = PyConnectionAccounting::new(
-            0.0,
+            bytes,
             0.0,
             crate::connection::Direction::In,
             self.send_tx.clone(),
@@ -321,7 +325,11 @@ impl PyConnection {
     /// Egress connection stats.
     #[getter]
     fn _out(&self, py: Python<'_>) -> PyResult<Py<PyConnectionStats>> {
-        check_valid(&self.id)?;
+        let id = check_valid(&self.id)?;
+        let bytes = self.registry.as_ref()
+            .and_then(|r| r.get(id))
+            .map(|meta| meta.stats.bytes_out as f64)
+            .unwrap_or(0.0);
         let speed = PyConnectionSpeed::new(
             0.0,
             0.0,
@@ -329,7 +337,7 @@ impl PyConnection {
             self.send_tx.clone(),
         );
         let accounting = PyConnectionAccounting::new(
-            0.0,
+            bytes,
             0.0,
             crate::connection::Direction::Out,
             self.send_tx.clone(),
