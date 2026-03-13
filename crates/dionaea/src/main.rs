@@ -381,7 +381,6 @@ async fn graceful_shutdown(
             .expect("registry lock")
             .clear();
 
-        tracing::info!("shutdown complete");
     };
 
     tokio::select! {
