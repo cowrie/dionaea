@@ -207,7 +207,7 @@ async fn accept_loop(
             meta.state = ConnectionState::Established;
         }
 
-        tracing::debug!(connection_id = %id, %peer_addr, "accepted TCP connection");
+        tracing::debug!(connection_id = %id, %peer_addr, %local_addr, "accepted TCP connection");
 
         // Clone factory inside GIL scope (PyO3 0.28: Py::clone requires GIL)
         // This is an atomic incref (~1μs), safe to do briefly on a worker thread.
@@ -676,6 +676,7 @@ where
             result = stream.read(&mut buf[..read_limit]) => {
                 match result {
                     Ok(0) => {
+                        tracing::debug!(connection_id = %id, "peer closed connection");
                         let (h, post) = call_disconnect(handler, id).await;
                         return (stream, h, rx, post, processor_pipeline);
                     }
@@ -833,7 +834,6 @@ where
                     }
                     Some(SendMessage::Datagram { .. }) => {}
                     Some(SendMessage::AttachProcessors(pipeline)) => {
-                        tracing::debug!(connection_id = %id, "processor pipeline attached");
                         processor_pipeline = Some(pipeline);
                     }
                     Some(SendMessage::StartTls) => {
@@ -955,7 +955,6 @@ fn drain_control_messages(
             SendMessage::Data(data) => pending_data.push(data),
             SendMessage::Datagram { .. } => {}
             SendMessage::AttachProcessors(p) => {
-                tracing::debug!(connection_id = %id, "processor pipeline attached");
                 pipeline = Some(p);
             }
             SendMessage::StartTls | SendMessage::Close => {
@@ -1061,7 +1060,7 @@ pub(crate) fn cleanup_connection(
     }
     registry.remove(id);
     limits.decrement(peer_ip);
-    tracing::debug!(connection_id = %id, "connection cleaned up");
+    tracing::debug!(connection_id = %id, %peer_ip, "connection cleaned up");
 }
 
 /// Invalidate the Python handler (set id to None, drop channel).
