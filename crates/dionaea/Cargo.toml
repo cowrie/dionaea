@@ -37,6 +37,7 @@ reqwest = { workspace = true, optional = true }
 pcap = { workspace = true, optional = true }
 nfq = { workspace = true, optional = true }
 rtnetlink = { workspace = true, optional = true }
+dionaea-ipstack = { path = "../ipstack", optional = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
@@ -45,6 +46,7 @@ tempfile = "3"
 
 [features]
 default = ["tls", "dns", "download", "upload", "deny-list", "pcap"]
+ipstack = ["dep:dionaea-ipstack"]
 tls = ["dep:openssl", "dep:tokio-openssl"]
 dns = ["dep:hickory-resolver"]
 download = ["dep:reqwest"]

@@ -1,0 +1,32 @@
+# ABOUTME: Custom userspace IP stack with nmap OS fingerprint personality simulation.
+# ABOUTME: Provides TUN-based packet I/O, TCP/UDP/ICMP handling, and honeyd-style OS emulation.
+
+[package]
+name = "dionaea-ipstack"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+toml = { workspace = true }
+bytes = { workspace = true }
+
+# Packet parsing and construction
+etherparse = "0.16"
+
+# Random number generation (for ISN, IP ID, etc.)
+rand = "0.9"
+
+# TUN device for raw IP packet I/O
+tun-rs = { version = "2.8", features = ["async"] }
+
+[dev-dependencies]
+proptest = { workspace = true }
+tokio = { workspace = true, features = ["test-util", "macros"] }
+
+[lints]
+workspace = true

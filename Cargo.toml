@@ -5,6 +5,7 @@
 resolver = "2"
 members = [
     "crates/dionaea",
+    "crates/ipstack",
     "crates/shell-detect",
 ]
 
@@ -64,6 +65,15 @@ nix = { version = "0.30", features = ["socket", "uio", "user", "process", "fs", 
 pcap = "2"
 nfq = "0.2"
 rtnetlink = "0.15"
+
+# Packet parsing and construction
+etherparse = "0.16"
+
+# Random number generation
+rand = "0.9"
+
+# TUN device (async Tokio support)
+tun-rs = { version = "2.8", features = ["async"] }
 
 # Testing
 proptest = "1"
