@@ -1268,8 +1268,13 @@ class TftpClient(TftpSession):
         self.last_packet = pkt.encode().buffer
         self.send(self.last_packet)
         self.state.state = 'rrq'
-        self.fileobj = tempfile.NamedTemporaryFile(delete=False, prefix='tftp-', suffix=g_dionaea.config(
-        )['downloads']['tmp-suffix'], dir=g_dionaea.config()['downloads']['dir'])
+        dionaea_config = g_dionaea.config().get("dionaea", {})
+        self.fileobj = tempfile.NamedTemporaryFile(
+            delete=False,
+            prefix='tftp-',
+            suffix=dionaea_config.get("download.suffix", ".tmp"),
+            dir=dionaea_config.get("download.dir", "/tmp"),
+        )
 
 #    def handle_disconnect(self):
 #        if self.con:

@@ -181,7 +181,8 @@ class RtpUdpStream(connection):
 
         now = datetime.datetime.now()
         dirname = f"{now.year:04d}-{now.month:02d}-{now.day:02d}"
-        bistream_path = str(Path(g_dionaea.config()['bistreams']['python']['dir']) / dirname)
+        bistream_dir = g_dionaea.config().get("dionaea", {}).get("bistream.dir", "var/lib/dionaea/bistreams")
+        bistream_path = str(Path(bistream_dir) / dirname)
         if not Path(bistream_path).exists():
             Path(bistream_path).mkdir(parents=True, exist_ok=True)
 

@@ -672,7 +672,7 @@ class rdpd(connection):
                 prefix="rdp_doublepulsar_raw_",
                 suffix=".bin",
                 delete=False,
-                dir=g_dionaea.config().get("dionaea", {}).get("download", {}).get("dir", "/tmp"),
+                dir=g_dionaea.config().get("dionaea", {}).get("download.dir", "/tmp"),
             ) as f:
                 f.write(raw_payload)
                 raw_path = f.name
@@ -682,7 +682,7 @@ class rdpd(connection):
                 prefix="rdp_doublepulsar_decoded_",
                 suffix=".bin",
                 delete=False,
-                dir=g_dionaea.config().get("dionaea", {}).get("download", {}).get("dir", "/tmp"),
+                dir=g_dionaea.config().get("dionaea", {}).get("download.dir", "/tmp"),
             ) as f:
                 f.write(decoded_payload)
                 decoded_path = f.name
