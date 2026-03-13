@@ -58,15 +58,19 @@ author = 'dionaea'
 # The short X.Y version.
 version = "undefined"
 regex_version = re.compile(
-    r"^project\s*\([^)]+?\s+VERSION\s+(?P<version>[0-9]+\.[0-9]+\.[0-9]+)$",
-    re.MULTILINE|re.DOTALL
+    r'^version\s*=\s*"(?P<version>[^"]+)"',
+    re.MULTILINE
 )
-with open("../../CMakeLists.txt", "r") as f:
-    data = f.read()
-
-m = regex_version.search(data)
-if m:
-    version = m.group("version")
+for cargo_path in ("../../Cargo.toml", "../../crates/dionaea/Cargo.toml"):
+    try:
+        with open(cargo_path, "r") as f:
+            data = f.read()
+        m = regex_version.search(data)
+        if m:
+            version = m.group("version")
+            break
+    except FileNotFoundError:
+        continue
 
 # The full version, including alpha/beta/rc tags.
 release = version
