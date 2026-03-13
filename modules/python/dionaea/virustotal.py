@@ -237,7 +237,7 @@ class virustotalhandler(ihandler):
         elif status_code in (401, 403):
             logger.warning("VirusTotal API key invalid or missing")
         elif status_code == 404:
-            logger.info(
+            logger.debug(
                 "VirusTotal: file %s not found, queuing for submission",
                 sha256_hash[:16],
             )
@@ -290,7 +290,7 @@ class virustotalhandler(ihandler):
             logger.warning("VirusTotal unexpected HTTP %d for %s", status_code, sha256_hash[:16])
 
     def _scan_file(self, backlogfile, sha256_hash, path, status):
-        logger.info("VirusTotal: submitting file %s", sha256_hash)
+        logger.debug("VirusTotal: submitting file %s", sha256_hash)
 
         status_code, j = self._vt_upload_file(path)
 

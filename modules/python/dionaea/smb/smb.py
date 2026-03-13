@@ -356,7 +356,7 @@ class smbd(connection):
         if len(self.buf2) == 0:
             return
 
-        smblog.info(
+        smblog.debug(
             "Processing DoublePulsar payload: %d bytes",
             len(self.buf2),
         )
@@ -385,7 +385,7 @@ class smbd(connection):
             # Emit decoded shellcode (loader stub before PE) for speakeasy analysis
             shellcode_data = bytes(xor_output[:offset])
             if len(shellcode_data) > 0:
-                smblog.info(
+                smblog.debug(
                     "DoublePulsar shellcode: %d bytes (PE loader stub)",
                     len(shellcode_data),
                 )
@@ -1759,7 +1759,7 @@ class smbd(connection):
     def handle_disconnect(self):
         # Process any accumulated DoublePulsar payload on disconnect
         if len(self.buf2) > 0:
-            smblog.info(
+            smblog.debug(
                 "Connection closed with %d bytes buffered, processing",
                 len(self.buf2),
             )
