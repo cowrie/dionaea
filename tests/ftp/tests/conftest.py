@@ -44,6 +44,17 @@ class MockConnection:
     def processors(self):
         self._processors_called = True
 
+    def bind(self, host, port, iface=None):
+        self.local.host = host
+        self.local.port = port
+
+    def listen(self, backlog=1):
+        pass
+
+    def connect(self, host, port):
+        self.remote.host = host
+        self.remote.port = port
+
     def ref(self):
         pass
 

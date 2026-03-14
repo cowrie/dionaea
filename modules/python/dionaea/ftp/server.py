@@ -17,6 +17,11 @@ from .state import State, COMMAND_TABLE, RESPONSE
 logger = logging.getLogger('ftp')
 
 
+def _encode_host_port(host, port):
+    """Encode host and port for PASV response (h1,h2,h3,h4,p1,p2)."""
+    return ','.join(host.split('.') + [str(port >> 8), str(port % 256)])
+
+
 class FTPd(connection):
     protocol_name = "ftpd"
     shared_config_values = ("basedir", "response_msgs")
@@ -309,6 +314,88 @@ class FTPd(connection):
         self.rename_from = None
         self.state = State.AUTHENTICATED
         self.reply("req_file_actn_completed_ok")
+
+    # -- Data channel commands --
+
+    def _close_data_channels(self):
+        if self.dtf:
+            self.dtf.close()
+            self.dtf = None
+        if self.dtp:
+            self.dtp.close()
+            self.dtp = None
+
+    def cmd_PASV(self, arg):
+        from .data import FTPDataListen
+        self._close_data_channels()
+        proto = 'tls' if self.prot_level == 'P' else 'tcp'
+        self.dtf = FTPDataListen(
+            host=self.local.host, port=0, ctrl=self, proto=proto
+        )
+        host = self.dtf.local.host
+        port = self.dtf.local.port
+        self.reply("entering_pasv_mode", host=_encode_host_port(host, port))
+
+    def cmd_PORT(self, arg):
+        from .data import FTPDataConnect
+        if not arg:
+            self.reply("syntax_err_in_args", command="PORT")
+            return
+        self._close_data_channels()
+        parts = list(map(int, arg.split(',')))
+        ip = f'{parts[0]}.{parts[1]}.{parts[2]}.{parts[3]}'
+        port = parts[4] << 8 | parts[5]
+        if self.remote.host != ip and "::ffff:" + self.remote.host != ip:
+            logger.warning("Potential FTP Bounce Scan detected")
+            return
+        self.dtp = FTPDataConnect(
+            ip, port, self, prot_p=(self.prot_level == 'P')
+        )
+
+    def cmd_LIST(self, arg):
+        name = self.real_path(arg or None)
+        if not name.startswith(self.basedir):
+            self.reply("file_not_found", filename=arg)
+            return
+        if not Path(name).exists():
+            self.reply("permission_denied", path=arg)
+            return
+        if self.dtp and self.dtp.status == 'established':
+            self.reply("file_status_ok_open_data_cnx")
+            self.dtp.send_list(name, len(name) + 1)
+        else:
+            self.reply("cant_open_data_cnx")
+
+    def cmd_RETR(self, arg):
+        if not arg:
+            self.reply("syntax_err_in_args", command="RETR")
+            return
+        name = self.real_path(arg)
+        if not name.startswith(self.basedir):
+            self.reply("permission_denied", path=arg)
+            return
+        if not Path(name).is_file():
+            self.reply("file_not_found", filename=arg)
+            return
+        if self.dtp and self.dtp.status == 'established':
+            self.reply("file_status_ok_open_data_cnx")
+            self.dtp.send_file(name)
+        else:
+            self.reply("cant_open_data_cnx")
+
+    def cmd_STOR(self, arg):
+        if not arg:
+            self.reply("syntax_err_in_args", command="STOR")
+            return
+        filepath = self.real_path(arg)
+        if not filepath.startswith(self.basedir):
+            self.reply("permission_denied", path=arg)
+            return
+        if self.dtp and self.dtp.status == 'established':
+            self.reply("file_status_ok_open_data_cnx")
+            self.dtp.recv_file(filepath)
+        else:
+            self.reply("cant_open_data_cnx")
 
     def handle_error(self, err):
         pass
