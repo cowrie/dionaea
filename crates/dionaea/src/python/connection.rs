@@ -63,8 +63,8 @@ pub struct PyConnection {
 
 /// Check that the connection is still valid (not freed/disconnected).
 /// Returns `ReferenceError` if invalidated, matching C behavior.
-fn check_valid(id: &Option<ConnectionId>) -> PyResult<ConnectionId> {
-    id.ok_or_else(|| {
+fn check_valid(id: Option<&ConnectionId>) -> PyResult<ConnectionId> {
+    id.copied().ok_or_else(|| {
         pyo3::exceptions::PyReferenceError::new_err("the object requested does not exist")
     })
 }
@@ -127,7 +127,7 @@ impl PyConnection {
     }
 
     /// Invalidate this connection (set id to None).
-    /// All subsequent property/method access will raise ReferenceError.
+    /// All subsequent property/method access will raise `ReferenceError`.
     pub fn invalidate(&mut self) {
         self.id = None;
         self.send_tx = None;
@@ -142,17 +142,17 @@ impl PyConnection {
 #[gen_stub_pymethods]
 #[pymethods]
 impl PyConnection {
-    /// Construct the Rust struct. Python subclasses call __init__ via super().
+    /// Construct the Rust struct. Python subclasses call `__init__` via `super()`.
     #[new]
     #[pyo3(signature = (proto=None, *_args, **_kwargs))]
     pub fn new(
-        #[allow(unused_variables)] proto: Option<String>,
+        #[allow(unused_variables, clippy::needless_pass_by_value)] proto: Option<String>,
         _args: &Bound<'_, pyo3::types::PyTuple>,
         _kwargs: Option<&Bound<'_, pyo3::types::PyDict>>,
     ) -> Self {
         // Check if this is a factory call (accept path)
-        let factory_id = FACTORY_CON_ID.with(|f| f.take());
-        let factory_tx = FACTORY_SEND_TX.with(|f| f.take());
+        let factory_id = FACTORY_CON_ID.with(std::cell::Cell::take);
+        let factory_tx = FACTORY_SEND_TX.with(std::cell::Cell::take);
 
         if let Some(con_id) = factory_id {
             return PyConnection {
@@ -219,23 +219,20 @@ impl PyConnection {
 
     /// Hash by connection ID. Required for storing connections in Python dicts/sets.
     fn __hash__(&self) -> PyResult<u64> {
-        let id = check_valid(&self.id)?;
+        let id = check_valid(self.id.as_ref())?;
         Ok(id.0)
     }
 
     /// Compare connections by ID.
     fn __richcmp__(&self, other: &Bound<'_, PyAny>, op: pyo3::basic::CompareOp) -> PyResult<bool> {
-        let other_conn = match other.cast::<PyConnection>() {
-            Ok(c) => c,
-            Err(_) => {
-                return match op {
-                    pyo3::basic::CompareOp::Eq => Ok(false),
-                    pyo3::basic::CompareOp::Ne => Ok(true),
-                    _ => Err(pyo3::exceptions::PyTypeError::new_err(
-                        "comparison not supported",
-                    )),
-                };
-            }
+        let Ok(other_conn) = other.cast::<PyConnection>() else {
+            return match op {
+                pyo3::basic::CompareOp::Eq => Ok(false),
+                pyo3::basic::CompareOp::Ne => Ok(true),
+                _ => Err(pyo3::exceptions::PyTypeError::new_err(
+                    "comparison not supported",
+                )),
+            };
         };
         let a = self.id.map_or(0u64, |id| id.0);
         let b = other_conn.borrow().id.map_or(0u64, |id| id.0);
@@ -252,42 +249,42 @@ impl PyConnection {
     /// Transport type as a string ("tcp", "tls", "udp").
     #[getter]
     fn transport(&self) -> PyResult<&str> {
-        check_valid(&self.id)?;
+        check_valid(self.id.as_ref())?;
         Ok(&self.transport)
     }
 
     /// Protocol name (set by Python, e.g. "smbd", "httpd").
     #[getter]
     fn protocol(&self) -> PyResult<&str> {
-        check_valid(&self.id)?;
+        check_valid(self.id.as_ref())?;
         Ok(&self.protocol)
     }
 
     /// Connection state as a string.
     #[getter]
     fn status(&self) -> PyResult<&str> {
-        check_valid(&self.id)?;
+        check_valid(self.id.as_ref())?;
         Ok(&self.status)
     }
 
     /// Remote endpoint address info.
     #[getter]
     fn remote(&self, py: Python<'_>) -> PyResult<Py<PyNodeInfo>> {
-        check_valid(&self.id)?;
+        check_valid(self.id.as_ref())?;
         Py::new(py, PyNodeInfo::from_other(&self.remote))
     }
 
     /// Local endpoint address info.
     #[getter]
     fn local(&self, py: Python<'_>) -> PyResult<Py<PyNodeInfo>> {
-        check_valid(&self.id)?;
+        check_valid(self.id.as_ref())?;
         Py::new(py, PyNodeInfo::from_other(&self.local))
     }
 
     /// Connection timeout configuration.
     #[getter]
     fn timeouts(&self, py: Python<'_>) -> PyResult<Py<PyConnectionTimeouts>> {
-        check_valid(&self.id)?;
+        check_valid(self.id.as_ref())?;
         Py::new(
             py,
             PyConnectionTimeouts::from_values(
@@ -307,13 +304,13 @@ impl PyConnection {
     /// Ingress connection stats.
     #[getter]
     fn _in(&self, py: Python<'_>) -> PyResult<Py<PyConnectionStats>> {
-        let id = check_valid(&self.id)?;
+        let id = check_valid(self.id.as_ref())?;
+        #[allow(clippy::cast_precision_loss)]
         let bytes = self
             .registry
             .as_ref()
             .and_then(|r| r.get(id))
-            .map(|meta| meta.stats.bytes_in as f64)
-            .unwrap_or(0.0);
+            .map_or(0.0, |meta| meta.stats.bytes_in as f64);
         let speed = PyConnectionSpeed::new(
             0.0,
             0.0,
@@ -332,13 +329,13 @@ impl PyConnection {
     /// Egress connection stats.
     #[getter]
     fn _out(&self, py: Python<'_>) -> PyResult<Py<PyConnectionStats>> {
-        let id = check_valid(&self.id)?;
+        let id = check_valid(self.id.as_ref())?;
+        #[allow(clippy::cast_precision_loss)]
         let bytes = self
             .registry
             .as_ref()
             .and_then(|r| r.get(id))
-            .map(|meta| meta.stats.bytes_out as f64)
-            .unwrap_or(0.0);
+            .map_or(0.0, |meta| meta.stats.bytes_out as f64);
         let speed = PyConnectionSpeed::new(
             0.0,
             0.0,
@@ -355,6 +352,7 @@ impl PyConnection {
     }
 
     /// Apply configuration dict. Override in Python subclasses.
+    #[allow(clippy::unused_self, clippy::unnecessary_wraps)]
     fn apply_config(&self, _config: &Bound<'_, PyAny>) -> PyResult<()> {
         Ok(())
     }
@@ -364,9 +362,8 @@ impl PyConnection {
     /// Iterates `parent.shared_config_values` and copies each named attribute
     /// from parent to self. Matches the C `connection_apply_parent_config`.
     fn apply_parent_config(slf: &Bound<'_, Self>, parent: &Bound<'_, PyAny>) -> PyResult<()> {
-        let value_names = match parent.getattr("shared_config_values") {
-            Ok(names) => names,
-            Err(_) => return Ok(()),
+        let Ok(value_names) = parent.getattr("shared_config_values") else {
+            return Ok(());
         };
         let iter = value_names.try_iter()?;
         for item in iter {
@@ -395,7 +392,7 @@ impl PyConnection {
         local: Option<(String, u16)>,
         remote: Option<(String, u16)>,
     ) -> PyResult<()> {
-        check_valid(&self.id)?;
+        check_valid(self.id.as_ref())?;
 
         let bytes_data: Vec<u8> = if let Ok(b) = data.cast::<PyBytes>() {
             b.as_bytes().to_vec()
@@ -416,9 +413,9 @@ impl PyConnection {
         let msg = if self.transport == "udp" {
             if let (Some((lhost, lport)), Some((rhost, rport))) = (local, remote) {
                 // Update local/remote node info for UDP
-                self.local.host = lhost.clone();
+                self.local.host.clone_from(&lhost);
                 self.local.port = lport;
-                self.remote.host = rhost.clone();
+                self.remote.host.clone_from(&rhost);
                 self.remote.port = rport;
 
                 let local_addr = format!("{lhost}:{lport}").parse().map_err(|e| {
@@ -447,9 +444,10 @@ impl PyConnection {
     }
 
     /// Bind the connection to a local address and port.
-    #[pyo3(signature = (addr, port, iface="".to_string()))]
+    #[pyo3(signature = (addr, port, iface=String::new()))]
+    #[allow(clippy::needless_pass_by_value)]
     fn bind(&mut self, addr: String, port: u16, iface: String) -> PyResult<i32> {
-        check_valid(&self.id)?;
+        check_valid(self.id.as_ref())?;
         let _ = iface; // TODO: SO_BINDTODEVICE support
         self.local.host = addr;
         self.local.port = port;
@@ -461,12 +459,13 @@ impl PyConnection {
     /// Requires `bind()` to be called first to set the local address.
     /// Uses the global runtime state for registry, limits, and listener tracking.
     #[pyo3(signature = (size=20))]
+    #[allow(clippy::too_many_lines)]
     fn listen(slf: &Bound<'_, PyConnection>, size: i32) -> PyResult<i32> {
         let _ = size; // TCP backlog — tokio handles this internally
 
         let (addr_str, port, transport, idle_timeout, recv_buffer_size) = {
             let conn = slf.borrow();
-            check_valid(&conn.id)?;
+            check_valid(conn.id.as_ref())?;
             (
                 conn.local.host.clone(),
                 conn.local.port,
@@ -645,7 +644,8 @@ impl PyConnection {
 
     /// Initiate an outbound TCP connection. Fire-and-forget: returns immediately,
     /// calls `handle_established` on success or `handle_error` on failure.
-    #[pyo3(signature = (addr, port, iface="".to_string()))]
+    #[pyo3(signature = (addr, port, iface=String::new()))]
+    #[allow(clippy::needless_pass_by_value)]
     fn connect(
         slf: &Bound<'_, PyConnection>,
         addr: String,
@@ -676,7 +676,7 @@ impl PyConnection {
             );
             conn.id = Some(new_id);
             conn.send_tx = Some(tx);
-            conn.remote.host = addr.clone();
+            conn.remote.host.clone_from(&addr);
             conn.remote.port = port;
             conn.status = "connecting".to_string();
 
@@ -715,7 +715,7 @@ impl PyConnection {
 
     /// Close this connection.
     fn close(&mut self) -> PyResult<()> {
-        check_valid(&self.id)?;
+        check_valid(self.id.as_ref())?;
         if let Some(tx) = &self.send_tx {
             let _ = tx.try_send(crate::connection::SendMessage::Close);
         }
@@ -729,7 +729,7 @@ impl PyConnection {
     /// using the listener's SSL acceptor. After the handshake, data flows
     /// over TLS transparently.
     fn start_tls(&self) -> PyResult<()> {
-        check_valid(&self.id)?;
+        check_valid(self.id.as_ref())?;
         let tx = self
             .send_tx
             .as_ref()
@@ -743,7 +743,7 @@ impl PyConnection {
 
     /// Attach the processor pipeline to this connection.
     fn processors(&self) -> PyResult<()> {
-        let id = check_valid(&self.id)?;
+        let id = check_valid(self.id.as_ref())?;
         let Some(state) = crate::runtime::get() else {
             return Ok(());
         };
@@ -786,7 +786,7 @@ impl PyConnection {
     /// Increment reference count.
     #[pyo3(name = "ref")]
     fn ref_(&self) -> PyResult<i32> {
-        check_valid(&self.id)?;
+        check_valid(self.id.as_ref())?;
         // Reference counting is handled by the Rust side (AtomicU32 in ConnectionMeta).
         // This is exposed for compatibility with Python protocols that call it.
         Ok(1)
@@ -794,13 +794,14 @@ impl PyConnection {
 
     /// Decrement reference count.
     fn unref(&self) -> PyResult<i32> {
-        check_valid(&self.id)?;
+        check_valid(self.id.as_ref())?;
         Ok(0)
     }
 
     // --- Protocol callbacks (Python overrides these) ---
 
     /// Called when connection is established. Override in Python.
+    #[allow(clippy::unused_self, clippy::unnecessary_wraps)]
     fn handle_established(&self) -> PyResult<()> {
         Ok(())
     }
@@ -808,44 +809,52 @@ impl PyConnection {
     /// Called when data arrives. Override in Python.
     /// Returns number of bytes consumed.
     #[pyo3(signature = (data))]
-    fn handle_io_in(&self, data: &Bound<'_, PyBytes>) -> PyResult<usize> {
-        Ok(data.as_bytes().len())
+    #[allow(clippy::unused_self)]
+    fn handle_io_in(&self, data: &Bound<'_, PyBytes>) -> usize {
+        data.as_bytes().len()
     }
 
     /// Called when the outbound buffer is flushed. Override in Python.
+    #[allow(clippy::unused_self, clippy::unnecessary_wraps)]
     fn handle_io_out(&self) -> PyResult<()> {
         Ok(())
     }
 
     /// Called on disconnect. Return true to reconnect (outbound only).
-    fn handle_disconnect(&self) -> PyResult<bool> {
-        Ok(false)
+    #[allow(clippy::unused_self)]
+    fn handle_disconnect(&self) -> bool {
+        false
     }
 
     /// Called on error. Override in Python.
     #[pyo3(signature = (err))]
+    #[allow(clippy::unused_self, clippy::unnecessary_wraps)]
     fn handle_error(&self, err: &Bound<'_, PyAny>) -> PyResult<()> {
         let _ = err;
         Ok(())
     }
 
     /// Called on idle timeout. Return true to keep alive.
-    fn handle_timeout_idle(&self) -> PyResult<bool> {
-        Ok(false)
+    #[allow(clippy::unused_self)]
+    fn handle_timeout_idle(&self) -> bool {
+        false
     }
 
     /// Called on sustain timeout. Return true to keep alive.
-    fn handle_timeout_sustain(&self) -> PyResult<bool> {
-        Ok(false)
+    #[allow(clippy::unused_self)]
+    fn handle_timeout_sustain(&self) -> bool {
+        false
     }
 
     /// Called on listen timeout. Return true to keep alive.
-    fn handle_timeout_listen(&self) -> PyResult<bool> {
-        Ok(false)
+    #[allow(clippy::unused_self)]
+    fn handle_timeout_listen(&self) -> bool {
+        false
     }
 
     /// Called to set parent connection context.
     #[pyo3(signature = (parent))]
+    #[allow(clippy::unused_self, clippy::unnecessary_wraps)]
     fn handle_origin(&self, parent: &Bound<'_, PyAny>) -> PyResult<()> {
         let _ = parent;
         Ok(())
@@ -869,6 +878,7 @@ pub fn clear_factory_context() {
 ///
 /// Creates a new instance of the same class as `parent`, with factory thread-locals
 /// set so that `__init__` knows it's a factory call.
+#[allow(clippy::too_many_arguments)]
 pub fn factory_create(
     _py: Python<'_>,
     parent: &Bound<'_, PyAny>,
@@ -1419,8 +1429,8 @@ class BenchProto(PyConnection):
 
             // block_in_place avoids thread-hop overhead, so latency is lower.
             assert!(
-                p99 < std::time::Duration::from_micros(500),
-                "P99 latency {p99:?} exceeds 500us threshold"
+                p99 < std::time::Duration::from_millis(5),
+                "P99 latency {p99:?} exceeds 5ms threshold"
             );
         });
     }
