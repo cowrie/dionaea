@@ -10,7 +10,7 @@ use pyo3::types::PyModule;
 /// Load and start Python modules.
 ///
 /// Must be called with the GIL held. Sequence:
-/// 1. Create `dionaea.core` module with all PyO3 classes
+/// 1. Create `dionaea.core` module with all `PyO3` classes
 /// 2. Add class aliases (connection, ihandler, incident) for Python compatibility
 /// 3. Register `dionaea.core` in `sys.modules`
 /// 4. Prepend `python_path` to `sys.path` if configured
@@ -80,7 +80,7 @@ pub fn load(py: Python<'_>, config: &PythonModuleConfig) -> PyResult<()> {
     Ok(())
 }
 
-/// Call stop() on all loaded Python modules.
+/// Call `stop()` on all loaded Python modules.
 ///
 /// Must be called with the GIL held. Re-imports each module by name
 /// and calls `stop()` if the function exists. Errors are logged but
@@ -107,10 +107,10 @@ pub fn shutdown(py: Python<'_>, config: &PythonModuleConfig) {
     tracing::info!("Python modules stopped");
 }
 
-/// Add virtualenv site-packages to sys.path if VIRTUAL_ENV is set.
+/// Add virtualenv site-packages to sys.path if `VIRTUAL_ENV` is set.
 ///
-/// PyO3's embedded interpreter links against a specific libpython and doesn't
-/// detect activated virtualenvs. This reads VIRTUAL_ENV, derives the
+/// `PyO3`'s embedded interpreter links against a specific libpython and doesn't
+/// detect activated virtualenvs. This reads `VIRTUAL_ENV`, derives the
 /// site-packages path, and prepends it to sys.path so that venv-installed
 /// packages (like speakeasy) are importable.
 fn add_virtualenv_site_packages(py: Python<'_>) -> PyResult<()> {
@@ -154,7 +154,7 @@ fn add_virtualenv_site_packages(py: Python<'_>) -> PyResult<()> {
     Ok(())
 }
 
-/// Register `dionaea.core` in sys.modules with all PyO3 classes and aliases.
+/// Register `dionaea.core` in sys.modules with all `PyO3` classes and aliases.
 ///
 /// Python code does `from dionaea.core import connection, ihandler, incident, g_dionaea`.
 /// The lowercase aliases match the names expected by Python protocol code.

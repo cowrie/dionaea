@@ -21,7 +21,7 @@ pub struct PyNodeInfo {
 }
 
 impl PyNodeInfo {
-    /// Create a copy from another PyNodeInfo.
+    /// Create a copy from another `PyNodeInfo`.
     pub fn from_other(other: &PyNodeInfo) -> Self {
         PyNodeInfo {
             host: other.host.clone(),
@@ -37,6 +37,12 @@ impl PyNodeInfo {
             port: info.port,
             hostname: info.hostname.clone().unwrap_or_default(),
         }
+    }
+}
+
+impl Default for PyNodeInfo {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

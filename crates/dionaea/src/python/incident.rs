@@ -31,7 +31,7 @@ use std::sync::{Condvar, Mutex};
 pub struct PyIncident {
     origin: String,
     pub(crate) data: HashMap<String, OpaqueData>,
-    /// Original Python objects for attributes that lose fidelity through OpaqueData
+    /// Original Python objects for attributes that lose fidelity through `OpaqueData`
     /// (e.g. connection objects which become ConnectionRef(id)).
     pub(crate) py_refs: HashMap<String, Py<PyAny>>,
 }
@@ -60,10 +60,10 @@ impl PyIncident {
 ///
 /// Python handlers (logsql, etc.) share mutable state that isn't thread-safe.
 /// sqlite3 releases the GIL during cursor operations, which allows concurrent
-/// dispatch from different block_in_place threads. This lock ensures only one
+/// dispatch from different `block_in_place` threads. This lock ensures only one
 /// thread dispatches at a time, matching the C single-threaded event loop model.
 ///
-/// Uses a Mutex+Condvar pair instead of an AtomicBool spinlock. This is critical
+/// Uses a Mutex+Condvar pair instead of an `AtomicBool` spinlock. This is critical
 /// for free-threaded Python (3.13t+) where threads run truly in parallel — a
 /// spinlock would burn CPU cycles, while a condvar blocks efficiently.
 ///
@@ -83,7 +83,7 @@ thread_local! {
 /// Returns `true` if the lock was acquired, or `false` for reentrant
 /// dispatch (same thread already holds the lock).
 fn acquire_dispatch(py: Python<'_>) -> bool {
-    if DISPATCH_REENTRANT.with(|f| f.get()) {
+    if DISPATCH_REENTRANT.with(std::cell::Cell::get) {
         return false;
     }
     // Release GIL (or detach thread state under free-threading) while blocking
@@ -141,11 +141,12 @@ impl PyIncident {
     /// Dispatch is serialized across threads to match the C single-threaded
     /// model. Python handlers (e.g. logsql) share mutable state (sqlite3
     /// cursors) that isn't thread-safe, and sqlite3 releases the GIL during
-    /// cursor.execute(), which would allow concurrent dispatch without this
+    /// `cursor.execute()`, which would allow concurrent dispatch without this
     /// serialization.
     ///
     /// Errors in individual handlers are logged but not propagated,
     /// matching the C behavior.
+    #[allow(clippy::unnecessary_wraps)]
     fn report(&self, py: Python<'_>) -> PyResult<()> {
         let Some(state) = runtime::get() else {
             tracing::debug!(origin = %self.origin, "incident reported (no runtime)");
@@ -159,6 +160,7 @@ impl PyIncident {
         let (rust_handlers, py_handlers) = {
             let registry = state.ihandler_registry.lock().expect("registry lock");
             let indices = registry.matching_handlers(&incident);
+            #[allow(clippy::type_complexity)]
             let mut rust_cbs: Vec<Arc<dyn Fn(&Incident) + Send + Sync>> = Vec::new();
             let mut py_cbs: Vec<Py<PyAny>> = Vec::new();
             for &i in &indices {
@@ -213,12 +215,11 @@ impl PyIncident {
     }
 
     /// List all data keys as bytes, matching C behavior where keys are `char *`.
-    fn keys<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, pyo3::types::PyBytes>>> {
-        Ok(self
-            .data
+    fn keys<'py>(&self, py: Python<'py>) -> Vec<Bound<'py, pyo3::types::PyBytes>> {
+        self.data
             .keys()
             .map(|k| pyo3::types::PyBytes::new(py, k.as_bytes()))
-            .collect())
+            .collect()
     }
 
     /// Set a data field by key.
@@ -241,7 +242,7 @@ impl PyIncident {
     /// Dynamic attribute access: `incident.con`, `incident.port`, etc.
     ///
     /// Returns the original Python object for connection-type attributes,
-    /// falling back to OpaqueData conversion for everything else.
+    /// falling back to `OpaqueData` conversion for everything else.
     fn __getattr__(&self, py: Python<'_>, name: &str) -> PyResult<Py<PyAny>> {
         if let Some(py_ref) = self.py_refs.get(name) {
             return Ok(py_ref.clone_ref(py));
@@ -251,7 +252,7 @@ impl PyIncident {
 
     /// Dynamic attribute setting: `incident.con = value`, etc.
     ///
-    /// Connection objects are stored as both OpaqueData (for Rust handlers)
+    /// Connection objects are stored as both `OpaqueData` (for Rust handlers)
     /// and as the original Python object (for Python handlers).
     fn __setattr__(
         &mut self,

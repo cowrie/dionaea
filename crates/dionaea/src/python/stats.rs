@@ -50,6 +50,12 @@ impl PyConnectionTimeouts {
     }
 }
 
+impl Default for PyConnectionTimeouts {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[gen_stub_pymethods]
 #[pymethods]
 impl PyConnectionTimeouts {
@@ -251,6 +257,7 @@ impl PyConnectionAccounting {
         if let Some(tx) = &self.send_tx {
             let _ = tx.try_send(SendMessage::SetAccountingLimit {
                 direction: self.direction,
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
                 limit: limit as u64,
             });
         }

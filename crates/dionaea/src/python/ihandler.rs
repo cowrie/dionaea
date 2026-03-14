@@ -12,7 +12,7 @@ use crate::runtime;
 
 /// Incident handler exposed to Python.
 ///
-/// Python ihandler subclasses (logsql, hpfeeds, log_json, etc.) define methods like
+/// Python ihandler subclasses (logsql, hpfeeds, `log_json`, etc.) define methods like
 /// `handle_incident_dionaea_connection_tcp_accept(self, incident)`. The dispatch
 /// logic replaces dots with underscores and looks for a specific method first,
 /// falling back to `handle_incident(incident)`.
@@ -48,13 +48,14 @@ impl PyIHandler {
 
     /// Initialize the handler. Python subclasses call `super().__init__(pattern)`.
     ///
-    /// Auto-registers this handler in the global IHandlerRegistry if the runtime
+    /// Auto-registers this handler in the global `IHandlerRegistry` if the runtime
     /// is initialized. Matches the C behavior where `ihandler.__init__()` calls
     /// `c_ihandler_new()` to register immediately.
     #[pyo3(signature = (pattern=None))]
+    #[allow(clippy::unnecessary_wraps)]
     fn __init__(slf: &Bound<'_, Self>, pattern: Option<String>) -> PyResult<()> {
         let pat = pattern.unwrap_or_default();
-        slf.borrow_mut().pattern = pat.clone();
+        slf.borrow_mut().pattern.clone_from(&pat);
 
         if let Some(state) = runtime::get() {
             let callback = HandlerCallback::Python(slf.clone().into_any().unbind());
@@ -73,31 +74,37 @@ impl PyIHandler {
     }
 
     /// Apply configuration dict to this handler.
+    #[allow(clippy::unused_self, clippy::unnecessary_wraps)]
     fn apply_config(&self, _config: &Bound<'_, PyAny>) -> PyResult<()> {
         Ok(())
     }
 
     /// Start the handler. Called after all handlers are registered.
+    #[allow(clippy::unused_self, clippy::unnecessary_wraps)]
     fn start(&self) -> PyResult<()> {
         Ok(())
     }
 
     /// Stop the handler. Called during shutdown.
+    #[allow(clippy::unused_self, clippy::unnecessary_wraps)]
     fn stop(&self) -> PyResult<()> {
         Ok(())
     }
 
     /// Register this handler with the incident system.
+    #[allow(clippy::unused_self, clippy::unnecessary_wraps)]
     fn register(&self) -> PyResult<()> {
         Ok(())
     }
 
     /// Unregister this handler from the incident system.
+    #[allow(clippy::unused_self, clippy::unnecessary_wraps)]
     fn unregister(&self) -> PyResult<()> {
         Ok(())
     }
 
     /// Default incident handler. Override in Python subclasses.
+    #[allow(clippy::unused_self, clippy::unnecessary_wraps)]
     fn handle_incident(&self, _incident: &Bound<'_, PyAny>) -> PyResult<()> {
         Ok(())
     }

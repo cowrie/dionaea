@@ -45,6 +45,7 @@ impl PyDionaea {
     ///     "module": {"service_configs": [...], "ihandler_configs": [...]},
     /// }
     /// ```
+    #[allow(clippy::unused_self)]
     fn config<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let Some(state) = runtime::get() else {
             return Ok(PyDict::new(py));
@@ -62,7 +63,7 @@ impl PyDionaea {
             .listen
             .addresses
             .iter()
-            .map(|a| a.to_string())
+            .map(std::string::ToString::to_string)
             .collect();
         dionaea_dict.set_item("listen.addresses", PyList::new(py, &addrs)?)?;
         dionaea_dict.set_item(
@@ -100,7 +101,8 @@ impl PyDionaea {
     /// ```python
     /// {"en0": {2: [{"addr": "192.168.1.1"}], 10: [{"addr": "fe80::1"}]}}
     /// ```
-    /// Keys: interface name → AF number (2=AF_INET, 10=AF_INET6) → list of addr dicts.
+    /// Keys: interface name → AF number (2=`AF_INET`, 10=`AF_INET6`) → list of addr dicts.
+    #[allow(clippy::unused_self)]
     fn getifaddrs<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let result = PyDict::new(py);
 
@@ -114,7 +116,7 @@ impl PyDionaea {
 
             let (af, addr_str) = if let Some(sin) = addr.as_sockaddr_in() {
                 let af = nix::sys::socket::AddressFamily::Inet as i32;
-                (af, std::net::Ipv4Addr::from(sin.ip()).to_string())
+                (af, sin.ip().to_string())
             } else if let Some(sin6) = addr.as_sockaddr_in6() {
                 let af = nix::sys::socket::AddressFamily::Inet6 as i32;
                 (af, sin6.ip().to_string())
@@ -149,6 +151,7 @@ impl PyDionaea {
     }
 
     /// Return the dionaea version string.
+    #[allow(clippy::unused_self)]
     fn version(&self) -> &str {
         VERSION
     }

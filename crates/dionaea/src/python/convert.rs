@@ -39,18 +39,19 @@ pub fn opaque_to_py(py: Python<'_>, value: &OpaqueData) -> PyResult<Py<PyAny>> {
     }
 }
 
-/// Maximum nesting depth for recursive Python → OpaqueData conversion.
+/// Maximum nesting depth for recursive Python → `OpaqueData` conversion.
 const MAX_NESTING_DEPTH: usize = 100;
 
 /// Convert a Python object to a Rust `OpaqueData` value.
 ///
 /// Type dispatch order: connection, int, str, bytes, list/tuple, dict, None.
-/// Since we don't have access to PyConnection here (it would create a circular dependency),
+/// Since we don't have access to `PyConnection` here (it would create a circular dependency),
 /// connection detection is handled by the caller.
 pub fn py_to_opaque(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<OpaqueData> {
     py_to_opaque_inner(py, obj, 0)
 }
 
+#[allow(clippy::only_used_in_recursion)]
 fn py_to_opaque_inner(
     py: Python<'_>,
     obj: &Bound<'_, PyAny>,
@@ -114,6 +115,7 @@ fn py_to_opaque_inner(
 }
 
 /// Convert a Rust `HashMap<String, OpaqueData>` to a Python dict.
+#[allow(clippy::implicit_hasher)]
 pub fn data_map_to_py(py: Python<'_>, map: &HashMap<String, OpaqueData>) -> PyResult<Py<PyDict>> {
     let dict = PyDict::new(py);
     for (k, v) in map {
