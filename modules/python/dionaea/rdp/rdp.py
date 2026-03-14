@@ -434,12 +434,9 @@ class rdpd(connection):
 
         i = incident("dionaea.connection.rdp.credssp")
         i.con = self
-        if ntlm.workstation_name:
-            i.set("workstation", ntlm.workstation_name)
-        if ntlm.domain_name:
-            i.set("domain", ntlm.domain_name)
-        if ntlm.os_version:
-            i.set("os_version", "%d.%d.%d" % ntlm.os_version[:3])
+        i.set("workstation", ntlm.workstation_name or "")
+        i.set("domain", ntlm.domain_name or "")
+        i.set("os_version", "%d.%d.%d" % ntlm.os_version[:3] if ntlm.os_version else "")
         i.set("negotiate_flags", "0x%08x" % ntlm.flags)
         i.report()
 
