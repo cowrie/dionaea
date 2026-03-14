@@ -112,8 +112,9 @@ async fn upload_multipart(
     }
 
     // Add file fields (validate paths are within allowed directories)
-    let allowed_dir = runtime::get()
-        .map_or_else(std::env::temp_dir, |s| s.config.dionaea.download.dir.clone());
+    let allowed_dir = runtime::get().map_or_else(std::env::temp_dir, |s| {
+        s.config.dionaea.download.dir.clone()
+    });
     let allowed_canonical = allowed_dir.canonicalize().unwrap_or(allowed_dir);
 
     for (name, path) in &file_fields {
@@ -248,8 +249,9 @@ fn handle_upload_request(incident: &Incident) {
         return;
     };
 
-    let timeout = runtime::get()
-        .map_or(DEFAULT_TIMEOUT_SECS, |s| s.config.dionaea.download.timeout_secs);
+    let timeout = runtime::get().map_or(DEFAULT_TIMEOUT_SECS, |s| {
+        s.config.dionaea.download.timeout_secs
+    });
 
     h.spawn(async move {
         let result = upload_multipart(

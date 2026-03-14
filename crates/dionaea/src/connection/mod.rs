@@ -130,14 +130,15 @@ impl fmt::Display for ConnectionState {
 
 /// Validate a state transition. Returns error if invalid.
 pub fn validate_transition(from: ConnectionState, to: ConnectionState) -> Result<(), Error> {
-    use ConnectionState::{
-        Close, Connecting, Established, Handshake, None, Resolve, Shutdown,
-    };
+    use ConnectionState::{Close, Connecting, Established, Handshake, None, Resolve, Shutdown};
     let valid = matches!(
         (from, to),
         (None, Resolve | Connecting | Handshake | Established | Close)
             | (Resolve | Established, Connecting)
-            | (Resolve | Connecting | Handshake | Established | Shutdown, Close)
+            | (
+                Resolve | Connecting | Handshake | Established | Shutdown,
+                Close
+            )
             | (Connecting | Established, Handshake)
             | (Connecting | Handshake, Established)
             | (Established, Shutdown)

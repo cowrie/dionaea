@@ -222,9 +222,12 @@ async fn async_main(config: config::Config, log_state: LogState) {
     #[cfg(feature = "pcap")]
     let pcap_shutdown = Arc::new(std::sync::atomic::AtomicBool::new(false));
     #[cfg(feature = "pcap")]
-    let pcap_threads = state.config.modules.pcap.as_ref().map(|pcap_config| {
-        dionaea::pcap::start(pcap_config, &pcap_shutdown)
-    });
+    let pcap_threads = state
+        .config
+        .modules
+        .pcap
+        .as_ref()
+        .map(|pcap_config| dionaea::pcap::start(pcap_config, &pcap_shutdown));
 
     // Drop privileges after all ports are bound
     {
