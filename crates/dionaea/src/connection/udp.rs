@@ -135,7 +135,7 @@ async fn udp_recv_loop(
                             peer.last_activity = Instant::now();
 
                             // Drain any pending send messages from this peer
-                            drain_peer_sends(&mut peer.rx, &socket).await;
+                            drain_peer_sends(&mut peer.rx, &socket, remote_addr).await;
 
                             let post = tokio::task::block_in_place(|| {
                                 Python::attach(|py| {
@@ -247,7 +247,7 @@ async fn udp_recv_loop(
 
                         // After processing, drain any sends queued during callbacks
                         if let Some(peer) = peers.get_mut(&remote_addr) {
-                            drain_peer_sends(&mut peer.rx, &socket).await;
+                            drain_peer_sends(&mut peer.rx, &socket, remote_addr).await;
                         }
                     }
                     Err(e) => {
@@ -272,7 +272,15 @@ async fn udp_recv_loop(
 }
 
 /// Drain pending send messages from a peer's channel and send them via the socket.
-async fn drain_peer_sends(rx: &mut mpsc::Receiver<SendMessage>, socket: &UdpSocket) {
+///
+/// `peer_addr` is the known remote address for this peer, used as the
+/// destination when a `Data` message arrives without explicit addresses
+/// (e.g. from Python `self.send(bytes)` without local/remote kwargs).
+async fn drain_peer_sends(
+    rx: &mut mpsc::Receiver<SendMessage>,
+    socket: &UdpSocket,
+    peer_addr: SocketAddr,
+) {
     while let Ok(msg) = rx.try_recv() {
         match msg {
             SendMessage::Datagram { data, remote, .. } => {
@@ -281,9 +289,9 @@ async fn drain_peer_sends(rx: &mut mpsc::Receiver<SendMessage>, socket: &UdpSock
                 }
             }
             SendMessage::Data(data) => {
-                // For UDP, Data without addresses shouldn't happen, but handle gracefully
-                tracing::debug!("UDP received Data message without addresses, dropping");
-                let _ = data;
+                if let Err(e) = socket.send_to(&data, peer_addr).await {
+                    tracing::debug!(err = %e, %peer_addr, "UDP send_to failed");
+                }
             }
             _ => {
                 // Control messages (SetTimeout etc.) — could update peer state

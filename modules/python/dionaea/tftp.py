@@ -1148,17 +1148,37 @@ class TftpServerHandler(TftpSession):
         self.send(encoded_ack.buffer)
 
 
-class TftpServer(TftpSession):
+class TftpServer(TftpServerHandler):
+    """TFTP server that handles the full protocol on the factory-created child.
+
+    Inherits protocol methods (_handle_rrq, _handle_wrq, _handle_ack,
+    _handle_data, etc.) from TftpServerHandler. Unlike TftpServerHandler,
+    does NOT create its own socket via bind/connect — uses the UDP peer
+    channel provided by the Rust runtime's factory_create mechanism.
+    """
+
     shared_config_values = [
         "root",
         "allow_uploads"
     ]
 
     def __init__(self) -> None:
+        # Call TftpSession.__init__ directly — skip TftpServerHandler.__init__
+        # which calls bind()/connect() (incompatible with Rust UDP peer model)
         TftpSession.__init__(self)
         self.packet: TftpPacketFactory = TftpPacketFactory()
         self.root: str = ''
-        self.allow_uploads: bool = True  # Default: allow uploads
+        self.allow_uploads: bool = True
+        # Protocol state fields (from TftpServerHandler)
+        self.mode: str | None = None
+        self.filename: str | None = None
+        self.original_filename: str | None = None
+        self.options: dict[str, Any] = {'blksize': DEF_BLKSIZE}
+        self.blocknumber: int = 0
+        self.buffer: bytes = b""
+        self.fileobj: Any = None
+        self.bytes_uploaded: int = 0
+        self.upload_hash: Any = hashlib.sha256()
 
     def apply_config(self, config: dict[str, Any]) -> None:
         self.root = config.get("root", self.root)
@@ -1173,12 +1193,10 @@ class TftpServer(TftpSession):
         self.allow_uploads = config.get("allow_uploads", self.allow_uploads)
 
     def handle_io_in(self, data: bytes) -> int:
-        logger.debug("Data ready on our main socket")
-        buffer = data
-        logger.debug(f"Read {len(buffer)} bytes")
-        recvpkt: TftpPacket | None = None
+        """Handle all TFTP packet types directly on the factory child."""
+        logger.debug(f"TFTP data from {self.remote.host}:{self.remote.port} ({len(data)} bytes)")
         try:
-            recvpkt = self.packet.parse(buffer)
+            recvpkt = self.packet.parse(data)
         except TftpException as e:
             logger.warning("TFTP packet parse error from %s:%i: %s",
                           self.remote.host, self.remote.port, e)
@@ -1189,23 +1207,37 @@ class TftpServer(TftpSession):
 
         if isinstance(recvpkt, TftpPacketRRQ):
             logger.debug(f"RRQ packet from {self.remote.host}:{self.remote.port}")
-            t = TftpServerHandler(TftpState(
-                'rrq'), self.root, self.local.host, self.remote.host, self.remote.port, self.packet)
-            t.handle_io_in(data)
+            self.state = TftpState('rrq')
+            return self._handle_rrq(recvpkt, data)
+
         elif isinstance(recvpkt, TftpPacketWRQ):
             if not self.allow_uploads:
                 logger.warning(f"WRQ packet from {self.remote.host}:{self.remote.port} rejected - uploads disabled")
-                # Send access violation error
                 errpkt = TftpPacketERR()
                 errpkt.errorcode = TftpErrors.AccessViolation
                 self.send(errpkt.encode().buffer)
-            else:
-                logger.info(f"WRQ packet from {self.remote.host}:{self.remote.port}, file: {recvpkt.filename}")
-                t = TftpServerHandler(TftpState(
-                    'wrq'), self.root, self.local.host, self.remote.host, self.remote.port, self.packet)
-                logger.debug("Created WRQ handler, processing request...")
-                t.handle_io_in(data)
-        return len(data)
+                return len(data)
+            logger.info(f"WRQ packet from {self.remote.host}:{self.remote.port}, file: {recvpkt.filename}")
+            self.state = TftpState('wrq')
+            return self._handle_wrq(recvpkt, data)
+
+        elif isinstance(recvpkt, TftpPacketACK):
+            return self._handle_ack(recvpkt, data)
+
+        elif isinstance(recvpkt, TftpPacketDAT):
+            return self._handle_data(recvpkt, data)
+
+        elif isinstance(recvpkt, TftpPacketERR):
+            logger.warning(f"Received error packet from client: {recvpkt}")
+            self.state.state = 'err'
+            self.close()
+            return len(data)
+
+        else:
+            logger.warning(f"Received unexpected packet type {recvpkt}")
+            self.senderror(TftpErrors.IllegalTftpOp)
+            self.close()
+            return len(data)
 
 
 class TftpClient(TftpSession):
