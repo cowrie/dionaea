@@ -145,8 +145,9 @@ impl PyConnection {
     /// Construct the Rust struct. Python subclasses call `__init__` via `super()`.
     #[new]
     #[pyo3(signature = (proto=None, *_args, **_kwargs))]
+    #[allow(clippy::needless_pass_by_value)]
     pub fn new(
-        #[allow(unused_variables, clippy::needless_pass_by_value)] proto: Option<String>,
+        #[allow(unused_variables)] proto: Option<String>,
         _args: &Bound<'_, pyo3::types::PyTuple>,
         _kwargs: Option<&Bound<'_, pyo3::types::PyDict>>,
     ) -> Self {
