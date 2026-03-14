@@ -201,7 +201,7 @@ jobs:
       - name: Build and install
         run: |
           cargo build --release
-          sudo mkdir -p /opt/dionaea/{bin,conf,modules/python,var/dionaea/{bistreams,downloads,shellcode},var/log/dionaea}
+          sudo mkdir -p /opt/dionaea/{bin,conf,modules/python,var/dionaea/{bistreams,downloads,shellcode,tftp/root},var/log/dionaea}
           sudo cp target/release/dionaea /opt/dionaea/bin/
           sudo cp -r conf/* /opt/dionaea/conf/
           sudo cp -r modules/python/dionaea /opt/dionaea/modules/python/
