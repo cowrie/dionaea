@@ -166,6 +166,7 @@ fn main() {
 }
 
 /// Async entry point running inside the tokio runtime.
+#[allow(clippy::too_many_lines)]
 async fn async_main(config: config::Config, log_state: LogState) {
     use dionaea::connection::ConnectionRegistry;
     use dionaea::connection::limits::ConnectionLimits;
@@ -221,11 +222,9 @@ async fn async_main(config: config::Config, log_state: LogState) {
     #[cfg(feature = "pcap")]
     let pcap_shutdown = Arc::new(std::sync::atomic::AtomicBool::new(false));
     #[cfg(feature = "pcap")]
-    let pcap_threads = if let Some(ref pcap_config) = state.config.modules.pcap {
-        Some(dionaea::pcap::start(pcap_config, &pcap_shutdown))
-    } else {
-        None
-    };
+    let pcap_threads = state.config.modules.pcap.as_ref().map(|pcap_config| {
+        dionaea::pcap::start(pcap_config, &pcap_shutdown)
+    });
 
     // Drop privileges after all ports are bound
     {
@@ -365,7 +364,7 @@ async fn graceful_shutdown(
                 std::process::exit(1);
             }
         }
-        _ = async {
+        () = async {
             #[cfg(unix)]
             force_sigint.recv().await;
             #[cfg(not(unix))]
