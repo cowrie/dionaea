@@ -219,6 +219,15 @@ class rdpd(connection):
             # CredSSP TSRequest (ASN.1 SEQUENCE) arrives without TPKT wrapper
             if self.state in (State.MCS_CONNECT, State.NLA_CHALLENGE) and self.buffer[0] == 0x30:
                 return self._handle_raw_credssp()
+            if self.state == State.NEGOTIATION:
+                # Non-TPKT data before X.224 — not valid RDP, likely a port scanner
+                rdplog.debug(
+                    "Non-RDP probe (%d bytes): %s",
+                    len(self.buffer), self.buffer[:16].hex(),
+                )
+                self.buffer = b""
+                self.close()
+                return 0
             rdplog.info(
                 "Unparseable data in buffer (%d bytes, state=%s): %s",
                 len(self.buffer), State(self.state).name,
