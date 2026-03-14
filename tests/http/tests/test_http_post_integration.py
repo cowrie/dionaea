@@ -5,23 +5,22 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 import socket
-import time
 
 
 class TestHTTPPostIntegration:
     """Integration tests for HTTP POST with file uploads"""
 
-    def test_single_file_upload_to_server(self):
+    def test_single_file_upload_to_server(self, dionaea_host, dionaea_ports):
         """Test uploading a file to the dionaea HTTP server"""
         # Prepare multipart form data
         boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW"
         body = (
-            f"------WebKitFormBoundary7MA4YWxkTrZu0gW\r\n"
-            f"Content-Disposition: form-data; name=\"file\"; filename=\"test.txt\"\r\n"
-            f"Content-Type: text/plain\r\n"
-            f"\r\n"
-            f"This is test content\r\n"
-            f"------WebKitFormBoundary7MA4YWxkTrZu0gW--\r\n"
+            "------WebKitFormBoundary7MA4YWxkTrZu0gW\r\n"
+            "Content-Disposition: form-data; name=\"file\"; filename=\"test.txt\"\r\n"
+            "Content-Type: text/plain\r\n"
+            "\r\n"
+            "This is test content\r\n"
+            "------WebKitFormBoundary7MA4YWxkTrZu0gW--\r\n"
         ).encode('utf-8')
 
         content_length = len(body)
@@ -38,7 +37,7 @@ class TestHTTPPostIntegration:
         # Connect to dionaea HTTP server
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            sock.connect(('127.0.0.1', 8080))
+            sock.connect((dionaea_host, dionaea_ports["http"]))
             sock.sendall(request)
 
             # Read response
@@ -61,19 +60,19 @@ class TestHTTPPostIntegration:
         finally:
             sock.close()
 
-    def test_multiple_files_upload(self):
+    def test_multiple_files_upload(self, dionaea_host, dionaea_ports):
         """Test uploading multiple files"""
         boundary = "----WebKitFormBoundary"
         body = (
-            f"------WebKitFormBoundary\r\n"
-            f"Content-Disposition: form-data; name=\"file1\"; filename=\"a.txt\"\r\n"
-            f"\r\n"
-            f"File A content\r\n"
-            f"------WebKitFormBoundary\r\n"
-            f"Content-Disposition: form-data; name=\"file2\"; filename=\"b.txt\"\r\n"
-            f"\r\n"
-            f"File B content\r\n"
-            f"------WebKitFormBoundary--\r\n"
+            "------WebKitFormBoundary\r\n"
+            "Content-Disposition: form-data; name=\"file1\"; filename=\"a.txt\"\r\n"
+            "\r\n"
+            "File A content\r\n"
+            "------WebKitFormBoundary\r\n"
+            "Content-Disposition: form-data; name=\"file2\"; filename=\"b.txt\"\r\n"
+            "\r\n"
+            "File B content\r\n"
+            "------WebKitFormBoundary--\r\n"
         ).encode('utf-8')
 
         content_length = len(body)
@@ -88,7 +87,7 @@ class TestHTTPPostIntegration:
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            sock.connect(('127.0.0.1', 8080))
+            sock.connect((dionaea_host, dionaea_ports["http"]))
             sock.sendall(request)
 
             response = b''
@@ -107,7 +106,7 @@ class TestHTTPPostIntegration:
         finally:
             sock.close()
 
-    def test_large_file_upload(self):
+    def test_large_file_upload(self, dionaea_host, dionaea_ports):
         """Test uploading a larger file (10KB)"""
         boundary = "----WebKitFormBoundary"
 
@@ -115,14 +114,14 @@ class TestHTTPPostIntegration:
         large_content = b'A' * (10 * 1024)
 
         header = (
-            f"------WebKitFormBoundary\r\n"
-            f"Content-Disposition: form-data; name=\"bigfile\"; filename=\"large.bin\"\r\n"
-            f"\r\n"
+            "------WebKitFormBoundary\r\n"
+            "Content-Disposition: form-data; name=\"bigfile\"; filename=\"large.bin\"\r\n"
+            "\r\n"
         ).encode('utf-8')
 
         footer = (
-            f"\r\n"
-            f"------WebKitFormBoundary--\r\n"
+            "\r\n"
+            "------WebKitFormBoundary--\r\n"
         ).encode('utf-8')
 
         body = header + large_content + footer
@@ -138,7 +137,7 @@ class TestHTTPPostIntegration:
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            sock.connect(('127.0.0.1', 8080))
+            sock.connect((dionaea_host, dionaea_ports["http"]))
             sock.sendall(request)
 
             response = b''
@@ -157,7 +156,7 @@ class TestHTTPPostIntegration:
         finally:
             sock.close()
 
-    def test_post_with_content_type_but_no_content_length(self):
+    def test_post_with_content_type_but_no_content_length(self, dionaea_host, dionaea_ports):
         """Test POST with content-type header but no content-length header.
 
         This triggers the bug where http.py line 638 checks for BOTH headers
@@ -173,7 +172,7 @@ class TestHTTPPostIntegration:
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            sock.connect(('127.0.0.1', 8080))
+            sock.connect((dionaea_host, dionaea_ports["http"]))
             sock.sendall(request)
 
             response = b''
@@ -193,7 +192,7 @@ class TestHTTPPostIntegration:
         finally:
             sock.close()
 
-    def test_malformed_multipart_handling(self):
+    def test_malformed_multipart_handling(self, dionaea_host, dionaea_ports):
         """Test that server handles malformed multipart data gracefully"""
         # Send malformed multipart data
         body = b"This is not valid multipart data"
@@ -209,7 +208,7 @@ class TestHTTPPostIntegration:
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            sock.connect(('127.0.0.1', 8080))
+            sock.connect((dionaea_host, dionaea_ports["http"]))
             sock.sendall(request)
 
             response = b''
