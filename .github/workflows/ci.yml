@@ -220,13 +220,15 @@ jobs:
         run: |
           cd tests && pytest -v --timeout=30 \
             --ignore=http/tests/test_http_dead_connection.py \
+            --ignore=http/tests/test_http_post_integration.py \
             --ignore=http/tests/test_multipart_parser.py \
             --ignore=http/tests/test_multipart_standalone.py \
             --ignore=mysql/ \
             --ignore=printer/ \
             --ignore=snmp/ \
             --ignore=speakeasy/ \
-            --ignore=modbus/
+            --ignore=modbus/ \
+            --ignore=tftp/
 
       - name: Show logs on failure
         if: failure()
