@@ -6,6 +6,9 @@
 from __future__ import annotations
 
 import logging
+import os
+from pathlib import Path
+import time
 
 from dionaea.core import connection, incident
 
@@ -167,6 +170,145 @@ class FTPd(connection):
 
     def cmd_HELP(self, arg):
         self.sendline('214 Help OK.')
+
+    # -- File system commands --
+
+    def real_path(self, p=None):
+        """Resolve a virtual path to a real path, confined to basedir."""
+        if p:
+            name = str(Path(self.cwd) / p)
+        else:
+            name = self.cwd
+
+        if name.startswith('/'):
+            name = name[1:]
+        name = str((Path(self.basedir) / name).resolve())
+        return name
+
+    def cmd_PWD(self, arg):
+        self.reply("pwd_reply", cwd=self.cwd)
+
+    def cmd_CWD(self, arg):
+        cwd = self.real_path(arg)
+        if not cwd.startswith(self.basedir):
+            self.reply("file_not_found", filename=arg)
+            return
+        if Path(cwd).is_dir():
+            self.cwd = cwd[len(self.basedir):] or '/'
+            self.reply("req_file_actn_completed_ok")
+        else:
+            self.reply("file_not_found", filename=arg)
+
+    def cmd_CDUP(self, arg):
+        parent = str(Path(self.cwd).parent)
+        self.cmd_CWD(parent)
+
+    def cmd_TYPE(self, arg):
+        if arg == 'I':
+            self.reply("type_set_ok", mode='I')
+        else:
+            self.reply("cmd_not_implmntd_for_param", param=arg)
+
+    def cmd_SIZE(self, arg):
+        if not arg:
+            self.reply("file_not_found", filename=arg)
+            return
+        filepath = self.real_path(arg)
+        if not filepath.startswith(self.basedir):
+            self.reply("file_not_found", filename=arg)
+            return
+        p = Path(filepath)
+        if p.is_file():
+            self.reply("file_status", value=str(p.stat().st_size))
+        else:
+            self.reply("file_not_found", filename=arg)
+
+    def cmd_MDTM(self, arg):
+        if not arg:
+            self.reply("file_not_found", filename=arg)
+            return
+        filepath = self.real_path(arg)
+        if not filepath.startswith(self.basedir):
+            self.reply("file_not_found", filename=arg)
+            return
+        p = Path(filepath)
+        if p.is_file():
+            mtime = time.strftime('%Y%m%d%H%M%S', time.gmtime(p.stat().st_mtime))
+            self.reply("file_status", value=mtime)
+        else:
+            self.reply("file_not_found", filename=arg)
+
+    def cmd_DELE(self, arg):
+        if not arg:
+            self.reply("file_not_found", filename=arg)
+            return
+        filepath = self.real_path(arg)
+        if not filepath.startswith(self.basedir):
+            self.reply("permission_denied", path=arg)
+            return
+        p = Path(filepath)
+        if p.is_file():
+            p.unlink()
+            self.reply("req_file_actn_completed_ok")
+        else:
+            self.reply("file_not_found", filename=arg)
+
+    def cmd_RMD(self, arg):
+        if not arg:
+            self.reply("file_not_found", filename=arg)
+            return
+        dirpath = self.real_path(arg)
+        if not dirpath.startswith(self.basedir):
+            self.reply("file_not_found", filename=arg)
+            return
+        p = Path(dirpath)
+        if p.is_dir():
+            p.rmdir()
+            self.reply("req_file_actn_completed_ok")
+        else:
+            self.reply("file_not_found", filename=arg)
+
+    def cmd_MKD(self, arg):
+        if not arg:
+            self.reply("file_not_found", filename=arg)
+            return
+        dirpath = self.real_path(arg)
+        if not dirpath.startswith(self.basedir):
+            self.reply("file_not_found", filename=arg)
+            return
+        if Path(dirpath).is_dir():
+            self.reply("permission_denied", path=arg)
+            return
+        Path(dirpath).mkdir()
+        self.reply("req_file_actn_completed_ok")
+
+    def cmd_RNFR(self, arg):
+        if not arg:
+            self.reply("file_not_found", filename=arg)
+            return
+        filepath = self.real_path(arg)
+        if not filepath.startswith(self.basedir):
+            self.reply("permission_denied", path=arg)
+            return
+        if not Path(filepath).exists():
+            self.reply("file_not_found", filename=arg)
+            return
+        self.rename_from = filepath
+        self.state = State.RENAMING
+        self.reply("req_file_actn_pending_further_info")
+
+    def cmd_RNTO(self, arg):
+        if not arg:
+            self.reply("file_not_found", filename=arg)
+            return
+        filepath = self.real_path(arg)
+        if not filepath.startswith(self.basedir):
+            self.reply("permission_denied", path=arg)
+            return
+        os.rename(self.rename_from, filepath)
+        self.rename_from = None
+        self.state = State.AUTHENTICATED
+        self.reply("req_file_actn_completed_ok")
 
     def handle_error(self, err):
         pass
