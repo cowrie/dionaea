@@ -58,6 +58,9 @@ class mysqld(connection):
         )
         self.download_dir = None
         self.download_suffix = ".tmp"
+        self.dbh = None
+        self.cursor = None
+        self.database = None
 
     def apply_config(self, config):
         self.config = config.get("databases")
@@ -130,6 +133,8 @@ class mysqld(connection):
             return MySQL_Result_Error(Message="No such database")
 
     def _handle_COM_FIELD_LIST(self, p):
+        if self.cursor is None:
+            return MySQL_Result_Error(Message="No database selected")
         r = []
         query = f"PRAGMA table_info({p.Table.decode('ascii')[:-1]});"
         # FIXME sqlite does not allow ? for PRAGMA? I'm not afraid of SQLi here
@@ -245,6 +250,8 @@ class mysqld(connection):
             r.append(MySQL_Result_EOF(ServerStatus=0x002))
 
         elif re.match(rb"show\s+tables$", p.Query, re.I):
+            if self.cursor is None or self.database is None:
+                return MySQL_Result_Error(Message="No database selected")
             r = [
                 MySQL_Result_Header(FieldCount=1),
                 MySQL_Result_Field(
@@ -294,8 +301,13 @@ class mysqld(connection):
         elif re.match(rb"(create|drop)\s+function\s+", p.Query, re.I):
             r = MySQL_Result_OK()
 
+        elif re.match(rb"(commit|rollback|begin|start\s+transaction)\b", p.Query, re.I):
+            r = MySQL_Result_OK()
+
         else:
             p.show()
+            if self.cursor is None:
+                return MySQL_Result_Error(Message="No database selected")
             try:
                 query = p.Query.decode("utf-8")
                 result = self.cursor.execute(query)
