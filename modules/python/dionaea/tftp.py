@@ -187,6 +187,7 @@ class TFTPService(ServiceLoader):
                 logger.error(e.msg, *e.args)
         port = (config or {}).get("port", 69)
         daemon.bind(addr, port, iface=iface)
+        daemon.listen()
         return daemon
 
 
