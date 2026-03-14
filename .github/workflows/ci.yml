@@ -206,6 +206,9 @@ jobs:
           sudo cp -r conf/* /opt/dionaea/conf/
           sudo cp -r modules/python/dionaea /opt/dionaea/modules/python/
 
+      - name: Install runtime Python dependencies
+        run: pip install construct
+
       - name: Start dionaea
         run: |
           sudo PYTHONHOME="$PYTHON_HOME" LD_LIBRARY_PATH="$LD_LIBRARY_PATH" /opt/dionaea/bin/dionaea -c /opt/dionaea/conf/dionaea.toml &
