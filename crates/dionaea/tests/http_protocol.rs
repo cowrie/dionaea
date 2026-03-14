@@ -69,7 +69,7 @@ fn test_real_http_get() {
 
         let tmp_dir_str = tmp_dir.to_string_lossy().to_string();
 
-        let bound_port: u16 = tokio::task::spawn_blocking(move || {
+        let bound_port: u16 = tokio::task::block_in_place(|| {
             Python::attach(|py| {
                 // Register dionaea.core
                 dionaea::python::loader::load(
@@ -104,9 +104,7 @@ port = h.local.port
                     .expect("extract port");
                 port
             })
-        })
-        .await
-        .expect("spawn_blocking");
+        });
 
         assert!(bound_port > 0, "HTTP listener should bind to a real port");
 

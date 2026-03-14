@@ -195,27 +195,12 @@ async fn async_main(config: config::Config, log_state: LogState) {
         "daemon ready"
     );
 
-    // Load Python modules (must run with GIL via spawn_blocking)
+    // Load Python modules (must run with GIL)
     {
         let python_config = &state.config.modules.python;
-        // Clone what we need to move into the blocking task
-        let imports = python_config.imports.clone();
-        let service_configs = python_config.service_configs.clone();
-        let ihandler_configs = python_config.ihandler_configs.clone();
-        let python_path = python_config.python_path.clone();
-        let load_result = tokio::task::spawn_blocking(move || {
-            pyo3::Python::attach(|py| {
-                let config = dionaea::config::PythonModuleConfig {
-                    imports,
-                    service_configs,
-                    ihandler_configs,
-                    python_path,
-                };
-                dionaea::python::loader::load(py, &config)
-            })
-        })
-        .await
-        .expect("spawn_blocking join");
+        let load_result = tokio::task::block_in_place(|| {
+            pyo3::Python::attach(|py| dionaea::python::loader::load(py, python_config))
+        });
         if let Err(e) = load_result {
             tracing::error!(error = %e, "failed to load Python modules");
             std::process::exit(1);
@@ -353,22 +338,12 @@ async fn graceful_shutdown(
 
         // Call Python module stop() functions
         {
-            let imports = state.config.modules.python.imports.clone();
-            let service_configs = state.config.modules.python.service_configs.clone();
-            let ihandler_configs = state.config.modules.python.ihandler_configs.clone();
-            let python_path = state.config.modules.python.python_path.clone();
-            let _ = tokio::task::spawn_blocking(move || {
+            let python_config = &state.config.modules.python;
+            tokio::task::block_in_place(|| {
                 pyo3::Python::attach(|py| {
-                    let config = dionaea::config::PythonModuleConfig {
-                        imports,
-                        service_configs,
-                        ihandler_configs,
-                        python_path,
-                    };
-                    dionaea::python::loader::shutdown(py, &config);
+                    dionaea::python::loader::shutdown(py, python_config);
                 });
-            })
-            .await;
+            });
             tracing::debug!("python modules stopped");
         }
 

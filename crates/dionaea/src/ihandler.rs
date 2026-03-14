@@ -72,7 +72,7 @@ fn wildcard_match(pattern: &[u8], text: &[u8]) -> bool {
 pub enum HandlerCallback {
     /// A Rust function callback (Arc for cloning out of registry during dispatch).
     Rust(Arc<dyn Fn(&Incident) + Send + Sync>),
-    /// A Python callback (handled via spawn_blocking + GIL in dispatch).
+    /// A Python callback (handled via block_in_place + GIL in dispatch).
     Python(pyo3::Py<pyo3::PyAny>),
 }
 

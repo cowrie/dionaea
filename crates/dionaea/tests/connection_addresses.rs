@@ -64,7 +64,7 @@ fn test_accepted_connection_has_correct_addresses() {
             .canonicalize()
             .expect("modules/python/ should exist");
 
-        let bound_port: u16 = tokio::task::spawn_blocking(move || {
+        let bound_port: u16 = tokio::task::block_in_place(|| {
             Python::attach(|py| {
                 dionaea::python::loader::load(
                     py,
@@ -110,9 +110,7 @@ port = e.local.port
                     .expect("extract port");
                 port
             })
-        })
-        .await
-        .expect("spawn_blocking");
+        });
 
         assert!(bound_port > 0);
         time::sleep(Duration::from_millis(100)).await;
@@ -129,7 +127,7 @@ port = e.local.port
 
         // Check captured addresses
         let (local_host, local_port, remote_host, remote_port) =
-            tokio::task::spawn_blocking(move || {
+            tokio::task::block_in_place(|| {
                 Python::attach(|py| {
                     let captured: Vec<(String, u16, String, u16)> = py
                         .eval(
@@ -147,9 +145,7 @@ port = e.local.port
                     );
                     captured[0].clone()
                 })
-            })
-            .await
-            .expect("check");
+            });
 
         eprintln!("Captured: local={local_host}:{local_port} remote={remote_host}:{remote_port}");
 

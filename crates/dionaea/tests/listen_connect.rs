@@ -71,8 +71,8 @@ fn test_tcp_listen_via_python() {
         .expect("runtime");
 
     rt.block_on(async {
-        // Create a Python listener via bind + listen (runs in spawn_blocking for GIL)
-        let bound_port: u16 = tokio::task::spawn_blocking(|| {
+        // Create a Python listener via bind + listen (runs in block_in_place for GIL)
+        let bound_port: u16 = tokio::task::block_in_place(|| {
             Python::attach(|py| {
                 register_test_module(py, "listen_integ");
 
@@ -114,9 +114,7 @@ port = listener.local.port
                     .expect("extract port");
                 port
             })
-        })
-        .await
-        .expect("spawn_blocking");
+        });
 
         assert!(bound_port > 0, "listener should bind to a real port");
 
@@ -166,7 +164,7 @@ port = listener.local.port
 
         // --- Incident dispatch integration test ---
         // Test that ihandler auto-registers via __init__ and report() dispatches correctly
-        tokio::task::spawn_blocking(|| {
+        tokio::task::block_in_place(|| {
             Python::attach(|py| {
                 py.run(
                     c"
@@ -236,9 +234,7 @@ inc2.report()
                     .expect("extract");
                 assert!(fallback, "second incident should use fallback handler");
             });
-        })
-        .await
-        .expect("incident test spawn_blocking");
+        });
 
         // Verify ihandler_registry has at least our handler registered
         let handler_count = state.ihandler_registry.lock().expect("lock").len();

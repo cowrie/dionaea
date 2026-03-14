@@ -330,12 +330,12 @@ async fn tls_accept_loop(
             let lim_for_factory = lim.clone();
             let handler_tx = tx.clone();
 
-            let child_result = tokio::task::spawn_blocking(move || {
+            let child_result = tokio::task::block_in_place(|| {
                 Python::attach(|py| {
                     let parent = factory_clone.bind(py);
                     let child = factory_create(
                         py,
-                        &parent,
+                        parent,
                         id,
                         handler_tx,
                         "tls",
@@ -356,25 +356,19 @@ async fn tls_accept_loop(
 
                     PyResult::Ok(child)
                 })
-            })
-            .await;
+            });
 
             let handler = match child_result {
-                Ok(Ok(h)) => h,
-                Ok(Err(e)) => {
-                    tracing::error!(connection_id = %id, err = %e, "factory_create failed");
-                    cleanup_connection(&reg, &lim, id, peer_ip);
-                    return;
-                }
+                Ok(h) => h,
                 Err(e) => {
-                    tracing::error!(connection_id = %id, err = %e, "factory panicked");
+                    tracing::error!(connection_id = %id, err = %e, "factory_create failed");
                     cleanup_connection(&reg, &lim, id, peer_ip);
                     return;
                 }
             };
 
             // Run the standard I/O handler loop over the TLS stream
-            let (_stream, h, _rx, _post, _pipeline) = handle_connection(
+            let (_stream, handler, _rx, _post, _pipeline) = handle_connection(
                 tls_stream,
                 handler,
                 id,
@@ -386,8 +380,8 @@ async fn tls_accept_loop(
                 None,
             )
             .await;
-            let h = crate::connection::tcp::emit_connection_free(h).await;
-            invalidate_handler(h);
+            crate::connection::tcp::emit_connection_free(&handler);
+            invalidate_handler(&handler);
             cleanup_connection(&reg, &lim, id, peer_ip);
         });
     }

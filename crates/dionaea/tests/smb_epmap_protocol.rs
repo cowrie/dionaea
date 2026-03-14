@@ -262,7 +262,7 @@ fn test_smb_and_epmap_protocols() {
             .expect("modules/python/ should exist");
 
         // Start both EPMAP and SMB listeners
-        let (epmap_port, smb_port): (u16, u16) = tokio::task::spawn_blocking(move || {
+        let (epmap_port, smb_port): (u16, u16) = tokio::task::block_in_place(|| {
             Python::attach(|py| {
                 dionaea::python::loader::load(
                     py,
@@ -303,9 +303,7 @@ smb_port = sm.local.port
                     .expect("extract smb_port");
                 (ep, sm)
             })
-        })
-        .await
-        .expect("spawn_blocking");
+        });
 
         assert!(epmap_port > 0, "EPMAP listener should bind to a real port");
         assert!(smb_port > 0, "SMB listener should bind to a real port");

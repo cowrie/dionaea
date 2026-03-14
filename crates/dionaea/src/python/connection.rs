@@ -1334,22 +1334,18 @@ conn = dionaea_core_udp.connection.__new__(dionaea_core_udp.connection)
         });
     }
 
-    /// Measure spawn_blocking + GIL round-trip latency.
+    /// Measure block_in_place + GIL round-trip latency.
     /// Target: <100us P99 per callback.
-    ///
-    /// Uses move-and-return pattern: the handler is moved into spawn_blocking
-    /// and returned with the result.
     #[test]
-    fn test_spawn_blocking_gil_latency() {
+    fn test_block_in_place_gil_latency() {
         let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)
-            .max_blocking_threads(8)
             .enable_all()
             .build()
             .expect("tokio runtime");
 
         rt.block_on(async {
-            let mut handler: Py<PyAny> = Python::attach(|py| {
+            let handler: Py<PyAny> = Python::attach(|py| {
                 register_test_module(py, "dionaea_core4");
 
                 py.run(
@@ -1372,22 +1368,17 @@ class BenchProto(PyConnection):
 
             // Warm up
             for _ in 0..100 {
-                let h = handler;
-                let (h_back, _): (Py<PyAny>, usize) = tokio::task::spawn_blocking(move || {
+                tokio::task::block_in_place(|| {
                     Python::attach(|py| {
                         let data = PyBytes::new(py, b"warmup");
-                        let result: usize = h
+                        let _: usize = handler
                             .bind(py)
                             .call_method1("handle_io_in", (data,))
                             .expect("call")
                             .extract()
                             .expect("extract");
-                        (h, result)
                     })
-                })
-                .await
-                .expect("spawn_blocking");
-                handler = h_back;
+                });
             }
 
             // Measure
@@ -1395,23 +1386,18 @@ class BenchProto(PyConnection):
             let mut latencies = Vec::with_capacity(iterations);
 
             for _ in 0..iterations {
-                let h = handler;
                 let start = Instant::now();
-                let (h_back, _): (Py<PyAny>, usize) = tokio::task::spawn_blocking(move || {
+                tokio::task::block_in_place(|| {
                     Python::attach(|py| {
                         let data = PyBytes::new(py, b"benchmark data for latency test");
-                        let result: usize = h
+                        let _: usize = handler
                             .bind(py)
                             .call_method1("handle_io_in", (data,))
                             .expect("call")
                             .extract()
                             .expect("extract");
-                        (h, result)
                     })
-                })
-                .await
-                .expect("spawn_blocking");
-                handler = h_back;
+                });
                 latencies.push(start.elapsed());
             }
 
@@ -1425,13 +1411,13 @@ class BenchProto(PyConnection):
             let p999 = latencies[iterations * 999 / 1000];
             let max = latencies[iterations - 1];
 
-            eprintln!("spawn_blocking + GIL round-trip latency ({iterations} iterations):");
+            eprintln!("block_in_place + GIL round-trip latency ({iterations} iterations):");
             eprintln!("  P50:  {p50:?}");
             eprintln!("  P99:  {p99:?}");
             eprintln!("  P999: {p999:?}");
             eprintln!("  Max:  {max:?}");
 
-            // Under test parallelism, GIL contention inflates P99.
+            // block_in_place avoids thread-hop overhead, so latency is lower.
             assert!(
                 p99 < std::time::Duration::from_micros(500),
                 "P99 latency {p99:?} exceeds 500us threshold"

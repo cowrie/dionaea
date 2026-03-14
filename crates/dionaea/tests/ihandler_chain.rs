@@ -70,21 +70,20 @@ fn test_ihandler_chain_with_log_json() {
             .canonicalize()
             .expect("modules/python/ should exist");
 
-        let bound_port: u16 = tokio::task::spawn_blocking({
-            let log_path = log_file_str.clone();
-            move || {
-                Python::attach(|py| {
-                    dionaea::python::loader::load(
-                        py,
-                        &config::PythonModuleConfig {
-                            python_path: Some(python_path),
-                            ..Default::default()
-                        },
-                    )
-                    .expect("loader init");
+        let bound_port: u16 = tokio::task::block_in_place(|| {
+            let log_path = &log_file_str;
+            Python::attach(|py| {
+                dionaea::python::loader::load(
+                    py,
+                    &config::PythonModuleConfig {
+                        python_path: Some(python_path),
+                        ..Default::default()
+                    },
+                )
+                .expect("loader init");
 
-                    let code = format!(
-                        r#"
+                let code = format!(
+                    r#"
 from dionaea.core import ihandler, incident
 
 # Custom ihandler that records incident origins
@@ -110,22 +109,19 @@ e.bind('127.0.0.1', 0)
 e.listen()
 port = e.local.port
 "#
-                    );
-                    let c_code = std::ffi::CString::new(code).expect("CString");
-                    py.run(c_code.as_c_str(), None, None)
-                        .expect("ihandler chain setup");
+                );
+                let c_code = std::ffi::CString::new(code).expect("CString");
+                py.run(c_code.as_c_str(), None, None)
+                    .expect("ihandler chain setup");
 
-                    let port: u16 = py
-                        .eval(c"port", None, None)
-                        .expect("get port")
-                        .extract()
-                        .expect("extract port");
-                    port
-                })
-            }
-        })
-        .await
-        .expect("spawn_blocking");
+                let port: u16 = py
+                    .eval(c"port", None, None)
+                    .expect("get port")
+                    .extract()
+                    .expect("extract port");
+                port
+            })
+        });
 
         assert!(bound_port > 0, "echo listener should bind to a real port");
         time::sleep(Duration::from_millis(100)).await;
@@ -141,7 +137,7 @@ port = e.local.port
         time::sleep(Duration::from_millis(500)).await;
 
         // Verify the custom ihandler received incidents
-        let (has_accept, has_free) = tokio::task::spawn_blocking(move || {
+        let (has_accept, has_free) = tokio::task::block_in_place(|| {
             Python::attach(|py| {
                 let received: Vec<String> = py
                     .eval(c"TestIHandler.received", None, None)
@@ -156,9 +152,7 @@ port = e.local.port
                     received.iter().any(|o| o == "dionaea.connection.free"),
                 )
             })
-        })
-        .await
-        .expect("check");
+        });
 
         assert!(
             has_accept,

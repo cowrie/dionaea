@@ -61,7 +61,7 @@ fn test_real_echo_protocol() {
             .expect("modules/python/ should exist");
 
         // Load dionaea.core, set sys.path, import echo.py, bind, listen
-        let bound_port: u16 = tokio::task::spawn_blocking(move || {
+        let bound_port: u16 = tokio::task::block_in_place(|| {
             Python::attach(|py| {
                 // Register dionaea.core in sys.modules
                 dionaea::python::loader::load(
@@ -95,9 +95,7 @@ port = e.local.port
                     .expect("extract port");
                 port
             })
-        })
-        .await
-        .expect("spawn_blocking");
+        });
 
         assert!(bound_port > 0, "echo listener should bind to a real port");
 

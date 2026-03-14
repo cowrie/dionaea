@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
 // SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
 // ABOUTME: TCP listener, accept loop, and per-connection I/O handler task.
-// ABOUTME: Wires Python protocol callbacks to live sockets via spawn_blocking + GIL.
+// ABOUTME: Wires Python protocol callbacks to live sockets via block_in_place + GIL.
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -220,12 +220,12 @@ async fn accept_loop(
             let handler_tx = tx.clone();
             let reg_for_factory = reg.clone();
             let lim_for_factory = lim.clone();
-            let child_result = tokio::task::spawn_blocking(move || {
+            let child_result = tokio::task::block_in_place(|| {
                 Python::attach(|py| {
                     let parent = factory_clone.bind(py);
                     let child = factory_create(
                         py,
-                        &parent,
+                        parent,
                         id,
                         handler_tx,
                         "tcp",
@@ -246,24 +246,18 @@ async fn accept_loop(
 
                     PyResult::Ok(child)
                 })
-            })
-            .await;
+            });
 
             let handler = match child_result {
-                Ok(Ok(h)) => h,
-                Ok(Err(e)) => {
-                    tracing::error!(connection_id = %id, err = %e, "factory_create failed");
-                    cleanup_connection(&reg, &lim, id, peer_ip);
-                    return;
-                }
+                Ok(h) => h,
                 Err(e) => {
-                    tracing::error!(connection_id = %id, err = %e, "factory panicked");
+                    tracing::error!(connection_id = %id, err = %e, "factory_create failed");
                     cleanup_connection(&reg, &lim, id, peer_ip);
                     return;
                 }
             };
 
-            let (tcp_stream, h, rx, post, pipeline) = handle_connection(
+            let (tcp_stream, handler, rx, post, pipeline) = handle_connection(
                 stream,
                 handler,
                 id,
@@ -276,10 +270,10 @@ async fn accept_loop(
             )
             .await;
 
-            let h = handle_starttls_or_finish(
+            let handler = handle_starttls_or_finish(
                 post,
                 tcp_stream,
-                h,
+                handler,
                 rx,
                 id,
                 reg.clone(),
@@ -288,8 +282,8 @@ async fn accept_loop(
                 pipeline,
             )
             .await;
-            let h = emit_connection_free(h).await;
-            invalidate_handler(h);
+            emit_connection_free(&handler);
+            invalidate_handler(&handler);
             cleanup_connection(&reg, &lim, id, peer_ip);
         });
     }
@@ -369,7 +363,7 @@ async fn handle_starttls_or_finish(
                 }
                 tracing::debug!(connection_id = %id, "STARTTLS handshake completed");
 
-                let (_stream, h, _rx, _post, _pipeline) = handle_connection(
+                let (_stream, handler, _rx, _post, _pipeline) = handle_connection(
                     tls_stream,
                     handler,
                     id,
@@ -381,7 +375,7 @@ async fn handle_starttls_or_finish(
                     pipeline,
                 )
                 .await;
-                h
+                handler
             }
             Ok(Err(e)) => {
                 tracing::debug!(connection_id = %id, err = %e, "STARTTLS handshake failed");
@@ -437,34 +431,22 @@ pub async fn tcp_connect_task(
                 }
 
                 // Update the Python handler's address fields before handle_established
-                handler = {
-                    let h = handler;
-                    match tokio::task::spawn_blocking(move || {
-                        Python::attach(|py| {
-                            if let Ok(conn) = h.bind(py).cast::<PyConnection>() {
-                                let mut c = conn.borrow_mut();
-                                if let Some(pa) = peer_addr {
-                                    c.remote.host = pa.ip().to_string();
-                                    c.remote.port = pa.port();
-                                }
-                                if let Some(la) = local_addr {
-                                    c.local.host = la.ip().to_string();
-                                    c.local.port = la.port();
-                                }
-                                c.status = "established".to_string();
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        if let Ok(conn) = handler.bind(py).cast::<PyConnection>() {
+                            let mut c = conn.borrow_mut();
+                            if let Some(pa) = peer_addr {
+                                c.remote.host = pa.ip().to_string();
+                                c.remote.port = pa.port();
                             }
-                            h
-                        })
-                    })
-                    .await
-                    {
-                        Ok(h) => h,
-                        Err(e) => {
-                            tracing::error!(connection_id = %id, err = %e, "address update panicked");
-                            break;
+                            if let Some(la) = local_addr {
+                                c.local.host = la.ip().to_string();
+                                c.local.port = la.port();
+                            }
+                            c.status = "established".to_string();
                         }
-                    }
-                };
+                    })
+                });
 
                 tracing::debug!(connection_id = %id, ?peer_addr, "outbound TCP connected");
 
@@ -485,59 +467,41 @@ pub async fn tcp_connect_task(
                 .await;
 
                 if post != PostCallback::Reconnect {
-                    handler = emit_connection_free(handler).await;
-                    invalidate_handler(handler);
+                    emit_connection_free(&handler);
+                    invalidate_handler(&handler);
                     break;
                 }
             }
             Ok(Err(e)) => {
                 tracing::debug!(connection_id = %id, err = %e, %addr, port, "outbound TCP connect failed");
-                let post;
-                (handler, post) =
-                    call_handle_error(handler, id, &format!("connect failed: {e}")).await;
+                let post = call_handle_error(&handler, id, &format!("connect failed: {e}"));
                 if post != PostCallback::Reconnect {
-                    handler = emit_connection_free(handler).await;
-                    invalidate_handler(handler);
+                    emit_connection_free(&handler);
+                    invalidate_handler(&handler);
                     break;
                 }
             }
             Err(_) => {
                 tracing::debug!(connection_id = %id, %addr, port, "outbound TCP connect timed out");
-                let post;
-                (handler, post) = call_handle_error(handler, id, "connect timed out").await;
+                let post = call_handle_error(&handler, id, "connect timed out");
                 if post != PostCallback::Reconnect {
-                    handler = emit_connection_free(handler).await;
-                    invalidate_handler(handler);
+                    emit_connection_free(&handler);
+                    invalidate_handler(&handler);
                     break;
                 }
             }
         }
 
         // Reconnect: read delay from handler's timeouts.reconnect, then retry
-        let reconnect_delay = {
-            let h = handler;
-            match tokio::task::spawn_blocking(move || {
-                Python::attach(|py| {
-                    let delay = if let Ok(conn) = h.bind(py).cast::<PyConnection>() {
-                        conn.borrow().timeouts.reconnect
-                    } else {
-                        5.0
-                    };
-                    (h, delay)
-                })
+        let reconnect_delay = tokio::task::block_in_place(|| {
+            Python::attach(|py| {
+                if let Ok(conn) = handler.bind(py).cast::<PyConnection>() {
+                    conn.borrow().timeouts.reconnect
+                } else {
+                    5.0
+                }
             })
-            .await
-            {
-                Ok((h, delay)) => {
-                    handler = h;
-                    delay
-                }
-                Err(e) => {
-                    tracing::error!(connection_id = %id, err = %e, "reconnect delay read panicked");
-                    break;
-                }
-            }
-        };
+        });
 
         tracing::info!(
             connection_id = %id,
@@ -557,38 +521,24 @@ pub async fn tcp_connect_task(
     registry.remove(id);
 }
 
-/// Call `handle_error` on the Python handler via spawn_blocking.
+/// Call `handle_error` on the Python handler via block_in_place.
 ///
 /// Returns the handler and post-callback so the reconnect loop can decide
 /// whether to retry or give up.
-async fn call_handle_error(
-    handler: Py<PyAny>,
-    id: ConnectionId,
-    msg: &str,
-) -> (Py<PyAny>, PostCallback) {
+fn call_handle_error(handler: &Py<PyAny>, _id: ConnectionId, msg: &str) -> PostCallback {
     let err_msg = msg.to_string();
-    match tokio::task::spawn_blocking(move || {
+    tokio::task::block_in_place(|| {
         Python::attach(|py| {
             let err = pyo3::exceptions::PyOSError::new_err(err_msg);
-            let post = callback::call_handle_error(handler.bind(py), &err.value(py).to_string());
-            (handler, post)
+            callback::call_handle_error(handler.bind(py), &err.value(py).to_string())
         })
     })
-    .await
-    {
-        Ok(pair) => pair,
-        Err(e) => {
-            tracing::warn!(connection_id = %id, err = %e, "handle_error panicked");
-            let h = Python::attach(|py| py.None().into());
-            (h, PostCallback::Close)
-        }
-    }
 }
 
 /// Per-connection I/O handler task.
 ///
 /// Runs a `select!` loop reading from the socket and the send channel.
-/// Python callbacks are invoked via `spawn_blocking` + GIL.
+/// Python callbacks are invoked via `block_in_place` + GIL.
 /// Sequential callback guarantee: each callback completes before the next I/O event.
 ///
 /// Generic over the stream type so it works with both plain TCP and TLS.
@@ -631,40 +581,25 @@ where
     let mut in_accounting = Accounting::unlimited();
     let mut out_accounting = Accounting::unlimited();
 
-    // Helper: return tuple for error exits where handler was lost (panics).
-    macro_rules! error_exit {
-        ($stream:expr, $rx:expr) => {{
-            let h = Python::attach(|py| py.None().into());
-            return ($stream, h, $rx, PostCallback::Close, None);
-        }};
-    }
-
     // Emit connection accept/connect incident and call handle_established
     // (skipped after STARTTLS — the connection is already live)
-    let mut handler = if skip_established {
+    let handler = if skip_established {
         handler
     } else {
         let transport_str = transport.to_string();
-        let h = handler;
-        let post = tokio::task::spawn_blocking(move || {
+        let post = tokio::task::block_in_place(|| {
             Python::attach(|py| {
                 let accept_origin = format!("dionaea.connection.{transport_str}.accept");
-                callback::emit_connection_incident(py, h.bind(py), &accept_origin);
-                let result = callback::call_handle_established(h.bind(py));
-                (h, result)
+                callback::emit_connection_incident(py, handler.bind(py), &accept_origin);
+                callback::call_handle_established(handler.bind(py))
             })
-        })
-        .await;
+        });
 
         match post {
-            Ok((h, PostCallback::Continue)) => h,
-            Ok((h, _)) => {
-                let (h, _post) = call_disconnect(h, id).await;
-                return (stream, h, rx, PostCallback::Close, processor_pipeline);
-            }
-            Err(e) => {
-                tracing::error!(connection_id = %id, err = %e, "handle_established panicked");
-                error_exit!(stream, rx);
+            PostCallback::Continue => handler,
+            _ => {
+                call_disconnect(&handler, id);
+                return (stream, handler, rx, PostCallback::Close, processor_pipeline);
             }
         }
     };
@@ -689,8 +624,8 @@ where
         for data in pending_data {
             if let Err(e) = stream.write_all(&data).await {
                 tracing::debug!(connection_id = %id, err = %e, "write error flushing established data");
-                let (h, _post) = call_disconnect(handler, id).await;
-                return (stream, h, rx, PostCallback::Close, processor_pipeline);
+                call_disconnect(&handler, id);
+                return (stream, handler, rx, PostCallback::Close, processor_pipeline);
             }
             if let Some(mut meta) = registry.get_mut(id) {
                 meta.stats.bytes_out += data.len() as u64;
@@ -723,8 +658,8 @@ where
                 match result {
                     Ok(0) => {
                         tracing::debug!(connection_id = %id, "peer closed connection");
-                        let (h, post) = call_disconnect(handler, id).await;
-                        return (stream, h, rx, post, processor_pipeline);
+                        let post = call_disconnect(&handler, id);
+                        return (stream, handler, rx, post, processor_pipeline);
                     }
                     Ok(n) => {
                         // Reset idle timeout on data
@@ -735,8 +670,8 @@ where
 
                         if in_accounting.add(n as u64) {
                             tracing::debug!(connection_id = %id, "accounting limit, closing");
-                            let (h, post) = call_disconnect(handler, id).await;
-                            return (stream, h, rx, post, processor_pipeline);
+                            let post = call_disconnect(&handler, id);
+                            return (stream, handler, rx, post, processor_pipeline);
                         }
 
                         if let Some(mut meta) = registry.get_mut(id) {
@@ -755,43 +690,34 @@ where
                             pipeline.io_in(&data);
                         }
 
-                        let h = handler;
-                        let post = tokio::task::spawn_blocking(move || {
+                        let (post, consumed) = tokio::task::block_in_place(|| {
                             Python::attach(|py| {
-                                let (result, consumed) =
-                                    callback::call_handle_io_in(h.bind(py), &data);
-                                (h, result, consumed, data)
+                                callback::call_handle_io_in(handler.bind(py), &data)
                             })
-                        })
-                        .await;
+                        });
 
                         match post {
-                            Ok((h, PostCallback::Continue, consumed, io_data)) => {
-                                handler = h;
-                                if consumed < io_data.len() {
-                                    let remaining = io_data.len() - consumed;
+                            PostCallback::Continue => {
+                                if consumed < data.len() {
+                                    let remaining = data.len() - consumed;
                                     if remaining > MAX_PARTIAL_BUF {
                                         tracing::warn!(connection_id = %id, remaining, "partial buffer exceeded limit, closing");
-                                        let (h, post) = call_disconnect(handler, id).await;
-                                        return (stream, h, rx, post, processor_pipeline);
+                                        let post = call_disconnect(&handler, id);
+                                        return (stream, handler, rx, post, processor_pipeline);
                                     }
-                                    partial_buf = io_data[consumed..].to_vec();
+                                    partial_buf = data[consumed..].to_vec();
                                 }
                             }
-                            Ok((h, _, _, _)) => {
-                                let (h, _post) = call_disconnect(h, id).await;
-                                return (stream, h, rx, PostCallback::Close, processor_pipeline);
-                            }
-                            Err(e) => {
-                                tracing::error!(connection_id = %id, err = %e, "io_in panicked");
-                                error_exit!(stream, rx);
+                            _ => {
+                                call_disconnect(&handler, id);
+                                return (stream, handler, rx, PostCallback::Close, processor_pipeline);
                             }
                         }
                     }
                     Err(e) => {
                         tracing::debug!(connection_id = %id, err = %e, "TCP read error");
-                        let (h, post) = call_disconnect(handler, id).await;
-                        return (stream, h, rx, post, processor_pipeline);
+                        let post = call_disconnect(&handler, id);
+                        return (stream, handler, rx, post, processor_pipeline);
                     }
                 }
             }
@@ -807,14 +733,14 @@ where
 
                         if out_accounting.add(data.len() as u64) {
                             tracing::debug!(connection_id = %id, "outbound accounting limit");
-                            let (h, post) = call_disconnect(handler, id).await;
-                            return (stream, h, rx, post, processor_pipeline);
+                            let post = call_disconnect(&handler, id);
+                            return (stream, handler, rx, post, processor_pipeline);
                         }
 
                         if let Err(e) = stream.write_all(&data).await {
                             tracing::debug!(connection_id = %id, err = %e, "TCP write error");
-                            let (h, post) = call_disconnect(handler, id).await;
-                            return (stream, h, rx, post, processor_pipeline);
+                            let post = call_disconnect(&handler, id);
+                            return (stream, handler, rx, post, processor_pipeline);
                         }
 
                         if let Some(mut meta) = registry.get_mut(id) {
@@ -827,26 +753,17 @@ where
 
                         // Notify Python that data was written (enables chunked transfers).
                         // handle_io_out may call self.send() to queue more data.
-                        let h = handler;
-                        let post = tokio::task::spawn_blocking(move || {
+                        let post = tokio::task::block_in_place(|| {
                             Python::attach(|py| {
-                                let result = callback::call_handle_io_out(h.bind(py));
-                                (h, result)
+                                callback::call_handle_io_out(handler.bind(py))
                             })
-                        })
-                        .await;
+                        });
 
                         match post {
-                            Ok((h, PostCallback::Continue)) => {
-                                handler = h;
-                            }
-                            Ok((h, _)) => {
-                                let (h, _post) = call_disconnect(h, id).await;
-                                return (stream, h, rx, PostCallback::Close, processor_pipeline);
-                            }
-                            Err(e) => {
-                                tracing::error!(connection_id = %id, err = %e, "io_out panicked");
-                                error_exit!(stream, rx);
+                            PostCallback::Continue => {}
+                            _ => {
+                                call_disconnect(&handler, id);
+                                return (stream, handler, rx, PostCallback::Close, processor_pipeline);
                             }
                         }
                     }
@@ -887,80 +804,64 @@ where
                         // Flush any pending writes before handing stream to TLS
                         if let Err(e) = stream.flush().await {
                             tracing::warn!(connection_id = %id, err = %e, "flush before STARTTLS failed");
-                            let (h, post) = call_disconnect(handler, id).await;
-                            return (stream, h, rx, post, processor_pipeline);
+                            let post = call_disconnect(&handler, id);
+                            return (stream, handler, rx, post, processor_pipeline);
                         }
                         return (stream, handler, rx, PostCallback::StartTls, processor_pipeline);
                     }
                     Some(SendMessage::Close) => {
                         tracing::debug!(connection_id = %id, "close requested");
-                        let (h, post) = call_disconnect(handler, id).await;
-                        return (stream, h, rx, post, processor_pipeline);
+                        let post = call_disconnect(&handler, id);
+                        return (stream, handler, rx, post, processor_pipeline);
                     }
                     None => {
                         tracing::debug!(connection_id = %id, "send channel closed");
-                        let (h, post) = call_disconnect(handler, id).await;
-                        return (stream, h, rx, post, processor_pipeline);
+                        let post = call_disconnect(&handler, id);
+                        return (stream, handler, rx, post, processor_pipeline);
                     }
                 }
             }
 
             () = &mut idle_timeout => {
                 tracing::debug!(connection_id = %id, "idle timeout");
-                let h = handler;
-                let post = tokio::task::spawn_blocking(move || {
+                let post = tokio::task::block_in_place(|| {
                     Python::attach(|py| {
-                        let result = callback::call_handle_timeout_idle(h.bind(py));
-                        (h, result)
+                        callback::call_handle_timeout_idle(handler.bind(py))
                     })
-                })
-                .await;
+                });
 
                 match post {
-                    Ok((h, PostCallback::Continue)) => {
-                        handler = h;
+                    PostCallback::Continue => {
                         let secs = get_timeout_secs(&registry, id, TimeoutKind::Idle);
                         idle_timeout.as_mut().reset(
                             Instant::now() + secs_to_duration(secs),
                         );
                     }
-                    Ok((h, _)) => {
-                        let (h, _post) = call_disconnect(h, id).await;
-                        return (stream, h, rx, PostCallback::Close, processor_pipeline);
-                    }
-                    Err(e) => {
-                        tracing::error!(connection_id = %id, err = %e, "timeout_idle panicked");
-                        error_exit!(stream, rx);
+                    _ => {
+                        call_disconnect(&handler, id);
+                        return (stream, handler, rx, PostCallback::Close, processor_pipeline);
                     }
                 }
             }
 
             () = &mut sustain_timeout => {
                 tracing::debug!(connection_id = %id, "sustain timeout");
-                let h = handler;
-                let post = tokio::task::spawn_blocking(move || {
+                let post = tokio::task::block_in_place(|| {
                     Python::attach(|py| {
-                        let result = callback::call_handle_timeout_sustain(h.bind(py));
-                        (h, result)
+                        callback::call_handle_timeout_sustain(handler.bind(py))
                     })
-                })
-                .await;
+                });
 
                 match post {
-                    Ok((h, PostCallback::Continue)) => {
-                        handler = h;
+                    PostCallback::Continue => {
                         let secs = get_timeout_secs(&registry, id, TimeoutKind::Sustain);
                         sustain_timeout.as_mut().reset(
                             Instant::now() + secs_to_duration(secs),
                         );
                     }
-                    Ok((h, _)) => {
-                        let (h, _post) = call_disconnect(h, id).await;
-                        return (stream, h, rx, PostCallback::Close, processor_pipeline);
-                    }
-                    Err(e) => {
-                        tracing::error!(connection_id = %id, err = %e, "timeout_sustain panicked");
-                        error_exit!(stream, rx);
+                    _ => {
+                        call_disconnect(&handler, id);
+                        return (stream, handler, rx, PostCallback::Close, processor_pipeline);
                     }
                 }
             }
@@ -1026,41 +927,23 @@ fn update_timeout(registry: &ConnectionRegistry, id: ConnectionId, which: Timeou
     }
 }
 
-/// Call handle_disconnect via spawn_blocking, returning the handler and post-callback.
+/// Call handle_disconnect via block_in_place.
 ///
 /// Does NOT emit `dionaea.connection.free` — the caller decides when to emit it
 /// (accept-type connections always emit; connect-type only on final close).
-async fn call_disconnect(handler: Py<PyAny>, id: ConnectionId) -> (Py<PyAny>, PostCallback) {
-    match tokio::task::spawn_blocking(move || {
-        Python::attach(|py| {
-            let post = callback::call_handle_disconnect(handler.bind(py));
-            (handler, post)
-        })
+fn call_disconnect(handler: &Py<PyAny>, _id: ConnectionId) -> PostCallback {
+    tokio::task::block_in_place(|| {
+        Python::attach(|py| callback::call_handle_disconnect(handler.bind(py)))
     })
-    .await
-    {
-        Ok(pair) => pair,
-        Err(e) => {
-            tracing::error!(connection_id = %id, err = %e, "handle_disconnect panicked");
-            let h = Python::attach(|py| py.None().into());
-            (h, PostCallback::Close)
-        }
-    }
 }
 
-/// Emit `dionaea.connection.free` via spawn_blocking.
-pub(crate) async fn emit_connection_free(handler: Py<PyAny>) -> Py<PyAny> {
-    match tokio::task::spawn_blocking(move || {
+/// Emit `dionaea.connection.free` via block_in_place.
+pub(crate) fn emit_connection_free(handler: &Py<PyAny>) {
+    tokio::task::block_in_place(|| {
         Python::attach(|py| {
             callback::emit_connection_incident(py, handler.bind(py), "dionaea.connection.free");
-            handler
         })
-    })
-    .await
-    {
-        Ok(h) => h,
-        Err(_) => Python::attach(|py| py.None().into()),
-    }
+    });
 }
 
 /// Get timeout seconds from the registry.
@@ -1109,7 +992,7 @@ pub(crate) fn cleanup_connection(
 }
 
 /// Invalidate the Python handler (set id to None, drop channel).
-pub(crate) fn invalidate_handler(handler: Py<PyAny>) {
+pub(crate) fn invalidate_handler(handler: &Py<PyAny>) {
     Python::attach(|py| {
         let bound = handler.bind(py);
         if let Ok(conn) = bound.cast::<PyConnection>() {

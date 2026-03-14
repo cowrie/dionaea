@@ -60,7 +60,7 @@ impl PyIncident {
 ///
 /// Python handlers (logsql, etc.) share mutable state that isn't thread-safe.
 /// sqlite3 releases the GIL during cursor operations, which allows concurrent
-/// dispatch from different spawn_blocking threads. This lock ensures only one
+/// dispatch from different block_in_place threads. This lock ensures only one
 /// thread dispatches at a time, matching the C single-threaded event loop model.
 ///
 /// Uses a Mutex+Condvar pair instead of an AtomicBool spinlock. This is critical

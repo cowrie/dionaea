@@ -98,7 +98,7 @@ pub async fn udp_listen(
 /// UDP recv loop: receive datagrams, dispatch to per-peer handlers, send replies.
 ///
 /// Manages a peer table (`HashMap<SocketAddr, UdpPeer>`) and sweeps for idle
-/// peers every second. Python callbacks run via `spawn_blocking` + GIL.
+/// peers every second. Python callbacks run via `block_in_place` + GIL.
 async fn udp_recv_loop(
     socket: UdpSocket,
     registry: Arc<ConnectionRegistry>,
@@ -136,32 +136,17 @@ async fn udp_recv_loop(
                             // Drain any pending send messages from this peer
                             drain_peer_sends(&mut peer.rx, &socket).await;
 
-                            // Move handler out for spawn_blocking (Py::clone needs GIL)
-                            let h = std::mem::replace(
-                                &mut peer.handler,
-                                Python::attach(|py| py.None().into()),
-                            );
-                            let id = peer.id;
-                            let post = tokio::task::spawn_blocking(move || {
+                            let post = tokio::task::block_in_place(|| {
                                 Python::attach(|py| {
                                     let (result, _consumed) =
-                                        callback::call_handle_io_in(h.bind(py), &data);
-                                    (h, result)
+                                        callback::call_handle_io_in(peer.handler.bind(py), &data);
+                                    result
                                 })
-                            })
-                            .await;
+                            });
 
                             match post {
-                                Ok((h, PostCallback::Continue)) => {
-                                    peer.handler = h;
-                                }
-                                Ok((h, _)) => {
-                                    invalidate_handler(h);
-                                    remove_peer(&mut peers, &remote_addr, &registry, &limits);
-                                    continue;
-                                }
-                                Err(e) => {
-                                    tracing::error!(connection_id = %id, err = %e, "io_in panicked");
+                                PostCallback::Continue => {}
+                                _ => {
                                     remove_peer(&mut peers, &remote_addr, &registry, &limits);
                                     continue;
                                 }
@@ -197,105 +182,70 @@ async fn udp_recv_loop(
 
                             tracing::debug!(connection_id = %id, %remote_addr, "new UDP peer");
 
-                            // Create Python handler via factory
-                            let factory_clone = Python::attach(|py| protocol_factory.clone_ref(py));
-                            let reg_for_factory = registry.clone();
-                            let lim_for_factory = limits.clone();
                             let handler_tx = tx;
 
-                            let child_result = tokio::task::spawn_blocking(move || {
+                            let child_result = tokio::task::block_in_place(|| {
                                 Python::attach(|py| {
-                                    let parent = factory_clone.bind(py);
+                                    let parent = protocol_factory.bind(py);
                                     factory_create(
-                                        py, &parent, id, handler_tx, "udp",
-                                        Some(reg_for_factory), Some(lim_for_factory), recv_buffer_size,
+                                        py, parent, id, handler_tx, "udp",
+                                        Some(registry.clone()), Some(limits.clone()), recv_buffer_size,
                                     )
                                 })
-                            })
-                            .await;
+                            });
 
                             let handler = match child_result {
-                                Ok(Ok(h)) => h,
-                                Ok(Err(e)) => {
+                                Ok(h) => h,
+                                Err(e) => {
                                     tracing::error!(connection_id = %id, err = %e, "factory_create failed");
                                     cleanup_connection(&registry, &limits, id, remote_ip);
                                     continue;
                                 }
-                                Err(e) => {
-                                    tracing::error!(connection_id = %id, err = %e, "factory panicked");
-                                    cleanup_connection(&registry, &limits, id, remote_ip);
-                                    continue;
-                                }
                             };
 
-                            // Set handler addresses, then call handle_established
-                            let h = handler;
-                            let la = local_addr;
-                            let ra = remote_addr;
-                            let post = tokio::task::spawn_blocking(move || {
+                            let post = tokio::task::block_in_place(|| {
                                 Python::attach(|py| {
-                                    if let Ok(conn) = h.bind(py).cast::<PyConnection>() {
+                                    if let Ok(conn) = handler.bind(py).cast::<PyConnection>() {
                                         let mut c = conn.borrow_mut();
-                                        c.local.host = la.ip().to_string();
-                                        c.local.port = la.port();
-                                        c.remote.host = ra.ip().to_string();
-                                        c.remote.port = ra.port();
+                                        c.local.host = local_addr.ip().to_string();
+                                        c.local.port = local_addr.port();
+                                        c.remote.host = remote_addr.ip().to_string();
+                                        c.remote.port = remote_addr.port();
                                         c.status = "established".to_string();
                                     }
-                                    let result = callback::call_handle_established(h.bind(py));
-                                    (h, result)
+                                    callback::call_handle_established(handler.bind(py))
                                 })
-                            })
-                            .await;
+                            });
 
-                            let handler = match post {
-                                Ok((h, PostCallback::Continue)) => h,
-                                Ok((h, _)) => {
-                                    invalidate_handler(h);
+                            match post {
+                                PostCallback::Continue => {}
+                                _ => {
+                                    invalidate_handler(&handler);
                                     cleanup_connection(&registry, &limits, id, remote_ip);
                                     continue;
                                 }
-                                Err(e) => {
-                                    tracing::error!(connection_id = %id, err = %e, "handle_established panicked");
-                                    cleanup_connection(&registry, &limits, id, remote_ip);
-                                    continue;
-                                }
-                            };
+                            }
 
-                            // Add peer to table (clone_ref needs GIL)
-                            let handler_for_peer = Python::attach(|py| handler.clone_ref(py));
                             peers.insert(remote_addr, UdpPeer {
                                 id,
-                                handler: handler_for_peer,
+                                handler,
                                 rx,
                                 last_activity: Instant::now(),
                                 idle_timeout: default_idle_timeout,
                             });
 
-                            // Now process the first datagram
-                            let h = handler;
-                            let post = tokio::task::spawn_blocking(move || {
+                            let peer = peers.get_mut(&remote_addr).expect("just inserted");
+                            let post = tokio::task::block_in_place(|| {
                                 Python::attach(|py| {
                                     let (result, _consumed) =
-                                        callback::call_handle_io_in(h.bind(py), &data);
-                                    (h, result)
+                                        callback::call_handle_io_in(peer.handler.bind(py), &data);
+                                    result
                                 })
-                            })
-                            .await;
+                            });
 
                             match post {
-                                Ok((h, PostCallback::Continue)) => {
-                                    if let Some(peer) = peers.get_mut(&remote_addr) {
-                                        peer.handler = h;
-                                    }
-                                }
-                                Ok((h, _)) => {
-                                    invalidate_handler(h);
-                                    remove_peer(&mut peers, &remote_addr, &registry, &limits);
-                                    continue;
-                                }
-                                Err(e) => {
-                                    tracing::error!(connection_id = %id, err = %e, "io_in panicked for new peer");
+                                PostCallback::Continue => {}
+                                _ => {
                                     remove_peer(&mut peers, &remote_addr, &registry, &limits);
                                     continue;
                                 }
@@ -377,18 +327,15 @@ fn remove_peer(
     limits: &ConnectionLimits,
 ) {
     if let Some(peer) = peers.remove(addr) {
-        // Call handle_disconnect
-        let h = peer.handler;
-        let id = peer.id;
-        tokio::task::spawn_blocking(move || {
+        tokio::task::block_in_place(|| {
             Python::attach(|py| {
-                let _ = h.bind(py).call_method0("handle_disconnect");
-                if let Ok(conn) = h.bind(py).cast::<PyConnection>() {
+                let _ = peer.handler.bind(py).call_method0("handle_disconnect");
+                if let Ok(conn) = peer.handler.bind(py).cast::<PyConnection>() {
                     conn.borrow_mut().invalidate();
                 }
             })
         });
-        cleanup_connection(registry, limits, id, addr.ip());
+        cleanup_connection(registry, limits, peer.id, addr.ip());
     }
 }
 

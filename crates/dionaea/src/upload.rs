@@ -112,7 +112,7 @@ async fn upload_multipart(
     // Add file fields (validate paths are within allowed directories)
     let allowed_dir = runtime::get()
         .map(|s| s.config.dionaea.download.dir.clone())
-        .unwrap_or_else(|| std::env::temp_dir());
+        .unwrap_or_else(std::env::temp_dir);
     let allowed_canonical = allowed_dir.canonicalize().unwrap_or(allowed_dir);
 
     for (name, path) in &file_fields {
@@ -136,7 +136,7 @@ async fn upload_multipart(
             .to_string();
 
         let mut part = reqwest::multipart::Part::bytes(data).file_name(file_name);
-        if let Some(ct) = content_types.get(&*name) {
+        if let Some(ct) = content_types.get(name.as_str()) {
             part = part
                 .mime_str(ct)
                 .map_err(|e| format!("invalid mime type: {e}"))?;

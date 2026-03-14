@@ -114,7 +114,7 @@ python_path = "{python_path}"
         let ihandler_configs = python_config.ihandler_configs.clone();
         let python_path = python_config.python_path.clone();
 
-        let load_result = tokio::task::spawn_blocking(move || {
+        let load_result = tokio::task::block_in_place(|| {
             Python::attach(|py| {
                 let config = config::PythonModuleConfig {
                     imports,
@@ -125,9 +125,7 @@ python_path = "{python_path}"
                 };
                 dionaea::python::loader::load(py, &config)
             })
-        })
-        .await
-        .expect("spawn_blocking join");
+        });
 
         if let Err(e) = load_result {
             panic!("Python module loading failed: {e}");
@@ -137,7 +135,7 @@ python_path = "{python_path}"
         time::sleep(Duration::from_millis(500)).await;
 
         // Discover bound ports from Python's g_slave
-        let (blackhole_port, http_port) = tokio::task::spawn_blocking(|| {
+        let (blackhole_port, http_port) = tokio::task::block_in_place(|| {
             Python::attach(|py| {
                 py.run(
                     c"
@@ -172,9 +170,7 @@ if g_slave and hasattr(g_slave, 'daemons'):
                     .unwrap_or(0);
                 (bp, hp)
             })
-        })
-        .await
-        .expect("get ports");
+        });
 
         assert!(
             blackhole_port > 0,

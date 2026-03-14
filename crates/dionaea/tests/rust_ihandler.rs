@@ -65,14 +65,15 @@ fn test_rust_handler_dispatch_via_report() {
         });
     }
 
-    let rt = tokio::runtime::Builder::new_current_thread()
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
         .enable_all()
         .build()
         .expect("runtime");
 
     rt.block_on(async {
         // Report a download.offer incident from Python
-        tokio::task::spawn_blocking(move || {
+        tokio::task::block_in_place(|| {
             Python::attach(|py| {
                 let python_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
                     .join("../../modules/python")
@@ -100,9 +101,7 @@ i.report()
                 )
                 .expect("report incident");
             });
-        })
-        .await
-        .expect("spawn_blocking");
+        });
     });
 
     assert_eq!(

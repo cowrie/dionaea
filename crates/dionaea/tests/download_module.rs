@@ -107,7 +107,7 @@ fn test_download_module_end_to_end() {
             .canonicalize()
             .expect("modules/python/ should exist");
 
-        tokio::task::spawn_blocking(move || {
+        tokio::task::block_in_place(|| {
             Python::attach(|py| {
                 dionaea::python::loader::load(
                     py,
@@ -131,9 +131,7 @@ i.report()
                 )
                 .expect("report incident");
             });
-        })
-        .await
-        .expect("spawn_blocking");
+        });
 
         // Give time for any async processing
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;

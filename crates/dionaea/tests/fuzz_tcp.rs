@@ -56,7 +56,7 @@ fn test_random_bytes_no_panic() {
             .canonicalize()
             .expect("modules/python/ should exist");
 
-        let port: u16 = tokio::task::spawn_blocking(move || {
+        let port: u16 = tokio::task::block_in_place(|| {
             Python::attach(|py| {
                 dionaea::python::loader::load(
                     py,
@@ -94,9 +94,7 @@ port = daemon.local.port
                     .expect("extract port");
                 port
             })
-        })
-        .await
-        .expect("spawn_blocking");
+        });
 
         // Use a fixed seed for reproducibility but cover diverse patterns
         let test_payloads: Vec<Vec<u8>> = vec![
