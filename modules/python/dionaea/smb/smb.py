@@ -1699,10 +1699,18 @@ class smbd(connection):
                             service_uuid,
                         )
                 else:
+                    # Log with raw bytes and endianness info to diagnose byte-order issues
+                    alt_uuid = parse_dcerpc_uuid(tmp.TransferSyntax, not is_big_endian)
+                    alt_known = str(alt_uuid) in (NDR32_UUID, NDR64_UUID)
                     smblog.warning(
-                        "Attempt to register %s failed, TransferSyntax %s is unknown",
+                        "Attempt to register %s failed, TransferSyntax %s is unknown "
+                        "(is_big_endian=%s, raw_bytes=%s, alt_parse=%s, alt_known=%s)",
                         service_uuid,
                         transfersyntax_uuid,
+                        is_big_endian,
+                        tmp.TransferSyntax.hex(),
+                        alt_uuid,
+                        alt_known,
                     )
                 i = incident("dionaea.modules.python.smb.dcerpc.bind")
                 i.con = self
