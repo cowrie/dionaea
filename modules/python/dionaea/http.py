@@ -668,6 +668,11 @@ class httpd(connection):
                     pos = data.find(self.boundary)
                     # ending boundary not found
                     if pos < 0:
+                        if len(data) >= self.content_length:
+                            # All data received but no closing boundary — malformed multipart
+                            self.fp_tmp.write(data[:self.content_length])
+                            self.handle_POST()
+                            return start_of_content + self.content_length
                         return start_of_content
                     self.fp_tmp.write(data[:pos])
                     self.handle_POST()
@@ -711,6 +716,13 @@ class httpd(connection):
                     # Only write to BytesIO if we haven't exceeded max size
                     if length_processed > 0:
                         self.fp_tmp.write(data[:length_processed])
+                    # If all content-length bytes received but no closing boundary,
+                    # process what we have (malformed multipart)
+                    remaining = data_length - length_processed
+                    if self.fp_tmp.tell() + remaining >= self.content_length:
+                        self.fp_tmp.write(data[length_processed:])
+                        self.handle_POST()
+                        return data_length
                     return length_processed
 
                 # boundary found
