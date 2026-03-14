@@ -180,7 +180,8 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libpcap-dev \
             libssl-dev \
-            pkg-config
+            pkg-config \
+            samba-testsuite
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
