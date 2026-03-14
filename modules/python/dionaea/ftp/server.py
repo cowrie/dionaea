@@ -176,6 +176,49 @@ class FTPd(connection):
     def cmd_HELP(self, arg):
         self.sendline('214 Help OK.')
 
+    # -- Security commands (RFC 4217 / RFC 2228) --
+
+    def cmd_AUTH(self, arg):
+        if self.tls_active:
+            self.reply("auth_already_active")
+            return
+        if arg.upper() != 'TLS':
+            self.reply("cmd_not_implmntd_for_param", param=arg)
+            return
+        self.reply("auth_tls_ok")
+        self.start_tls()
+        self.tls_active = True
+        self.state = State.NOT_AUTHENTICATED
+        self.pbsz_done = False
+        self.prot_level = 'C'
+
+    def cmd_PBSZ(self, arg):
+        if not self.tls_active:
+            self.reply("security_required")
+            return
+        if arg != '0':
+            self.reply("pbsz_bad_value")
+            return
+        self.reply("pbsz_ok")
+        self.pbsz_done = True
+
+    def cmd_PROT(self, arg):
+        if not self.tls_active:
+            self.reply("security_required")
+            return
+        if not self.pbsz_done:
+            self.reply("pbsz_required")
+            return
+        level = arg.upper()
+        if level not in ('C', 'P'):
+            self.reply("prot_unknown", level=arg)
+            return
+        self.prot_level = level
+        self.reply("prot_ok", level=level)
+
+    def cmd_CCC(self, arg):
+        self.reply("ccc_refused")
+
     # -- File system commands --
 
     def real_path(self, p=None):
