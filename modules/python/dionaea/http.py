@@ -24,7 +24,7 @@ from email.policy import HTTP
 
 from dionaea import ServiceLoader
 from dionaea.core import connection, g_dionaea, incident
-from dionaea.util import detect_shellshock
+from dionaea.util import detect_shellshock, find_shell_download
 from dionaea.exception import ServiceConfigError
 
 from typing import TYPE_CHECKING
@@ -762,6 +762,13 @@ class httpd(connection):
                 body = body[:self.MAX_BODY_LOG_SIZE]
             i.body = body.decode('utf-8', errors='replace')
             i.report()
+            # Scan request URL for command injection (wget/curl download commands)
+            path_bytes = self.header.path.encode('utf-8', errors='replace')
+            find_shell_download(self, path_bytes)
+
+            # Scan headers for Shellshock attacks
+            for value in self.header.headers.values():
+                detect_shellshock(self, value)
         except Exception:
             logger.warning("Failed to log HTTP request incident", exc_info=True)
 
@@ -883,7 +890,6 @@ class httpd(connection):
         if soap_action == b"urn:dslforum-org:service:Time:1#SetNTPServers":
             regex = re.compile(rb"<(?P<tag_name>NewNTPServer\d)[^>]*>(?P<data>.*?)</(?P=tag_name)\s*>")
             for d in regex.finditer(data[:content_length], re.I):
-                from .util import find_shell_download
                 find_shell_download(self, d.group("data"))
 
         # ToDo: response
