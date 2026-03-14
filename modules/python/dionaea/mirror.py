@@ -25,12 +25,12 @@ class MirrorService(ServiceLoader):
 
 
 class mirrorc(connection):
-    def __init__(self, peer: 'mirrord | None' = None) -> None:
+    def __init__(self, proto: str = "tcp", peer: 'mirrord | None' = None) -> None:
         if peer is None:
             raise ValueError("peer is required")
         logger.debug("mirror connection %s %s" %
                      (peer.remote.host, peer.local.host))
-        connection.__init__(self, peer.transport)
+        connection.__init__(self, proto)
         self.bind(peer.local.host, 0)
         self.connect(peer.remote.host, peer.local.port)
         self.peer: mirrord = peer
@@ -65,7 +65,7 @@ class mirrord(connection):
         self.peer: mirrorc | None = None
 
     def handle_established(self) -> None:
-        self.peer = mirrorc(self)
+        self.peer = mirrorc(self.transport, peer=self)
         self.timeouts.sustain = 60
         self._in.accounting.limit = 100*1024
         self._out.accounting.limit = 100*1024

@@ -50,11 +50,11 @@ def is_local_addr(addr):
 
 
 class nfqmirrorc(connection):
-    def __init__(self, peer=None):
+    def __init__(self, proto="tcp", peer=None):
         logger.debug(f"nfqmirror connection {peer.remote.host} {peer.local.host}")
-        connection.__init__(self,peer.transport)
-        self.bind(peer.local.host,0)
-        self.connect(peer.remote.host,peer.local.port)
+        connection.__init__(self, proto)
+        self.bind(peer.local.host, 0)
+        self.connect(peer.remote.host, peer.local.port)
         self.peer = peer
 
     def handle_established(self):
@@ -90,7 +90,7 @@ class nfqmirrord(connection):
         self._out.accounting.limit = 200*1024
 
         if not is_local_addr(self.remote.host):
-            self.peer=nfqmirrorc(self)
+            self.peer=nfqmirrorc(self.transport, peer=self)
             # problem:
             # the parent connection just got accepted
             # we are in the established callback for this connection
