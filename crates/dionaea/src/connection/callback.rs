@@ -165,7 +165,7 @@ pub fn call_handle_timeout_listen(conn: &Bound<'_, PyAny>) -> PostCallback {
 
 /// Emit a connection lifecycle incident (e.g. `dionaea.connection.tcp.accept`).
 ///
-/// Must be called with the GIL held. Creates a PyIncident with `con` set to
+/// Must be called with the GIL held. Creates a `PyIncident` with `con` set to
 /// the connection handler, then reports it. Errors are logged but not propagated.
 pub fn emit_connection_incident(py: Python<'_>, conn: &Bound<'_, PyAny>, origin: &str) {
     let inc = match Py::new(py, PyIncident::new(Some(origin.to_string()))) {

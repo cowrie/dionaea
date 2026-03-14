@@ -101,7 +101,7 @@ impl ConnectionLimits {
     ///
     /// `current_total` is the current number of active connections (from the registry).
     /// `fd_count` is the number of open file descriptors (injectable for tests).
-    /// `fd_soft_limit` is the RLIMIT_NOFILE soft limit.
+    /// `fd_soft_limit` is the `RLIMIT_NOFILE` soft limit.
     pub fn check(
         &self,
         ip: IpAddr,
@@ -181,8 +181,7 @@ impl ConnectionLimits {
     pub fn ip_count(&self, ip: IpAddr) -> u32 {
         self.per_ip
             .get(&ip)
-            .map(|v| v.load(Ordering::Relaxed))
-            .unwrap_or(0)
+            .map_or(0, |v| v.load(Ordering::Relaxed))
     }
 
     /// Number of tracked IPs.

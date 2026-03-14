@@ -63,6 +63,7 @@ impl Throttle {
 
     /// Try to consume `n` bytes. Returns `Ok(())` if allowed, or
     /// `Err(duration)` with the time to wait before retrying.
+    #[allow(clippy::cast_precision_loss)]
     pub fn try_consume(&mut self, n: usize) -> Result<(), Duration> {
         if self.is_unlimited() {
             return Ok(());
@@ -80,6 +81,7 @@ impl Throttle {
     }
 
     /// Same as `try_consume` but with an explicit `now` for testing.
+    #[allow(clippy::cast_precision_loss)]
     pub fn try_consume_at(&mut self, n: usize, now: Instant) -> Result<(), Duration> {
         if self.is_unlimited() {
             return Ok(());
@@ -97,6 +99,7 @@ impl Throttle {
     }
 
     /// How many bytes are currently available without waiting.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     pub fn available(&self) -> usize {
         if self.is_unlimited() {
             return usize::MAX;

@@ -3,7 +3,7 @@
 // ABOUTME: Connection lifecycle state machine and metadata registry.
 // ABOUTME: Owns ConnectionMeta (shared via DashMap) and defines state transitions.
 
-/// Python callback dispatch (handle_io_in, handle_established, etc.).
+/// Python callback dispatch (`handle_io_in`, `handle_established`, etc.).
 pub mod callback;
 /// Per-IP and global connection limit enforcement.
 pub mod limits;
@@ -89,7 +89,7 @@ pub enum ConnectionType {
     Accept,
     /// Listening for incoming connections.
     Listen,
-    /// Outbound connect() initiated.
+    /// Outbound `connect()` initiated.
     Connect,
 }
 
@@ -130,26 +130,17 @@ impl fmt::Display for ConnectionState {
 
 /// Validate a state transition. Returns error if invalid.
 pub fn validate_transition(from: ConnectionState, to: ConnectionState) -> Result<(), Error> {
-    use ConnectionState::*;
+    use ConnectionState::{
+        Close, Connecting, Established, Handshake, None, Resolve, Shutdown,
+    };
     let valid = matches!(
         (from, to),
-        (None, Resolve)
-            | (None, Connecting)
-            | (None, Handshake)
-            | (None, Established)
-            | (None, Close)
-            | (Resolve, Connecting)
-            | (Resolve, Close)
-            | (Connecting, Handshake)
-            | (Connecting, Established)
-            | (Connecting, Close)
-            | (Handshake, Established)
-            | (Handshake, Close)
-            | (Established, Connecting) // reconnect after disconnect
-            | (Established, Handshake) // STARTTLS upgrade
+        (None, Resolve | Connecting | Handshake | Established | Close)
+            | (Resolve | Established, Connecting)
+            | (Resolve | Connecting | Handshake | Established | Shutdown, Close)
+            | (Connecting | Established, Handshake)
+            | (Connecting | Handshake, Established)
             | (Established, Shutdown)
-            | (Established, Close)
-            | (Shutdown, Close)
     );
     if valid {
         Ok(())

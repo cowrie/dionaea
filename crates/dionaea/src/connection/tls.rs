@@ -138,7 +138,7 @@ pub fn generate_self_signed_cert(
 ///
 /// Intentionally permissive: accepts all TLS/SSL protocol versions and weak
 /// ciphers. A honeypot needs to accept connections from old exploit tools,
-/// scanners, and malware that use SSLv3, RC4, export ciphers, etc. Rejecting
+/// scanners, and malware that use `SSLv3`, RC4, export ciphers, etc. Rejecting
 /// these would make the honeypot invisible to the traffic we want to capture.
 ///
 /// The cipher list can be overridden via config for deployments that need
@@ -193,6 +193,7 @@ impl TlsListenerHandle {
 }
 
 /// Start a TLS listener on the given address.
+#[allow(clippy::too_many_arguments)]
 pub async fn tls_listen(
     addr: SocketAddr,
     registry: Arc<ConnectionRegistry>,
@@ -231,6 +232,7 @@ pub async fn tls_listen(
 /// Accept loop for TLS connections.
 ///
 /// TCP accept → limit check → TLS handshake (with timeout) → handler I/O loop.
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 async fn tls_accept_loop(
     listener: TcpListener,
     registry: Arc<ConnectionRegistry>,
@@ -260,6 +262,7 @@ async fn tls_accept_loop(
         let fd_count = registry.len() as u64;
         let fd_soft_limit = get_fd_soft_limit();
 
+        #[allow(clippy::cast_possible_truncation)]
         if let Err(reason) = limits.check(peer_ip, registry.len() as u32, fd_count, fd_soft_limit) {
             tracing::debug!(%peer_addr, %reason, "rejecting TLS connection");
             crate::connection::tcp::reject_connection(stream, &reject_config, &silent_tracker);

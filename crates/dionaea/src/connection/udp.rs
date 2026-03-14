@@ -99,6 +99,7 @@ pub async fn udp_listen(
 ///
 /// Manages a peer table (`HashMap<SocketAddr, UdpPeer>`) and sweeps for idle
 /// peers every second. Python callbacks run via `block_in_place` + GIL.
+#[allow(clippy::too_many_lines)]
 async fn udp_recv_loop(
     socket: UdpSocket,
     registry: Arc<ConnectionRegistry>,
@@ -144,12 +145,9 @@ async fn udp_recv_loop(
                                 })
                             });
 
-                            match post {
-                                PostCallback::Continue => {}
-                                _ => {
-                                    remove_peer(&mut peers, &remote_addr, &registry, &limits);
-                                    continue;
-                                }
+                            if post != PostCallback::Continue {
+                                remove_peer(&mut peers, &remote_addr, &registry, &limits);
+                                continue;
                             }
                         } else {
                             // New peer: check peer table cap and limits
@@ -163,7 +161,8 @@ async fn udp_recv_loop(
 
                             if let Err(reason) = limits.check(
                                 remote_ip,
-                                registry.len() as u32,
+                                #[allow(clippy::cast_possible_truncation)]
+                                (registry.len() as u32),
                                 fd_count,
                                 fd_soft_limit,
                             ) {
@@ -217,13 +216,10 @@ async fn udp_recv_loop(
                                 })
                             });
 
-                            match post {
-                                PostCallback::Continue => {}
-                                _ => {
-                                    invalidate_handler(&handler);
-                                    cleanup_connection(&registry, &limits, id, remote_ip);
-                                    continue;
-                                }
+                            if post != PostCallback::Continue {
+                                invalidate_handler(&handler);
+                                cleanup_connection(&registry, &limits, id, remote_ip);
+                                continue;
                             }
 
                             peers.insert(remote_addr, UdpPeer {
@@ -243,12 +239,9 @@ async fn udp_recv_loop(
                                 })
                             });
 
-                            match post {
-                                PostCallback::Continue => {}
-                                _ => {
-                                    remove_peer(&mut peers, &remote_addr, &registry, &limits);
-                                    continue;
-                                }
+                            if post != PostCallback::Continue {
+                                remove_peer(&mut peers, &remote_addr, &registry, &limits);
+                                continue;
                             }
                         }
 
@@ -271,7 +264,7 @@ async fn udp_recv_loop(
                 }
             }
 
-            _ = time::sleep(sweep_interval) => {
+            () = time::sleep(sweep_interval) => {
                 sweep_idle_peers(&mut peers, &registry, &limits);
             }
         }
@@ -333,7 +326,7 @@ fn remove_peer(
                 if let Ok(conn) = peer.handler.bind(py).cast::<PyConnection>() {
                     conn.borrow_mut().invalidate();
                 }
-            })
+            });
         });
         cleanup_connection(registry, limits, peer.id, addr.ip());
     }

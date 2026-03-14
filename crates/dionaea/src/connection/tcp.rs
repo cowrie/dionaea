@@ -162,6 +162,7 @@ pub async fn tcp_listen(
 }
 
 /// Accept loop: accepts connections, checks limits, spawns handler tasks.
+#[allow(clippy::too_many_arguments)]
 async fn accept_loop(
     listener: TcpListener,
     registry: Arc<ConnectionRegistry>,
@@ -190,6 +191,7 @@ async fn accept_loop(
         let fd_count = registry.len() as u64;
         let fd_soft_limit = get_fd_soft_limit();
 
+        #[allow(clippy::cast_possible_truncation)]
         if let Err(reason) = limits.check(peer_ip, registry.len() as u32, fd_count, fd_soft_limit) {
             tracing::debug!(%peer_addr, %reason, "rejecting connection");
             reject_connection(stream, &reject_config, &silent_tracker);
@@ -278,7 +280,7 @@ async fn accept_loop(
                 id,
                 reg.clone(),
                 recv_buffer_size,
-                &starttls,
+                starttls.as_ref(),
                 pipeline,
             )
             .await;
@@ -294,6 +296,7 @@ async fn accept_loop(
 /// Called after `handle_connection` returns. If the post-callback is `StartTls` and
 /// an SSL acceptor is available, wraps the TCP stream in TLS and re-enters the I/O
 /// loop. Otherwise returns the handler as-is.
+#[allow(clippy::too_many_arguments)]
 async fn handle_starttls_or_finish(
     post: PostCallback,
     tcp_stream: tokio::net::TcpStream,
@@ -302,7 +305,7 @@ async fn handle_starttls_or_finish(
     id: ConnectionId,
     registry: Arc<ConnectionRegistry>,
     recv_buffer_size: usize,
-    starttls_acceptor: &Option<StarttlsAcceptor>,
+    starttls_acceptor: Option<&StarttlsAcceptor>,
     pipeline: Option<crate::processor::ProcessorPipeline>,
 ) -> Py<PyAny> {
     if post != PostCallback::StartTls {
@@ -317,18 +320,13 @@ async fn handle_starttls_or_finish(
 
     #[cfg(feature = "tls")]
     {
-        let acceptor = match starttls_acceptor {
-            Some(ctx) => match ctx.downcast_ref::<openssl::ssl::SslAcceptor>() {
-                Some(a) => a,
-                None => {
-                    tracing::error!(connection_id = %id, "STARTTLS context is not an SslAcceptor");
-                    return handler;
-                }
-            },
-            None => {
-                tracing::warn!(connection_id = %id, "STARTTLS requested but no SSL acceptor configured");
-                return handler;
-            }
+        let Some(ctx) = starttls_acceptor else {
+            tracing::warn!(connection_id = %id, "STARTTLS requested but no SSL acceptor configured");
+            return handler;
+        };
+        let Some(acceptor) = ctx.downcast_ref::<openssl::ssl::SslAcceptor>() else {
+            tracing::error!(connection_id = %id, "STARTTLS context is not an SslAcceptor");
+            return handler;
         };
 
         let ssl = match openssl::ssl::Ssl::new(acceptor.context()) {
@@ -395,6 +393,7 @@ async fn handle_starttls_or_finish(
 /// address fields, then runs the standard I/O handler loop. If the Python handler
 /// requests reconnection (returning True from `handle_disconnect` or `handle_error`),
 /// the task sleeps for `timeouts.reconnect` seconds and tries again with a new socket.
+#[allow(clippy::too_many_lines, clippy::similar_names)]
 pub async fn tcp_connect_task(
     mut handler: Py<PyAny>,
     id: ConnectionId,
@@ -445,7 +444,7 @@ pub async fn tcp_connect_task(
                             }
                             c.status = "established".to_string();
                         }
-                    })
+                    });
                 });
 
                 tracing::debug!(connection_id = %id, ?peer_addr, "outbound TCP connected");
@@ -521,7 +520,7 @@ pub async fn tcp_connect_task(
     registry.remove(id);
 }
 
-/// Call `handle_error` on the Python handler via block_in_place.
+/// Call `handle_error` on the Python handler via `block_in_place`.
 ///
 /// Returns the handler and post-callback so the reconnect loop can decide
 /// whether to retry or give up.
@@ -548,7 +547,7 @@ fn call_handle_error(handler: &Py<PyAny>, _id: ConnectionId, msg: &str) -> PostC
 ///
 /// When `skip_established` is true (e.g. after STARTTLS), the accept incident
 /// and `handle_established` callback are not fired (the connection is already live).
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines, clippy::too_many_arguments)]
 pub(crate) async fn handle_connection<S>(
     mut stream: S,
     handler: Py<PyAny>,
@@ -569,7 +568,7 @@ pub(crate) async fn handle_connection<S>(
 where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
 {
-    /// Cap on partial_buf to prevent memory exhaustion from slow protocol handlers.
+    /// Cap on `partial_buf` to prevent memory exhaustion from slow protocol handlers.
     const MAX_PARTIAL_BUF: usize = 10 * 1024 * 1024; // 10 MB
 
     let mut buf = BytesMut::zeroed(recv_buffer_size);
@@ -595,12 +594,11 @@ where
             })
         });
 
-        match post {
-            PostCallback::Continue => handler,
-            _ => {
-                call_disconnect(&handler, id);
-                return (stream, handler, rx, PostCallback::Close, processor_pipeline);
-            }
+        if post == PostCallback::Continue {
+            handler
+        } else {
+            call_disconnect(&handler, id);
+            return (stream, handler, rx, PostCallback::Close, processor_pipeline);
         }
     };
 
@@ -696,22 +694,19 @@ where
                             })
                         });
 
-                        match post {
-                            PostCallback::Continue => {
-                                if consumed < data.len() {
-                                    let remaining = data.len() - consumed;
-                                    if remaining > MAX_PARTIAL_BUF {
-                                        tracing::warn!(connection_id = %id, remaining, "partial buffer exceeded limit, closing");
-                                        let post = call_disconnect(&handler, id);
-                                        return (stream, handler, rx, post, processor_pipeline);
-                                    }
-                                    partial_buf = data[consumed..].to_vec();
+                        if post == PostCallback::Continue {
+                            if consumed < data.len() {
+                                let remaining = data.len() - consumed;
+                                if remaining > MAX_PARTIAL_BUF {
+                                    tracing::warn!(connection_id = %id, remaining, "partial buffer exceeded limit, closing");
+                                    let post = call_disconnect(&handler, id);
+                                    return (stream, handler, rx, post, processor_pipeline);
                                 }
+                                partial_buf = data[consumed..].to_vec();
                             }
-                            _ => {
-                                call_disconnect(&handler, id);
-                                return (stream, handler, rx, PostCallback::Close, processor_pipeline);
-                            }
+                        } else {
+                            call_disconnect(&handler, id);
+                            return (stream, handler, rx, PostCallback::Close, processor_pipeline);
                         }
                     }
                     Err(e) => {
@@ -759,12 +754,9 @@ where
                             })
                         });
 
-                        match post {
-                            PostCallback::Continue => {}
-                            _ => {
-                                call_disconnect(&handler, id);
-                                return (stream, handler, rx, PostCallback::Close, processor_pipeline);
-                            }
+                        if post != PostCallback::Continue {
+                            call_disconnect(&handler, id);
+                            return (stream, handler, rx, PostCallback::Close, processor_pipeline);
                         }
                     }
                     Some(SendMessage::SetTimeout { which, value }) => {
@@ -830,17 +822,14 @@ where
                     })
                 });
 
-                match post {
-                    PostCallback::Continue => {
-                        let secs = get_timeout_secs(&registry, id, TimeoutKind::Idle);
-                        idle_timeout.as_mut().reset(
-                            Instant::now() + secs_to_duration(secs),
-                        );
-                    }
-                    _ => {
-                        call_disconnect(&handler, id);
-                        return (stream, handler, rx, PostCallback::Close, processor_pipeline);
-                    }
+                if post == PostCallback::Continue {
+                    let secs = get_timeout_secs(&registry, id, TimeoutKind::Idle);
+                    idle_timeout.as_mut().reset(
+                        Instant::now() + secs_to_duration(secs),
+                    );
+                } else {
+                    call_disconnect(&handler, id);
+                    return (stream, handler, rx, PostCallback::Close, processor_pipeline);
                 }
             }
 
@@ -852,17 +841,14 @@ where
                     })
                 });
 
-                match post {
-                    PostCallback::Continue => {
-                        let secs = get_timeout_secs(&registry, id, TimeoutKind::Sustain);
-                        sustain_timeout.as_mut().reset(
-                            Instant::now() + secs_to_duration(secs),
-                        );
-                    }
-                    _ => {
-                        call_disconnect(&handler, id);
-                        return (stream, handler, rx, PostCallback::Close, processor_pipeline);
-                    }
+                if post == PostCallback::Continue {
+                    let secs = get_timeout_secs(&registry, id, TimeoutKind::Sustain);
+                    sustain_timeout.as_mut().reset(
+                        Instant::now() + secs_to_duration(secs),
+                    );
+                } else {
+                    call_disconnect(&handler, id);
+                    return (stream, handler, rx, PostCallback::Close, processor_pipeline);
                 }
             }
         }
@@ -870,11 +856,11 @@ where
 }
 
 /// Drain pending control messages from the channel (non-blocking).
-/// Called after handle_established to pick up timeouts set by the protocol.
+/// Called after `handle_established` to pick up timeouts set by the protocol.
 /// Drain pending control messages from the channel.
 ///
 /// Returns any Data messages (e.g. welcome banners) and an optional
-/// processor pipeline if `processors()` was called during handle_established.
+/// processor pipeline if `processors()` was called during `handle_established`.
 fn drain_control_messages(
     rx: &mut mpsc::Receiver<SendMessage>,
     registry: &ConnectionRegistry,
@@ -927,7 +913,7 @@ fn update_timeout(registry: &ConnectionRegistry, id: ConnectionId, which: Timeou
     }
 }
 
-/// Call handle_disconnect via block_in_place.
+/// Call `handle_disconnect` via `block_in_place`.
 ///
 /// Does NOT emit `dionaea.connection.free` — the caller decides when to emit it
 /// (accept-type connections always emit; connect-type only on final close).
@@ -937,12 +923,12 @@ fn call_disconnect(handler: &Py<PyAny>, _id: ConnectionId) -> PostCallback {
     })
 }
 
-/// Emit `dionaea.connection.free` via block_in_place.
+/// Emit `dionaea.connection.free` via `block_in_place`.
 pub(crate) fn emit_connection_free(handler: &Py<PyAny>) {
     tokio::task::block_in_place(|| {
         Python::attach(|py| {
             callback::emit_connection_incident(py, handler.bind(py), "dionaea.connection.free");
-        })
+        });
     });
 }
 
@@ -1028,7 +1014,7 @@ pub(crate) fn reject_connection(
     }
 }
 
-/// Get the RLIMIT_NOFILE soft limit.
+/// Get the `RLIMIT_NOFILE` soft limit.
 #[cfg(unix)]
 pub(crate) fn get_fd_soft_limit() -> u64 {
     use nix::sys::resource::{Resource, getrlimit};
