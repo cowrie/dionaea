@@ -1787,17 +1787,17 @@ class epmapper(smbd):
         try:
             p = DCERPC_Header(data)
         except Exception as e:
-            smblog.warning("DCERPC packet parsing failed: %s", str(e))
+            smblog.debug("DCERPC packet parsing failed: %s", str(e))
             return len(data)
 
         # Validate DCERPC version - must be 5.x
         if p.Version != 5:
-            smblog.warning("Invalid DCERPC version: %d.%d", p.Version, p.VersionMinor)
+            smblog.debug("Invalid DCERPC version: %d.%d", p.Version, p.VersionMinor)
             return len(data)
 
         # Validate FragLen - minimum is 16 (header size), max sanity check
         if p.FragLen < 16 or p.FragLen > 65535:
-            smblog.warning("Invalid DCERPC FragLen: %d", p.FragLen)
+            smblog.debug("Invalid DCERPC FragLen: %d", p.FragLen)
             return len(data)
 
         if len(data) < p.FragLen:
