@@ -58,6 +58,7 @@ pub struct ProcessorPipeline {
     bistream: Arc<BiStream>,
 }
 
+#[allow(clippy::missing_fields_in_debug)]
 impl std::fmt::Debug for ProcessorPipeline {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ProcessorPipeline")
@@ -163,6 +164,28 @@ impl ProcessorPipeline {
 /// Each config entry has a `label` (unique name) and `next` (labels of children).
 /// Root nodes are entries not referenced by any other entry's `next`.
 pub fn build_tree(configs: &[ProcessorConfig], download_dir: &Path) -> Vec<ProcessorNode> {
+    fn build_node(
+        label: &str,
+        processors: &HashMap<&str, Arc<dyn Processor>>,
+        children_map: &HashMap<&str, Vec<&str>>,
+    ) -> Option<ProcessorNode> {
+        let processor = processors.get(label)?.clone();
+        let children = children_map
+            .get(label)
+            .map(|child_labels| {
+                child_labels
+                    .iter()
+                    .filter_map(|child| build_node(child, processors, children_map))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        Some(ProcessorNode {
+            processor,
+            children,
+        })
+    }
+
     // Build processor instances indexed by label
     let mut processors: HashMap<&str, Arc<dyn Processor>> = HashMap::new();
 
@@ -217,29 +240,6 @@ pub fn build_tree(configs: &[ProcessorConfig], download_dir: &Path) -> Vec<Proce
         .map(|c| c.label.as_str())
         .filter(|label| !referenced.contains(label))
         .collect();
-
-    // Recursive tree builder
-    fn build_node(
-        label: &str,
-        processors: &HashMap<&str, Arc<dyn Processor>>,
-        children_map: &HashMap<&str, Vec<&str>>,
-    ) -> Option<ProcessorNode> {
-        let processor = processors.get(label)?.clone();
-        let children = children_map
-            .get(label)
-            .map(|child_labels| {
-                child_labels
-                    .iter()
-                    .filter_map(|child| build_node(child, processors, children_map))
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        Some(ProcessorNode {
-            processor,
-            children,
-        })
-    }
 
     roots
         .into_iter()
@@ -359,6 +359,7 @@ impl StreamDumper {
     }
 }
 
+#[allow(clippy::unnecessary_literal_bound)]
 impl Processor for StreamDumper {
     fn name(&self) -> &str {
         "streamdumper"
@@ -421,23 +422,22 @@ impl StreamDumperCtx {
     }
 
     fn write_chunk_inner(&mut self, direction: &str, data: &[u8]) -> std::io::Result<()> {
-        let file = match &mut self.file {
-            Some(f) => f,
-            None => {
-                fs::create_dir_all(&self.dir)?;
-                let path = self.dir.join(format!(
-                    "{}-{}.bistream",
-                    std::process::id(),
-                    std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_nanos()
-                ));
-                let f = fs::File::create(&path)?;
-                tracing::debug!(path = %path.display(), "opened bistream file");
-                self.file = Some(f);
-                self.file.as_mut().expect("just created")
-            }
+        let file = if let Some(f) = &mut self.file {
+            f
+        } else {
+            fs::create_dir_all(&self.dir)?;
+            let path = self.dir.join(format!(
+                "{}-{}.bistream",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_nanos()
+            ));
+            let f = fs::File::create(&path)?;
+            tracing::debug!(path = %path.display(), "opened bistream file");
+            self.file = Some(f);
+            self.file.as_mut().expect("just created")
         };
 
         // Write Python-compatible format
@@ -489,7 +489,7 @@ fn write_python_bytes(w: &mut impl Write, data: &[u8]) -> std::io::Result<()> {
 
 // --- Shellcode Processor ---
 
-/// Detects shellcode in incoming data using GetPC pattern scanning.
+/// Detects shellcode in incoming data using `GetPC` pattern scanning.
 ///
 /// On detection: saves shellcode bytes to a file (content-addressable by SHA256)
 /// and emits a `dionaea.shellcode.detected` incident.
@@ -504,6 +504,7 @@ impl ShellcodeProcessor {
     }
 }
 
+#[allow(clippy::unnecessary_literal_bound)]
 impl Processor for ShellcodeProcessor {
     fn name(&self) -> &str {
         "shellcode"

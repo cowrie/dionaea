@@ -28,7 +28,7 @@ pub fn resolve_group(name: &str) -> Result<Gid, String> {
         .ok_or_else(|| format!("group '{name}' not found"))
 }
 
-/// Raise RLIMIT_NOFILE to the hard limit.
+/// Raise `RLIMIT_NOFILE` to the hard limit.
 ///
 /// Honeypots handle many concurrent connections, so we want as many file
 /// descriptors as possible. Returns the new soft limit.
@@ -49,6 +49,7 @@ pub fn raise_nofile_limit() -> Result<u64, String> {
 /// ensures we still have permission to change gid and groups).
 ///
 /// Returns Ok(()) on success, or if already running as the target user.
+#[allow(clippy::similar_names)]
 pub fn drop_privileges(uid: Uid, gid: Gid) -> Result<(), String> {
     let current_uid = Uid::current();
     let current_gid = Gid::current();

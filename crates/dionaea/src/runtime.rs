@@ -69,6 +69,7 @@ impl RuntimeState {
     }
 }
 
+#[allow(clippy::missing_fields_in_debug)]
 impl std::fmt::Debug for RuntimeState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let count = self.listeners.lock().map(|v| v.len()).unwrap_or(0);

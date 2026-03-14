@@ -12,7 +12,7 @@ pub enum Error {
     /// Configuration parsing or validation error.
     Config(String),
 
-    /// Python error (converted from PyErr at the boundary).
+    /// Python error (converted from `PyErr` at the boundary).
     Python(String),
 
     /// TOML deserialization error.

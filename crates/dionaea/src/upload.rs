@@ -17,6 +17,7 @@ const DEFAULT_TIMEOUT_SECS: u64 = 30;
 /// Extract string fields from an incident, classifying them by type.
 ///
 /// Returns `(url, callback, userdata, user, pass, file_fields, text_fields, content_types)`.
+#[allow(clippy::type_complexity)]
 fn extract_fields(
     incident: &Incident,
 ) -> (
@@ -78,6 +79,7 @@ fn extract_fields(
 }
 
 /// Execute the multipart POST upload.
+#[allow(clippy::too_many_arguments)]
 async fn upload_multipart(
     url: &str,
     user: Option<&str>,
@@ -111,8 +113,7 @@ async fn upload_multipart(
 
     // Add file fields (validate paths are within allowed directories)
     let allowed_dir = runtime::get()
-        .map(|s| s.config.dionaea.download.dir.clone())
-        .unwrap_or_else(std::env::temp_dir);
+        .map_or_else(std::env::temp_dir, |s| s.config.dionaea.download.dir.clone());
     let allowed_canonical = allowed_dir.canonicalize().unwrap_or(allowed_dir);
 
     for (name, path) in &file_fields {
@@ -248,8 +249,7 @@ fn handle_upload_request(incident: &Incident) {
     };
 
     let timeout = runtime::get()
-        .map(|s| s.config.dionaea.download.timeout_secs)
-        .unwrap_or(DEFAULT_TIMEOUT_SECS);
+        .map_or(DEFAULT_TIMEOUT_SECS, |s| s.config.dionaea.download.timeout_secs);
 
     h.spawn(async move {
         let result = upload_multipart(

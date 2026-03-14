@@ -31,7 +31,7 @@ pub enum OpaqueData {
 /// An event dispatched through the incident handler system.
 ///
 /// Origin strings use dot-separated paths like "dionaea.connection.tcp.accept".
-/// IHandlers register glob patterns to match origins.
+/// `IHandlers` register glob patterns to match origins.
 pub struct Incident {
     /// Dot-separated origin path (e.g. "dionaea.connection.tcp.accept").
     pub origin: String,

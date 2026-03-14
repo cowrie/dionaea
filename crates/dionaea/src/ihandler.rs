@@ -10,7 +10,7 @@ use crate::incident::Incident;
 /// Wildcard pattern matcher.
 ///
 /// Supports `*` (match any characters including dots) and `?` (match one character).
-/// This matches GLib's `g_pattern_spec_match` semantics, not filesystem glob semantics.
+/// This matches `GLib`'s `g_pattern_spec_match` semantics, not filesystem glob semantics.
 #[derive(Debug, Clone)]
 pub struct WildcardPattern {
     pattern: String,
@@ -72,7 +72,7 @@ fn wildcard_match(pattern: &[u8], text: &[u8]) -> bool {
 pub enum HandlerCallback {
     /// A Rust function callback (Arc for cloning out of registry during dispatch).
     Rust(Arc<dyn Fn(&Incident) + Send + Sync>),
-    /// A Python callback (handled via block_in_place + GIL in dispatch).
+    /// A Python callback (handled via `block_in_place` + GIL in dispatch).
     Python(pyo3::Py<pyo3::PyAny>),
 }
 

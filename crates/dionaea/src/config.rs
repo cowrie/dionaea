@@ -78,7 +78,7 @@ pub struct ListenConfig {
 /// Resource limits checked at connection accept time.
 #[derive(Debug, Deserialize)]
 pub struct LimitsConfig {
-    /// Reject connections above this percentage of RLIMIT_NOFILE.
+    /// Reject connections above this percentage of `RLIMIT_NOFILE`.
     #[serde(default = "default_max_fds_pct")]
     pub max_fds_pct: u32,
     /// Hard cap on concurrent connections.
@@ -107,7 +107,7 @@ pub struct AdminConfig {
 ///
 /// The global log level gate is auto-derived as the most permissive level
 /// across all configured targets. Per-target filtering is done by `DomainFilter`.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct LoggingConfig {
     /// Log output targets (file, stdout).
     #[serde(default)]
@@ -135,6 +135,7 @@ pub struct LogTarget {
 
 /// Module enable/disable and settings.
 #[derive(Debug, Deserialize)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct ModulesConfig {
     /// Python module settings.
     #[serde(default)]
@@ -142,7 +143,7 @@ pub struct ModulesConfig {
     /// Enable HTTP download module.
     #[serde(default = "default_true")]
     pub download: bool,
-    /// Enable HTTP upload module (virustotal, hpfeeds, submit_http).
+    /// Enable HTTP upload module (virustotal, hpfeeds, `submit_http`).
     #[serde(default = "default_true")]
     pub upload: bool,
     /// Pcap capture settings. Present = enabled, absent = disabled.
@@ -300,14 +301,6 @@ impl Default for DownloadConfig {
     }
 }
 
-impl Default for LoggingConfig {
-    fn default() -> Self {
-        LoggingConfig {
-            targets: Vec::new(),
-        }
-    }
-}
-
 impl Default for ModulesConfig {
     fn default() -> Self {
         ModulesConfig {
@@ -353,9 +346,10 @@ pub fn load_from_str(content: &str) -> Result<Config> {
 /// Parse an integer env var into `target`, warning if the value is malformed.
 fn parse_env_int<T: std::str::FromStr + std::fmt::Display>(name: &str, target: &mut T) {
     if let Ok(val) = std::env::var(name) {
-        match val.parse() {
-            Ok(n) => *target = n,
-            Err(_) => tracing::warn!(var = name, value = %val, "ignoring non-numeric env override"),
+        if let Ok(n) = val.parse() {
+            *target = n;
+        } else {
+            tracing::warn!(var = name, value = %val, "ignoring non-numeric env override");
         }
     }
 }

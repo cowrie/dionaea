@@ -29,11 +29,11 @@ pub mod pcap;
 pub mod privileges;
 /// Per-connection processor pipeline (stream dumping, shellcode detection).
 pub mod processor;
-/// PyO3 bridge types exposed to Python protocol handlers.
+/// `PyO3` bridge types exposed to Python protocol handlers.
 pub mod python;
 /// Global runtime state (registry, limits, config) shared across tasks.
 pub mod runtime;
-/// HTTP multipart upload module (virustotal, hpfeeds, submit_http).
+/// HTTP multipart upload module (virustotal, hpfeeds, `submit_http`).
 #[cfg(feature = "upload")]
 pub mod upload;
 
