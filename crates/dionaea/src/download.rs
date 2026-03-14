@@ -240,7 +240,7 @@ fn handle_download_offer(incident: &Incident) {
                         emit_download_complete(&path, &url_string, &hash);
                     }
                     Err(e) => {
-                        tracing::error!(url = %url_string, error = %e, "download failed");
+                        tracing::warn!(url = %url_string, error = %e, "download failed");
                     }
                 }
             });

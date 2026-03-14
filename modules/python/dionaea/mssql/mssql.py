@@ -64,7 +64,7 @@ class mssqld(connection):
             p = None
             try:
                 if len(data) - offset < 8:  # length of TDS_Header
-                    logger.warning("Incomplete TDS_Header")
+                    logger.debug("Incomplete TDS_Header, waiting for more data")
                     return offset
 
                 p = TDS_Header(data[offset:offset+8])
