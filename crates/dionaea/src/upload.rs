@@ -287,13 +287,16 @@ pub fn register() {
         callback: HandlerCallback::Rust(Arc::new(handle_upload_request)),
     };
 
-    state
-        .ihandler_registry
-        .lock()
-        .expect("registry lock")
-        .register(handler);
-
-    tracing::info!("upload handler registered");
+    match state.ihandler_registry.lock() {
+        Ok(mut reg) => {
+            reg.register(handler);
+            tracing::info!("upload handler registered");
+        }
+        Err(e) => {
+            e.into_inner().register(handler);
+            tracing::warn!("upload handler registered (recovered from poisoned lock)");
+        }
+    }
 }
 
 #[cfg(test)]

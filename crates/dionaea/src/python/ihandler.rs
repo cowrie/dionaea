@@ -66,7 +66,7 @@ impl PyIHandler {
             state
                 .ihandler_registry
                 .lock()
-                .expect("ihandler registry lock")
+                .unwrap_or_else(|e| e.into_inner())
                 .register(handler);
             tracing::debug!(pattern = %slf.borrow().pattern, "ihandler registered");
         }

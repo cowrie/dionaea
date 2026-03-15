@@ -336,13 +336,16 @@ pub fn start(config: &PcapConfig, shutdown: &Arc<AtomicBool>) -> Vec<JoinHandle<
     for iface in &config.interfaces {
         let device_name = iface.clone();
         let shutdown = shutdown.clone();
-        let handle = std::thread::Builder::new()
+        match std::thread::Builder::new()
             .name(format!("pcap-{device_name}"))
             .spawn(move || {
                 capture_loop(&device_name, &shutdown);
-            })
-            .expect("spawn pcap thread");
-        handles.push(handle);
+            }) {
+            Ok(handle) => handles.push(handle),
+            Err(e) => {
+                tracing::error!(interface = %iface, error = %e, "failed to spawn pcap thread");
+            }
+        }
     }
 
     handles

@@ -38,7 +38,7 @@ impl BiStream {
 
     /// Append a chunk of data.
     pub fn push(&self, direction: Direction, data: Bytes) {
-        let mut chunks = self.chunks.lock().expect("bistream lock");
+        let mut chunks = self.chunks.lock().unwrap_or_else(|e| e.into_inner());
         let offset = chunks
             .iter()
             .filter(|c| c.direction == direction)
@@ -54,7 +54,7 @@ impl BiStream {
 
     /// Number of recorded chunks.
     pub fn len(&self) -> usize {
-        self.chunks.lock().expect("bistream lock").len()
+        self.chunks.lock().unwrap_or_else(|e| e.into_inner()).len()
     }
 
     /// Whether the bistream has no recorded chunks.
@@ -64,12 +64,12 @@ impl BiStream {
 
     /// Clone all chunks for reading.
     pub fn chunks(&self) -> Vec<StreamChunk> {
-        self.chunks.lock().expect("bistream lock").clone()
+        self.chunks.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     /// Total bytes in a given direction.
     pub fn total_bytes(&self, direction: Direction) -> usize {
-        let chunks = self.chunks.lock().expect("bistream lock");
+        let chunks = self.chunks.lock().unwrap_or_else(|e| e.into_inner());
         chunks
             .iter()
             .filter(|c| c.direction == direction)

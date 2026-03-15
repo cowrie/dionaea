@@ -57,12 +57,15 @@ impl RuntimeState {
 
     /// Register a listener's abort handle for shutdown tracking.
     pub fn track_listener(&self, abort: tokio::task::AbortHandle) {
-        self.listeners.lock().expect("lock").push(abort);
+        self.listeners
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(abort);
     }
 
     /// Stop all tracked listeners.
     pub fn stop_all_listeners(&self) {
-        let handles = self.listeners.lock().expect("lock");
+        let handles = self.listeners.lock().unwrap_or_else(|e| e.into_inner());
         for h in handles.iter() {
             h.abort();
         }

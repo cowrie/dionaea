@@ -265,13 +265,16 @@ pub fn register() {
         callback: HandlerCallback::Rust(Arc::new(handle_download_offer)),
     };
 
-    state
-        .ihandler_registry
-        .lock()
-        .expect("registry lock")
-        .register(handler);
-
-    tracing::info!("download handler registered");
+    match state.ihandler_registry.lock() {
+        Ok(mut reg) => {
+            reg.register(handler);
+            tracing::info!("download handler registered");
+        }
+        Err(e) => {
+            e.into_inner().register(handler);
+            tracing::warn!("download handler registered (recovered from poisoned lock)");
+        }
+    }
 }
 
 #[cfg(test)]
