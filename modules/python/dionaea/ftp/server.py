@@ -11,6 +11,7 @@ from pathlib import Path
 import time
 
 from dionaea.core import connection, incident
+from dionaea.exception import ServiceConfigError
 
 from .state import State, COMMAND_TABLE, RESPONSE
 
@@ -43,6 +44,16 @@ class FTPd(connection):
 
         # Copy default response messages; config can override
         self.response_msgs = dict(RESPONSE)
+
+    def apply_config(self, config):
+        self.basedir = config.get("root")
+        if self.basedir is None:
+            raise ServiceConfigError("basedir not defined")
+        if not Path(self.basedir).is_dir():
+            raise ServiceConfigError("The basedir '%s' is not a directory", self.basedir)
+        if not os.access(self.basedir, os.R_OK):
+            raise ServiceConfigError("Unable to read files in the '%s' directory", self.basedir)
+        self.response_msgs.update(config.get("response_messages", {}))
 
     def sendline(self, data):
         self.send(data + '\r\n')
