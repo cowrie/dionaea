@@ -10,20 +10,22 @@ import types
 
 class MockNodeInfo:
     """Minimal stand-in for connection.local / connection.remote."""
+
     def __init__(self):
-        self.host = '127.0.0.1'
+        self.host = "127.0.0.1"
         self.port = 0
         self.hostname = None
 
 
 class MockConnection:
     """Minimal stand-in for dionaea.core.connection."""
-    def __init__(self, proto='tcp'):
+
+    def __init__(self, proto="tcp"):
         self.proto = proto
         self.protocol_name = ""
         self.local = MockNodeInfo()
         self.remote = MockNodeInfo()
-        self.status = 'established'
+        self.status = "established"
         self._sent = []
         self._closed = False
         self._tls_started = False
@@ -64,6 +66,7 @@ class MockConnection:
 
 class MockIncident:
     """Minimal stand-in for dionaea.core.incident."""
+
     _all_incidents = []
 
     def __init__(self, origin=None):
@@ -72,7 +75,7 @@ class MockIncident:
         self._attrs = {}
 
     def __setattr__(self, name, value):
-        if name in ('origin', '_reported', '_attrs'):
+        if name in ("origin", "_reported", "_attrs"):
             object.__setattr__(self, name, value)
         else:
             self._attrs[name] = value
@@ -90,11 +93,11 @@ class MockIncident:
 
 def _install_mock_core():
     """Install mock dionaea.core in sys.modules before any ftp imports."""
-    if 'dionaea.core' not in sys.modules:
-        core_mod = types.ModuleType('dionaea.core')
+    if "dionaea.core" not in sys.modules:
+        core_mod = types.ModuleType("dionaea.core")
         core_mod.connection = MockConnection
         core_mod.incident = MockIncident
-        sys.modules['dionaea.core'] = core_mod
+        sys.modules["dionaea.core"] = core_mod
 
 
 # Install immediately at conftest load time (before test collection imports)
@@ -102,7 +105,7 @@ _install_mock_core()
 
 # Ensure the real dionaea package is on the path
 _modules_python = os.path.join(
-    os.path.dirname(__file__), '..', '..', '..', 'modules', 'python'
+    os.path.dirname(__file__), "..", "..", "..", "modules", "python"
 )
 _modules_python = os.path.normpath(_modules_python)
 if _modules_python not in sys.path:

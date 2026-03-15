@@ -12,13 +12,13 @@ from pathlib import Path
 
 from dionaea.core import connection
 
-logger = logging.getLogger('ftp')
+logger = logging.getLogger("ftp")
 
 
 class FTPDataCon(connection):
     """Base class for FTP data connections (both passive and active)."""
 
-    def __init__(self, proto='tcp', ctrl=None):
+    def __init__(self, proto="tcp", ctrl=None):
         connection.__init__(self, proto)
         self.ctrl = ctrl
         self.mode = None
@@ -32,11 +32,12 @@ class FTPDataCon(connection):
 
     def send_list(self, path, strip_len):
         """Format and send a directory listing."""
-        self.mode = 'list'
+        self.mode = "list"
         p = Path(path)
         if p.is_dir():
-            self.data = [self._format_entry(str(p / f.name), strip_len)
-                         for f in p.iterdir()]
+            self.data = [
+                self._format_entry(str(p / f.name), strip_len) for f in p.iterdir()
+            ]
         elif p.is_file():
             self.data = [self._format_entry(path, strip_len)]
         else:
@@ -44,7 +45,7 @@ class FTPDataCon(connection):
 
         if self.data:
             self.off = 1
-            self.send(self.data[0] + '\r\n')
+            self.send(self.data[0] + "\r\n")
         else:
             self._finish_transfer()
 
@@ -56,50 +57,47 @@ class FTPDataCon(connection):
         perms = stat.S_IMODE(s.st_mode)
 
         def fmt_mode(mode):
-            return ''.join(
-                'rwx'[n % 3] if mode & (256 >> n) else '-'
-                for n in range(9)
-            )
+            return "".join("rwx"[n % 3] if mode & (256 >> n) else "-" for n in range(9))
 
         def fmt_date(mtime):
             now = time.gmtime()
             mt = time.gmtime(mtime)
             if now.tm_year != mt.tm_year:
-                return f'{mt.tm_mon} {mt.tm_mday:02d} {mt.tm_year:5d}'
-            return f'{mt.tm_mon} {mt.tm_mday:02d} {mt.tm_hour:02d}:{mt.tm_min:02d}'
+                return f"{mt.tm_mon} {mt.tm_mday:02d} {mt.tm_year:5d}"
+            return f"{mt.tm_mon} {mt.tm_mday:02d} {mt.tm_hour:02d}:{mt.tm_min:02d}"
 
-        d = 'd' if is_dir else '-'
+        d = "d" if is_dir else "-"
         return (
-            f'{d}{fmt_mode(perms)}{s.st_nlink:4d} '
-            f'{s.st_uid:<9} {s.st_gid:<9} {s.st_size:15d} '
-            f'{fmt_date(s.st_mtime):>12} {name}'
+            f"{d}{fmt_mode(perms)}{s.st_nlink:4d} "
+            f"{s.st_uid:<9} {s.st_gid:<9} {s.st_size:15d} "
+            f"{fmt_date(s.st_mtime):>12} {name}"
         )
 
     def send_file(self, filepath):
         """Start sending a file."""
-        self.mode = 'file'
-        self.file = open(filepath, 'rb')
+        self.mode = "file"
+        self.file = open(filepath, "rb")
         self.handle_io_out()
 
     def recv_file(self, filepath):
         """Start receiving a file."""
-        self.mode = 'recv_file'
-        self.file = open(filepath, 'wb+')
+        self.mode = "recv_file"
+        self.file = open(filepath, "wb+")
 
     def handle_io_in(self, data: bytes) -> int:
-        if self.mode == 'recv_file' and self.file:
+        if self.mode == "recv_file" and self.file:
             self.file.write(data)
         return len(data)
 
     def handle_io_out(self):
-        if self.mode == 'list':
+        if self.mode == "list":
             if self.off < len(self.data):
-                self.send(self.data[self.off] + '\r\n')
+                self.send(self.data[self.off] + "\r\n")
                 self.off += 1
             else:
                 self._finish_transfer()
 
-        elif self.mode == 'file':
+        elif self.mode == "file":
             chunk = self.file.read(1024)
             self.send(chunk)
             if len(chunk) < 1024 and self.mode is not None:
@@ -120,9 +118,9 @@ class FTPDataCon(connection):
                 self.ctrl.dtf = None
             if self.ctrl.dtp:
                 self.ctrl.dtp = None
-            if self.mode in ('file', 'recv_file') and self.file:
+            if self.mode in ("file", "recv_file") and self.file:
                 self.file.close()
-                if self.mode == 'recv_file':
+                if self.mode == "recv_file":
                     self.ctrl.reply("txfr_complete_ok")
         return 0
 
@@ -132,9 +130,10 @@ class FTPDataCon(connection):
 
 class FTPDataListen(FTPDataCon):
     """Passive mode data connection listener."""
+
     protocol_name = "ftpdatalisten"
 
-    def __init__(self, host=None, port=None, ctrl=None, proto='tcp'):
+    def __init__(self, host=None, port=None, ctrl=None, proto="tcp"):
         FTPDataCon.__init__(self, proto=proto, ctrl=ctrl)
         if host is not None:
             self.bind(host, port)
@@ -154,10 +153,11 @@ class FTPDataListen(FTPDataCon):
 
 class FTPDataConnect(FTPDataCon):
     """Active mode data connection."""
+
     protocol_name = "ftpdataconnect"
 
     def __init__(self, host=None, port=None, ctrl=None, prot_p=False):
-        FTPDataCon.__init__(self, proto='tcp', ctrl=ctrl)
+        FTPDataCon.__init__(self, proto="tcp", ctrl=ctrl)
         self.prot_p = prot_p
         if host is not None:
             self.connect(host, port)

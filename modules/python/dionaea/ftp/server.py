@@ -15,32 +15,32 @@ from dionaea.exception import ServiceConfigError
 
 from .state import State, COMMAND_TABLE, RESPONSE
 
-logger = logging.getLogger('ftp')
+logger = logging.getLogger("ftp")
 
 
 def _encode_host_port(host, port):
     """Encode host and port for PASV response (h1,h2,h3,h4,p1,p2)."""
-    return ','.join(host.split('.') + [str(port >> 8), str(port % 256)])
+    return ",".join(host.split(".") + [str(port >> 8), str(port % 256)])
 
 
 class FTPd(connection):
     protocol_name = "ftpd"
     shared_config_values = ("basedir", "response_msgs")
 
-    def __init__(self, proto='tcp'):
+    def __init__(self, proto="tcp"):
         connection.__init__(self, proto)
         self.state = State.NOT_AUTHENTICATED
-        self.user = ''
-        self.cwd = '/'
+        self.user = ""
+        self.cwd = "/"
         self.basedir = None
-        self.dtp = None   # active data connection (PORT)
-        self.dtf = None   # passive data listener (PASV)
+        self.dtp = None  # active data connection (PORT)
+        self.dtf = None  # passive data listener (PASV)
         self.rename_from = None
 
         # Security state (RFC 4217)
         self.tls_active = False
         self.pbsz_done = False
-        self.prot_level = 'C'
+        self.prot_level = "C"
 
         # Copy default response messages; config can override
         self.response_msgs = dict(RESPONSE)
@@ -50,16 +50,20 @@ class FTPd(connection):
         if self.basedir is None:
             raise ServiceConfigError("basedir not defined")
         if not Path(self.basedir).is_dir():
-            raise ServiceConfigError("The basedir '%s' is not a directory", self.basedir)
+            raise ServiceConfigError(
+                "The basedir '%s' is not a directory", self.basedir
+            )
         if not os.access(self.basedir, os.R_OK):
-            raise ServiceConfigError("Unable to read files in the '%s' directory", self.basedir)
+            raise ServiceConfigError(
+                "Unable to read files in the '%s' directory", self.basedir
+            )
         self.response_msgs.update(config.get("response_messages", {}))
 
     def sendline(self, data):
-        self.send(data + '\r\n')
+        self.send(data + "\r\n")
 
     def reply(self, name, **kwargs):
-        msg = self.response_msgs.get(name, '')
+        msg = self.response_msgs.get(name, "")
         self.sendline(msg.format(**kwargs))
 
     def handle_origin(self, parent):
@@ -71,8 +75,8 @@ class FTPd(connection):
         self.reply("welcome_msg")
 
     def handle_io_in(self, data: bytes) -> int:
-        logger.debug("%s", data.decode(errors='replace').rstrip('\r\n'))
-        lastsep = data.rfind(b'\n')
+        logger.debug("%s", data.decode(errors="replace").rstrip("\r\n"))
+        lastsep = data.rfind(b"\n")
         if lastsep == -1:
             logger.debug("data without linebreak")
             return 0
@@ -82,10 +86,10 @@ class FTPd(connection):
         for line in lines:
             if not line:
                 continue
-            space = line.find(b' ')
+            space = line.find(b" ")
             if space != -1:
                 cmd = line[:space]
-                arg = line[space + 1:]
+                arg = line[space + 1 :]
             else:
                 cmd = line
                 arg = None
@@ -93,8 +97,8 @@ class FTPd(connection):
         return lastsep
 
     def processcmd(self, cmd_bytes, arg_bytes):
-        cmd_str = cmd_bytes.decode('latin-1')
-        arg_str = arg_bytes.decode('latin-1') if arg_bytes else ''
+        cmd_str = cmd_bytes.decode("latin-1")
+        arg_str = arg_bytes.decode("latin-1") if arg_bytes else ""
 
         i = incident("dionaea.modules.python.ftp.command")
         i.con = self
@@ -123,7 +127,7 @@ class FTPd(connection):
             return
 
         # Dispatch to cmd_<NAME>
-        handler = getattr(self, 'cmd_' + cmd_upper, None)
+        handler = getattr(self, "cmd_" + cmd_upper, None)
         if handler is None:
             self.reply("cmd_not_implmntd", command=cmd_upper)
             return
@@ -137,7 +141,7 @@ class FTPd(connection):
             return
         self.state = State.AWAITING_PASS
         self.user = arg
-        if arg == 'anonymous':
+        if arg == "anonymous":
             self.reply("guest_name_ok_need_email")
         else:
             self.reply("usr_name_ok_need_pass", username=arg)
@@ -154,7 +158,7 @@ class FTPd(connection):
         i.report()
 
         self.state = State.AUTHENTICATED
-        if self.user == 'anonymous':
+        if self.user == "anonymous":
             self.reply("guest_logged_in_proceed")
         else:
             self.reply("usr_logged_in_proceed")
@@ -163,15 +167,15 @@ class FTPd(connection):
 
     def cmd_FEAT(self, arg):
         self.send(
-            '211-Features:\r\n'
-            ' AUTH TLS\r\n'
-            ' PBSZ\r\n'
-            ' PROT\r\n'
-            ' PASV\r\n'
-            ' SIZE\r\n'
-            ' MDTM\r\n'
-            ' UTF8\r\n'
-            '211 End\r\n'
+            "211-Features:\r\n"
+            " AUTH TLS\r\n"
+            " PBSZ\r\n"
+            " PROT\r\n"
+            " PASV\r\n"
+            " SIZE\r\n"
+            " MDTM\r\n"
+            " UTF8\r\n"
+            "211 End\r\n"
         )
 
     def cmd_SYST(self, arg):
@@ -185,7 +189,7 @@ class FTPd(connection):
         self.reply("cmd_ok")
 
     def cmd_HELP(self, arg):
-        self.sendline('214 Help OK.')
+        self.sendline("214 Help OK.")
 
     # -- Security commands (RFC 4217 / RFC 2228) --
 
@@ -193,7 +197,7 @@ class FTPd(connection):
         if self.tls_active:
             self.reply("auth_already_active")
             return
-        if arg.upper() != 'TLS':
+        if arg.upper() != "TLS":
             self.reply("cmd_not_implmntd_for_param", param=arg)
             return
         self.reply("auth_tls_ok")
@@ -201,13 +205,13 @@ class FTPd(connection):
         self.tls_active = True
         self.state = State.NOT_AUTHENTICATED
         self.pbsz_done = False
-        self.prot_level = 'C'
+        self.prot_level = "C"
 
     def cmd_PBSZ(self, arg):
         if not self.tls_active:
             self.reply("security_required")
             return
-        if arg != '0':
+        if arg != "0":
             self.reply("pbsz_bad_value")
             return
         self.reply("pbsz_ok")
@@ -221,7 +225,7 @@ class FTPd(connection):
             self.reply("pbsz_required")
             return
         level = arg.upper()
-        if level not in ('C', 'P'):
+        if level not in ("C", "P"):
             self.reply("prot_unknown", level=arg)
             return
         self.prot_level = level
@@ -239,7 +243,7 @@ class FTPd(connection):
         else:
             name = self.cwd
 
-        if name.startswith('/'):
+        if name.startswith("/"):
             name = name[1:]
         name = str((Path(self.basedir) / name).resolve())
         return name
@@ -253,7 +257,7 @@ class FTPd(connection):
             self.reply("file_not_found", filename=arg)
             return
         if Path(cwd).is_dir():
-            self.cwd = cwd[len(self.basedir):] or '/'
+            self.cwd = cwd[len(self.basedir) :] or "/"
             self.reply("req_file_actn_completed_ok")
         else:
             self.reply("file_not_found", filename=arg)
@@ -263,8 +267,8 @@ class FTPd(connection):
         self.cmd_CWD(parent)
 
     def cmd_TYPE(self, arg):
-        if arg == 'I':
-            self.reply("type_set_ok", mode='I')
+        if arg == "I":
+            self.reply("type_set_ok", mode="I")
         else:
             self.reply("cmd_not_implmntd_for_param", param=arg)
 
@@ -292,7 +296,7 @@ class FTPd(connection):
             return
         p = Path(filepath)
         if p.is_file():
-            mtime = time.strftime('%Y%m%d%H%M%S', time.gmtime(p.stat().st_mtime))
+            mtime = time.strftime("%Y%m%d%H%M%S", time.gmtime(p.stat().st_mtime))
             self.reply("file_status", value=mtime)
         else:
             self.reply("file_not_found", filename=arg)
@@ -381,30 +385,28 @@ class FTPd(connection):
 
     def cmd_PASV(self, arg):
         from .data import FTPDataListen
+
         self._close_data_channels()
-        proto = 'tls' if self.prot_level == 'P' else 'tcp'
-        self.dtf = FTPDataListen(
-            host=self.local.host, port=0, ctrl=self, proto=proto
-        )
+        proto = "tls" if self.prot_level == "P" else "tcp"
+        self.dtf = FTPDataListen(host=self.local.host, port=0, ctrl=self, proto=proto)
         host = self.dtf.local.host
         port = self.dtf.local.port
         self.reply("entering_pasv_mode", host=_encode_host_port(host, port))
 
     def cmd_PORT(self, arg):
         from .data import FTPDataConnect
+
         if not arg:
             self.reply("syntax_err_in_args", command="PORT")
             return
         self._close_data_channels()
-        parts = list(map(int, arg.split(',')))
-        ip = f'{parts[0]}.{parts[1]}.{parts[2]}.{parts[3]}'
+        parts = list(map(int, arg.split(",")))
+        ip = f"{parts[0]}.{parts[1]}.{parts[2]}.{parts[3]}"
         port = parts[4] << 8 | parts[5]
         if self.remote.host != ip and "::ffff:" + self.remote.host != ip:
             logger.warning("Potential FTP Bounce Scan detected")
             return
-        self.dtp = FTPDataConnect(
-            ip, port, self, prot_p=(self.prot_level == 'P')
-        )
+        self.dtp = FTPDataConnect(ip, port, self, prot_p=(self.prot_level == "P"))
 
     def cmd_LIST(self, arg):
         name = self.real_path(arg or None)
@@ -414,7 +416,7 @@ class FTPd(connection):
         if not Path(name).exists():
             self.reply("permission_denied", path=arg)
             return
-        if self.dtp and self.dtp.status == 'established':
+        if self.dtp and self.dtp.status == "established":
             self.reply("file_status_ok_open_data_cnx")
             self.dtp.send_list(name, len(name) + 1)
         else:
@@ -431,7 +433,7 @@ class FTPd(connection):
         if not Path(name).is_file():
             self.reply("file_not_found", filename=arg)
             return
-        if self.dtp and self.dtp.status == 'established':
+        if self.dtp and self.dtp.status == "established":
             self.reply("file_status_ok_open_data_cnx")
             self.dtp.send_file(name)
         else:
@@ -445,7 +447,7 @@ class FTPd(connection):
         if not filepath.startswith(self.basedir):
             self.reply("permission_denied", path=arg)
             return
-        if self.dtp and self.dtp.status == 'established':
+        if self.dtp and self.dtp.status == "established":
             self.reply("file_status_ok_open_data_cnx")
             self.dtp.recv_file(filepath)
         else:

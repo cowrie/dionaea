@@ -12,7 +12,7 @@ from dionaea.exception import ServiceConfigError
 
 from .server import FTPd
 
-logger = logging.getLogger('ftp')
+logger = logging.getLogger("ftp")
 
 
 class FTPService(ServiceLoader):
