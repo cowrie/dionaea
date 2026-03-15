@@ -3,10 +3,42 @@
 // ABOUTME: Python callback error recovery for connection I/O events.
 // ABOUTME: Each callback type has specific error handling (continue, close, propagate).
 
+use std::time::Instant;
+
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
 use crate::python::incident::PyIncident;
+
+/// Threshold above which a Python callback is considered slow and gets a warning log.
+const SLOW_CALLBACK_THRESHOLD: std::time::Duration = std::time::Duration::from_millis(10);
+
+/// Get the Python class name for a connection object, for diagnostic logging.
+fn py_class_name(conn: &Bound<'_, PyAny>) -> String {
+    conn.get_type()
+        .name()
+        .map(|n| n.to_string())
+        .unwrap_or_else(|_| "<unknown>".to_string())
+}
+
+/// Log a warning if a callback took longer than the threshold.
+fn check_slow_callback(callback_name: &str, class_name: &str, elapsed: std::time::Duration) {
+    if elapsed > SLOW_CALLBACK_THRESHOLD {
+        tracing::warn!(
+            callback = callback_name,
+            handler = class_name,
+            duration_ms = elapsed.as_secs_f64() * 1000.0,
+            "slow Python callback"
+        );
+    } else {
+        tracing::trace!(
+            callback = callback_name,
+            handler = class_name,
+            duration_ms = elapsed.as_secs_f64() * 1000.0,
+            "Python callback completed"
+        );
+    }
+}
 
 /// What the I/O task should do after a Python callback returns.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,26 +57,34 @@ pub enum PostCallback {
 ///
 /// On exception: log and continue (no close).
 pub fn call_handle_origin(conn: &Bound<'_, PyAny>, parent: &Bound<'_, PyAny>) -> PostCallback {
-    match conn.call_method1("handle_origin", (parent,)) {
+    let class_name = py_class_name(conn);
+    let start = Instant::now();
+    let result = match conn.call_method1("handle_origin", (parent,)) {
         Ok(_) => PostCallback::Continue,
         Err(e) => {
             tracing::error!(err = %e, "handle_origin raised exception, continuing");
             PostCallback::Continue
         }
-    }
+    };
+    check_slow_callback("handle_origin", &class_name, start.elapsed());
+    result
 }
 
 /// Call `handle_established()` on the Python connection object.
 ///
 /// On exception: log and continue (no close).
 pub fn call_handle_established(conn: &Bound<'_, PyAny>) -> PostCallback {
-    match conn.call_method0("handle_established") {
+    let class_name = py_class_name(conn);
+    let start = Instant::now();
+    let result = match conn.call_method0("handle_established") {
         Ok(_) => PostCallback::Continue,
         Err(e) => {
             tracing::error!(err = %e, "handle_established raised exception, continuing");
             PostCallback::Continue
         }
-    }
+    };
+    check_slow_callback("handle_established", &class_name, start.elapsed());
+    result
 }
 
 /// Call `handle_io_in(data)` on the Python connection object.
@@ -52,9 +92,11 @@ pub fn call_handle_established(conn: &Bound<'_, PyAny>) -> PostCallback {
 /// On exception: log, close connection, return len(data).
 /// Returns `(PostCallback, bytes_consumed)`.
 pub fn call_handle_io_in(conn: &Bound<'_, PyAny>, data: &[u8]) -> (PostCallback, usize) {
+    let class_name = py_class_name(conn);
     let py = conn.py();
     let py_data = PyBytes::new(py, data);
-    match conn.call_method1("handle_io_in", (py_data,)) {
+    let start = Instant::now();
+    let result = match conn.call_method1("handle_io_in", (py_data,)) {
         Ok(result) => {
             let consumed: usize = result.extract().unwrap_or(data.len());
             (PostCallback::Continue, consumed)
@@ -63,20 +105,26 @@ pub fn call_handle_io_in(conn: &Bound<'_, PyAny>, data: &[u8]) -> (PostCallback,
             tracing::error!(err = %e, "handle_io_in raised exception, closing");
             (PostCallback::Close, data.len())
         }
-    }
+    };
+    check_slow_callback("handle_io_in", &class_name, start.elapsed());
+    result
 }
 
 /// Call `handle_io_out()` on the Python connection object.
 ///
 /// On exception: log, close connection.
 pub fn call_handle_io_out(conn: &Bound<'_, PyAny>) -> PostCallback {
-    match conn.call_method0("handle_io_out") {
+    let class_name = py_class_name(conn);
+    let start = Instant::now();
+    let result = match conn.call_method0("handle_io_out") {
         Ok(_) => PostCallback::Continue,
         Err(e) => {
             tracing::error!(err = %e, "handle_io_out raised exception, closing");
             PostCallback::Close
         }
-    }
+    };
+    check_slow_callback("handle_io_out", &class_name, start.elapsed());
+    result
 }
 
 /// Call `handle_disconnect()` on the Python connection object.
@@ -84,7 +132,9 @@ pub fn call_handle_io_out(conn: &Bound<'_, PyAny>) -> PostCallback {
 /// On exception: treat as "don't reconnect" and close.
 /// Returns `PostCallback::Reconnect` if the handler returns `True`.
 pub fn call_handle_disconnect(conn: &Bound<'_, PyAny>) -> PostCallback {
-    match conn.call_method0("handle_disconnect") {
+    let class_name = py_class_name(conn);
+    let start = Instant::now();
+    let result = match conn.call_method0("handle_disconnect") {
         Ok(result) => {
             let reconnect: bool = result.extract().unwrap_or(false);
             if reconnect {
@@ -97,7 +147,9 @@ pub fn call_handle_disconnect(conn: &Bound<'_, PyAny>) -> PostCallback {
             tracing::error!(err = %e, "handle_disconnect raised exception");
             PostCallback::Close
         }
-    }
+    };
+    check_slow_callback("handle_disconnect", &class_name, start.elapsed());
+    result
 }
 
 /// Call `handle_timeout_idle()` on the Python connection object.
@@ -105,7 +157,9 @@ pub fn call_handle_disconnect(conn: &Bound<'_, PyAny>) -> PostCallback {
 /// On exception: close the connection.
 /// Returns `true` if the handler says to keep the connection alive.
 pub fn call_handle_timeout_idle(conn: &Bound<'_, PyAny>) -> PostCallback {
-    match conn.call_method0("handle_timeout_idle") {
+    let class_name = py_class_name(conn);
+    let start = Instant::now();
+    let result = match conn.call_method0("handle_timeout_idle") {
         Ok(result) => {
             let keep_alive: bool = result.extract().unwrap_or(false);
             if keep_alive {
@@ -118,7 +172,9 @@ pub fn call_handle_timeout_idle(conn: &Bound<'_, PyAny>) -> PostCallback {
             tracing::error!(err = %e, "handle_timeout_idle raised exception");
             PostCallback::Close
         }
-    }
+    };
+    check_slow_callback("handle_timeout_idle", &class_name, start.elapsed());
+    result
 }
 
 /// Call `handle_timeout_sustain()` on the Python connection object.
@@ -126,7 +182,9 @@ pub fn call_handle_timeout_idle(conn: &Bound<'_, PyAny>) -> PostCallback {
 /// On exception: close the connection.
 /// Returns `true` if the handler says to keep the connection alive.
 pub fn call_handle_timeout_sustain(conn: &Bound<'_, PyAny>) -> PostCallback {
-    match conn.call_method0("handle_timeout_sustain") {
+    let class_name = py_class_name(conn);
+    let start = Instant::now();
+    let result = match conn.call_method0("handle_timeout_sustain") {
         Ok(result) => {
             let keep_alive: bool = result.extract().unwrap_or(false);
             if keep_alive {
@@ -139,7 +197,9 @@ pub fn call_handle_timeout_sustain(conn: &Bound<'_, PyAny>) -> PostCallback {
             tracing::error!(err = %e, "handle_timeout_sustain raised exception");
             PostCallback::Close
         }
-    }
+    };
+    check_slow_callback("handle_timeout_sustain", &class_name, start.elapsed());
+    result
 }
 
 /// Call `handle_timeout_listen()` on the Python connection object.
@@ -147,7 +207,9 @@ pub fn call_handle_timeout_sustain(conn: &Bound<'_, PyAny>) -> PostCallback {
 /// On exception: close the connection.
 /// Returns `true` if the handler says to keep listening.
 pub fn call_handle_timeout_listen(conn: &Bound<'_, PyAny>) -> PostCallback {
-    match conn.call_method0("handle_timeout_listen") {
+    let class_name = py_class_name(conn);
+    let start = Instant::now();
+    let result = match conn.call_method0("handle_timeout_listen") {
         Ok(result) => {
             let keep_alive: bool = result.extract().unwrap_or(false);
             if keep_alive {
@@ -160,7 +222,9 @@ pub fn call_handle_timeout_listen(conn: &Bound<'_, PyAny>) -> PostCallback {
             tracing::error!(err = %e, "handle_timeout_listen raised exception");
             PostCallback::Close
         }
-    }
+    };
+    check_slow_callback("handle_timeout_listen", &class_name, start.elapsed());
+    result
 }
 
 /// Emit a connection lifecycle incident (e.g. `dionaea.connection.tcp.accept`).
@@ -168,6 +232,8 @@ pub fn call_handle_timeout_listen(conn: &Bound<'_, PyAny>) -> PostCallback {
 /// Must be called with the GIL held. Creates a `PyIncident` with `con` set to
 /// the connection handler, then reports it. Errors are logged but not propagated.
 pub fn emit_connection_incident(py: Python<'_>, conn: &Bound<'_, PyAny>, origin: &str) {
+    let class_name = py_class_name(conn);
+    let start = Instant::now();
     let inc = match Py::new(py, PyIncident::new(Some(origin.to_string()))) {
         Ok(inc) => inc,
         Err(e) => {
@@ -184,6 +250,7 @@ pub fn emit_connection_incident(py: Python<'_>, conn: &Bound<'_, PyAny>, origin:
     if let Err(e) = bound.call_method0("report") {
         tracing::warn!(origin = %origin, err = %e, "failed to report incident");
     }
+    check_slow_callback("emit_connection_incident", &class_name, start.elapsed());
 }
 
 /// Call `handle_error(err)` on the Python connection object.
@@ -193,8 +260,10 @@ pub fn emit_connection_incident(py: Python<'_>, conn: &Bound<'_, PyAny>, origin:
 /// where `handle_error` can request reconnection on connect failure).
 /// Exceptions are logged and result in `Continue` (no reconnect).
 pub fn call_handle_error(conn: &Bound<'_, PyAny>, error_msg: &str) -> PostCallback {
+    let class_name = py_class_name(conn);
     let py = conn.py();
-    match conn.call_method1(
+    let start = Instant::now();
+    let result = match conn.call_method1(
         "handle_error",
         (error_msg.into_pyobject(py).expect("string"),),
     ) {
@@ -210,7 +279,9 @@ pub fn call_handle_error(conn: &Bound<'_, PyAny>, error_msg: &str) -> PostCallba
             tracing::error!(err = %e, "handle_error raised exception, continuing");
             PostCallback::Continue
         }
-    }
+    };
+    check_slow_callback("handle_error", &class_name, start.elapsed());
+    result
 }
 
 #[cfg(test)]

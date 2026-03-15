@@ -3,12 +3,17 @@
 // ABOUTME: Python-visible incident handler class for event dispatch.
 // ABOUTME: Dispatches to handle_incident_<origin_with_underscores>() or fallback handle_incident().
 
+use std::time::Instant;
+
 use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::ihandler::{HandlerCallback, IHandler, WildcardPattern};
 use crate::python::incident::PyIncident;
 use crate::runtime;
+
+/// Threshold above which an incident handler dispatch is considered slow.
+const SLOW_DISPATCH_THRESHOLD: std::time::Duration = std::time::Duration::from_millis(10);
 
 /// Incident handler exposed to Python.
 ///
@@ -135,6 +140,14 @@ pub fn dispatch_to_handler(
     let origin = incident.to_incident().origin;
     let method_name = format!("handle_incident_{}", origin.replace('.', "_"));
 
+    let handler_class = handler
+        .get_type()
+        .name()
+        .map(|n| n.to_string())
+        .unwrap_or_else(|_| "<unknown>".to_string());
+
+    let start = Instant::now();
+
     match handler.getattr(method_name.as_str()) {
         Ok(method) => {
             method.call1((py_incident.bind(py),))?;
@@ -142,6 +155,25 @@ pub fn dispatch_to_handler(
         Err(_) => {
             handler.call_method1("handle_incident", (py_incident.bind(py),))?;
         }
+    }
+
+    let elapsed = start.elapsed();
+    if elapsed > SLOW_DISPATCH_THRESHOLD {
+        tracing::warn!(
+            handler = handler_class,
+            method = method_name,
+            origin = origin,
+            duration_ms = elapsed.as_secs_f64() * 1000.0,
+            "slow incident handler"
+        );
+    } else {
+        tracing::trace!(
+            handler = handler_class,
+            method = method_name,
+            origin = origin,
+            duration_ms = elapsed.as_secs_f64() * 1000.0,
+            "incident handler completed"
+        );
     }
 
     Ok(())
