@@ -1,7 +1,8 @@
 # ABOUTME: Unit tests for the FTP state machine module.
 # ABOUTME: Verifies State enum, COMMAND_TABLE completeness, and RESPONSE dict.
 
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
+# SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
 
 
 from dionaea.ftp.state import State, COMMAND_TABLE, RESPONSE, ANY

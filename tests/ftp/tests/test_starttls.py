@@ -1,7 +1,8 @@
 # ABOUTME: Unit tests for FTP STARTTLS (RFC 4217) command handlers.
 # ABOUTME: Tests AUTH TLS, PBSZ, PROT, CCC and security state sequencing.
 
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
+# SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
 
 
 from dionaea.ftp.state import State

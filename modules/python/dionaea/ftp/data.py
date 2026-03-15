@@ -1,7 +1,8 @@
 # ABOUTME: FTP data channel connection classes for passive and active transfers.
 # ABOUTME: Handles LIST directory listings, RETR file sends, and STOR file receives.
 
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
+# SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
 
 from __future__ import annotations
 

@@ -1,7 +1,8 @@
 # ABOUTME: Pytest conftest providing a mock dionaea.core for FTP unit tests.
 # ABOUTME: Allows testing FTP logic without the Rust PyO3 runtime.
 
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
+# SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
 
 import os
 import sys

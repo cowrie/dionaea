@@ -1,7 +1,8 @@
 # ABOUTME: Unit tests for FTP server command dispatch and login sequence.
 # ABOUTME: Tests processcmd routing, state transitions, and pre-auth commands.
 
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
+# SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
 
 
 

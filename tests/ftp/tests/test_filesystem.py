@@ -1,7 +1,8 @@
 # ABOUTME: Unit tests for FTP file system commands.
 # ABOUTME: Tests PWD, CWD, CDUP, SIZE, MDTM, TYPE, DELE, RMD, MKD, RNFR, RNTO.
 
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
+# SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
 
 import os
 

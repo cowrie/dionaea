@@ -1,7 +1,8 @@
 # ABOUTME: FTP control connection protocol handler with state machine dispatch.
 # ABOUTME: Handles command parsing, login, and delegates to per-command handlers.
 
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Cowrie <cowrie@cowrie.org>
+# SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Cowrie-Commercial
 
 from __future__ import annotations
 
