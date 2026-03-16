@@ -8,6 +8,7 @@ use std::time::Instant;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
+use crate::metrics;
 use crate::python::incident::PyIncident;
 
 /// Threshold above which a Python callback is considered slow and gets a warning log.
@@ -21,9 +22,11 @@ fn py_class_name(conn: &Bound<'_, PyAny>) -> String {
         .unwrap_or_else(|_| "<unknown>".to_string())
 }
 
-/// Log a warning if a callback took longer than the threshold.
+/// Log and record metrics for a Python callback invocation.
 fn check_slow_callback(callback_name: &str, class_name: &str, elapsed: std::time::Duration) {
-    if elapsed > SLOW_CALLBACK_THRESHOLD {
+    let slow = elapsed > SLOW_CALLBACK_THRESHOLD;
+    metrics::record_callback(callback_name, class_name, elapsed, slow);
+    if slow {
         tracing::warn!(
             callback = callback_name,
             handler = class_name,

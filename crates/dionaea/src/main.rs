@@ -98,6 +98,40 @@ impl tracing_subscriber::fmt::time::FormatTime for Rfc3339Utc {
     }
 }
 
+/// Serve Prometheus metrics over HTTP on `/metrics`.
+///
+/// Minimal HTTP server — no framework dependency needed for a single endpoint.
+#[cfg(feature = "prometheus")]
+async fn serve_metrics(
+    addr: std::net::SocketAddr,
+    handle: metrics_exporter_prometheus::PrometheusHandle,
+) {
+    use tokio::io::AsyncWriteExt;
+    let listener = match tokio::net::TcpListener::bind(addr).await {
+        Ok(l) => l,
+        Err(e) => {
+            tracing::error!(%addr, err = %e, "failed to bind metrics endpoint");
+            return;
+        }
+    };
+    loop {
+        let (mut stream, _) = match listener.accept().await {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::debug!(err = %e, "metrics accept error");
+                continue;
+            }
+        };
+        let body = handle.render();
+        let response = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: text/plain; version=0.0.4; charset=utf-8\r\nContent-Length: {}\r\n\r\n{}",
+            body.len(),
+            body
+        );
+        let _ = stream.write_all(response.as_bytes()).await;
+    }
+}
+
 fn main() {
     // Parse CLI args
     let config_path = parse_args();
@@ -189,6 +223,18 @@ async fn async_main(config: config::Config, log_state: LogState) {
         processor_tree,
     ));
     runtime::init(state.clone());
+
+    // Start Prometheus metrics exporter if configured
+    #[cfg(feature = "prometheus")]
+    if state.config.dionaea.admin.metrics_port > 0 {
+        let addr = std::net::SocketAddr::new(
+            state.config.dionaea.admin.listen,
+            state.config.dionaea.admin.metrics_port,
+        );
+        let handle = dionaea::metrics::install_prometheus_exporter();
+        tokio::spawn(serve_metrics(addr, handle));
+        tracing::info!(%addr, "Prometheus metrics endpoint started");
+    }
 
     tracing::info!(
         listen_mode = %state.config.dionaea.listen.mode,

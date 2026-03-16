@@ -101,6 +101,9 @@ pub struct AdminConfig {
     /// Address for admin endpoints. Must differ from honeypot listen addresses.
     #[serde(default = "default_admin_listen")]
     pub listen: IpAddr,
+    /// Port for Prometheus `/metrics` endpoint. 0 = disabled.
+    #[serde(default)]
+    pub metrics_port: u16,
 }
 
 /// Logging configuration with multiple targets.
@@ -286,6 +289,7 @@ impl Default for AdminConfig {
     fn default() -> Self {
         AdminConfig {
             listen: default_admin_listen(),
+            metrics_port: 0,
         }
     }
 }

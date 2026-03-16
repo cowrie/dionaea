@@ -9,6 +9,7 @@ use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::ihandler::{HandlerCallback, IHandler, WildcardPattern};
+use crate::metrics;
 use crate::python::incident::PyIncident;
 use crate::runtime;
 
@@ -158,7 +159,9 @@ pub fn dispatch_to_handler(
     }
 
     let elapsed = start.elapsed();
-    if elapsed > SLOW_DISPATCH_THRESHOLD {
+    let slow = elapsed > SLOW_DISPATCH_THRESHOLD;
+    metrics::record_incident_handler(&handler_class, &method_name, &origin, elapsed, slow);
+    if slow {
         tracing::warn!(
             handler = handler_class,
             method = method_name,

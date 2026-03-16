@@ -18,6 +18,8 @@ pub mod download;
 pub mod error;
 /// Incident handler dispatch (Rust-side handlers).
 pub mod ihandler;
+/// Metrics instrumentation for Python callback and incident handler performance.
+pub mod metrics;
 /// Incident creation, attribute storage, and dispatch to handlers.
 pub mod incident;
 /// Network endpoint address info (host, port, hostname).
