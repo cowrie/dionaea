@@ -5,6 +5,6 @@ pytest>=7.0
 pytest-timeout>=2.0
 tftpy>=0.8
 smbprotocol>=1.10
-impacket>=0.11
+impacket>=0.13.0
 pymysql>=1.0
 requests>=2.28
